@@ -440,7 +440,7 @@ function monidVideoEnabled(ctx: ProductionContext) {
   return Boolean(ctx.monid) && getBool("monid_video_fallback");
 }
 
-function firstVideoUrl(output: unknown): string | null {
+export function firstVideoUrl(output: unknown): string | null {
   const found: string[] = [];
   const walk = (value: unknown, depth: number) => {
     if (depth > 6 || found.length) return;
