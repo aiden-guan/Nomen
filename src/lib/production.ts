@@ -243,6 +243,8 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
     ? `${shot.frame_prompt}\nThe first reference image is the same video: keep the exact same person, face, hair, outfit, location and lighting.`
     : shot.frame_prompt;
   if (shot.frame_fix) prompt += `\nA reviewer rejected the previous version of this frame. Fix exactly this: ${shot.frame_fix}`;
+  // House rules for every frame, whatever the concept says: these are what make AI video look fake.
+  prompt += "\nPhotorealistic phone photo. No readable text anywhere, no monitors or screens facing the camera, no logos except the product's own label.";
   try {
     const result = await ctx.naive.generateImage({ prompt, aspect_ratio: "9:16", image_urls: references.length ? references : undefined }, shot.frame_idem);
     const file = result.files[0];

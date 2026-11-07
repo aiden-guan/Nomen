@@ -54,8 +54,9 @@ never another brand's script, people, characters or branding.
   person in frame, crowds, fast motion, fine finger work (opening caps, peeling labels), mirrors,
   pets, children, and close-ups of hands holding small print.
 - Software, apps and online services: never show a readable screen (code, dashboards, websites or
-  terminals all render as gibberish). Keep any laptop or phone angled away or softly out of focus,
-  and carry the product with the creator's words, reaction and the before/after in their situation.
+  terminals all render as gibberish). No monitors in frame and never mention a screen's glow; if a
+  computer appears, it is a closed laptop or one seen from behind. Carry the product with the
+  creator's words, reaction and the before/after in their situation.
 
 ## Rules you never break
 
