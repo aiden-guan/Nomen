@@ -4,12 +4,34 @@
   "private": true,
   "description": "End-to-end UGC and ad-creative platform.",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "naive": "node scripts/naive-guard.mjs",
     "naive:plan": "node scripts/naive-guard.mjs up --dry-run",
     "naive:apply": "node scripts/naive-guard.mjs up"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "@usenaive-sdk/blueprints": "0.18.0",
-    "@usenaive-sdk/cli": "1.0.3"
+    "@usenaive-sdk/cli": "1.0.3",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3",
+    "next": "16.4.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "optionalDependencies": {
+    "ffmpeg-static": "5.3.0"
   }
 }

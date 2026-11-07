@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #09090b;
+  color: #f4f4f5;
+}
+
+body {
+  background-image: radial-gradient(60rem 30rem at 50% -10rem, rgba(139, 92, 246, 0.14), transparent 70%);
+  background-repeat: no-repeat;
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(167, 139, 250, 0.35);
+}

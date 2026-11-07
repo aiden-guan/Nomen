@@ -1,5 +1,11 @@
-# Dependencies
+# Dependencies and build output
 node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# Local database (brands, campaigns, any API keys saved in Settings)
+data/
 
 # Secrets: never commit API keys (Naive sk_live_..., Monid monid_live_..., Mobilerun dr_sk_...).
 # The Naive CLI keeps its own login in ~/.config/vetta/config.json, outside this repo.
