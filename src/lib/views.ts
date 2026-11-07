@@ -132,7 +132,7 @@ function creativeView(creative: CreativeRow) {
       status: shot.status,
       provider: shot.provider,
       renders: shot.renders,
-      frameUrl: shot.frame_url,
+      frameUrl: existsSync(join(mediaDir(creative.id), `shot${shot.n}-frame.png`)) ? `/api/media/${creative.id}/shot${shot.n}-frame.png` : shot.frame_url,
       qc: shot.qc,
       error: shot.error,
     })),

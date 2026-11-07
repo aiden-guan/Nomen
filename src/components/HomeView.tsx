@@ -25,7 +25,7 @@ export function campaignBadge(campaign: BrandListItem["campaign"]) {
   return <Badge tone="info">{STAGE_LABEL[campaign.stage] ?? campaign.stage}</Badge>;
 }
 
-export function HomeView({ initialBrands }: { initialBrands: BrandListItem[] }) {
+export function HomeView({ initialBrands, summary }: { initialBrands: BrandListItem[]; summary: string }) {
   const router = useRouter();
   const [brands, setBrands] = useState(initialBrands);
   const [url, setUrl] = useState("");
@@ -78,6 +78,12 @@ export function HomeView({ initialBrands }: { initialBrands: BrandListItem[] }) 
             Start campaign
           </Button>
         </form>
+        <p className="mt-3 text-xs text-zinc-500">
+          {summary} ·{" "}
+          <Link href="/settings" className="text-zinc-400 underline-offset-2 hover:underline">
+            change
+          </Link>
+        </p>
         {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
       </section>
 

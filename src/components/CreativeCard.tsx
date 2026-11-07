@@ -147,6 +147,11 @@ export function CreativeCard({ creative, onChange }: { creative: CreativeView; o
               {creative.approved ? "Unapprove" : "Approve"}
             </Button>
           )}
+          {creative.videoUrl && (
+            <a href={creative.videoUrl} download={`${(concept?.title ?? "video").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.mp4`} className="inline-flex h-8 items-center rounded-xl px-3 text-xs text-zinc-300 hover:bg-white/[0.06]">
+              Download
+            </a>
+          )}
           {(ready || creative.status === "failed") &&
             (showNote ? (
               <Button size="sm" loading={busy === "redo"} onClick={() => call("redo", "POST", { note })}>

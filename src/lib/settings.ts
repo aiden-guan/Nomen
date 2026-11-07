@@ -17,7 +17,7 @@ export const DEFAULTS = {
   learn_style: "true",
   monid_video_fallback: "true",
   monid_video_resolution: "1080p",
-  qc_max_retries: "1",
+  qc_max_retries: "2",
   autopilot: "false",
   warmup_minutes: "12",
 } as const;
