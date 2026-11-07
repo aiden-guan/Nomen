@@ -5,7 +5,7 @@ import { ApiError } from "./http";
 import { download, extractFrames, ffmpegPath, mediaDir, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import type { NaiveClient } from "./naive";
-import { reviewShot, type Verdict } from "./qc";
+import { type Continuity, reviewContinuity, reviewShot, type Verdict } from "./qc";
 import { getBool, getInt, getSetting } from "./settings";
 import { captionFor, type Concept, type Strategy } from "./strategy";
 
@@ -21,11 +21,15 @@ export type ShotState = {
   provider: "naive" | "monid" | null;
   renders: number;
   qc_rounds: number;
+  qc_errors?: number;
   submit_errors: number;
   frame_idem: string;
   frame_file_id: string | null;
   frame_url: string | null;
   frame_skipped: boolean;
+  /** Shot 1 only: a still from its render, uploaded to Naive, when it had no first frame. */
+  identity_file_id?: string | null;
+  identity_failed?: boolean;
   text_only: boolean;
   force_monid: boolean;
   video_idem: string;
@@ -54,6 +58,7 @@ export type CreativeRow = {
   final_external_url: string | null;
   poster_url: string | null;
   qc_score: number | null;
+  continuity_json: string | null;
   caption: string;
   platforms_json: string;
   approved: number;
@@ -125,10 +130,11 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     });
   if (creative.status === "queued") save({ status: "producing" });
 
+  await ensureIdentity(ctx, creative.id, shots);
   for (const shot of shots) {
     if (shot.status !== "pending") continue;
-    // Later shots take the first shot's frame as their identity reference, so wait for it.
-    if (shot.n > 1 && shots[0].status === "pending") break;
+    // Later shots take the first shot's look as their identity reference, so wait for it.
+    if (shot.n > 1 && !identityReady(ctx, shots[0])) break;
     await makeFrame(ctx, concept, shots, shot);
     save();
   }
@@ -146,8 +152,78 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     return;
   }
   if (shots.every((shot) => shot.status === "passed")) {
+    if (!(await checkContinuity(ctx, creative, concept, shots))) return save();
     await finalize(ctx, creative, concept, shots);
     save();
+  }
+}
+
+/** The person and place every later shot must match: shot 1's frame, or a still from its render. */
+const identityOf = (first: ShotState) => first.frame_file_id ?? first.identity_file_id ?? null;
+
+function identityReady(ctx: ProductionContext, first: ShotState) {
+  if (identityOf(first) || first.identity_failed || first.status === "failed") return true;
+  // Without Naive there is nothing to render a reference with; later shots go ahead on their own.
+  return first.frame_skipped && (!ctx.naive || ctx.naiveOut());
+}
+
+/** When shot 1 had to render without a frame, take a still from its video as everyone's reference. */
+async function ensureIdentity(ctx: ProductionContext, creativeId: string, shots: ShotState[]) {
+  const first = shots[0];
+  if (identityOf(first) || !first.frame_skipped || !first.local_path || !ctx.naive || ctx.naiveOut()) return;
+  try {
+    const [still] = await extractFrames(first.local_path, 1, 1080);
+    first.identity_file_id = await ctx.naive.uploadFile(`${creativeId}-identity.jpg`, "image/jpeg", still);
+  } catch (error) {
+    if (error instanceof ApiError && error.retryable) return;
+    first.identity_failed = true; // later shots go ahead without a reference; the cut check still runs
+    first.error = `could not take an identity still: ${message(error)}`;
+  }
+}
+
+/**
+ * Before the cut: are all shots the same person in the same place? A mismatched shot is reset and
+ * re-rendered from shot 1's identity once; a second mismatch is flagged on the video instead.
+ */
+async function checkContinuity(ctx: ProductionContext, creative: CreativeRow, concept: Concept, shots: ShotState[]): Promise<boolean> {
+  const previous = parse<Continuity | null>(creative.continuity_json, null);
+  if (previous?.checked || shots.length < 2 || !ctx.naive || ctx.naiveOut() || !(await ffmpegPath())) return true;
+  const rounds = (previous?.rounds ?? 0) + 1;
+  try {
+    const frames = await Promise.all(shots.map(async (shot) => (await extractFrames(shot.local_path!, 1))[0]));
+    const verdict = await reviewContinuity(ctx.naive, { frames, concept });
+    const redo = verdict.mismatched.map((n) => shots[n - 1]).filter((shot) => shot && shot.renders < MAX_RENDERS);
+    if (verdict.consistent || rounds > 1 || redo.length === 0) {
+      update("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: verdict.consistent, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
+      if (!verdict.consistent) logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" still changes between shots: ${verdict.note}` });
+      return true;
+    }
+    for (const shot of redo) {
+      Object.assign(shot, {
+        status: "pending",
+        frame_idem: `${creative.id}-shot${shot.n}-frame-c${rounds}`,
+        frame_file_id: null,
+        frame_url: null,
+        frame_skipped: false,
+        text_only: false,
+        video_idem: `${creative.id}-shot${shot.n}-cut${rounds}`,
+        job_id: null,
+        monid_run_id: null,
+        video_file_id: null,
+        video_url: null,
+        local_path: null,
+        qc: null,
+        qc_rounds: 0,
+        error: null,
+      });
+    }
+    update("creatives", creative.id, { continuity_json: JSON.stringify({ checked: false, consistent: false, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
+    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}": shot ${verdict.mismatched.join(", ")} shows a different person or place (${verdict.note}); re-rendering from shot 1` });
+    return false;
+  } catch (error) {
+    if (error instanceof ApiError && error.retryable) return false;
+    update("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: false, mismatched: [], note: `not checked: ${message(error)}`, rounds }) });
+    return true;
   }
 }
 
@@ -158,9 +234,10 @@ async function makeFrame(ctx: ProductionContext, concept: Concept, shots: ShotSt
     return;
   }
   const first = shots[0];
-  const references = shot.n === 1 ? concept.reference_images.slice(0, 3) : [first.frame_file_id, ...concept.reference_images.slice(0, 2)].filter((ref): ref is string => Boolean(ref));
+  const identity = identityOf(first);
+  const references = shot.n === 1 ? concept.reference_images.slice(0, 3) : [identity, ...concept.reference_images.slice(0, 2)].filter((ref): ref is string => Boolean(ref));
   const prompt =
-    shot.n === 1 || !first.frame_file_id
+    shot.n === 1 || !identity
       ? shot.frame_prompt
       : `${shot.frame_prompt}\nThe first reference image is the same video: keep the exact same person, face, hair, outfit, location and lighting.`;
   try {
@@ -317,6 +394,10 @@ async function checkQuality(ctx: ProductionContext, concept: Concept, shot: Shot
       Object.assign(shot, { status: "framed", job_id: null, monid_run_id: null, video_file_id: null, video_url: null });
     }
   } catch (error) {
+    if (error instanceof ApiError && error.retryable && (shot.qc_errors ?? 0) < 3) {
+      shot.qc_errors = (shot.qc_errors ?? 0) + 1; // a busy or fumbling model: check again next tick
+      return;
+    }
     if (error instanceof ApiError && error.outOfCredits) ctx.markNaiveOut();
     shot.status = "passed"; // QC is a gate for quality, not a reason to lose a finished render
     shot.error = `quality check skipped: ${message(error)}`;

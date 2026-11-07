@@ -3,7 +3,7 @@ import { cx, Spinner } from "./ui";
 
 const STEPS = [
   { key: "research", label: "Research", hint: "Monid: site, competitors, SEO, top videos, ads, AI answers" },
-  { key: "style", label: "Format study", hint: "Naive learns what the top videos do" },
+  { key: "style", label: "Format study", hint: "Top videos read frame by frame" },
   { key: "strategy", label: "Strategy", hint: "Brief, search plan and concepts" },
   { key: "production", label: "Production", hint: "First frames, renders, QC, editing" },
   { key: "review", label: "Review", hint: "You approve what goes out" },

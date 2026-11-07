@@ -5,6 +5,7 @@ import { mediaDir } from "./media";
 import { type BrandRow, type CampaignOptions, type CampaignRow, defaultOptions, listCreatives } from "./pipeline";
 import type { CreativeRow, ShotState } from "./production";
 import type { PostRow } from "./publish";
+import type { Continuity } from "./qc";
 import type { ResearchPack, ResearchPlan } from "./research";
 import type { Concept, Strategy } from "./strategy";
 
@@ -123,6 +124,7 @@ function creativeView(creative: CreativeRow) {
     videoUrl: hasFinal ? `/api/media/${creative.id}/final.mp4` : null,
     posterUrl: creative.poster_url,
     qcScore: creative.qc_score,
+    continuity: parse<Continuity | null>(creative.continuity_json, null),
     cost: usd(creative.cost_micro),
     error: creative.error,
     shots: shots.map((shot) => ({

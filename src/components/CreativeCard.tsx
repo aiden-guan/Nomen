@@ -41,7 +41,10 @@ export function CreativeCard({ creative, onChange }: { creative: CreativeView; o
   }
 
   const qcTone = creative.qcScore === null ? "neutral" : creative.qcScore >= 8 ? "good" : creative.qcScore >= 7 ? "info" : "warn";
-  const issues = creative.shots.flatMap((shot) => (shot.qc && !shot.qc.pass ? shot.qc.issues.map((issue) => `Shot ${shot.n}: ${issue}`) : []));
+  const issues = [
+    ...creative.shots.flatMap((shot) => (shot.qc && !shot.qc.pass ? shot.qc.issues.map((issue) => `Shot ${shot.n}: ${issue}`) : [])),
+    ...(creative.continuity?.checked && !creative.continuity.consistent && creative.continuity.note ? [`Between shots: ${creative.continuity.note}`] : []),
+  ];
 
   return (
     <article className={cx("flex flex-col overflow-hidden rounded-2xl border bg-white/[0.03]", creative.approved ? "border-emerald-500/30" : "border-white/10")}>
@@ -72,11 +75,16 @@ export function CreativeCard({ creative, onChange }: { creative: CreativeView; o
             </div>
           </div>
         )}
-        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-          {creative.generation > 1 && <Badge tone="neutral">Take {creative.generation}</Badge>}
-          {creative.qcScore !== null && <Badge tone={qcTone}>QC {creative.qcScore}/10</Badge>}
-          {creative.approved && <Badge tone="good">Approved</Badge>}
-        </div>
+        {(creative.generation > 1 || creative.qcScore !== null || creative.approved || creative.continuity?.checked) && (
+          <div className="absolute left-3 top-3 flex flex-wrap gap-1.5 rounded-full bg-black/60 p-1 backdrop-blur">
+            {creative.generation > 1 && <Badge tone="neutral">Take {creative.generation}</Badge>}
+            {creative.qcScore !== null && <Badge tone={qcTone}>QC {creative.qcScore}/10</Badge>}
+            {creative.continuity?.checked && (
+              <Badge tone={creative.continuity.consistent ? "good" : "warn"}>{creative.continuity.consistent ? "Same person ✓" : "Changes between shots"}</Badge>
+            )}
+            {creative.approved && <Badge tone="good">Approved</Badge>}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-4">
