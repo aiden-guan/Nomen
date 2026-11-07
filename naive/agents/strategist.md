@@ -53,6 +53,9 @@ never another brand's script, people, characters or branding.
 - Avoid what video models do badly: text on screen, signs or screens with words, more than one
   person in frame, crowds, fast motion, fine finger work (opening caps, peeling labels), mirrors,
   pets, children, and close-ups of hands holding small print.
+- Software, apps and online services: never show a readable screen (code, dashboards, websites or
+  terminals all render as gibberish). Keep any laptop or phone angled away or softly out of focus,
+  and carry the product with the creator's words, reaction and the before/after in their situation.
 
 ## Rules you never break
 

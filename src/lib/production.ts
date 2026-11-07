@@ -172,7 +172,9 @@ async function makeFrame(ctx: ProductionContext, concept: Concept, shots: ShotSt
     shot.frame_url = (await ctx.naive.fileUrl(file.id)).url;
     shot.status = "framed";
   } catch (error) {
-    if (error instanceof ApiError && error.outOfCredits) {
+    if (error instanceof ApiError && error.inFlight) {
+      return; // the frame is still rendering under this key; ask again next tick
+    } else if (error instanceof ApiError && error.outOfCredits) {
       ctx.markNaiveOut();
       shot.frame_skipped = true;
       shot.status = "framed";
@@ -211,7 +213,9 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
       Object.assign(shot, { job_id: job.id, monid_run_id: null, provider: "naive", status: "rendering", renders: shot.renders + 1, submit_errors: 0 });
       return;
     } catch (error) {
-      if (error instanceof ApiError && error.outOfCredits) {
+      if (error instanceof ApiError && error.inFlight) {
+        return;
+      } else if (error instanceof ApiError && error.outOfCredits) {
         ctx.markNaiveOut();
       } else if (error instanceof ApiError && error.code === "validation_failed" && shot.frame_file_id && !shot.text_only) {
         shot.text_only = true; // this model does not animate a first frame: render from the prompt

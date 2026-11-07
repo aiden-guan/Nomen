@@ -31,6 +31,8 @@ export type Video = {
   followers: number | null;
   paid: boolean;
   thumbnail: string | null;
+  /** Direct, short-lived link to the video file (used for the format study, never sent to a model). */
+  media_url: string | null;
   source: string;
 };
 
@@ -207,20 +209,31 @@ export function compactResearch(domain: string, runs: RunResult[], plan: Researc
   const out = (key: string) => runs.find((run) => run.key === key && run.status === "done")?.output;
   const brand = brandFrom(out("brand"), domain);
   const siteText = longestString(out("site"), ["markdown", "content", "text"]) ?? "";
-  const images = unique([...extractImages(siteText), ...brand.images]).slice(0, 8);
+  const images = unique([...extractImages(siteText), ...brand.images], (url) => url.split("?")[0]).slice(0, 8);
   const names = [plan?.brand_name ?? brand.name, ...(plan?.competitors.map((c) => c.name) ?? [])];
 
-  const videos = unique(
-    runs.filter((run) => run.status === "done" && /^(tiktok_(brand|\d)|reels|shorts)$/.test(run.key)).flatMap((run) => videosFrom(run.key, run.output)),
+  // A brand-name search also returns look-alikes (searching "Monid" finds "monolid" makeup), so
+  // keep a brand-search video only if it actually names the brand.
+  const brandName = (plan?.brand_name ?? brand.name).toLowerCase().replace(/\s+/g, "");
+  const namesBrand = (video: Video) => `${video.caption} ${video.author}`.toLowerCase().replace(/[\s#@]+/g, "").includes(brandName);
+  const allVideos = unique(
+    runs
+      .filter((run) => run.status === "done" && /^(tiktok_(brand|\d)|reels|shorts)$/.test(run.key))
+      .flatMap((run) => videosFrom(run.key, run.output))
+      .filter((video) => video.source !== "tiktok_brand" || !brandName || namesBrand(video)),
     (video) => video.url,
-  )
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 24);
+  ).sort((a, b) => b.views - a.views);
+  // TikTok numbers dwarf the others, so keep the best of each platform rather than the best overall.
+  const quota: Record<Video["platform"], number> = { tiktok: 14, instagram: 6, youtube: 6 };
+  const videos = allVideos.filter((video) => quota[video.platform]-- > 0);
 
-  const ads = runs
-    .filter((run) => run.status === "done" && /ads/.test(run.key))
-    .flatMap((run) => adsFrom(run.key, run.output))
-    .slice(0, 16);
+  const ads = unique(
+    runs.filter((run) => run.status === "done" && /ads/.test(run.key)).flatMap((run) => adsFrom(run.key, run.output)),
+    (ad) => `${ad.advertiser}|${ad.text}`,
+  ).slice(0, 16);
+  const terms = [brand.name, plan?.brand_name, plan?.category, ...(plan?.competitors.map((c) => c.name) ?? [])]
+    .filter((term): term is string => Boolean(term))
+    .flatMap((term) => [term, ...term.split(/\s+/).filter((word) => word.length > 4)]);
 
   return {
     domain,
@@ -230,7 +243,7 @@ export function compactResearch(domain: string, runs: RunResult[], plan: Researc
     seo: { domain_rating: numberAt(out("seo_rating"), ["domain_rating", "domainRating", "dr"]), keywords: keywordsFrom(out("seo_keywords")) },
     videos,
     ads,
-    reddit: redditFrom(out("reddit")),
+    reddit: redditFrom(out("reddit"), terms),
     aeo: [
       aeoFrom("ChatGPT", plan?.aeo_prompts[0] ?? "", out("aeo_chatgpt"), names),
       aeoFrom("Perplexity", plan?.aeo_prompts[1] ?? plan?.aeo_prompts[0] ?? "", out("aeo_perplexity"), names),
@@ -239,14 +252,6 @@ export function compactResearch(domain: string, runs: RunResult[], plan: Researc
 }
 
 /** Up to three short, high-performing public videos for Naive to learn a format from. */
-export function styleReferences(pack: ResearchPack): string[] {
-  return pack.videos
-    .filter((video) => (video.platform === "tiktok" && /tiktok\.com\/@[^/]+\/video\//.test(video.url)) || (video.platform === "instagram" && /instagram\.com\/(reel|reels|p)\//.test(video.url)))
-    .filter((video) => video.duration === null || (video.duration >= 5 && video.duration <= 75))
-    .slice(0, 3)
-    .map((video) => video.url);
-}
-
 function brandFrom(output: unknown, domain: string): ResearchPack["brand"] {
   const brand = (record(record(output)?.brand) ?? record(output) ?? {}) as Record<string, unknown>;
   const industries = record(brand.industries)?.eic;
@@ -285,6 +290,7 @@ function videosFrom(key: string, output: unknown): Video[] {
       followers: num(item, ["authorFollowers", "followers", "followerCount", "subscriberCount"]),
       paid: Boolean(item.paidPartnership ?? item.isAd ?? item.is_ad ?? false),
       thumbnail: pick(item, ["image", "thumbnail", "cover", "thumbnailUrl", "displayUrl"]) || null,
+      media_url: pick(item, ["videoUrl", "video_url", "downloadUrl", "playUrl"]) || null,
       source: key,
     };
   }).filter((video) => video.url);
@@ -292,15 +298,20 @@ function videosFrom(key: string, output: unknown): Video[] {
 
 function adsFrom(key: string, output: unknown): Ad[] {
   const platform: Ad["platform"] = key.startsWith("tiktok") ? "tiktok" : "meta";
-  return items(output).map((item) => ({
-    platform,
-    advertiser: pick(item, ["advertiser", "advertiserName", "pageName", "page_name", "brand", "name"]),
-    text: pick(item, ["body", "text", "adText", "ad_text", "title", "caption", "description", "headline"]).slice(0, 400),
-    url: pick(item, ["url", "adUrl", "snapshotUrl", "ad_snapshot_url", "link", "landingPage", "videoUrl"]),
-    media: pick(item, ["mediaType", "media_type", "type", "format"]),
-    started: pick(item, ["startDate", "start_date", "firstShown", "first_shown", "createdAt", "ad_delivery_start_time"]),
-    source: key,
-  })).filter((ad) => ad.advertiser || ad.text);
+  return items(output)
+    .map((item) => {
+      const started = item.startDate ?? item.start_date ?? item.firstShown ?? item.first_shown ?? item.createdAt ?? item.ad_delivery_start_time;
+      return {
+        platform,
+        advertiser: pick(item, ["advertiser", "advertiserName", "pageName", "page_name", "brand", "name"]),
+        text: pick(item, ["text", "body", "adText", "ad_text", "title", "caption", "description", "headline"]).slice(0, 400),
+        url: pick(item, ["sourceUrl", "adUrl", "snapshotUrl", "ad_snapshot_url", "url", "linkUrl", "landingPage", "link"]),
+        media: pick(item, ["displayFormat", "mediaType", "media_type", "format", "type"]).toLowerCase(),
+        started: typeof started === "number" ? new Date((started < 1e12 ? started * 1000 : started)).toISOString().slice(0, 10) : text(started).slice(0, 10),
+        source: key,
+      };
+    })
+    .filter((ad) => ad.advertiser || ad.text);
 }
 
 function similarFrom(output: unknown): string[] {
@@ -322,17 +333,22 @@ function keywordsFrom(output: unknown): ResearchPack["seo"]["keywords"] {
     .slice(0, 20);
 }
 
-function redditFrom(output: unknown): ResearchPack["reddit"] {
+function redditFrom(output: unknown, terms: string[]): ResearchPack["reddit"] {
+  const lowered = terms.map((term) => term.toLowerCase()).filter(Boolean);
   return items(output)
-    .map((item) => ({
-      title: pick(item, ["title"]),
-      subreddit: pick(item, ["subreddit", "subredditName", "community"]),
-      score: num(item, ["score", "ups", "upvotes"]) ?? 0,
-      comments: num(item, ["numComments", "num_comments", "comments", "commentCount"]) ?? 0,
-      url: pick(item, ["url", "permalink", "link"]),
-      text: pick(item, ["selftext", "text", "body", "content"]).slice(0, 400),
-    }))
-    .filter((post) => post.title)
+    .map((item) => {
+      const permalink = pick(item, ["permalink"]);
+      return {
+        title: pick(item, ["title"]),
+        subreddit: pick(item, ["subreddit", "subredditName", "community"]),
+        score: num(item, ["score", "ups", "upvotes"]) ?? 0,
+        comments: num(item, ["numComments", "num_comments", "comments", "commentCount"]) ?? 0,
+        url: permalink ? `https://www.reddit.com${permalink}` : pick(item, ["url", "link"]),
+        text: pick(item, ["selftext", "text", "body", "content"]).slice(0, 400),
+      };
+    })
+    // Reddit's top-of-year search returns popular posts that barely match; keep the on-topic ones.
+    .filter((post) => post.title && (lowered.length === 0 || lowered.some((term) => `${post.title} ${post.text}`.toLowerCase().includes(term))))
     .slice(0, 12);
 }
 

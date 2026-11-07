@@ -2,8 +2,9 @@ import { db, logEvent, newId, now, parse, update } from "./db";
 import { ApiError } from "./http";
 import { MonidClient, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import { NaiveClient } from "./naive";
-import { advanceCreative, type CreativeRow, insertCreative, type ShotState, slug } from "./production";
-import { compactResearch, fallbackPlan, phaseASpecs, phaseCSpecs, planResearch, type ResearchPack, type ResearchPlan, type RunSpec, styleReferences } from "./research";
+import { advanceCreative, type CreativeRow, insertCreative, type ShotState } from "./production";
+import { studyCandidates, studyFormat } from "./format";
+import { compactResearch, fallbackPlan, phaseASpecs, phaseCSpecs, planResearch, type ResearchPack, type ResearchPlan, type RunSpec } from "./research";
 import { getBool, getInt, getSetting } from "./settings";
 import { type Concept, normalizeStrategy, STRATEGY_SCHEMA, type Strategy, strategyMessage } from "./strategy";
 
@@ -11,7 +12,7 @@ import { type Concept, normalizeStrategy, STRATEGY_SCHEMA, type Strategy, strate
 // idempotent, so a restart picks up exactly where it stopped.
 
 export type CampaignStage = "research" | "style" | "strategy" | "production" | "review" | "live";
-export type CampaignStatus = "running" | "review" | "publishing" | "live" | "failed";
+export type CampaignStatus = "running" | "review" | "publishing" | "live" | "failed" | "stopped";
 
 export type CampaignOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string; learnStyle: boolean };
 
@@ -31,6 +32,7 @@ export type CampaignRow = {
   style_idem: string | null;
   style_json: string | null;
   style_started_at: string | null;
+  style_attempt: number;
   strategy_idem: string | null;
   strategy_session_id: string | null;
   strategy_nudges: number;
@@ -209,8 +211,6 @@ function finishRun(campaign: CampaignRow, run: RunRow, result: Awaited<ReturnTyp
 
 // ---------- format study ----------
 
-const STYLE_TIMEOUT_MS = 25 * 60 * 1000;
-
 async function stepStyle(campaign: CampaignRow) {
   const { naive } = clients();
   const brand = getBrand(campaign.brand_id)!;
@@ -220,35 +220,16 @@ async function stepStyle(campaign: CampaignRow) {
   };
   if (!naive) return toStrategy("Skipped the format study: no Naive key.", "warn");
   const pack = parse<ResearchPack | null>(campaign.research_json, null);
-  if (!campaign.style_build_id) {
-    const urls = pack ? styleReferences(pack) : [];
-    if (urls.length === 0) return toStrategy("No public short videos to study the format from; the strategist works from the research alone.");
-    try {
-      const build = await naive.createMediaSkill(
-        { urls, name: `nomen-style-${slug(brand.name)}-${campaign.id.slice(-6)}`.slice(0, 80), description: `Format study of the best-performing short videos around ${brand.name}.` },
-        campaign.style_idem ?? `${campaign.id}-style`,
-      );
-      update("campaigns", campaign.id, { style_build_id: build.id, style_started_at: now() });
-      logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Studying the format of ${urls.length} top-performing videos` });
-    } catch (error) {
-      if (error instanceof ApiError && error.retryable) throw error;
-      toStrategy(`Skipped the format study: ${error instanceof Error ? error.message : String(error)}`, "warn");
-    }
-    return;
-  }
-  const build = await naive.getMediaSkill(campaign.style_build_id);
-  update("campaigns", campaign.id, { style_spend_micro: build.spend_micro_usd ?? 0 });
-  const round = build.rounds[0];
-  if (round?.state === "ready" && round.skill_md) {
-    update("campaigns", campaign.id, {
-      stage: "strategy",
-      style_json: JSON.stringify({ slug: build.skill?.slug ?? null, version: build.skill?.version ?? null, skill_md: round.skill_md, samples: (round.samples ?? []).map((s) => s.url) }),
-    });
-    logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Format study ready${build.skill ? ` (skill ${build.skill.slug}@${build.skill.version})` : ""}` });
-  } else if (round?.state === "failed") {
-    toStrategy(`The format study failed (${round.error ?? "no reason given"}); continuing from the research.`, "warn");
-  } else if (campaign.style_started_at && Date.now() - Date.parse(campaign.style_started_at) > STYLE_TIMEOUT_MS) {
-    toStrategy("The format study took longer than 25 minutes; continuing without it.", "warn");
+  if (!pack || studyCandidates(pack).length === 0) return toStrategy("No downloadable top videos to study; the strategist works from the research alone.");
+  logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Studying the format of ${studyCandidates(pack).length} top-performing videos frame by frame` });
+  try {
+    const study = await studyFormat(naive, pack, campaign.id);
+    if (!study) return toStrategy("The top videos could not be downloaded for the format study; the strategist works from the research alone.", "warn");
+    update("campaigns", campaign.id, { stage: "strategy", style_json: JSON.stringify({ slug: null, version: null, skill_md: study.markdown, samples: study.urls }) });
+    logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Format study ready: ${study.urls.length} top videos analyzed` });
+  } catch (error) {
+    if (error instanceof ApiError && error.retryable) throw error;
+    toStrategy(`Skipped the format study: ${error instanceof Error ? error.message : String(error)}`, "warn");
   }
 }
 
@@ -360,6 +341,16 @@ export function regenerateCreative(creativeId: string, note?: string) {
   update("campaigns", campaign.id, { stage: "production", status: "running", error: null });
   logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, message: `Re-rendering "${concept.title}"${note?.trim() ? ` with the note: ${note.trim()}` : ""}` });
   return id;
+}
+
+/** Stops a campaign where it is. A running strategist session is cancelled so it stops spending. */
+export async function stopCampaign(id: string) {
+  const campaign = getCampaign(id);
+  if (!campaign) throw new Error("No such campaign");
+  update("campaigns", id, { status: "stopped", error: "Stopped by you" });
+  const { naive } = clients();
+  if (naive && campaign.stage === "strategy" && campaign.strategy_session_id) await naive.cancelSession(campaign.strategy_session_id).catch(() => undefined);
+  logEvent({ brandId: campaign.brand_id, campaignId: id, level: "warn", message: `Stopped at ${campaign.stage}` });
 }
 
 export function retryCampaign(id: string) {
