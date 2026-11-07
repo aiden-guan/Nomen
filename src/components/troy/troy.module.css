@@ -1,0 +1,272 @@
+/* Troy: the landing and the camp. Light, paper-coloured, with pixel-stepped borders. */
+
+.root {
+  --ink: #2b1d14;
+  --ink-soft: #6b5442;
+  --ink-faint: #a08a74;
+  --paper: #fffaf0;
+  --page: #f6f4ef;
+  --sand: #ead6ad;
+  --crimson: #b73a31;
+  --crimson-dark: #8f2726;
+  --bronze: #c98f3a;
+  --teal: #2d7b98;
+  --olive: #647247;
+  --px: 3px;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  background: var(--page);
+  color: var(--ink);
+  color-scheme: light;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+.pixel {
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  letter-spacing: 0.01em;
+}
+
+/* A box with a one-art-pixel stepped border and a hard drop shadow. Positioning is left to the
+   caller (a module class would otherwise override Tailwind's absolute/fixed). */
+.box {
+  background: var(--paper);
+  box-shadow:
+    0 calc(var(--px) * -1) 0 0 var(--ink),
+    0 var(--px) 0 0 var(--ink),
+    calc(var(--px) * -1) 0 0 0 var(--ink),
+    var(--px) 0 0 0 var(--ink),
+    0 calc(var(--px) * 3) 0 0 rgba(43, 29, 20, 0.14);
+}
+
+.boxSoft {
+  background: var(--paper);
+  box-shadow:
+    0 -2px 0 0 rgba(43, 29, 20, 0.85),
+    0 2px 0 0 rgba(43, 29, 20, 0.85),
+    -2px 0 0 0 rgba(43, 29, 20, 0.85),
+    2px 0 0 0 rgba(43, 29, 20, 0.85),
+    0 6px 0 0 rgba(43, 29, 20, 0.1);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 0;
+  color: var(--paper);
+  background: var(--crimson);
+  cursor: pointer;
+  box-shadow:
+    0 calc(var(--px) * -1) 0 0 var(--ink),
+    0 var(--px) 0 0 var(--ink),
+    calc(var(--px) * -1) 0 0 0 var(--ink),
+    var(--px) 0 0 0 var(--ink),
+    inset 0 calc(var(--px) * -1) 0 0 var(--crimson-dark),
+    inset 0 var(--px) 0 0 rgba(255, 255, 255, 0.18);
+  transition:
+    transform 120ms steps(2),
+    filter 120ms;
+}
+
+.button:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(var(--px));
+}
+
+.button:disabled {
+  cursor: default;
+  filter: saturate(0.6) brightness(0.95);
+}
+
+.button:focus-visible,
+.input:focus-visible,
+.link:focus-visible {
+  outline: var(--px) solid var(--teal);
+  outline-offset: calc(var(--px) * 2);
+}
+
+.input {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  outline: none;
+  min-width: 0;
+}
+
+.input::placeholder {
+  color: var(--ink-faint);
+}
+
+.link {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--ink);
+}
+
+.enter {
+  animation: enter 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.leave {
+  animation: leave 420ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes leave {
+  to {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+.shake {
+  animation: shake 360ms steps(6) both;
+}
+
+@keyframes shake {
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  background:
+    linear-gradient(currentColor 0 0) 0 0 / 4px 4px no-repeat,
+    linear-gradient(currentColor 0 0) 8px 0 / 4px 4px no-repeat,
+    linear-gradient(currentColor 0 0) 8px 8px / 4px 4px no-repeat,
+    linear-gradient(currentColor 0 0) 0 8px / 4px 4px no-repeat;
+  animation: spin 640ms steps(4) infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  background: currentColor;
+  vertical-align: -0.12em;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.fadeIn {
+  animation: fadeIn 900ms ease both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A little pop-up over a station when something happens there, like a game's emote. */
+.emote {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--paper);
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow:
+    0 -3px 0 0 var(--ink),
+    0 3px 0 0 var(--ink),
+    -3px 0 0 0 var(--ink),
+    3px 0 0 0 var(--ink),
+    0 7px 0 0 rgba(43, 29, 20, 0.16);
+  animation: emote 6.5s steps(1, end) both;
+}
+
+@keyframes emote {
+  0% {
+    transform: translate(-50%, -60%) scale(0.4);
+    opacity: 0;
+  }
+  3% {
+    transform: translate(-50%, -120%) scale(1);
+    opacity: 1;
+  }
+  6% {
+    transform: translate(-50%, -100%);
+  }
+  9% {
+    transform: translate(-50%, -110%);
+  }
+  12%,
+  88% {
+    transform: translate(-50%, -100%);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -100%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emote {
+    animation: none;
+    transform: translate(-50%, -100%);
+  }
+
+  .enter,
+  .leave,
+  .shake,
+  .fadeIn {
+    animation-duration: 1ms;
+  }
+  .spinner,
+  .caret {
+    animation: none;
+  }
+}
