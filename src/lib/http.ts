@@ -23,6 +23,11 @@ export class ApiError extends Error {
     return this.status === 409 && /in flight|in progress|still running/i.test(this.message);
   }
 
+  /** The Idempotency-Key was already used with a different request body. */
+  get keyConflict() {
+    return this.status === 409 && !this.inFlight && /idempotency/i.test(`${this.code} ${this.message}`);
+  }
+
   /** The account is out of money (Naive `insufficient_credits`, Monid 402). */
   get outOfCredits() {
     return this.status === 402 || this.code === "insufficient_credits";

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ApiError } from "@/lib/http";
 import { providerFailed, runCostMicro } from "@/lib/monid";
 import { normalizeDomain } from "@/lib/pipeline";
 import type { ResearchPack } from "@/lib/research";
@@ -66,5 +67,26 @@ describe("normalizeStrategy", () => {
   it("formats hashtags and the caption", () => {
     expect(strategy.campaign.concepts[0].hashtags).toEqual(["#soda", "#guthealth"]);
     expect(captionFor(strategy.campaign.concepts[0])).toBe("Try it\n\n#soda #guthealth");
+  });
+});
+
+describe("ApiError classification", () => {
+  it("waits on a request that is still in flight under the same key", () => {
+    const error = new ApiError("naive", 409, "idempotency_conflict", "a request with this Idempotency-Key is still in flight; retry once it has completed");
+    expect(error.inFlight).toBe(true);
+    expect(error.retryable).toBe(true);
+    expect(error.keyConflict).toBe(false);
+  });
+
+  it("treats a reused key with a different body as a conflict, not a retry", () => {
+    const error = new ApiError("naive", 409, "idempotency_conflict", "this Idempotency-Key was used with a different request body");
+    expect(error.keyConflict).toBe(true);
+    expect(error.retryable).toBe(false);
+  });
+
+  it("retries provider outages and recognizes an empty balance", () => {
+    expect(new ApiError("naive", 502, "502", "upstream request failed").retryable).toBe(true);
+    expect(new ApiError("naive", 402, "insufficient_credits", "top up").outOfCredits).toBe(true);
+    expect(new ApiError("monid", 400, "400", "bad input").retryable).toBe(false);
   });
 });

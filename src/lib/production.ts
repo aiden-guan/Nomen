@@ -33,6 +33,10 @@ export type ShotState = {
   /** After a failed QC: the frame being replaced, and what was wrong with it. */
   previous_frame_file_id?: string | null;
   frame_fix?: string;
+  /** A product photo the provider could not fetch: frames use the identity reference only. */
+  drop_product_refs?: boolean;
+  /** Provider trouble: do not try this shot again before this time. */
+  retry_at?: string | null;
   text_only: boolean;
   force_monid: boolean;
   video_idem: string;
@@ -81,6 +85,14 @@ export type ProductionContext = {
 };
 
 const MAX_RENDERS = 3;
+
+/** Provider trouble (a 5xx, a rate limit) waits it out: 15 s, 30 s, 1 min… up to 5 min apart, 8 tries. */
+const MAX_SUBMIT_ERRORS = 8;
+function backoff(shot: ShotState) {
+  shot.retry_at = new Date(Date.now() + Math.min(300, 15 * 2 ** shot.submit_errors) * 1000).toISOString();
+  shot.submit_errors++;
+}
+const waiting = (shot: ShotState) => Boolean(shot.retry_at && Date.parse(shot.retry_at) > Date.now());
 
 export function insertCreative(campaignId: string, idx: number, concept: Concept, generation = 1) {
   const id = newId("crv");
@@ -135,13 +147,14 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
 
   await ensureIdentity(ctx, creative.id, shots);
   for (const shot of shots) {
-    if (shot.status !== "pending") continue;
+    if (shot.status !== "pending" || waiting(shot)) continue;
     // Later shots take the first shot's look as their identity reference, so wait for it.
     if (shot.n > 1 && !identityReady(ctx, shots[0])) break;
     await makeFrame(ctx, creative.id, concept, shots, shot);
     save();
   }
   for (const shot of shots) {
+    if (waiting(shot)) continue;
     if (shot.status === "framed") await submitRender(ctx, shot);
     else if (shot.status === "rendering") await pollRender(ctx, creative.id, shot);
     else if (shot.status === "rendered") await checkQuality(ctx, concept, shot);
@@ -238,7 +251,8 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
   }
   const first = shots[0];
   const identity = shot.previous_frame_file_id ?? (shot.n === 1 ? null : identityOf(first));
-  const references = (identity ? [identity, ...concept.reference_images.slice(0, 2)] : concept.reference_images.slice(0, 3)).filter((ref): ref is string => Boolean(ref));
+  const products = shot.drop_product_refs ? [] : concept.reference_images;
+  const references = (identity ? [identity, ...products.slice(0, 2)] : products.slice(0, 3)).filter((ref): ref is string => Boolean(ref));
   let prompt = identity
     ? `${shot.frame_prompt}\nThe first reference image is the same video: keep the exact same person, face, hair, outfit, location and lighting.`
     : shot.frame_prompt;
@@ -262,12 +276,15 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
       ctx.markNaiveOut();
       shot.frame_skipped = true;
       shot.status = "framed";
-    } else if (error instanceof ApiError && error.retryable && shot.submit_errors < 4) {
+    } else if (error instanceof ApiError && error.keyConflict) {
+      shot.frame_idem = `${shot.frame_idem}-k${shot.submit_errors + 1}`; // same key, new body: a fresh key
       shot.submit_errors++;
-    } else if (references.length && !shot.frame_idem.endsWith("-plain")) {
-      // A reference image the provider cannot fetch: render the frame from the prompt alone.
-      shot.frame_idem = `${shot.frame_idem}-plain`;
-      concept.reference_images = [];
+    } else if (error instanceof ApiError && error.retryable && shot.submit_errors < MAX_SUBMIT_ERRORS) {
+      backoff(shot);
+    } else if (!shot.drop_product_refs && concept.reference_images.length && !(error instanceof ApiError && error.retryable)) {
+      // A product photo the provider cannot fetch: keep the identity reference, drop the photos.
+      shot.drop_product_refs = true;
+      shot.frame_idem = `${shot.frame_idem}-noproduct`;
     } else {
       shot.frame_skipped = true;
       shot.status = "framed";
@@ -305,8 +322,12 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
         shot.text_only = true; // this model does not animate a first frame: render from the prompt
         shot.video_idem = `${shot.video_idem}-t2v`;
         return;
-      } else if (error instanceof ApiError && error.retryable && shot.submit_errors < 5) {
+      } else if (error instanceof ApiError && error.keyConflict) {
+        shot.video_idem = `${shot.video_idem}-k${shot.submit_errors + 1}`;
         shot.submit_errors++;
+        return;
+      } else if (error instanceof ApiError && error.retryable && shot.submit_errors < MAX_SUBMIT_ERRORS) {
+        backoff(shot);
         return;
       } else if (!monidVideoEnabled(ctx)) {
         shot.status = "failed";
@@ -334,7 +355,7 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
     logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Shot ${shot.n} is rendering on Monid (Kling 3.0) because Naive is unavailable` });
     if (TERMINAL.has(run.status)) await finishMonid(run, shot);
   } catch (error) {
-    if (error instanceof ApiError && error.retryable && shot.submit_errors < 5) shot.submit_errors++;
+    if (error instanceof ApiError && error.retryable && shot.submit_errors < MAX_SUBMIT_ERRORS) backoff(shot);
     else {
       shot.status = "failed";
       shot.error = message(error);
