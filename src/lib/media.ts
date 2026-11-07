@@ -92,7 +92,7 @@ export async function stitch(paths: string[], out: string) {
   const parts = paths.map((_, i) => {
     const audio = silent[i] !== undefined ? `${silent[i]}:a` : `${i}:a`;
     return (
-      `[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}];` +
+      `[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}];` +
       `[${audio}]aresample=48000,aformat=channel_layouts=stereo[a${i}];`
     );
   });

@@ -326,18 +326,18 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
   const scores = shots.map((shot) => shot.qc?.score).filter((score): score is number => typeof score === "number");
   const fields: Record<string, unknown> = { qc_score: scores.length ? Math.min(...scores) : null, poster_url: shots[0].frame_url, error: null };
 
-  if (shots.length === 1) {
+  if (await ffmpegPath()) {
+    // Every ad, one shot or several, comes out as 1080x1920 at 30 fps with clean AAC audio.
+    await stitch(shots.map((shot) => shot.local_path!), finalPath);
+  } else if (shots.length === 1) {
     await copyFile(shots[0].local_path!, finalPath);
     fields.final_file_id = shots[0].video_file_id;
     fields.final_url = shots[0].video_url;
-    fields.final_external_url = shots[0].provider === "monid" ? shots[0].video_url : null;
   } else {
-    if (!(await ffmpegPath())) {
-      update("creatives", creative.id, { status: "failed", error: "ffmpeg is needed to cut shots together; install it or run npm install" });
-      return;
-    }
-    await stitch(shots.map((shot) => shot.local_path!), finalPath);
+    update("creatives", creative.id, { status: "failed", error: "ffmpeg is needed to cut shots together; install it or run npm install" });
+    return;
   }
+  if (shots.length === 1 && shots[0].provider === "monid") fields.final_external_url = shots[0].video_url;
   if (!fields.final_file_id && ctx.naive) {
     try {
       const fileId = await ctx.naive.uploadFile(`${slug(concept.title)}.mp4`, "video/mp4", await readFile(finalPath));

@@ -12,6 +12,7 @@ export const DEFAULTS = {
   planner_model: "anthropic/claude-haiku-5.5",
   video_model: "google/veo-3.1",
   video_seconds: "8",
+  shots_per_video: "2",
   videos_per_campaign: "4",
   learn_style: "true",
   monid_video_fallback: "true",

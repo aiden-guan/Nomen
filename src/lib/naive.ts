@@ -114,6 +114,11 @@ export class NaiveClient {
     return this.call<MediaJob>("POST", "/v1/media/videos", input, idempotencyKey);
   }
 
+  async mediaModels(kind: "video" | "image") {
+    const page = await this.call<Page<{ id: string }>>("GET", `/v1/media/models?kind=${kind}&limit=100`);
+    return page.data.map((model) => model.id);
+  }
+
   getMediaJob(id: string) {
     return this.call<MediaJob>("GET", `/v1/media/${id}`);
   }
