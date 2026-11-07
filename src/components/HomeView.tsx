@@ -18,6 +18,7 @@ const STAGE_LABEL: Record<string, string> = {
 export function campaignBadge(campaign: BrandListItem["campaign"]) {
   if (!campaign) return <Badge>No campaign</Badge>;
   if (campaign.status === "failed") return <Badge tone="bad">Needs attention</Badge>;
+  if (campaign.status === "stopped") return <Badge>Stopped</Badge>;
   if (campaign.status === "review") return <Badge tone="accent">Ready for review</Badge>;
   if (campaign.status === "publishing") return <Badge tone="info">Publishing</Badge>;
   if (campaign.status === "live") return <Badge tone="good">Live</Badge>;

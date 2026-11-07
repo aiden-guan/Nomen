@@ -137,7 +137,10 @@ export function db(): Database.Database {
 }
 
 /** Columns added after a table first shipped. `create table if not exists` never alters a table. */
-const ADDED_COLUMNS: Array<[table: string, column: string, definition: string]> = [["campaigns", "style_attempt", "integer not null default 0"]];
+const ADDED_COLUMNS: Array<[table: string, column: string, definition: string]> = [
+  ["campaigns", "style_attempt", "integer not null default 0"],
+  ["creatives", "continuity_json", "text"],
+];
 
 function migrate(conn: Database.Database) {
   for (const [table, column, definition] of ADDED_COLUMNS) {
