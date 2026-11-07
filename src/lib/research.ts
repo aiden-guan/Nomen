@@ -4,7 +4,7 @@ import { getSetting } from "./settings";
 
 // The research pack: Monid data pulls in two phases, with a planning call in between.
 
-export type RunSpec = { key: string; phase: "A" | "C"; label: string; provider: string; endpoint: string; input: MonidInput };
+export type RunSpec = { key: string; phase: "A" | "C" | "D"; label: string; provider: string; endpoint: string; input: MonidInput };
 
 export type ResearchPlan = {
   brand_name: string;
@@ -15,7 +15,22 @@ export type ResearchPlan = {
   ads_query: string;
   reddit_query: string;
   aeo_prompts: string[];
+  /** Set once the scout has looked at the first results and queued its follow-up searches (phase D). */
+  scouted?: boolean;
+  /** What the scout saw and why it searched further, for the activity feed and the research tab. */
+  scout_notes?: string;
 };
+
+/** The three short-video searches research can run, by platform. */
+export function videoSearch(key: string, platform: "tiktok" | "instagram" | "youtube", query: string, phase: RunSpec["phase"]): RunSpec {
+  if (platform === "instagram") return { key, phase, label: `Instagram Reels: ${query}`, provider: "anyapi", endpoint: "/instagram.reels_search", input: { body: { query } } };
+  if (platform === "youtube") return { key, phase, label: `YouTube Shorts: ${query}`, provider: "anyapi", endpoint: "/youtube.search_shorts", input: { body: { query, sortBy: "popular" } } };
+  return { key, phase, label: `TikTok: ${query}`, provider: "anyapi", endpoint: "/tiktok.search_keyword", input: { body: { query, sortBy: "most-liked" } } };
+}
+
+/** Run keys whose output is a list of short videos, and which platform each searched. */
+export const VIDEO_RUN = /^(tiktok_(brand|\d+|comp_\d+)|reels(_\d+)?|shorts(_\d+)?|scout_(tiktok|reels|shorts)_\d+)$/;
+export const platformOfRun = (key: string): Video["platform"] => (key.includes("reels") ? "instagram" : key.includes("shorts") ? "youtube" : "tiktok");
 
 export type Video = {
   platform: "tiktok" | "instagram" | "youtube";
@@ -76,17 +91,14 @@ export function phaseASpecs(domain: string): RunSpec[] {
   ];
 }
 
+/**
+ * Phase C casts a wide net for short videos that already work: every content query on TikTok, the
+ * best two on Reels and Shorts, the brand's name, and each competitor's name (their own posts and
+ * posts about them). Ranking happens later, by how far a video outran its account, not raw views.
+ */
 export function phaseCSpecs(plan: ResearchPlan): RunSpec[] {
-  const queries = plan.content_queries.filter(Boolean).slice(0, 2);
-  const first = queries[0] ?? plan.category;
-  const tiktok = (key: string, query: string): RunSpec => ({
-    key,
-    phase: "C",
-    label: `TikTok: ${query}`,
-    provider: "anyapi",
-    endpoint: "/tiktok.search_keyword",
-    input: { body: { query, sortBy: "most-liked" } },
-  });
+  const queries = plan.content_queries.filter(Boolean).slice(0, 5);
+  const top = queries.slice(0, 2).length ? queries.slice(0, 2) : [plan.category];
   const metaAds = (key: string, query: string): RunSpec => ({
     key,
     phase: "C",
@@ -96,10 +108,11 @@ export function phaseCSpecs(plan: ResearchPlan): RunSpec[] {
     input: { body: { query, mediaType: "VIDEO", status: "ACTIVE", sortBy: "impressions", country: "US" } },
   });
   return [
-    tiktok("tiktok_brand", plan.brand_name),
-    ...queries.map((query, i) => tiktok(`tiktok_${i}`, query)),
-    { key: "reels", phase: "C", label: `Instagram Reels: ${first}`, provider: "anyapi", endpoint: "/instagram.reels_search", input: { body: { query: first } } },
-    { key: "shorts", phase: "C", label: `YouTube Shorts: ${first}`, provider: "anyapi", endpoint: "/youtube.search_shorts", input: { body: { query: first, sortBy: "popular" } } },
+    videoSearch("tiktok_brand", "tiktok", plan.brand_name, "C"),
+    ...queries.map((query, i) => videoSearch(`tiktok_${i}`, "tiktok", query, "C")),
+    ...plan.competitors.slice(0, 3).map((competitor, i) => videoSearch(`tiktok_comp_${i}`, "tiktok", competitor.name, "C")),
+    ...top.map((query, i) => videoSearch(`reels_${i}`, "instagram", query, "C")),
+    ...top.map((query, i) => videoSearch(`shorts_${i}`, "youtube", query, "C")),
     { key: "tiktok_ads", phase: "C", label: `TikTok ads: ${plan.ads_query}`, provider: "anyapi", endpoint: "/tiktok.ad_library_search", input: { body: { query: plan.ads_query } } },
     metaAds("meta_ads_brand", plan.brand_name),
     ...plan.competitors.slice(0, 2).map((competitor, i) => metaAds(`meta_ads_${i}`, competitor.name)),
@@ -133,7 +146,12 @@ const PLAN_TOOL = {
         description: "3-5 direct competitors customers compare it with.",
         items: { type: "object", required: ["name"], properties: { name: { type: "string" }, domain: { type: "string" } } },
       },
-      content_queries: { type: "array", items: { type: "string" }, description: "2-3 short phrases people type into TikTok search for this category (not the brand name)." },
+      content_queries: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "5 short phrases (2-5 words, no brand names) that surface short videos this brand's buyers already watch, one of each kind, in this order: (1) the problem in the buyer's words, (2) the job they are trying to get done, (3) the buyer's identity or role as creators tag it, e.g. 'day in the life backend engineer', (4) the category as people say it, (5) a format phrase that fits, e.g. 'tools I wish I knew sooner'.",
+      },
       ads_query: { type: "string", description: "A 1-3 word phrase to search ad libraries for this category." },
       reddit_query: { type: "string", description: "A phrase that finds real customer discussions of this category on Reddit." },
       aeo_prompts: { type: "array", items: { type: "string" }, description: "2 questions a buyer would ask ChatGPT or Perplexity when choosing a product in this category." },
@@ -179,7 +197,7 @@ function mergePlan(raw: Partial<ResearchPlan>, fallback: ResearchPlan): Research
     category: text(raw.category) || fallback.category,
     audience: text(raw.audience) || fallback.audience,
     competitors: competitors.length ? competitors.slice(0, 5) : fallback.competitors,
-    content_queries: queries.length ? queries.slice(0, 3) : fallback.content_queries,
+    content_queries: queries.length ? queries.slice(0, 5) : fallback.content_queries,
     ads_query: text(raw.ads_query) || fallback.ads_query,
     reddit_query: text(raw.reddit_query) || fallback.reddit_query,
     aeo_prompts: prompts.length ? prompts.slice(0, 2) : fallback.aeo_prompts,
@@ -194,7 +212,7 @@ export function fallbackPlan(domain: string, brand: ResearchPack["brand"], simil
     category,
     audience: `People shopping for ${category}`,
     competitors: similar.slice(0, 4).map((site) => ({ name: titleCase(site.split(".")[0]), domain: site })),
-    content_queries: [category, `${name} review`],
+    content_queries: [category, `${name} review`, `best ${category}`, `${category} tips`],
     ads_query: category,
     reddit_query: `best ${category}`,
     aeo_prompts: [`What are the best ${category} brands?`, `Which ${category} should I buy?`],
@@ -212,19 +230,27 @@ export function compactResearch(domain: string, runs: RunResult[], plan: Researc
   const images = unique([...extractImages(siteText), ...brand.images], (url) => url.split("?")[0]).slice(0, 8);
   const names = [plan?.brand_name ?? brand.name, ...(plan?.competitors.map((c) => c.name) ?? [])];
 
-  // A brand-name search also returns look-alikes (searching "Monid" finds "monolid" makeup), so
-  // keep a brand-search video only if it actually names the brand.
-  const brandName = (plan?.brand_name ?? brand.name).toLowerCase().replace(/\s+/g, "");
-  const namesBrand = (video: Video) => `${video.caption} ${video.author}`.toLowerCase().replace(/[\s#@]+/g, "").includes(brandName);
+  // A name search also returns look-alikes (searching "Monid" finds "monolid" makeup), so keep a
+  // brand or competitor search result only if it actually names who was searched.
+  const squash = (value: string) => value.toLowerCase().replace(/[\s#@._-]+/g, "");
+  const brandName = squash(plan?.brand_name ?? brand.name);
+  const competitorNames = (plan?.competitors ?? []).map((c) => squash(c.name));
+  const mentions = (video: Video, name: string | undefined) => !name || squash(`${video.caption} ${video.author}`).includes(name);
+  const onTopic = (video: Video) => {
+    if (video.source === "tiktok_brand") return mentions(video, brandName);
+    const comp = video.source.match(/^tiktok_comp_(\d+)$/);
+    return comp ? mentions(video, competitorNames[Number(comp[1])]) : true;
+  };
   const allVideos = unique(
     runs
-      .filter((run) => run.status === "done" && /^(tiktok_(brand|\d)|reels|shorts)$/.test(run.key))
+      .filter((run) => run.status === "done" && VIDEO_RUN.test(run.key))
       .flatMap((run) => videosFrom(run.key, run.output))
-      .filter((video) => video.source !== "tiktok_brand" || !brandName || namesBrand(video)),
+      .filter(onTopic),
     (video) => video.url,
-  ).sort((a, b) => b.views - a.views);
-  // TikTok numbers dwarf the others, so keep the best of each platform rather than the best overall.
-  const quota: Record<Video["platform"], number> = { tiktok: 14, instagram: 6, youtube: 6 };
+  ).sort((a, b) => roughScore(b) - roughScore(a));
+  // Keep a wide pool for the reference engine to rank properly; TikTok volume would crowd out the
+  // others, so each platform gets its own quota.
+  const quota: Record<Video["platform"], number> = { tiktok: 50, instagram: 20, youtube: 20 };
   const videos = allVideos.filter((video) => quota[video.platform]-- > 0);
 
   const ads = unique(
@@ -269,8 +295,19 @@ function brandFrom(output: unknown, domain: string): ResearchPack["brand"] {
   };
 }
 
+/**
+ * A first-pass rank for the scout and the research tab: views relative to the account's size, with
+ * engagement as a tiebreaker. The reference engine re-ranks the pool properly before anything is used.
+ */
+export function roughScore(video: Pick<Video, "views" | "followers" | "likes" | "comments" | "shares" | "saves">) {
+  const outlier = video.followers ? video.views / Math.max(video.followers, 1000) : null;
+  const engagement = (video.likes + video.comments + 2 * video.shares + 2 * video.saves) / Math.max(video.views, 1);
+  const reach = Math.log10(Math.max(video.views, 10));
+  return (outlier === null ? 1 : Math.log2(1 + Math.min(outlier, 200))) * 2 + Math.min(engagement, 0.3) * 10 + reach;
+}
+
 function videosFrom(key: string, output: unknown): Video[] {
-  const platform: Video["platform"] = key === "reels" ? "instagram" : key === "shorts" ? "youtube" : "tiktok";
+  const platform = platformOfRun(key);
   return items(output).map((item) => {
     let url = pick(item, ["url", "link", "permalink", "shareUrl", "share_url", "webVideoUrl", "postUrl"]);
     const id = pick(item, ["id", "videoId", "video_id", "shortcode", "code"]);

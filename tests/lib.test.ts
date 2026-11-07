@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "@/lib/http";
 import { providerFailed, runCostMicro } from "@/lib/monid";
 import { normalizeDomain } from "@/lib/pipeline";
-import type { ResearchPack } from "@/lib/research";
 import { captionFor, normalizeStrategy, type Strategy } from "@/lib/strategy";
 
 describe("Monid run accounting", () => {
@@ -32,41 +31,44 @@ describe("normalizeDomain", () => {
 });
 
 describe("normalizeStrategy", () => {
-  const pack = { brand: { images: ["https://brand.com/can.png"] } } as unknown as ResearchPack;
-  const concept = {
+  const brief = {
     title: "T",
-    format: "f",
+    reference_id: "ref_x",
+    format: "hologram",
     angle: "a",
-    platforms: ["tiktok", "myspace"],
-    hook: "h",
+    audience: "devs",
+    hook_plan: "h",
+    keep: ["pacing"],
+    change: ["topic"],
+    visuals: ["s1", "evil"],
     creator: "c",
     setting: "s",
-    shots: [1, 2, 3].map(() => ({ seconds: 99, frame_prompt: "f", video_prompt: "v", dialogue: "d" })),
-    reference_images: ["https://brand.com/can.png", "https://evil.example/x.png"],
+    platforms: ["tiktok", "myspace"],
     caption: "Try it",
     hashtags: ["soda", "#gut health"],
     cta: "c",
-    inspired_by: [],
     why: "w",
   };
-  const raw = { campaign: { concepts: [concept, concept, concept] } } as unknown as Strategy;
+  const raw = { campaign: { name: "n", objective: "o", briefs: [brief, brief, brief] } } as unknown as Strategy;
   const options = { concepts: 2, shotsPerConcept: 2, secondsPerShot: 8, videoModel: "google/veo-3.1" };
-  const strategy = normalizeStrategy(structuredClone(raw), options, pack);
+  const strategy = normalizeStrategy(structuredClone(raw), options, { referenceIds: ["ref_a", "ref_b"], visualIds: ["s1", "p1"] });
+  const briefs = strategy.campaign.briefs!;
 
-  it("keeps the requested number of concepts and shots, at the requested length", () => {
-    expect(strategy.campaign.concepts).toHaveLength(2);
-    expect(strategy.campaign.concepts[0].shots).toHaveLength(2);
-    expect(strategy.campaign.concepts[0].shots.every((shot) => shot.seconds === 8)).toBe(true);
+  it("keeps the requested number of briefs and leaves concepts to the script room", () => {
+    expect(briefs).toHaveLength(2);
+    expect(strategy.campaign.concepts).toEqual([]);
   });
 
-  it("drops unknown platforms and reference images that did not come from research", () => {
-    expect(strategy.campaign.concepts[0].platforms).toEqual(["tiktok"]);
-    expect(strategy.campaign.concepts[0].reference_images).toEqual(["https://brand.com/can.png"]);
+  it("only points at references and visuals that exist, with a known format", () => {
+    expect(briefs.map((b) => b.reference_id)).toEqual(["ref_a", "ref_b"]);
+    expect(briefs[0].visuals).toEqual(["s1"]);
+    expect(briefs[0].format).toBe("talking_head_broll");
   });
 
-  it("formats hashtags and the caption", () => {
-    expect(strategy.campaign.concepts[0].hashtags).toEqual(["#soda", "#guthealth"]);
-    expect(captionFor(strategy.campaign.concepts[0])).toBe("Try it\n\n#soda #guthealth");
+  it("drops unknown platforms and formats hashtags and the caption", () => {
+    expect(briefs[0].platforms).toEqual(["tiktok"]);
+    expect(briefs[0].hashtags).toEqual(["#soda", "#guthealth"]);
+    expect(captionFor({ caption: briefs[0].caption, hashtags: briefs[0].hashtags } as Parameters<typeof captionFor>[0])).toBe("Try it\n\n#soda #guthealth");
   });
 });
 

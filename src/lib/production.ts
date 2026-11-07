@@ -1,8 +1,15 @@
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join } from "node:path";
+import { promisify } from "node:util";
 import { db, logEvent, newId, now, parse, update } from "./db";
 import { ApiError } from "./http";
-import { download, extractFrames, ffmpegPath, mediaDir, stitch } from "./media";
+import { chunkCaptions } from "./creative/captions";
+import { renderTimeline } from "./creative/edit";
+import { buildTimeline, type RenderedAssets } from "./creative/plan";
+import type { ProductBrief } from "./creative/types";
+import { download, extractFrames, ffmpegPath, mediaDir, probe, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import type { NaiveClient } from "./naive";
 import { type Continuity, reviewContinuity, reviewShot, type Verdict } from "./qc";
@@ -82,6 +89,8 @@ export type ProductionContext = {
   naiveOut: () => boolean;
   markNaiveOut: () => void;
   strategy: Strategy;
+  /** The product analyst's brief, with the visuals the edit cuts to. */
+  product?: ProductBrief;
 };
 
 const MAX_RENDERS = 3;
@@ -186,6 +195,7 @@ function identityReady(ctx: ProductionContext, first: ShotState) {
 /** When shot 1 had to render without a frame, take a still from its video as everyone's reference. */
 async function ensureIdentity(ctx: ProductionContext, creativeId: string, shots: ShotState[]) {
   const first = shots[0];
+  if (!first) return; // a faceless video renders no A-roll
   if (identityOf(first) || !first.frame_skipped || !first.local_path || !ctx.naive || ctx.naiveOut()) return;
   try {
     const [still] = await extractFrames(first.local_path, 1, 1080);
@@ -451,20 +461,38 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
   await mkdir(dir, { recursive: true });
   const finalPath = join(dir, "final.mp4");
   const scores = shots.map((shot) => shot.qc?.score).filter((score): score is number => typeof score === "number");
-  const fields: Record<string, unknown> = { qc_score: scores.length ? Math.min(...scores) : null, poster_url: shots[0].frame_url ? `/api/media/${creative.id}/shot1-frame.png` : null, error: null };
+  const fields: Record<string, unknown> = { qc_score: scores.length ? Math.min(...scores) : null, poster_url: shots[0]?.frame_url ? `/api/media/${creative.id}/shot1-frame.png` : null, error: null };
 
-  if (await ffmpegPath()) {
-    // Every ad, one shot or several, comes out as 1080x1920 at 30 fps with clean AAC audio.
-    await stitch(shots.map((shot) => shot.local_path!), finalPath);
-  } else if (shots.length === 1) {
-    await copyFile(shots[0].local_path!, finalPath);
-    fields.final_file_id = shots[0].video_file_id;
-    fields.final_url = shots[0].video_url;
-  } else {
-    update("creatives", creative.id, { status: "failed", error: "ffmpeg is needed to cut shots together; install it or run npm install" });
-    return;
+  let edited = false;
+  if (concept.script && concept.plan) {
+    // The creative engine's cut: product cutaways over the creator's voice, captions, hook text.
+    try {
+      await editFinal(ctx, creative.id, concept, shots, finalPath);
+      edited = true;
+      if (!fields.poster_url && (await savePoster(finalPath, join(dir, "shot0-frame.png")))) fields.poster_url = `/api/media/${creative.id}/shot0-frame.png`;
+    } catch (error) {
+      if (error instanceof ApiError && error.retryable) return; // the voice-over is still coming: next tick
+      logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}": the edit failed (${message(error)}); ${shots.length ? "falling back to a plain cut" : "no footage to fall back on"}` });
+      if (!shots.length) {
+        update("creatives", creative.id, { status: "failed", error: `edit failed: ${message(error)}` });
+        return;
+      }
+    }
   }
-  if (shots.length === 1 && shots[0].provider === "monid") fields.final_external_url = shots[0].video_url;
+  if (!edited) {
+    if (await ffmpegPath()) {
+      // Every ad, one shot or several, comes out as 1080x1920 at 30 fps with clean AAC audio.
+      await stitch(shots.map((shot) => shot.local_path!), finalPath);
+    } else if (shots.length === 1) {
+      await copyFile(shots[0].local_path!, finalPath);
+      fields.final_file_id = shots[0].video_file_id;
+      fields.final_url = shots[0].video_url;
+    } else {
+      update("creatives", creative.id, { status: "failed", error: "ffmpeg is needed to cut shots together; install it or run npm install" });
+      return;
+    }
+    if (shots.length === 1 && shots[0].provider === "monid") fields.final_external_url = shots[0].video_url;
+  }
   if (!fields.final_file_id && ctx.naive) {
     try {
       const fileId = await ctx.naive.uploadFile(`${slug(concept.title)}.mp4`, "video/mp4", await readFile(finalPath));
@@ -476,6 +504,72 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
   }
   update("creatives", creative.id, { ...fields, status: "ready" });
   logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}" is ready${scores.length ? ` (QC ${Math.min(...scores)}/10)` : ""}` });
+}
+
+/** Builds the edit timeline from the rendered A-roll (or a voice-over) and the product visuals, and renders it. */
+async function editFinal(ctx: ProductionContext, creativeId: string, concept: Concept, shots: ShotState[], finalPath: string) {
+  const script = concept.script!;
+  const plan = concept.plan!;
+  const dir = mediaDir(creativeId);
+  const aroll = await Promise.all(shots.map(async (shot) => ({ path: shot.local_path!, duration: (await probe(shot.local_path!)).duration })));
+
+  let voiceover: RenderedAssets["voiceover"] = null;
+  if (!plan.aroll.length && plan.voiceover) {
+    const path = join(dir, "voiceover.wav");
+    if (!existsSync(path)) {
+      if (!ctx.naive || ctx.naiveOut()) throw new Error("the voice-over needs Naive");
+      await speakTo(ctx.naive, plan.voiceover, `${creativeId}-voiceover`, path);
+    }
+    voiceover = { path, duration: (await probe(path)).duration };
+  }
+
+  const visuals: RenderedAssets["visuals"] = new Map();
+  const wanted = new Set([...plan.broll.map((clip) => clip.visual_id), ...script.beats.map((beat) => beat.product_visual).filter((id): id is string => Boolean(id))]);
+  for (const visual of ctx.product?.visuals ?? []) {
+    if (!wanted.has(visual.id)) continue;
+    try {
+      let path = visual.url;
+      if (/^https?:/.test(visual.url)) {
+        path = join(dir, "visuals", `${visual.id}${extname(new URL(visual.url).pathname).slice(0, 6) || ".jpg"}`);
+        if (!existsSync(path)) await download(visual.url, path);
+      }
+      if (existsSync(path)) visuals.set(visual.id, { path, kind: visual.kind === "video" ? "video" : "image" });
+    } catch {
+      // an image that will not download: the beat falls back to the creator
+    }
+  }
+
+  const timeline = buildTimeline(script, plan, { aroll, voiceover, visuals }, (segments) => chunkCaptions(segments, 3));
+  await renderTimeline(timeline, finalPath, { workDir: join(dir, "edit") });
+}
+
+/** Text-to-speech through Naive, saved as a local file for the edit. */
+async function speakTo(naive: NonNullable<ProductionContext["naive"]>, voiceover: { text: string; voice: string }, idempotencyKey: string, path: string) {
+  const speech = await naive.speak({ text: voiceover.text.slice(0, 4000), ...(voiceover.voice ? { voice: voiceover.voice } : {}) }, idempotencyKey);
+  const fileId = speechFileId(speech);
+  if (!fileId) throw new ApiError("naive", 502, "no_file", "text-to-speech returned no file");
+  await download((await naive.fileUrl(fileId)).url, path);
+}
+
+function speechFileId(speech: unknown): string | null {
+  const record = (speech ?? {}) as Record<string, unknown>;
+  const file = (record.file ?? record.result ?? null) as Record<string, unknown> | null;
+  const candidates = [record.file_id, file?.id, file?.file_id, record.id];
+  return (candidates.find((value) => typeof value === "string" && value.startsWith("fil_")) as string | undefined) ?? null;
+}
+
+const execAsync = promisify(execFile);
+
+/** A still from the finished video, for formats that have no first frame to show. */
+async function savePoster(videoPath: string, out: string) {
+  const bin = await ffmpegPath();
+  if (!bin) return false;
+  try {
+    await execAsync(bin, ["-hide_banner", "-loglevel", "error", "-y", "-ss", "1.0", "-i", videoPath, "-frames:v", "1", "-vf", "scale=540:-2", out]);
+    return existsSync(out);
+  } catch {
+    return false;
+  }
 }
 
 function monidVideoEnabled(ctx: ProductionContext) {

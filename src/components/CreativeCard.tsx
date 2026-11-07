@@ -97,7 +97,37 @@ export function CreativeCard({ creative, onChange }: { creative: CreativeView; o
             {concept?.format} · {concept?.angle}
           </p>
           {concept?.hook && <p className="mt-2 text-sm text-zinc-300">“{concept.hook}”</p>}
+          {concept?.reference?.url && (
+            <p className="mt-1 text-xs text-zinc-500">
+              Modeled on{" "}
+              <a href={concept.reference.url} target="_blank" rel="noreferrer" className="text-violet-300 hover:underline">
+                @{concept.reference.author}
+              </a>{" "}
+              ({concept.reference.views.toLocaleString("en")} views
+              {concept.reference.outlier ? `, ${concept.reference.outlier.toFixed(1)}x followers` : ""})
+            </p>
+          )}
         </div>
+
+        {concept?.script && (
+          <details className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-300">
+            <summary className="cursor-pointer text-zinc-400">
+              Script, {concept.script.total_seconds}s{concept.script.review ? ` · critic ${concept.script.review.score}/10` : ""}
+            </summary>
+            <ol className="mt-2 space-y-1.5">
+              {concept.script.beats.map((beat) => (
+                <li key={beat.n} className="leading-snug">
+                  <span className="text-zinc-500">
+                    {beat.job} · {beat.visual === "creator" ? "creator" : beat.visual === "split" ? "split" : "product"}
+                    {beat.on_screen_text ? ` · text: "${beat.on_screen_text}"` : ""}
+                  </span>
+                  <br />
+                  {beat.line ? `“${beat.line}”` : <span className="text-zinc-500">(no line)</span>}
+                </li>
+              ))}
+            </ol>
+          </details>
+        )}
 
         {issues.length > 0 && (
           <details className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
