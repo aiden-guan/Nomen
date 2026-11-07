@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Secrets: never commit API keys (Naive sk_live_..., Monid monid_live_..., Mobilerun dr_sk_...).
+# The Naive CLI keeps its own login in ~/.config/vetta/config.json, outside this repo.
+.env
+.env.*
+!.env.example
+*.key
+key.txt
+*-key.txt
+
+# OS and editor files
+.DS_Store

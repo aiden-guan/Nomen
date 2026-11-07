@@ -1,0 +1,15 @@
+{
+  "name": "nomen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end UGC and ad-creative platform.",
+  "scripts": {
+    "naive": "node scripts/naive-guard.mjs",
+    "naive:plan": "node scripts/naive-guard.mjs up --dry-run",
+    "naive:apply": "node scripts/naive-guard.mjs up"
+  },
+  "devDependencies": {
+    "@usenaive-sdk/blueprints": "0.18.0",
+    "@usenaive-sdk/cli": "1.0.3"
+  }
+}
