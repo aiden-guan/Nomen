@@ -45,7 +45,8 @@ Video quality is the product, so production is built to avoid the usual tells of
   text, crowds, fine finger work).
 - **A quality gate.** After every render, frames go to a vision model with the brief. A shot with a
   garbled label, deformed hands, an identity change or a wrong action is re-rendered with a corrected
-  prompt (`qc_max_retries`, default 1). Scores and notes are shown on every video.
+  prompt (`qc_max_retries`, default 2); a rejected shot also gets a rebuilt first frame, since the
+  defect is often in its composition. Scores and notes are shown on every video.
 - **The same person in every shot.** Before the cut, a continuity check compares one frame per shot;
   a shot that shows a different person or room is re-rendered from shot 1's look. If shot 1 had to
   render without a first frame, a still from its video becomes the reference for the others.

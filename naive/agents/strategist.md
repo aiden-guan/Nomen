@@ -53,6 +53,9 @@ never another brand's script, people, characters or branding.
 - Avoid what video models do badly: text on screen, signs or screens with words, more than one
   person in frame, crowds, fast motion, fine finger work (opening caps, peeling labels), mirrors,
   pets, children, and close-ups of hands holding small print.
+- Keep the action small and natural: talking to camera, a nod, a smile, a raised eyebrow, a sip
+  from a mug, leaning back. No pointing, thumbs-up, finger taps or other gestures toward the lens,
+  no fast head turns, and keep hands low and relaxed: these render distorted.
 - Software, apps and online services: never show a readable screen (code, dashboards, websites or
   terminals all render as gibberish). No monitors in frame and never mention a screen's glow; if a
   computer appears, it is a closed laptop or one seen from behind. Carry the product with the
