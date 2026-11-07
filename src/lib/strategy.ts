@@ -105,7 +105,9 @@ export const STRATEGY_SCHEMA = {
 export type StrategyOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string };
 
 /** The first message of a strategist session: the brief, the research and the house rules for this run. */
-export function strategyMessage(pack: ResearchPack, style: { skill_md: string } | null, options: StrategyOptions) {
+export type PastResult = { title: string; format: string; hook: string; platforms: string[]; status: string; analytics: Record<string, unknown> | null };
+
+export function strategyMessage(pack: ResearchPack, style: { skill_md: string } | null, options: StrategyOptions, past: PastResult[] = []) {
   const research = {
     domain: pack.domain,
     brand: pack.brand,
@@ -125,6 +127,11 @@ export function strategyMessage(pack: ResearchPack, style: { skill_md: string } 
       ? `A format study of the best-performing short videos in this category follows, written from their frames. Use its structure, pacing and hooks; never copy its people, script or branding.\n<format_study>\n${style.skill_md.slice(0, 9000)}\n</format_study>`
       : "No format study is available for this run; derive the format from the top videos in the research.",
     `Research (collected today from public sources):\n<research>\n${JSON.stringify(research)}\n</research>`,
+    ...(past.length
+      ? [
+          `How this brand's earlier Nomen videos performed on its own accounts (repeat what worked, drop what did not, and do not reuse the same hooks):\n<past_results>\n${JSON.stringify(past)}\n</past_results>`,
+        ]
+      : []),
   ].join("\n\n");
 }
 

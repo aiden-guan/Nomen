@@ -6,7 +6,7 @@ import { advanceCreative, type CreativeRow, insertCreative, type ShotState } fro
 import { studyCandidates, studyFormat } from "./format";
 import { compactResearch, fallbackPlan, phaseASpecs, phaseCSpecs, planResearch, type ResearchPack, type ResearchPlan, type RunSpec } from "./research";
 import { getBool, getInt, getSetting } from "./settings";
-import { type Concept, normalizeStrategy, STRATEGY_SCHEMA, type Strategy, strategyMessage } from "./strategy";
+import { type Concept, normalizeStrategy, type PastResult, STRATEGY_SCHEMA, type Strategy, strategyMessage } from "./strategy";
 
 // The campaign state machine. The worker calls advanceCampaign() every few seconds; every step is
 // idempotent, so a restart picks up exactly where it stopped.
@@ -255,7 +255,7 @@ async function stepStrategy(campaign: CampaignRow) {
     const session = await naive.createSession(
       {
         agent_id: strategistId,
-        message: strategyMessage(pack, style, options),
+        message: strategyMessage(pack, style, options, pastResults(brand.id, campaign.id)),
         output_schema: STRATEGY_SCHEMA,
         structured_output_required: true,
         budget_micro_usd: 4_000_000,
@@ -289,6 +289,29 @@ async function stepStrategy(campaign: CampaignRow) {
     return;
   }
   throw new Error(`The strategist stopped (${[session.status, session.stop_reason, session.stop_code].filter(Boolean).join(", ")}) without a usable plan.`);
+}
+
+/** What this brand's earlier posted videos did, so the next campaign learns from them. */
+function pastResults(brandId: string, currentCampaignId: string): PastResult[] {
+  const rows = db()
+    .prepare(
+      `select c.concept_json, p.platforms_json, p.status, p.analytics_json from posts p
+       join creatives c on c.id = p.creative_id
+       where p.brand_id = ? and c.campaign_id != ? and p.status in ('posted', 'failed')
+       order by p.created_at desc limit 12`,
+    )
+    .all(brandId, currentCampaignId) as Array<{ concept_json: string; platforms_json: string; status: string; analytics_json: string | null }>;
+  return rows.map((row) => {
+    const concept = parse<Partial<Concept>>(row.concept_json, {});
+    return {
+      title: concept.title ?? "",
+      format: concept.format ?? "",
+      hook: concept.hook ?? "",
+      platforms: parse<string[]>(row.platforms_json, []),
+      status: row.status,
+      analytics: parse<Record<string, unknown> | null>(row.analytics_json, null),
+    };
+  });
 }
 
 // ---------- production ----------
