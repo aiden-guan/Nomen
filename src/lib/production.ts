@@ -30,6 +30,9 @@ export type ShotState = {
   /** Shot 1 only: a still from its render, uploaded to Naive, when it had no first frame. */
   identity_file_id?: string | null;
   identity_failed?: boolean;
+  /** After a failed QC: the frame being replaced, and what was wrong with it. */
+  previous_frame_file_id?: string | null;
+  frame_fix?: string;
   text_only: boolean;
   force_monid: boolean;
   video_idem: string;
@@ -135,7 +138,7 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     if (shot.status !== "pending") continue;
     // Later shots take the first shot's look as their identity reference, so wait for it.
     if (shot.n > 1 && !identityReady(ctx, shots[0])) break;
-    await makeFrame(ctx, concept, shots, shot);
+    await makeFrame(ctx, creative.id, concept, shots, shot);
     save();
   }
   for (const shot of shots) {
@@ -227,19 +230,19 @@ async function checkContinuity(ctx: ProductionContext, creative: CreativeRow, co
   }
 }
 
-async function makeFrame(ctx: ProductionContext, concept: Concept, shots: ShotState[], shot: ShotState) {
+async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Concept, shots: ShotState[], shot: ShotState) {
   if (!ctx.naive || ctx.naiveOut()) {
     shot.frame_skipped = true;
     shot.status = "framed";
     return;
   }
   const first = shots[0];
-  const identity = identityOf(first);
-  const references = shot.n === 1 ? concept.reference_images.slice(0, 3) : [identity, ...concept.reference_images.slice(0, 2)].filter((ref): ref is string => Boolean(ref));
-  const prompt =
-    shot.n === 1 || !identity
-      ? shot.frame_prompt
-      : `${shot.frame_prompt}\nThe first reference image is the same video: keep the exact same person, face, hair, outfit, location and lighting.`;
+  const identity = shot.previous_frame_file_id ?? (shot.n === 1 ? null : identityOf(first));
+  const references = (identity ? [identity, ...concept.reference_images.slice(0, 2)] : concept.reference_images.slice(0, 3)).filter((ref): ref is string => Boolean(ref));
+  let prompt = identity
+    ? `${shot.frame_prompt}\nThe first reference image is the same video: keep the exact same person, face, hair, outfit, location and lighting.`
+    : shot.frame_prompt;
+  if (shot.frame_fix) prompt += `\nA reviewer rejected the previous version of this frame. Fix exactly this: ${shot.frame_fix}`;
   try {
     const result = await ctx.naive.generateImage({ prompt, aspect_ratio: "9:16", image_urls: references.length ? references : undefined }, shot.frame_idem);
     const file = result.files[0];
@@ -247,6 +250,8 @@ async function makeFrame(ctx: ProductionContext, concept: Concept, shots: ShotSt
     shot.naive_cost += result.cost_micro_usd ?? 0;
     shot.frame_file_id = file.id;
     shot.frame_url = (await ctx.naive.fileUrl(file.id)).url;
+    // Keep a local copy for the review page: signed links expire after seven days.
+    await download(shot.frame_url, join(mediaDir(creativeId), `shot${shot.n}-frame.png`)).catch(() => undefined);
     shot.status = "framed";
   } catch (error) {
     if (error instanceof ApiError && error.inFlight) {
@@ -391,7 +396,21 @@ async function checkQuality(ctx: ProductionContext, concept: Concept, shot: Shot
       logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `QC sent "${concept.title}" shot ${shot.n} back (${verdict.score}/10): ${verdict.issues[0] ?? "quality"}` });
       shot.prompt = verdict.fix_prompt;
       shot.video_idem = `${shot.video_idem.replace(/-qc\d+$/, "")}-qc${shot.qc_rounds}`;
-      Object.assign(shot, { status: "framed", job_id: null, monid_run_id: null, video_file_id: null, video_url: null });
+      Object.assign(shot, { job_id: null, monid_run_id: null, video_file_id: null, video_url: null });
+      if (shot.frame_file_id && ctx.naive && !ctx.naiveOut()) {
+        // The first frame sets the composition, so a defect is often already in it: rebuild the
+        // frame from the old one with the fixes, keeping the same person and room, then re-render.
+        Object.assign(shot, {
+          status: "pending",
+          previous_frame_file_id: shot.frame_file_id,
+          frame_fix: verdict.issues.slice(0, 3).join(" "),
+          frame_file_id: null,
+          frame_url: null,
+          frame_idem: `${shot.frame_idem.replace(/-fix\d+$/, "")}-fix${shot.qc_rounds}`,
+        });
+      } else {
+        shot.status = "framed";
+      }
     }
   } catch (error) {
     if (error instanceof ApiError && error.retryable && (shot.qc_errors ?? 0) < 3) {
@@ -409,7 +428,7 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
   await mkdir(dir, { recursive: true });
   const finalPath = join(dir, "final.mp4");
   const scores = shots.map((shot) => shot.qc?.score).filter((score): score is number => typeof score === "number");
-  const fields: Record<string, unknown> = { qc_score: scores.length ? Math.min(...scores) : null, poster_url: shots[0].frame_url, error: null };
+  const fields: Record<string, unknown> = { qc_score: scores.length ? Math.min(...scores) : null, poster_url: shots[0].frame_url ? `/api/media/${creative.id}/shot1-frame.png` : null, error: null };
 
   if (await ffmpegPath()) {
     // Every ad, one shot or several, comes out as 1080x1920 at 30 fps with clean AAC audio.
