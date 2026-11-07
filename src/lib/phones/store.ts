@@ -1,0 +1,249 @@
+// OWNED BY THE PHONES TRACK (see docs/handoff-dylan.md). The phones track's own tables and queries.
+import { db, newId, now, parse, update } from "../db";
+import { PLATFORMS, type Platform } from "./mobilerun";
+
+const SCHEMA = `
+create table if not exists phone_links (
+  id text primary key,
+  brand_id text not null unique references brands(id) on delete cascade,
+  device_id text not null unique,
+  official_confirmed_at text not null,
+  topics_json text not null default '[]',
+  vpn_country text,
+  schedule_enabled integer not null default 0,
+  schedule_days integer not null default 7,
+  schedule_started_at text,
+  created_at text not null,
+  updated_at text not null
+);
+
+create table if not exists phone_accounts (
+  id text primary key,
+  brand_id text not null references brands(id) on delete cascade,
+  platform text not null,
+  credential_name text,
+  created_at text not null,
+  updated_at text not null,
+  unique (brand_id, platform)
+);
+
+create table if not exists phone_sessions (
+  id text primary key,
+  brand_id text not null references brands(id) on delete cascade,
+  device_id text not null,
+  platform text not null,
+  kind text not null,
+  day_index integer,
+  status text not null,
+  minutes integer not null,
+  task_id text,
+  task_status text,
+  steps integer,
+  succeeded integer,
+  message text,
+  error text,
+  recording_id text,
+  attempts integer not null default 0,
+  next_check_at text not null,
+  waiting_since text,
+  started_at text,
+  finished_at text,
+  created_at text not null,
+  updated_at text not null
+);
+
+create unique index if not exists phone_sessions_scheduled on phone_sessions (brand_id, platform, day_index) where kind = 'scheduled';
+create index if not exists phone_sessions_brand on phone_sessions (brand_id, created_at);
+create index if not exists phone_sessions_status on phone_sessions (status, next_check_at);
+`;
+
+let ready = false;
+
+/** Creates the phones tables on first use. Safe to call on every request and worker tick. */
+export function phonesDb() {
+  const conn = db();
+  if (!ready) {
+    conn.exec(SCHEMA);
+    ready = true;
+  }
+  return conn;
+}
+
+/** Test hook: the next phonesDb() call re-runs the schema (after a test drops the tables). */
+export function resetSchemaFlag() {
+  ready = false;
+}
+
+/**
+ * pending: waiting for its turn on the phone · waiting: the phone is not ready yet ·
+ * starting: a task is being created · queued/running: Mobilerun has the task ·
+ * succeeded/failed/cancelled: finished.
+ */
+export type SessionStatus = "pending" | "waiting" | "starting" | "queued" | "running" | "succeeded" | "failed" | "cancelled";
+export const ACTIVE_STATUSES: SessionStatus[] = ["pending", "waiting", "starting", "queued", "running"];
+export const TERMINAL_STATUSES: SessionStatus[] = ["succeeded", "failed", "cancelled"];
+
+export type LinkRow = {
+  id: string;
+  brand_id: string;
+  device_id: string;
+  official_confirmed_at: string;
+  topics_json: string;
+  vpn_country: string | null;
+  schedule_enabled: number;
+  schedule_days: number;
+  schedule_started_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AccountRow = { id: string; brand_id: string; platform: Platform; credential_name: string | null; created_at: string; updated_at: string };
+
+export type SessionRow = {
+  id: string;
+  brand_id: string;
+  device_id: string;
+  platform: Platform;
+  kind: "manual" | "scheduled";
+  day_index: number | null;
+  status: SessionStatus;
+  minutes: number;
+  task_id: string | null;
+  task_status: string | null;
+  steps: number | null;
+  succeeded: number | null;
+  message: string | null;
+  error: string | null;
+  recording_id: string | null;
+  attempts: number;
+  next_check_at: string;
+  waiting_since: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BrandRow = { id: string; name: string; domain: string };
+
+export const getBrand = (brandId: string) => phonesDb().prepare("select id, name, domain from brands where id = ?").get(brandId) as BrandRow | undefined;
+
+export const getLink = (brandId: string) => phonesDb().prepare("select * from phone_links where brand_id = ?").get(brandId) as LinkRow | undefined;
+
+export const getLinkByDevice = (deviceId: string) => phonesDb().prepare("select * from phone_links where device_id = ?").get(deviceId) as LinkRow | undefined;
+
+export const listLinks = () => phonesDb().prepare("select * from phone_links").all() as LinkRow[];
+
+export const linkTopics = (link: LinkRow) => parse<string[]>(link.topics_json, []);
+
+/** The brand's accounts in the platform list's order (TikTok first). */
+export const listAccounts = (brandId: string) =>
+  (phonesDb().prepare("select * from phone_accounts where brand_id = ?").all(brandId) as AccountRow[]).sort((a, b) => PLATFORMS.indexOf(a.platform) - PLATFORMS.indexOf(b.platform));
+
+export const getSession = (id: string) => phonesDb().prepare("select * from phone_sessions where id = ?").get(id) as SessionRow | undefined;
+
+export function listSessions(brandId: string, limit = 50) {
+  return phonesDb().prepare("select * from phone_sessions where brand_id = ? order by created_at desc, rowid desc limit ?").all(brandId, limit) as SessionRow[];
+}
+
+export function activeSessions(brandId: string) {
+  return phonesDb()
+    .prepare(`select * from phone_sessions where brand_id = ? and status in (${ACTIVE_STATUSES.map(() => "?").join(",")}) order by created_at, rowid`)
+    .all(brandId, ...ACTIVE_STATUSES) as SessionRow[];
+}
+
+/** Writes the brand's phone, accounts and topics in one transaction. */
+export function saveLink(input: { brandId: string; deviceId: string; topics: string[]; vpnCountry: string | null; accounts: Array<{ platform: Platform; credentialName: string | null }> }) {
+  const conn = phonesDb();
+  const stamp = now();
+  conn.transaction(() => {
+    const existing = getLink(input.brandId);
+    if (existing) {
+      update("phone_links", existing.id, { device_id: input.deviceId, topics_json: JSON.stringify(input.topics), vpn_country: input.vpnCountry, official_confirmed_at: stamp });
+    } else {
+      conn
+        .prepare(
+          "insert into phone_links (id, brand_id, device_id, official_confirmed_at, topics_json, vpn_country, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run(newId("phl"), input.brandId, input.deviceId, stamp, JSON.stringify(input.topics), input.vpnCountry, stamp, stamp);
+    }
+    const keep = input.accounts.map((account) => account.platform);
+    conn
+      .prepare(`delete from phone_accounts where brand_id = ? ${keep.length ? `and platform not in (${keep.map(() => "?").join(",")})` : ""}`)
+      .run(input.brandId, ...keep);
+    const upsert = conn.prepare(
+      `insert into phone_accounts (id, brand_id, platform, credential_name, created_at, updated_at) values (?, ?, ?, ?, ?, ?)
+       on conflict (brand_id, platform) do update set credential_name = excluded.credential_name, updated_at = excluded.updated_at`,
+    );
+    for (const account of input.accounts) upsert.run(newId("pha"), input.brandId, account.platform, account.credentialName, stamp, stamp);
+  })();
+  return getLink(input.brandId)!;
+}
+
+export function deleteLink(brandId: string) {
+  const conn = phonesDb();
+  conn.transaction(() => {
+    conn.prepare("delete from phone_accounts where brand_id = ?").run(brandId);
+    conn.prepare("delete from phone_links where brand_id = ?").run(brandId);
+  })();
+}
+
+/**
+ * Adds a session unless one is already active for the same brand and platform. A scheduled
+ * session is also unique per day, so a worker tick that repeats is harmless.
+ */
+export function insertSession(input: { brandId: string; deviceId: string; platform: Platform; kind: "manual" | "scheduled"; dayIndex: number | null; minutes: number }): SessionRow | undefined {
+  const conn = phonesDb();
+  return conn.transaction(() => {
+    const busy = conn
+      .prepare(`select 1 from phone_sessions where brand_id = ? and platform = ? and status in (${ACTIVE_STATUSES.map(() => "?").join(",")})`)
+      .get(input.brandId, input.platform, ...ACTIVE_STATUSES);
+    if (busy) return undefined;
+    const id = newId("phs");
+    const stamp = now();
+    const result = conn
+      .prepare(
+        `insert or ignore into phone_sessions (id, brand_id, device_id, platform, kind, day_index, status, minutes, next_check_at, created_at, updated_at)
+         values (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+      )
+      .run(id, input.brandId, input.deviceId, input.platform, input.kind, input.dayIndex, input.minutes, stamp, stamp, stamp);
+    return result.changes ? getSession(id) : undefined;
+  })();
+}
+
+/** Moves a session from one of `from` to `to` only if nobody else moved it first. */
+export function claimSession(id: string, from: SessionStatus[], to: SessionStatus, fields: Record<string, unknown> = {}) {
+  const sets = Object.keys(fields).map((key) => `, ${key} = @${key}`).join("");
+  const result = phonesDb()
+    .prepare(`update phone_sessions set status = @to, updated_at = @updated_at${sets} where id = @id and status in (${from.map((_, i) => `@from${i}`).join(",")})`)
+    .run({ id, to, updated_at: now(), ...Object.fromEntries(from.map((status, i) => [`from${i}`, status])), ...fields });
+  return result.changes === 1;
+}
+
+export const updateSession = (id: string, fields: Partial<Omit<SessionRow, "id" | "created_at" | "updated_at">>) => update("phone_sessions", id, fields);
+
+/** Updates a session only while it is still active, so a session the user stopped stays stopped. */
+export function updateActive(id: string, fields: Partial<Omit<SessionRow, "id" | "created_at" | "updated_at">>) {
+  const keys = Object.keys(fields);
+  const sets = keys.map((key) => `${key} = @${key}`).join(", ");
+  const result = phonesDb()
+    .prepare(`update phone_sessions set ${sets}${sets ? ", " : ""}updated_at = @updated_at where id = @id and status in (${ACTIVE_STATUSES.map((_, i) => `@active${i}`).join(",")})`)
+    .run({ ...fields, id, updated_at: now(), ...Object.fromEntries(ACTIVE_STATUSES.map((status, i) => [`active${i}`, status])) });
+  return result.changes === 1;
+}
+
+export const updateLink = (id: string, fields: Partial<Omit<LinkRow, "id" | "created_at" | "updated_at">>) => update("phone_links", id, fields);
+
+/** Sessions the worker should look at now: active ones whose next check is due, oldest first. */
+export function dueSessions(at: string, limit: number) {
+  return phonesDb()
+    .prepare(`select * from phone_sessions where status in (${ACTIVE_STATUSES.map(() => "?").join(",")}) and next_check_at <= ? order by created_at, rowid limit ?`)
+    .all(...ACTIVE_STATUSES, at, limit) as SessionRow[];
+}
+
+/** Whether another session already holds the phone (a task is being created, queued or running). */
+export function deviceBusy(deviceId: string, exceptId: string) {
+  return Boolean(
+    phonesDb().prepare("select 1 from phone_sessions where device_id = ? and id != ? and status in ('starting', 'queued', 'running')").get(deviceId, exceptId),
+  );
+}
