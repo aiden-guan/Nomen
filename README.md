@@ -105,3 +105,9 @@ npm run typecheck
 NOMEN_SAMPLE_VIDEO=clip.mp4 npx vitest run tests/media.test.ts        # ffmpeg helpers on a real clip
 NOMEN_LIVE_CAMPAIGN=cmp_… npx vitest run tests/format.live.test.ts     # live format study (costs cents)
 ```
+
+## Sample output
+
+`samples/monid/` holds the six real videos from the monid.ai test runs, with frame contact sheets,
+the prompts, QC verdicts and an honest critique in `samples/monid/REVIEW.md`. Start there before
+working on video quality.
