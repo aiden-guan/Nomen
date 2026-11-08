@@ -56,6 +56,16 @@ export const SCREEN_SIZES = {
   desktop: { width: 1440, height: 900 },
 } as const;
 
+/**
+ * The canvas a request renders at: its exact `box` (a remake's graphic at the reference's size),
+ * else the full or half frame.
+ */
+export function screenSize(request: Pick<ScreenRequest, "size"> & { box?: ScreenRequest["box"] }): { width: number; height: number } {
+  const box = request.box;
+  if (box && box.width >= 64 && box.height >= 64) return { width: Math.min(1080, even(box.width)), height: Math.min(1920, even(box.height)) };
+  return SCREEN_SIZES[request.size] ?? SCREEN_SIZES.full;
+}
+
 export const SCREEN_FPS = 30;
 /** Crossfade between two keyframes that are far enough apart. */
 const FADE_SECONDS = 0.12;
@@ -275,8 +285,8 @@ export function sanitizeHtml(input: string, allow: string[]): { html: string; re
  * frozen; requestAnimationFrame runs a callback at most a few times; CSS, Web Animations and SVG
  * animations are paused at T, so a page using @keyframes still renders the right moment.
  */
-export function runtime(request: Pick<ScreenRequest, "seconds" | "size">): string {
-  const { width, height } = SCREEN_SIZES[request.size] ?? SCREEN_SIZES.full;
+export function runtime(request: Pick<ScreenRequest, "seconds" | "size"> & { box?: ScreenRequest["box"] }): string {
+  const { width, height } = screenSize(request);
   const seconds = Number.isFinite(request.seconds) ? request.seconds : 4;
   const css = `html,body{margin:0!important;padding:0!important;width:${width}px!important;height:${height}px!important;overflow:hidden!important}*,*::before,*::after{transition:none!important;caret-color:transparent!important}`;
   const js = [
@@ -306,7 +316,7 @@ export function runtime(request: Pick<ScreenRequest, "seconds" | "size">): strin
 }
 
 /** The page as rendered: doctype, the runtime first in <head>, and a whole document even from a fragment. */
-export function prepareHtml(html: string, request: Pick<ScreenRequest, "seconds" | "size">): string {
+export function prepareHtml(html: string, request: Pick<ScreenRequest, "seconds" | "size"> & { box?: ScreenRequest["box"] }): string {
   const body = html.replace(/<style data-nomen-runtime>[\s\S]*?<\/style>|<script data-nomen-runtime>[\s\S]*?<\/script>/g, "").replace(/^﻿/, "").trim();
   const head = runtime(request);
   let doc: string;
@@ -336,9 +346,12 @@ function zonesText(size: ScreenRequest["size"]): string {
 
 const CANVAS_NAME = { full: "a full vertical phone screen", half: "the bottom half of a split screen", desktop: "a desktop monitor's display, filmed by a phone" } as const;
 
-/** The designer's brief per canvas: vertical graphics are motion design; a desktop screen is a real app on a filmed monitor. */
-function lookText(size: ScreenRequest["size"]): string[] {
-  if (size === "desktop") {
+/**
+ * The designer's brief per canvas: vertical graphics are motion design; a desktop screen is a real
+ * app on a filmed monitor; a remake's element (`box`) is one post, chart or card at the reference's size.
+ */
+function lookText(size: ScreenRequest["size"], element = false): string[] {
+  if (size === "desktop" && !element) {
     return [
       "TYPE (it is read through a phone camera pointed at a monitor)",
       "- Nothing under 36 px. Body, rows and code 44-56 px; commands and labels 52-72 px; headlines and key numbers 88-160 px. Set the app as if zoomed to 250-300%: few lines, big text. At most ~25 words of small text on screen.",
@@ -354,32 +367,47 @@ function lookText(size: ScreenRequest["size"]): string[] {
   }
   return [
     "TYPE (it is watched on a phone)",
-    "- Nothing under 34 px. Body and rows 40-56 px; labels and commands 44-64 px; headlines and key numbers 72-150 px, weight 700-900, letter-spacing -0.02em. At most ~14 words of small text on screen.",
+    element ? "- Copy the reference element's type hierarchy at this size; nothing under 18 px." : "- Nothing under 34 px. Body and rows 40-56 px; labels and commands 44-64 px; headlines and key numbers 72-150 px, weight 700-900, letter-spacing -0.02em. At most ~14 words of small text on screen.",
     "- High contrast (light text on dark or dark on light, never mid-grey on grey). Monospace for code and terminals. One accent colour for emphasis; a highlighted word gets an accent pill or a thick underline.",
     "",
     "LOOK",
     "- Use the brand's real colours, fonts and logo from the brand kit (file:// URLs below, exactly as given). If the kit has no font files, use the given system stacks. Copy the reference's visual style from reference_visual (background, card style, layout, how text is emphasised), adapted to the brand.",
-    "- It must look like a designed motion graphic, not a screenshot of a web page: no nav bars, footers, cookie banners, scrollbars, breadcrumbs, lorem ipsum, \"Your text here\", fake browser chrome around everything. Depth comes from soft shadows, 28-48 px rounded corners, a subtle glow or grid behind the hero, and big confident type.",
-    "- Use the whole stage: the background runs edge to edge (gradient, glow, grid), the hero fills most of its zone, and on a full screen the lower zone holds a supporting element (a pill, badge or the mascot) so the frame is not top-heavy.",
+    ...(element
+      ? ["- It must look like the reference's element, made for this product: a social post looks like a real post card, a chart like a clean chart card, a photo card like a framed photo. No nav bars, scrollbars, lorem ipsum, \"Your text here\" or fake browser chrome."]
+      : [
+          "- It must look like a designed motion graphic, not a screenshot of a web page: no nav bars, footers, cookie banners, scrollbars, breadcrumbs, lorem ipsum, \"Your text here\", fake browser chrome around everything. Depth comes from soft shadows, 28-48 px rounded corners, a subtle glow or grid behind the hero, and big confident type.",
+          "- Use the whole stage: the background runs edge to edge (gradient, glow, grid), the hero fills most of its zone, and on a full screen the lower zone holds a supporting element (a pill, badge or the mascot) so the frame is not top-heavy.",
+        ]),
     "- Draw icons as inline SVG or simple shapes; use the kit's logo and icons by their file:// URLs. No emoji (they may not render).",
   ];
 }
 
-export function writerSystem(request: Pick<ScreenRequest, "size" | "seconds">): string {
-  const { width, height } = SCREEN_SIZES[request.size] ?? SCREEN_SIZES.full;
-  const desktop = request.size === "desktop";
+export function writerSystem(request: Pick<ScreenRequest, "size" | "seconds"> & { box?: ScreenRequest["box"] }): string {
+  const { width, height } = screenSize(request);
+  // A remake's graphic is one element (a post, a chart) that the edit places inside the video at
+  // exactly this size: it fills its canvas, and the frame's safe areas are the edit's concern.
+  const element = Boolean(request.box);
+  const desktop = request.size === "desktop" && !element;
+  const canvas = element
+    ? [
+        `- Exactly ${width}x${height} CSS pixels: one element (a post card, chart, photo card or text card) that the edit places inside a video frame at exactly this size, screenshotted at device scale 1. The element fills the canvas edge to edge: its own background reaches every edge, with no margin, outer shadow, backdrop or rounded outer corners. Position everything in px; never use vh, vw, window.innerHeight or media queries.`,
+        "- Keep 4% inner padding for text. Nothing may be cut off by the edges or overflow its box: size boxes for the longest text they will hold.",
+      ]
+    : [
+        `- Exactly ${width}x${height} CSS pixels (${CANVAS_NAME[request.size] ?? CANVAS_NAME.full}), screenshotted at device scale 1. html and body are fixed at that size with overflow hidden; build one stage and position everything in px inside it. Never size anything with vh, vw, window.innerHeight or media queries.`,
+        `- ${bandsText(request.size)}`,
+        `- ${zonesText(request.size)}`,
+        "- Keep 64 px side margins for text. Nothing may be cut off by the edges or overflow its card: size boxes for the longest text they will hold (the fully typed command, the final number).",
+      ];
   return [
     desktop
       ? "You are a senior UI designer. You rebuild real software screens for viral developer-tool and SaaS videos on TikTok and Reels in which a phone films a computer monitor while a voice walks through a setup: the product's own app, a terminal where a command types itself, a code editor, a browser on the product's dashboard. You build what the monitor shows as one self-contained HTML document; a headless browser screenshots it at several moments, the frames are cut into a clip, and the edit puts that clip on a photographed monitor."
       : "You are a senior motion designer and UI designer. You make the on-screen graphics for viral developer-tool and SaaS videos on TikTok and Reels: full-bleed dark or brand-colour backgrounds, one idea per screen, chunky UI cards, a terminal where a command types itself, app windows, step cards (\"01 · Paste into your agent's chat\"), result rows that land one by one, a balance or counter ticking, a progress ring, and bold labels with one highlighted word. You build each graphic as one self-contained HTML document; a headless browser screenshots it at several moments and the frames are cut into a vertical video.",
     "",
     "THE CANVAS",
-    `- Exactly ${width}x${height} CSS pixels (${CANVAS_NAME[request.size] ?? CANVAS_NAME.full}), screenshotted at device scale 1. html and body are fixed at that size with overflow hidden; build one stage and position everything in px inside it. Never size anything with vh, vw, window.innerHeight or media queries.`,
-    `- ${bandsText(request.size)}`,
-    `- ${zonesText(request.size)}`,
-    "- Keep 64 px side margins for text. Nothing may be cut off by the edges or overflow its card: size boxes for the longest text they will hold (the fully typed command, the final number).",
+    ...canvas,
     "",
-    ...lookText(request.size),
+    ...lookText(request.size, element),
     "",
     "TRUTH",
     "- Every word comes from the product facts, the brand's real UI strings and commands, or the spoken line. Quote commands, URLs and product names exactly. Never invent numbers, prices, customer names, testimonials, features, integrations or UI the facts don't contain; if a number is not in the facts, show none. Sample data (task names, tool names in a list) must be plausible and generic, never claims.",
@@ -450,7 +478,7 @@ export function screenPrompt(request: ScreenRequest, ctx: ScreenContext): string
   };
 
   const parts = [
-    `<screen>\n${JSON.stringify({ id: request.id, size: request.size, canvas: SCREEN_SIZES[request.size] ?? SCREEN_SIZES.full, seconds: request.seconds, brief: request.brief, spoken_line: request.line, reference_visual: request.reference_visual }, null, 1)}\n</screen>`,
+    `<screen>\n${JSON.stringify({ id: request.id, size: request.size, canvas: screenSize(request), seconds: request.seconds, brief: request.brief, spoken_line: request.line, reference_visual: request.reference_visual }, null, 1)}\n</screen>`,
     `<product_facts>\n${JSON.stringify(facts)}\n</product_facts>`,
     kit ? `<brand_kit>\n${JSON.stringify(brand)}\n</brand_kit>` : "<brand_kit>none: use the product's look and a clean dark developer style with one accent colour</brand_kit>",
     `<always_available>\n${JSON.stringify(always)}\n</always_available>`,
@@ -1226,7 +1254,7 @@ export function assembleArgs(input: Encode & { pngs: string[]; starts: number[] 
  * identical is assumed to hold. Keyframes mode captures only the keyframes.
  */
 export async function renderScreen(html: string, states: ScreenState[], request: ScreenRequest, options: RenderScreenOptions): Promise<RenderedScreen> {
-  const size = SCREEN_SIZES[request.size];
+  const size = request.box ? screenSize(request) : SCREEN_SIZES[request.size];
   if (!size) throw new Error(`screen ${request.id}: unknown size "${String(request.size)}"`);
   if (!(Number.isFinite(request.seconds) && request.seconds > 0)) throw new Error(`screen ${request.id}: seconds must be positive`);
   const chrome = options.chromePath ?? findChrome();
@@ -1423,15 +1451,15 @@ export async function checkScreen(naive: Messenger, clip: ScreenClip & { states?
       ? "the bottom half of a split screen, under the presenter"
       : "full screen";
   const rubric = [
-    `These ${frames.length} frame(s), in time order, are from a ${request.seconds} s on-screen graphic for a vertical TikTok${context.product ? ` about ${context.product.name}` : ""}, shown at about phone size (${where}).`,
+    `These ${frames.length} frame(s), in time order, are from a ${request.seconds} s on-screen graphic for a vertical TikTok${context.product ? ` about ${context.product.name}` : ""}, shown at about phone size (${request.box ? `one ${screenSize(request).width}x${screenSize(request).height} px element placed inside a 1080x1920 video frame` : where}).`,
     `What it should show: ${request.brief}`,
     `The spoken line it goes with: "${request.line}"`,
     request.reference_visual ? `The viral video it remakes looked like: ${request.reference_visual}` : "",
     colors ? `Brand colours: ${colors}.` : "",
-    `Reserved areas (no text there): ${bandsText(request.size)}`,
+    request.box ? "" : `Reserved areas (no text there): ${bandsText(request.size)}`,
     desktop
       ? "Critical defects (any one fails it): text too small or too low-contrast to read at this size; text or UI cut off by the edges or overflowing its box; overlapping text; placeholder text (lorem ipsum, \"Your text\", {{...}}, TODO); broken-image icons, empty boxes or missing-glyph squares; a blank, black or error page; text inside a reserved area; content that contradicts the brief or shows a different product name; it looks like a poster, slide or motion-graphic card rather than a real app, terminal, editor or browser window on a computer."
-      : "Critical defects (any one fails it): text too small or too low-contrast to read on a phone; text or UI cut off by the frame or overflowing its box; overlapping text; placeholder text (lorem ipsum, \"Your text\", {{...}}, TODO); broken-image icons, empty boxes or missing-glyph squares; a blank, black or error page; text inside a reserved area; content that contradicts the brief or shows a different product name; it looks like a plain web page screenshot rather than a designed motion graphic.",
+      : `Critical defects (any one fails it): text too small or too low-contrast to read on a phone; text or UI cut off by the frame or overflowing its box; overlapping text; placeholder text (lorem ipsum, "Your text", {{...}}, TODO); broken-image icons, empty boxes or missing-glyph squares; a blank, black or error page; text inside a reserved area; content that contradicts the brief or shows a different product name${request.box ? "" : "; it looks like a plain web page screenshot rather than a designed motion graphic"}.`,
     "Not critical (mention, do not fail for it): small spacing or alignment nits, a slightly different layout than the brief describes when the content is right.",
     desktop
       ? "The frames are taken where the screen holds still."

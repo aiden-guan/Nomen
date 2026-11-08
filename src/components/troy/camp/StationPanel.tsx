@@ -9,7 +9,7 @@ import styles from "../troy.module.css";
 import { Avatar } from "./Avatar";
 import { type CampActions, Pip } from "./Camp";
 import { money, platformName, remakeLine, when } from "./format";
-import { ReferenceList, RoleBadge } from "./References";
+import { InternalBadge, ReferenceList, RoleBadge } from "./References";
 
 /** What a brief's video is judged on once posted, as the War tent says it. */
 const METRIC_WORDS: Record<string, string> = { views: "views", shares: "shares", saves: "saves", link_clicks: "link clicks", sign_ups: "sign-ups", purchases: "purchases" };
@@ -385,6 +385,7 @@ function Workshop({ view, busy, actions }: { view: BrandView; busy: string | nul
             <li key={creative.id} className="text-[13px]">
               <div className="flex items-baseline gap-2">
                 <span className="min-w-0 flex-1 truncate font-semibold">{creative.concept?.title ?? `Video ${creative.idx + 1}`}</span>
+                {creative.internal && <InternalBadge cleared={creative.cleared} />}
                 {creative.role && <RoleBadge role={creative.role} />}
                 <Status value={creative.status} />
               </div>
@@ -402,11 +403,13 @@ function Workshop({ view, busy, actions }: { view: BrandView; busy: string | nul
               )}
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {creative.shots.length === 0 && creative.status !== "ready" && creative.status !== "failed" && (
-                  <span className="bg-[rgba(43,29,20,0.06)] px-2 py-1 text-[11px]">No presenter: product screens and a voice-over, then the edit</span>
+                  <span className="bg-[rgba(43,29,20,0.06)] px-2 py-1 text-[11px]">
+                    {creative.internal ? "One-to-one remake: reading the reference's segments, then the voice and each take" : "No presenter: product screens and a voice-over, then the edit"}
+                  </span>
                 )}
                 {creative.shots.map((shot) => (
                   <span key={shot.n} className="bg-[rgba(43,29,20,0.06)] px-2 py-1 text-[11px]" title={shot.error ?? shot.qc?.issues[0] ?? undefined}>
-                    Shot {shot.n}: {shot.status}
+                    {creative.internal ? "Take" : "Shot"} {shot.n}: {shot.status}
                     {shot.provider ? ` · ${shot.provider === "monid" ? "Kling" : "Veo"}` : ""}
                     {shot.qc ? ` · QC ${shot.qc.score}/10` : ""}
                   </span>
@@ -508,7 +511,10 @@ function VideoCard({ creative, busy, actions }: { creative: CreativeView; busy: 
           </span>
         </span>
       </button>
-      <p className="mt-1.5 line-clamp-2 font-semibold leading-snug">{title}</p>
+      <p className="mt-1.5 flex items-start gap-1.5 font-semibold leading-snug">
+        <span className="line-clamp-2 min-w-0 flex-1">{title}</span>
+        {creative.internal && <InternalBadge cleared={creative.cleared} />}
+      </p>
       {creative.reference && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--crimson)]">{remakeLine(creative.reference)}</p>}
       <label className="mt-1 flex cursor-pointer items-center gap-2">
         <input type="checkbox" checked={creative.approved} disabled={busy === key} onChange={(event) => actions.approve(creative, event.target.checked)} className="size-4 accent-[var(--crimson)]" />

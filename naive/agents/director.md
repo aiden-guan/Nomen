@@ -76,6 +76,11 @@ voice or music.
     walks through it. Use it when the reference is a filmed screen or a screen-recorded
     walkthrough.
   - `text_story`: no face. The product is on screen with large text.
+  - `remake`: a one-to-one remake of the reference itself: its footage, framing, cuts, timing,
+    music, graphic placement and caption look are kept, and only the people (the brand's recurring
+    presenter, a lookalike of the same type), the voice and the product facts in its words change.
+    `creator` describes that presenter. Internal only: never posted unless a person clears it. It
+    renders the reference's full length, about $0.17 per second plus about $0.30.
 - **hook_plan**: the reference's hook, with exactly which words change for this product.
 - **keep**: everything that stays, concretely. For example: "hook 'POV: you just found…' word for
   word, 6 beats, cuts every 2 s, deadpan delivery, white outlined captions".

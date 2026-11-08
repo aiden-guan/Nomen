@@ -416,6 +416,31 @@ export type AssOptions = {
    * during a split moves from the top third, where it would cover the creator's face, to the seam.
    */
   splits?: Array<{ start: number; end: number }>;
+  /** A reference's own caption look, for one-to-one remakes. Unset fields keep LOOK.caption. */
+  caption?: CaptionStyle;
+};
+
+/**
+ * How a reference styles its spoken captions, in px at 1080x1920: a remake copies it instead of the
+ * house look (uppercase, slanted, a bigger size, a different height, the sticker next to them).
+ */
+export type CaptionStyle = {
+  upper?: boolean;
+  /** All lower case (the word-by-word captions many creators use). */
+  lower?: boolean;
+  /** Slanted; libass slants the face itself when the font has no italic. */
+  italic?: boolean;
+  /** Fill colour, 0xRRGGBB. */
+  color?: number;
+  /** Black outline thickness in px; 0 for none. */
+  outline?: number;
+  shadow?: boolean;
+  /** em size in px. */
+  em?: number;
+  /** Bottom of the caption block, as a fraction of the height. */
+  bottom?: number;
+  /** A round sticker drawn while captions show (a reference's emoji badge): centre and diameter in px. */
+  badge?: { x: number; y: number; size: number; color: number; accent: number } | null;
 };
 
 /**
@@ -468,12 +493,20 @@ export function toAss(timeline: Pick<EditTimeline, "captions" | "overlays">, opt
   const fontSize = (em: number) => Math.round(em * scale * cell);
   const px = (n: number) => Math.round(n * scale);
 
-  const cap = LOOK.caption;
+  const style = options.caption ?? {};
+  const cap = {
+    ...LOOK.caption,
+    ...(style.em ? { em: style.em } : {}),
+    ...(style.outline !== undefined ? { outline: style.outline } : {}),
+    ...(style.bottom ? { bottom: style.bottom } : {}),
+  };
   const ov = LOOK.overlay;
   const capSize = fontSize(cap.em);
   const capMarginV = Math.round(H * (1 - cap.bottom));
   const white = assColor(0xffffff);
   const black = assColor(0x000000);
+  const capFill = style.color !== undefined ? assColor(style.color) : white;
+  const italic = style.italic ? -1 : 0;
 
   const header = [
     "[Script Info]",
@@ -487,8 +520,8 @@ export function toAss(timeline: Pick<EditTimeline, "captions" | "overlays">, opt
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: Caption,${font},${capSize},${white},${white},${black},${black},0,0,0,0,100,100,0,0,1,${px(cap.outline)},0,2,${px(cap.side)},${px(cap.side)},${capMarginV},1`,
-    `Style: CaptionShadow,${font},${capSize},${assColor(0, 255 - Math.round(255 * cap.shadow.opacity))},${white},${assColor(0, 255 - Math.round(255 * cap.shadow.opacity))},${black},0,0,0,0,100,100,0,0,1,${px(cap.outline + 2)},0,2,${px(cap.side)},${px(cap.side)},${capMarginV - px(cap.shadow.dy)},1`,
+    `Style: Caption,${font},${capSize},${capFill},${white},${black},${black},0,${italic},0,0,100,100,0,0,1,${px(cap.outline)},0,2,${px(cap.side)},${px(cap.side)},${capMarginV},1`,
+    `Style: CaptionShadow,${font},${capSize},${assColor(0, 255 - Math.round(255 * cap.shadow.opacity))},${white},${assColor(0, 255 - Math.round(255 * cap.shadow.opacity))},${black},0,${italic},0,0,100,100,0,0,1,${px(cap.outline + 2)},0,2,${px(cap.side)},${px(cap.side)},${capMarginV - px(cap.shadow.dy)},1`,
     `Style: Overlay,${font},${fontSize(ov.em)},${white},${white},${black},${black},0,0,0,0,100,100,0,0,1,0,0,5,${px(40)},${px(40)},0,1`,
     `Style: OverlayBox,${font},${fontSize(ov.em)},${assColor(0x000000, 255 - Math.round(255 * ov.box.opacity))},${white},${black},${black},0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1`,
     "",
@@ -514,15 +547,28 @@ export function toAss(timeline: Pick<EditTimeline, "captions" | "overlays">, opt
   const capPitch = (capSize / cell) * cap.leading;
   const capBottom = H * cap.bottom;
   for (const c of timeline.captions) {
-    const words = c.text.split(/\s+/).filter(Boolean);
+    const words = (style.upper ? c.text.toUpperCase() : style.lower ? c.text.toLowerCase() : c.text).split(/\s+/).filter(Boolean);
     if (!words.length || !valid(c)) continue;
     const lines = balanceLines(words, capMax, (s) => measure(s, capSize) + 2 * px(cap.outline));
     lines.forEach((line, i) => {
       const y = capBottom - (lines.length - 1 - i) * capPitch;
       const text = escapeAssText(line, "space");
-      dialogue(0, c.start, c.end, "CaptionShadow", `{\\pos(${cx},${Math.round(y + px(cap.shadow.dy))})\\q2${pop}\\blur${px(cap.shadow.blur)}}${text}`);
+      if (style.shadow !== false) dialogue(0, c.start, c.end, "CaptionShadow", `{\\pos(${cx},${Math.round(y + px(cap.shadow.dy))})\\q2${pop}\\blur${px(cap.shadow.blur)}}${text}`);
       dialogue(1, c.start, c.end, "Caption", `{\\pos(${cx},${Math.round(y)})\\q2${pop}\\blur0.6}${text}`);
     });
+  }
+
+  // The reference's sticker next to its captions, shown from the first caption to the last.
+  const valids = timeline.captions.filter(valid);
+  if (style.badge && valids.length) {
+    const { x, y, size, color, accent } = style.badge;
+    const d = Math.max(8, px(size));
+    const from = Math.min(...valids.map((c) => c.start));
+    const to = Math.max(...valids.map((c) => c.end));
+    const at = (cxp: number, cyp: number, dia: number) => `\\pos(${Math.round(cxp - dia / 2)},${Math.round(cyp - dia / 2)})`;
+    dialogue(4, from, to, "OverlayBox", `{${at(px(x), px(y), d)}\\an7\\1c${assColor(color)}\\1a&H00&\\bord${Math.max(2, Math.round(d / 18))}\\3c${black}\\p1}${roundedRect(d, d, d / 2)}`);
+    const dot = Math.round(d * 0.34);
+    dialogue(5, from, to, "OverlayBox", `{${at(px(x) + d * 0.12, px(y) + d * 0.1, dot)}\\an7\\1c${assColor(accent)}\\1a&H00&\\bord0\\p1}${roundedRect(dot, dot, dot / 2)}`);
   }
 
   for (const o of timeline.overlays) {

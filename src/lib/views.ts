@@ -6,7 +6,7 @@ import type { FunnelRole, ReferenceBreakdown, ReferenceCandidate } from "./creat
 import { type BrandRow, type CampaignOptions, type CampaignRow, type CreativeState, creativeState, defaultOptions, originOf } from "./pipeline";
 import { mediaRoot } from "./store/sqlite";
 import type { CreativeRow, ShotState } from "./production";
-import type { PostRow } from "./publish";
+import { isInternal, type PostRow } from "./publish";
 import type { Continuity } from "./qc";
 import type { ResearchPack, ResearchPlan, Video } from "./research";
 import { getSetting } from "./settings";
@@ -133,6 +133,9 @@ function creativeView(creative: CreativeRow, videos: Map<string, Video> = new Ma
     reference: ref?.url
       ? { id: ref.id, url: ref.url, author: ref.author, platform: video?.platform ?? null, views: ref.views, followers: ref.followers, outlier: ref.outlier, thumbnail: video?.thumbnail ?? null, format: ref.format, paidAd: Boolean(video?.ad) }
       : null,
+    /** A one-to-one remake of a real creator's video: internal, never posted unless a person cleared it. */
+    internal: isInternal(concept),
+    cleared: concept?.cleared ?? null,
     /** Its job in the campaign and what it is judged on, from the director's brief (research steering). */
     role: concept?.brief?.role ?? null,
     metric: concept?.brief?.metric ?? null,

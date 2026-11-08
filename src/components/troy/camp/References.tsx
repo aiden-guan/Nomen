@@ -155,6 +155,18 @@ export function RoleBadge({ role }: { role: "reach" | "convert" }) {
   );
 }
 
+/** A one-to-one remake of a real creator's video: for internal review, never posted unless a person cleared it. */
+export function InternalBadge({ cleared }: { cleared?: { by: string } | null }) {
+  return (
+    <span
+      className={`${styles.pixel} shrink-0 px-1.5 text-[10px] uppercase leading-[16px] tracking-wider text-[var(--paper)] ${cleared ? "bg-[var(--teal)]" : "bg-[var(--ink)]"}`}
+      title={cleared ? `A one-to-one remake, cleared for posting by ${cleared.by}` : "A one-to-one remake of a real creator's video: internal review only, not posted unless a person clears it"}
+    >
+      {cleared ? "cleared" : "internal"}
+    </span>
+  );
+}
+
 /** The reference a finished video remakes, as the screening room shows it. */
 export function RemakeOf({ creative, reference }: { creative: CreativeView; reference: ReferenceView | null }) {
   const ref = creative.reference;

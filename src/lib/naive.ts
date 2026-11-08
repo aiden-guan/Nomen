@@ -111,12 +111,26 @@ export class NaiveClient {
     );
   }
 
-  generateImage(input: { prompt: string; aspect_ratio?: string; image_urls?: string[]; model?: string; n?: number }, idempotencyKey: string) {
+  /** `character` (chr_…) renders a Naive character's face, in `style` ("Candid selfie", "Phone snap"). */
+  generateImage(input: { prompt: string; aspect_ratio?: string; image_urls?: string[]; model?: string; n?: number; character?: string; style?: string }, idempotencyKey: string) {
     return this.call<ImageGeneration>("POST", "/v1/media/images", input, idempotencyKey, 300_000);
   }
 
   generateVideo(input: { prompt: string; model?: string; seconds?: number; aspect_ratio?: string; image_urls?: string[] }, idempotencyKey: string) {
     return this.call<MediaJob>("POST", "/v1/media/videos", input, idempotencyKey);
+  }
+
+  /**
+   * Person swap on existing footage (Mira, about $1.48 per clip of at most 15 s): the same motion,
+   * framing and timing with the person replaced by the one in `references`. It keeps the clip's
+   * original audio, so callers mute it.
+   */
+  editVideo(input: { video: string; prompt: string; references?: string[] }, idempotencyKey: string) {
+    return this.call<MediaJob>("POST", "/v1/media/edits", input, idempotencyKey);
+  }
+
+  getVideoEdit(id: string) {
+    return this.call<MediaJob>("GET", `/v1/media/edits/${id}`);
   }
 
   async mediaModels(kind: "video" | "image") {
