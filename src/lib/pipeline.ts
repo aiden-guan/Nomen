@@ -10,7 +10,8 @@ import { captureSiteVisuals } from "./creative/capture";
 import { planProduction } from "./creative/plan";
 import { getBrandKit } from "./creative/brandkit";
 import { analyzeProduct } from "./creative/product";
-import { breakdownAll, canonicalUrl, pickForBreakdown, scoreCandidates } from "./creative/references";
+import { cloneOf } from "./creative/cloneability";
+import { breakdownAll, canonicalUrl, orderBreakdowns, pickForBreakdown, scoreCandidates } from "./creative/references";
 import { applyRelevance, screenRelevance } from "./creative/relevance";
 import { scout, scoutSpecs } from "./creative/scout";
 import { targetSeconds, writeScript } from "./creative/script";
@@ -381,13 +382,14 @@ async function stepStyle(campaign: CampaignRow) {
       await persist();
       const done = new Set(remade.map(canonicalUrl));
       const skipped = candidates.filter((c) => done.has(canonicalUrl(c.url))).length;
-      await log(`Breaking down ${picks.length} outlier videos beat by beat (transcript, cuts, frames): ${picks.map((p) => `@${p.author} ${p.score.why}`).join("; ")}${skipped ? ` (skipped ${skipped} this brand already remade)` : ""}`);
+      await log(`Breaking down ${picks.length} outlier videos beat by beat (transcript, cuts, frames): ${picks.map((p) => `@${p.author} ${p.score.why}, clones ${cloneOf(p)}/10`).join("; ")}${skipped ? ` (skipped ${skipped} this brand already remade)` : ""}`);
     }
     const result = picks.length
       ? await breakdownAll(naive, picks, { workDir: work, brand: { name: state.product.name, one_liner: state.product.one_liner, kind: state.product.kind } })
       : { breakdowns: [] as ReferenceBreakdown[], failures: [] };
     const firstPass = !state.retry?.length;
-    state.breakdowns = [...(state.breakdowns ?? []), ...result.breakdowns].sort((a, b) => b.fit.score - a.fit.score);
+    // The director reads them in this order: the ones the footage clone can reproduce first, then by fit.
+    state.breakdowns = orderBreakdowns([...(state.breakdowns ?? []), ...result.breakdowns]);
     state.retry = firstPass ? result.failures.filter((f) => f.retryable).map((f) => f.candidate.url) : [];
     state.failures = [...(state.failures ?? []).filter((f) => !picks.some((p) => p.url === f.url)), ...result.failures.map((f) => ({ url: f.candidate.url, error: f.error }))];
     state.samples = state.breakdowns.map((b) => b.url);
@@ -423,7 +425,7 @@ export function referencesMarkdown(state: CreativeState) {
     lines.push(
       `## @${ref.author} on ${ref.platform}: ${ref.views.toLocaleString("en")} views${ref.outlier ? `, ${ref.outlier.toFixed(1)}x followers` : ""}`,
       ``,
-      `${ref.url} · ${Math.round(ref.duration)} s · ${ref.format} · fit ${ref.fit.score}/10 (${ref.fit.reason})`,
+      `${ref.url} · ${Math.round(ref.duration)} s · ${ref.format} · fit ${ref.fit.score}/10 (${ref.fit.reason})${ref.cloneability ? ` · clones ${ref.cloneability.score}/10${ref.footage?.hardest ? ` (hardest: ${ref.footage.hardest})` : ""}` : ""}`,
       ``,
       `**Hook** (${ref.hook.mechanic}): "${ref.hook.line}"${ref.hook.on_screen_text ? ` / on screen: "${ref.hook.on_screen_text}"` : ""}`,
       ``,

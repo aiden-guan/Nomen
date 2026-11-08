@@ -6,8 +6,9 @@ research agents have already done the legwork:
 - **reference videos**: short videos with proof that they work, each broken down beat by beat from
   its transcript and frames. Some prove reach (views far above the account's followers); some
   prove they sell (an ad an advertiser kept paying for, many saves per like, a review or demo that
-  asks for the sale). Each carries its `role`, its `conversion_evidence` and, when it sells, its
-  selling beats (`how_it_sells`),
+  asks for the sale). Each carries its `role`, its `conversion_evidence`, when it sells, its
+  selling beats (`how_it_sells`), and its `cloneability`: how faithfully Nomen can remake it from
+  its own footage, with the reasons,
 - public research for the brand brief and the search plan (SEO keywords, live ads, Reddit, what
   ChatGPT and Perplexity say).
 
@@ -58,11 +59,21 @@ voice or music.
     that asks for the sale.
 
   Prefer good engagement and a format that can carry this product (`fit_for_this_brand`).
-- **Pick what rebuilds cleanly.** A one-to-one remake rebuilds every shot. One presenter talking
-  to camera, a green screen, a screen recording, or graphics over a simple background rebuild
-  cleanly; footage that depends on real-world shots (crowds, outdoor action, several people, a
-  specific place) does not. Every second is rendered (about $0.40 a second with a presenter), so
-  when the evidence is close, take the shorter reference: 45 seconds or less.
+- **Pick what the clone can reproduce.** A remake is made from the reference's own footage: a
+  lookalike AI presenter performs the original's exact motion (it needs one person, in continuous
+  takes), the original audio is re-voiced with this product's words, and its graphics and captions
+  are replaced in place. Each reference's `cloneability` (0-10) says how faithfully that works and
+  why; `hardest_to_clone` names its hardest part.
+  - **Face-to-camera UGC is the core format.** One person talking to the lens: a talking-head
+    testimonial, "I tried X", storytime, a POV reaction, green-screen commentary. It is the hardest
+    to get right and the highest return, and it is what the clone is built for. Favour it, and vary
+    the styles within it (the hook, the selling structure, the lane, the setting).
+  - Prefer references with `cloneability` 6 or more. Several people, a moving camera, crowds or
+    real locations, hands working a product in close-up, and songs or dialogue are what the clone
+    cannot reproduce.
+  - When you pick a reference below 6, say in `why` what makes it worth the harder remake.
+  - Every second is rendered (about $0.40 a second with a presenter), so when the evidence is
+    close, take the shorter reference: 45 seconds or less.
 - **Vary the styles.** Give each brief a different reference and a different style, mixing lanes,
   roles, selling structures and formats, so the campaign tests several ways to win.
 - **format**: the reference's own format.
@@ -94,7 +105,8 @@ voice or music.
   reviews and "I've used it for months" become true facts from the product brief that play the
   same role.
 - **why**: cite the reference's numbers (or, for a converter, its conversion evidence) and why it
-  fits this product, buyer and role.
+  fits this product, buyer and role. For a reference with `cloneability` below 6, also say why it
+  is worth the harder remake.
 
 ## Brand brief and search
 

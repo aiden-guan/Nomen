@@ -9,6 +9,7 @@ import { download, ffmpegPath, probe } from "../media";
 import type { NaiveClient, TranscriptSegment } from "../naive";
 import { QC_MODEL } from "../qc";
 import { extractJson, type Video } from "../research";
+import { CLONE_GATE, CLONE_SCHEMA, CLONE_WEIGHT, cloneabilityOf, cloneabilityPrior, cloneable, cloneOf, readFootage } from "./cloneability";
 import type { BeatJob, ConversionAnatomy, FunnelRole, ReferenceBeat, ReferenceBreakdown, ReferenceCandidate, SellingStructure, ShotKind } from "./types";
 
 // The reference engine: find the public videos that outran their accounts, then take each one
@@ -116,6 +117,7 @@ export function scoreVideo(video: Video, options: ScoreOptions = {}): ReferenceC
     conversion: conversion.score,
     role: conversion.role,
     signals: conversion.signals,
+    cloneability: cloneabilityPrior(video),
   };
 }
 
@@ -198,9 +200,10 @@ export function poolBaseline(videos: Video[]): Baseline {
 }
 
 /**
- * Ranks research videos as reference candidates: best first, one entry per video URL, at most
- * `maxPerAuthor` (2) per account so one creator cannot fill the list. Ads (videos with ad signals)
- * are always the "ad" lane, whatever `originOf` says.
+ * Ranks research videos as reference candidates: best reach score first, one entry per video URL, at
+ * most `maxPerAuthor` (2) per account so one creator cannot fill the list. Ads (videos with ad
+ * signals) are always the "ad" lane, whatever `originOf` says. Every score also carries conversion
+ * evidence and a cloneability prior; pickOrder and pickForBreakdown combine the three.
  */
 export function scoreCandidates(videos: Video[], originOf: (video: Video) => ReferenceCandidate["origin"], options: ScoreOptions = {}): ReferenceCandidate[] {
   const maxPerAuthor = options.maxPerAuthor ?? 2;
@@ -230,13 +233,46 @@ export function scoreCandidates(videos: Video[], originOf: (video: Video) => Ref
 }
 
 /**
+ * A reach reference's pick value: the reach score plus 1.5 points per cloneability point, so between
+ * two videos that went about as far, the one the footage clone can reproduce wins.
+ */
+export function reachValue(candidate: ReferenceCandidate): number {
+  return candidate.score.total + CLONE_WEIGHT.reach * cloneOf(candidate);
+}
+
+/**
+ * A convert reference's pick value: its conversion evidence (the reach score ranks badly here: ads
+ * have no views), less a point per 10 s past 45 s (every second is re-rendered), plus half a point
+ * per cloneability point.
+ */
+export function sellValue(candidate: ReferenceCandidate): number {
+  return (candidate.score.conversion ?? 0) - renderCost(candidate.duration) + CLONE_WEIGHT.convert * cloneOf(candidate);
+}
+
+/**
+ * The pick order for a list: references the footage clone can reproduce (cloneability at
+ * CLONE_GATE, 4, or more) first, then the rest as a last resort. Within each, by reach value, or in
+ * the caller's own order with `keepOrder` (the relevance screen's: relevance, then reach value).
+ */
+export function pickOrder(candidates: ReferenceCandidate[], keepOrder = false): ReferenceCandidate[] {
+  const ranked = keepOrder ? candidates : [...candidates].sort((a, b) => reachValue(b) - reachValue(a));
+  return [...ranked.filter(cloneable), ...ranked.filter((candidate) => !cloneable(candidate))];
+}
+
+/**
  * The candidates worth a full breakdown. A remake copies its reference one-to-one from the
  * reference's own footage, so only downloadable videos qualify (a media_url), of a plausible length
- * (5-90 s, or unknown and checked after download). Best first, and one per author before anyone gets
- * a second. The mix is reserved before the rest fill in: up to two "convert" references (most
- * conversion evidence first, less a point per 10 s past 45 s, since every second is re-rendered) and
- * two "reach" ones (n of 4 or more; one each from 2), so the director can plan videos for both jobs;
- * then one from each lane not yet represented: competitor, category, benchmark, adjacent, ad.
+ * (5-90 s, or unknown and checked after download), and one per author before anyone gets a second.
+ *
+ * The pick order combines reach, conversion and cloneability:
+ *   1. The gate: references below CLONE_GATE (4/10) cloneability wait until every cloneable one has
+ *      had its chance, in every step below.
+ *   2. The funnel mix: up to two "convert" references, by sellValue (conversion evidence, length,
+ *      cloneability), and two "reach" ones, by reachValue (reach score and cloneability), for n of 4
+ *      or more (one each from 2), so the director can plan videos for both jobs. A job with no
+ *      cloneable reference at all gets its one best hard-to-clone reference rather than none.
+ *   3. One from each lane not yet represented: competitor, category, benchmark, adjacent, ad.
+ *   4. The rest by reach value; hard-to-clone references last.
  * `exclude` lists video URLs (any form of the link) that must not be picked: ones the brand already
  * remade.
  */
@@ -248,12 +284,16 @@ export function pickForBreakdown(
   const min = options.minSeconds ?? 5;
   const max = options.maxSeconds ?? 90;
   const excluded = new Set([...(options.exclude ?? [])].map(canonicalUrl));
-  const usable = candidates
-    .filter((candidate) => Boolean(candidate.media_url))
-    .filter((candidate) => !excluded.has(canonicalUrl(candidate.url)))
-    .filter((candidate) => candidate.duration === null || (candidate.duration >= min && candidate.duration <= max))
-    // keepOrder: the caller already ranked them (by relevance, then performance).
-    .sort((a, b) => (options.keepOrder ? 0 : b.score.total - a.score.total));
+  const usable = pickOrder(
+    candidates
+      .filter((candidate) => Boolean(candidate.media_url))
+      .filter((candidate) => !excluded.has(canonicalUrl(candidate.url)))
+      .filter((candidate) => candidate.duration === null || (candidate.duration >= min && candidate.duration <= max)),
+    // keepOrder: the caller already ranked them (by relevance, then reach and cloneability).
+    options.keepOrder,
+  );
+  const easy = usable.filter(cloneable);
+  const hard = usable.filter((candidate) => !cloneable(candidate));
 
   const picked: ReferenceCandidate[] = [];
   const authors = new Set<string>();
@@ -265,41 +305,57 @@ export function pickForBreakdown(
     const author = authorKey(candidate.author);
     return !picked.includes(candidate) && !(author && authors.has(author));
   };
-  // Both funnel jobs first. Convert references go by conversion evidence (the reach score ranks the
-  // list, and ads have no views), less the cost of a long remake; reach references keep the list's
-  // order, whose reach score already counts length.
+  // Both funnel jobs first, cloneable references only. Convert references go by their sell value;
+  // reach references keep the list's order, whose reach value already counts length and cloneability.
   const quota = n >= 4 ? 2 : n >= 2 ? 1 : 0;
-  const sells = (candidate: ReferenceCandidate) => (candidate.score.conversion ?? 0) - renderCost(candidate.duration);
-  const byRole = (role: FunnelRole) => {
-    const list = usable.filter((candidate) => roleOf(candidate) === role);
-    return role === "convert" ? [...list].sort((a, b) => sells(b) - sells(a)) : list;
+  const byRole = (role: FunnelRole, list: ReferenceCandidate[]) => {
+    const mine = list.filter((candidate) => roleOf(candidate) === role);
+    return role === "convert" ? [...mine].sort((a, b) => sellValue(b) - sellValue(a)) : mine;
   };
   for (const role of ["convert", "reach"] as const) {
     let taken = 0;
-    for (const candidate of byRole(role)) {
+    for (const candidate of byRole(role, easy)) {
       if (taken >= quota || picked.length >= n) break;
       if (!fresh(candidate)) continue;
       take(candidate);
       taken++;
     }
-  }
-  // Then one from each lane, so the director gets different styles: a competitor, a niche outlier,
-  // a famous viral benchmark, an adjacent format, an ad.
-  for (const origin of ["competitor", "category", "benchmark", "adjacent", "ad"] as const) {
-    if (picked.length >= n || picked.some((candidate) => candidate.origin === origin)) continue;
-    const best = usable.find((candidate) => candidate.origin === origin && fresh(candidate)) ?? usable.find((candidate) => candidate.origin === origin && !picked.includes(candidate));
-    if (best) take(best);
-  }
-  for (const distinctAuthors of [true, false]) {
-    for (const candidate of usable) {
-      if (picked.length >= n) break;
-      if (picked.includes(candidate)) continue;
-      const author = authorKey(candidate.author);
-      if (distinctAuthors && author && authors.has(author)) continue;
-      take(candidate);
+    // The last resort for the mix: a job with nothing cloneable still gets its best reference.
+    if (taken === 0 && quota > 0 && picked.length < n) {
+      const fallback = byRole(role, hard).find(fresh);
+      if (fallback) take(fallback);
     }
   }
-  return options.keepOrder ? picked.sort((a, b) => usable.indexOf(a) - usable.indexOf(b)) : picked.sort((a, b) => b.score.total - a.score.total);
+  // Then one from each lane, so the director gets different styles: a competitor, a niche outlier,
+  // a famous viral benchmark, an adjacent format, an ad. Only cloneable ones earn a lane's seat.
+  for (const origin of ["competitor", "category", "benchmark", "adjacent", "ad"] as const) {
+    if (picked.length >= n || picked.some((candidate) => candidate.origin === origin)) continue;
+    const best = easy.find((candidate) => candidate.origin === origin && fresh(candidate)) ?? easy.find((candidate) => candidate.origin === origin && !picked.includes(candidate));
+    if (best) take(best);
+  }
+  for (const pool of [easy, hard]) {
+    for (const distinctAuthors of [true, false]) {
+      for (const candidate of pool) {
+        if (picked.length >= n) break;
+        if (picked.includes(candidate)) continue;
+        const author = authorKey(candidate.author);
+        if (distinctAuthors && author && authors.has(author)) continue;
+        take(candidate);
+      }
+    }
+  }
+  return picked.sort((a, b) => usable.indexOf(a) - usable.indexOf(b));
+}
+
+/**
+ * The order the director reads the breakdowns in: the ones the footage clone can reproduce first,
+ * then by fit for this brand, then by cloneability. A breakdown from before cloneability counts as
+ * cloneable.
+ */
+export function orderBreakdowns(breakdowns: ReferenceBreakdown[]): ReferenceBreakdown[] {
+  const clone = (breakdown: ReferenceBreakdown) => breakdown.cloneability?.score ?? CLONE_GATE;
+  const tier = (breakdown: ReferenceBreakdown) => (clone(breakdown) >= CLONE_GATE ? 0 : 1);
+  return [...breakdowns].sort((a, b) => tier(a) - tier(b) || b.fit.score - a.fit.score || clone(b) - clone(a));
 }
 
 // ---------- the breakdown ----------
@@ -375,6 +431,10 @@ export async function breakdownReference(naive: BreakdownClient, candidate: Refe
 
     const raw = await askForBreakdown(naive, options.model ?? BREAKDOWN_MODEL, buildContent({ candidate, duration, cuts, speech, wpm, frames, brand: options.brand }));
     const read = readBreakdown(raw, { duration, transcript: speech.text, segments: speech.segments });
+    // Watched now: the frames, cuts and transcript replace the caption's guess.
+    const cloneability = read.footage
+      ? cloneabilityOf({ footage: read.footage, duration, cuts: cuts.length, speech: /[\p{L}\p{N}]/u.test(speech.text) })
+      : cloneabilityPrior({ caption: candidate.caption, duration });
     return {
       id,
       url: candidate.url,
@@ -390,6 +450,7 @@ export async function breakdownReference(naive: BreakdownClient, candidate: Refe
       origin: candidate.origin,
       role: referenceRole(candidate, read.anatomy),
       conversion: { score: candidate.score.conversion ?? 0, signals: candidate.score.signals ?? [] },
+      cloneability,
     };
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -615,7 +676,7 @@ const BREAKDOWN_TOOL = {
   description: "Record the beat-by-beat breakdown of this reference video.",
   input_schema: {
     type: "object",
-    required: ["format", "hook", "beats", "caption_style", "delivery", "why_it_works", "conversion", "fit"],
+    required: ["format", "hook", "beats", "caption_style", "delivery", "why_it_works", "conversion", "clone", "fit"],
     properties: {
       format: {
         type: "string",
@@ -697,6 +758,7 @@ const BREAKDOWN_TOOL = {
           objection: { type: "string", description: "The doubt it answers ('is it worth it?', 'does it actually work') and how, or ''." },
         },
       },
+      clone: CLONE_SCHEMA,
       fit: {
         type: "object",
         required: ["score", "reason"],
@@ -728,10 +790,11 @@ const SYSTEM = [
   "- The team will remake this video as closely as possible for its own product, with its own AI presenter and its own footage: it keeps the hook, beats, wording, timing, shots and on-screen text, and never reuses this video's people, footage, voice or music. So capture every line, beat and on-screen text exactly. Do not try to identify anyone: describe people by role and look ('a woman in her 20s talking to a propped-up phone').",
   "- Judge fit honestly for the brand given: 10 means the format carries its product almost unchanged, 5 means it works with real changes, 0 means it depends on something the brand cannot do (a celebrity, a physical stunt for an app, a product it does not have).",
   "- The team rebuilds a chosen video one-to-one, shot by shot, with its own AI presenter and its product in place of the original's. Layouts that rebuild cleanly score higher: one presenter talking to camera, a green screen, a screen recording, graphics or text over a simple background. Footage that depends on real-world shots it cannot recreate (crowds, outdoor action, several people, stunts, a specific location) scores lower, however well it did.",
+  "- clone records what the footage is made of, for the footage clone: a lookalike AI presenter performs the original's exact motion (one person, in continuous takes), the original audio is re-voiced with new words, and graphics and captions are replaced in place. Count the people, judge how much of the video shows a face and mouth talking to the lens, and read the camera, the set, any product handling, the overlays, what carries the sound and whether the script would carry another product, from the frames and the transcript. Be honest: it decides whether the team can copy this video at all.",
 ].join("\n");
 
 const JSON_SHAPE =
-  '{"format": "...", "hook": {"line": "...", "on_screen_text": "...", "visual": "...", "mechanic": "..."}, "beats": [{"start": 0, "end": 2.1, "job": "hook|problem|agitate|reveal|demo|proof|objection|payoff|cta|other", "shot": "talking_head|product_closeup|screen|b_roll|text_only|reaction|split", "visual": "...", "on_screen_text": "...", "line": "..."}], "caption_style": "...", "delivery": "...", "why_it_works": "...", "conversion": {"role": "reach|convert", "structure": "problem_solution|demo|testimonial|review|before_after|us_vs_them|listicle|founder_story|objection_handling|tutorial|skit|reaction|trend|story|other", "problem": "...", "proof": "...", "offer": "...", "cta": "...", "objection": "..."}, "fit": {"score": 0, "reason": "..."}}';
+  '{"format": "...", "hook": {"line": "...", "on_screen_text": "...", "visual": "...", "mechanic": "..."}, "beats": [{"start": 0, "end": 2.1, "job": "hook|problem|agitate|reveal|demo|proof|objection|payoff|cta|other", "shot": "talking_head|product_closeup|screen|b_roll|text_only|reaction|split", "visual": "...", "on_screen_text": "...", "line": "..."}], "caption_style": "...", "delivery": "...", "why_it_works": "...", "conversion": {"role": "reach|convert", "structure": "problem_solution|demo|testimonial|review|before_after|us_vs_them|listicle|founder_story|objection_handling|tutorial|skit|reaction|trend|story|other", "problem": "...", "proof": "...", "offer": "...", "cta": "...", "objection": "..."}, "clone": {"people": 1, "face_to_camera": 0.8, "camera": "static|handheld|moving", "set": "plain|green_screen|location|crowd", "product": "none|brief|close_up", "overlays": "none|separable|baked", "audio": "speech|voiceover|music_only|dialogue|song|none", "script": "template|tied", "hardest": "..."}, "fit": {"score": 0, "reason": "..."}}';
 
 type ContentInput = {
   candidate: ReferenceCandidate;
@@ -818,7 +881,7 @@ async function askForBreakdown(naive: BreakdownClient, model: string, content: u
   return raw;
 }
 
-type ReadBreakdown = Pick<ReferenceBreakdown, "format" | "hook" | "beats" | "caption_style" | "delivery" | "why_it_works" | "fit" | "anatomy">;
+type ReadBreakdown = Pick<ReferenceBreakdown, "format" | "hook" | "beats" | "caption_style" | "delivery" | "why_it_works" | "fit" | "anatomy" | "footage">;
 
 /**
  * The model's answer, made safe for the writers: beats sorted and stretched to cover the whole
@@ -882,8 +945,10 @@ export function readBreakdown(raw: Record<string, unknown>, context: { duration:
         objection: text(sells.objection),
       }
     : undefined;
+  const footage = readFootage(raw.clone, beats);
   return {
     ...(anatomy ? { anatomy } : {}),
+    ...(footage ? { footage } : {}),
     format: text(raw.format),
     hook: {
       line: verbatim(text(hook.line), () => beats[0].line),

@@ -1,3 +1,4 @@
+import { CLONE_EASY, cloneLine } from "./creative/cloneability";
 import type { ResearchPack } from "./research";
 import type { CreativeBrief, FunnelRole, ProductBrief, ProductionPlan, ReferenceBreakdown, Script, SuccessMetric, VideoFormat } from "./creative/types";
 
@@ -128,7 +129,10 @@ export const STRATEGY_SCHEMA = {
                 type: "string",
                 description: "convert: one concrete action true to the product brief's offer ('get the $1 free credit, link in bio'). reach: a soft ask (follow, comment, share) or ''.",
               },
-              why: { type: "string", description: "Why this reference and format will work for this product and buyer, citing the reference's numbers or conversion evidence." },
+              why: {
+                type: "string",
+                description: `Why this reference and format will work for this product and buyer, citing the reference's numbers or conversion evidence, and, when its cloneability is below ${CLONE_EASY}, what makes it worth the harder remake.`,
+              },
             },
           },
         },
@@ -157,6 +161,9 @@ export function referenceDigest(breakdowns: ReferenceBreakdown[]) {
     role: ref.role ?? "reach",
     conversion_evidence: ref.conversion ? `${ref.conversion.score}/10${ref.conversion.signals.length ? `: ${ref.conversion.signals.join(", ")}` : ""}` : "none recorded",
     ...(ref.anatomy ? { how_it_sells: ref.anatomy } : {}),
+    // How faithfully the footage clone can remake it, and why: the director must say why when it picks a hard one.
+    cloneability: ref.cloneability ? cloneLine(ref.cloneability) : "not recorded",
+    ...(ref.footage?.hardest ? { hardest_to_clone: ref.footage.hardest } : {}),
     seconds: ref.duration,
     format: ref.format,
     hook: ref.hook,
@@ -190,9 +197,9 @@ export function strategyMessage(
     `Build the campaign for ${product.name || pack.brand.name || pack.domain}.`,
     `Deliver exactly ${options.concepts} video briefs. Each brief remakes one of the proven reference videos below for this product, as closely as possible: the same hook, beats, wording, timing, shots and on-screen text, with an AI presenter of the same kind in the same kind of setting, and only the product-specific parts changed. Pick the references with the best mix of proof and fit for this product. Give the briefs different styles, not just different references: mix the lanes (a competitor's winning format, a niche breakout, a famous viral hook, a long-running ad) and the formats, so the campaign tests several ways to win.`,
     `Plan the campaign as a funnel mix, the way performance teams do: the customer pays for sales, not views. A video with 2 million likes can sell less than one with 100 thousand. Give every brief a role and the metric it is judged on: reach videos get the product seen and shared (judged on views, shares or saves) and remake references whose proof is reach (views far above the account's followers, or raw virality for a famous benchmark like Cluely or MrBeast); convert videos make viewers click, sign up or buy (judged on link clicks, sign-ups or purchases) and remake references whose proof is that they sell (role "convert": an ad an advertiser kept paying for, many saves per like, a review, demo or testimonial that asks for the sale), keeping their selling beats (problem, proof, objection, offer, call to action) with this product's real facts and offer. ${options.concepts >= 2 ? `With ${options.concepts} videos, include at least one of each role.` : "With one video, pick the role the evidence supports best."} Each video will get its own tracked link, so a convert video's call to action must be one concrete step.`,
-    `Remakes are one-to-one: the reference's layout, graphics, captions and timing are rebuilt shot by shot with our presenter and product swapped in. So prefer references whose layout rebuilds cleanly (one presenter to camera, a green screen, a screen recording, graphics over a simple background) over ones that depend on real-world footage, and when the evidence is close, the shorter one: every second is rendered (about $0.40 a second with a presenter), so 45 seconds or less.`,
+    `Remakes are one-to-one, made from the reference's own footage: a lookalike AI presenter performs the original's exact motion (it needs one person, in continuous takes), the original audio is re-voiced with this product's words, and its graphics and captions are replaced in place. cloneability (0-10) says how faithfully that works for each reference, with the reasons, and hardest_to_clone names its hardest part. Face-to-camera UGC (one person talking to the lens: a talking-head testimonial, "I tried X", storytime, a POV reaction, green-screen commentary) is the format with the most return and the hardest to get right, and it is what the clone is built for: favour it, and vary the styles within it (the hook, the selling structure, the lane, the setting). Prefer references with cloneability ${CLONE_EASY} or more. Several people, a moving camera, crowds or real locations, hands working a product in close-up, and songs or dialogue are what it cannot reproduce. When you pick a reference below ${CLONE_EASY}, say in its brief's why what makes it worth the risk. When the evidence is close, take the shorter one: every second is rendered (about $0.40 a second with a presenter), so 45 seconds or less.`,
     breakdowns.length
-      ? `Reference videos, broken down beat by beat from their transcripts and frames. role and conversion_evidence say what each is proof of; how_it_sells quotes its selling beats:\n<references>\n${JSON.stringify(referenceDigest(breakdowns))}\n</references>`
+      ? `Reference videos, broken down beat by beat from their transcripts and frames, the most cloneable first. role and conversion_evidence say what each is proof of; how_it_sells quotes its selling beats; cloneability says how faithfully it can be remade:\n<references>\n${JSON.stringify(referenceDigest(breakdowns))}\n</references>`
       : "No reference videos could be broken down for this run. Base each brief on the strongest patterns in the research and set reference_id to an empty string.",
     `The product brief (the only source of claims):\n<product>\n${JSON.stringify({ ...product, visuals: undefined })}\n</product>`,
     product.visuals.length

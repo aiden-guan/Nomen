@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { parse, store } from "./db";
+import { CLONE_GATE, cloneabilityPrior, cloneSignals } from "./creative/cloneability";
 import { MIN_RELEVANCE } from "./creative/relevance";
-import type { FunnelRole, ReferenceBreakdown, ReferenceCandidate } from "./creative/types";
+import type { Cloneability, FunnelRole, ReferenceBreakdown, ReferenceCandidate } from "./creative/types";
 import { type BrandRow, type CampaignOptions, type CampaignRow, type CreativeState, creativeState, defaultOptions, originOf } from "./pipeline";
 import { mediaRoot } from "./store/sqlite";
 import type { CreativeRow, ShotState } from "./production";
@@ -203,6 +204,18 @@ export type ReferenceView = {
   signals: string[];
   /** A paid ad from an ad library: libraries publish no views, so `views` is 0 and means unknown. */
   paidAd: boolean;
+  /**
+   * How faithfully the footage clone can remake it (0-10) and the named parts behind it ("one person
+   * on camera +2.5"): read from its frames once broken down ("breakdown"), guessed from the caption
+   * and length before ("metadata").
+   */
+  cloneability: number | null;
+  /** Below the gate: the clone cannot reproduce it well, so it is picked only as a last resort. */
+  hardToClone: boolean;
+  cloneBasis: Cloneability["basis"] | null;
+  cloneSignals: string[];
+  /** The breakdown's note on the hardest thing to reproduce, or null. */
+  hardestToClone: string | null;
   /** Our videos that remake it (or the director's briefs, before the videos exist). */
   remadeBy: Array<{ title: string; creativeId: string | null }>;
 };
@@ -230,6 +243,8 @@ export function referencesView(state: CreativeState | null, videos: Map<string, 
     const lane = breakdown?.origin ?? candidate?.origin ?? (video ? (video.ad ? "ad" : originOf(video)) : null);
     const paidAd = lane === "ad";
     const outlier = paidAd ? null : (breakdown?.outlier ?? candidate?.score.outlier ?? (followers ? Math.round((views / Math.max(followers, 1000)) * 10) / 10 : null));
+    // Studies from before cloneability still get the caption's guess, from the research video.
+    const clone = breakdown?.cloneability ?? candidate?.score.cloneability ?? (video ? cloneabilityPrior(video) : null);
     out.push({
       url,
       status,
@@ -260,6 +275,11 @@ export function referencesView(state: CreativeState | null, videos: Map<string, 
       conversion: breakdown?.conversion?.score ?? candidate?.score.conversion ?? null,
       signals: breakdown?.conversion?.signals ?? candidate?.score.signals ?? [],
       paidAd,
+      cloneability: clone?.score ?? null,
+      hardToClone: clone ? clone.score < CLONE_GATE : false,
+      cloneBasis: clone?.basis ?? null,
+      cloneSignals: clone ? cloneSignals(clone) : [],
+      hardestToClone: breakdown?.footage?.hardest || null,
       remadeBy: uses.filter((use) => (breakdown && use.id === breakdown.id) || use.url === url).map(({ title, creativeId }) => ({ title, creativeId })),
     });
   };

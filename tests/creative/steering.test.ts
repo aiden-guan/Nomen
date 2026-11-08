@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { scoutDigest } from "@/lib/creative/scout";
+import { scout, scoutDigest } from "@/lib/creative/scout";
 import { lintScript, normalizeScript, type ScriptContext, writeScript } from "@/lib/creative/script";
 import type { BeatJob, CreativeBrief, ProductBrief, ReferenceBreakdown, ScriptBeat } from "@/lib/creative/types";
 import { compactResearch, type Video } from "@/lib/research";
@@ -181,5 +182,58 @@ describe("the scout's view", () => {
     const digest = scoutDigest([ad, base]);
     expect(digest).toHaveLength(1);
     expect(digest[0].saves_per_like).toBe(0.4);
+  });
+
+  it("shows each video's cloneability guess and sends the scout after face-to-camera UGC", async () => {
+    const base: Video = { platform: "tiktok", url: "u", caption: "storytime: my agent bill", views: 100_000, likes: 1_000, comments: 10, shares: 5, saves: 400, duration: 20, author: "a", followers: 1_000, paid: false, thumbnail: null, media_url: null, source: "tiktok_0" };
+    expect(scoutDigest([base, { ...base, url: "v", caption: "duet with @x" }]).map((v) => v.clones)).toEqual([7, 2.5]);
+
+    let request: { system: string; messages: Array<{ content: string }> } | null = null;
+    const naive = {
+      message: async (sent: typeof request) => {
+        request = sent;
+        return { content: [{ type: "tool_use", name: "scout_report", input: { notes: "n", searches: [{ platform: "tiktok", query: "storytime api bill", why: "" }, { platform: "tiktok", query: "POV agent pays", why: "" }] } }] };
+      },
+    };
+    const plan = { brand_name: "Monid", category: "agent tools", audience: "devs", competitors: [], content_queries: [], conversion_queries: [], face_queries: ["storytime api bill"], ads_query: "", reddit_query: "", aeo_prompts: [] };
+    const report = await scout(naive as never, { plan, videos: [base], brand: { name: "Monid", description: "" }, alreadySearched: [] });
+    // The face search already ran in the first wave, so the scout's repeat of it is dropped.
+    expect(report.searches.map((s) => s.query)).toEqual(["POV agent pays"]);
+    expect(request!.system).toMatch(/Make at least one search find that face-to-camera UGC in this niche/);
+    expect(request!.messages[0].content).toContain('"clones":7');
+  });
+});
+
+describe("the director picks what the footage clone can reproduce", () => {
+  const cloned: ReferenceBreakdown = {
+    ...adReference,
+    footage: { people: 2, face_to_camera: 0.4, camera: "handheld", set: "location", product: "none", overlays: "separable", audio: "dialogue", script: "template", hardest: "Two people talk to each other on a street." },
+    cloneability: { score: 3.1, basis: "breakdown", parts: [{ name: "people", points: 0.5, signal: "two people on camera (the clone performs one)" }] },
+  };
+
+  it("shows each reference's cloneability, its reasons and its hardest part", () => {
+    const [digest] = referenceDigest([cloned]);
+    expect(digest).toMatchObject({ cloneability: "3.1/10 from its frames: two people on camera (the clone performs one) +0.5", hardest_to_clone: "Two people talk to each other on a street." });
+    const legacy = referenceDigest([adReference])[0];
+    expect(legacy.cloneability).toBe("not recorded");
+    expect("hardest_to_clone" in legacy).toBe(false);
+  });
+
+  it("tells the director to favour face-to-camera UGC, prefer cloneability 6+, and say why when it picks a harder one", () => {
+    const pack = compactResearch("monid.ai", [], null);
+    const message = strategyMessage(pack, { product, breakdowns: [cloned] }, { concepts: 3, shotsPerConcept: 3, secondsPerShot: 8, videoModel: "veo" });
+    expect(message).toMatch(/a lookalike AI presenter performs the original's exact motion \(it needs one person, in continuous takes\)/);
+    expect(message).toMatch(/Face-to-camera UGC \(one person talking to the lens: a talking-head testimonial, "I tried X", storytime, a POV reaction, green-screen commentary\)/);
+    expect(message).toContain("Prefer references with cloneability 6 or more.");
+    expect(message).toContain("When you pick a reference below 6, say in its brief's why what makes it worth the risk.");
+    const why = STRATEGY_SCHEMA.properties.campaign.properties.briefs.items.properties.why.description;
+    expect(why).toMatch(/when its cloneability is below 6, what makes it worth the harder remake/);
+  });
+
+  it("carries the same rules in the director agent's own instructions", () => {
+    const director = readFileSync(new URL("../../naive/agents/director.md", import.meta.url), "utf8");
+    expect(director).toMatch(/\*\*Face-to-camera UGC is the core format\.\*\*/);
+    expect(director).toMatch(/Prefer references with `cloneability` 6 or more/);
+    expect(director).toMatch(/When you pick a reference below 6, say in `why` what makes it worth the harder remake/);
   });
 });

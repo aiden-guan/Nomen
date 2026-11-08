@@ -18,6 +18,12 @@ export type ResearchPlan = {
    * testimonials. Likes prove reach; these find the formats that turn viewers into customers.
    */
   conversion_queries?: string[];
+  /**
+   * Searches for one person talking to camera about the category, in the UGC formats that convert:
+   * talking-head testimonials, "I tried X", storytime, POV reactions, green-screen commentary. The
+   * footage clone reproduces these best, and they are the highest-return format.
+   */
+  face_queries?: string[];
   ads_query: string;
   reddit_query: string;
   aeo_prompts: string[];
@@ -40,7 +46,7 @@ export function videoSearch(key: string, platform: "tiktok" | "instagram" | "you
 }
 
 /** Run keys whose output is a list of short videos, and which platform each searched. */
-export const VIDEO_RUN = /^(tiktok_(brand|\d+|comp_\d+|bench_\d+|conv_\d+)|reels(_\d+|_conv_\d+)?|shorts(_\d+)?|scout_(tiktok|reels|shorts)_\d+)$/;
+export const VIDEO_RUN = /^(tiktok_(brand|\d+|comp_\d+|bench_\d+|conv_\d+|face_\d+)|reels(_\d+|_conv_\d+|_face_\d+)?|shorts(_\d+)?|scout_(tiktok|reels|shorts)_\d+)$/;
 export const platformOfRun = (key: string): Video["platform"] => (key.includes("reels") ? "instagram" : key.includes("shorts") ? "youtube" : "tiktok");
 
 export type Video = {
@@ -157,11 +163,16 @@ export const TOP_ADS_CONVERSIONS = 3;
  * Reach is half the story, so it also looks for proof that a format sells: the conversion queries
  * (reviews, "I tried", comparisons), the competitors' own ads on Meta and TikTok (an ad that keeps
  * running is an ad that pays), the category's ads, and TikTok's top ads bought for conversions.
+ *
+ * And it looks for the format Nomen remakes best: one person talking to camera about the category
+ * (the face queries, on TikTok and the first on Reels), skipping any the conversion searches run.
  */
 export function phaseCSpecs(plan: ResearchPlan): RunSpec[] {
   const queries = plan.content_queries.filter(Boolean).slice(0, 5);
   const top = queries.slice(0, 2).length ? queries.slice(0, 2) : [plan.category];
   const conversion = (plan.conversion_queries ?? []).filter(Boolean).slice(0, 3);
+  const searched = new Set(conversion.map((query) => query.toLowerCase().trim()));
+  const face = (plan.face_queries ?? []).filter((query) => query && !searched.has(query.toLowerCase().trim())).slice(0, 2);
   // A keyword search matches ad text, so a competitor's name finds anyone who says it ("RapidAPI"
   // found WhatsApp ads saying "rapid"); the company search lists that advertiser's own ads.
   const metaCompany = (key: string, name: string): RunSpec => ({
@@ -186,6 +197,8 @@ export function phaseCSpecs(plan: ResearchPlan): RunSpec[] {
     ...queries.map((query, i) => videoSearch(`tiktok_${i}`, "tiktok", query, "C")),
     ...conversion.map((query, i) => videoSearch(`tiktok_conv_${i}`, "tiktok", query, "C")),
     ...conversion.slice(0, 1).map((query, i) => videoSearch(`reels_conv_${i}`, "instagram", query, "C")),
+    ...face.map((query, i) => videoSearch(`tiktok_face_${i}`, "tiktok", query, "C")),
+    ...face.slice(0, 1).map((query, i) => videoSearch(`reels_face_${i}`, "instagram", query, "C")),
     ...plan.competitors.slice(0, 3).map((competitor, i) => videoSearch(`tiktok_comp_${i}`, "tiktok", competitor.name, "C")),
     ...(plan.benchmarks ?? []).slice(0, 3).map((benchmark, i) => videoSearch(`tiktok_bench_${i}`, "tiktok", benchmark.name, "C")),
     ...top.map((query, i) => videoSearch(`reels_${i}`, "instagram", query, "C")),
@@ -230,7 +243,7 @@ const PLAN_TOOL = {
   description: "Record the research plan for this brand.",
   input_schema: {
     type: "object",
-    required: ["brand_name", "category", "audience", "competitors", "content_queries", "conversion_queries", "ads_query", "reddit_query", "aeo_prompts", "benchmarks"],
+    required: ["brand_name", "category", "audience", "competitors", "content_queries", "conversion_queries", "face_queries", "ads_query", "reddit_query", "aeo_prompts", "benchmarks"],
     properties: {
       brand_name: { type: "string", description: "The brand's name as customers say it." },
       category: { type: "string", description: "The product category in 2-4 words, e.g. 'prebiotic soda'." },
@@ -252,6 +265,13 @@ const PLAN_TOOL = {
         items: { type: "string" },
         description:
           "3 short phrases (2-5 words) that surface videos that SELL in this category rather than just entertain, as buyers search them: a review or 'I tried' ('I tried prebiotic soda', 'honest review agent tools'), a comparison with a competitor ('poppi vs olipop'), and a demo, before-and-after or testimonial phrase that fits the product. Competitor names are fine; not this brand's own name.",
+      },
+      face_queries: {
+        type: "array",
+        maxItems: 2,
+        items: { type: "string" },
+        description:
+          "2 short phrases (2-5 words) that surface ONE person talking to camera about this category, in the UGC formats that sell, as creators tag them: a talking-head testimonial or 'I tried X', storytime, a POV reaction, or green-screen commentary ('storytime prebiotic soda', 'POV your agent pays for itself', 'green screen API pricing'). Different from the conversion queries. No brand names.",
       },
       ads_query: { type: "string", description: "A 1-3 word phrase to search ad libraries for this category." },
       reddit_query: { type: "string", description: "A phrase that finds real customer discussions of this category on Reddit." },
@@ -283,7 +303,7 @@ export async function planResearch(naive: NaiveClient, input: { domain: string; 
       // The plan now carries conversion searches and benchmark roles: 1200 tokens cut it off mid-call.
       max_tokens: 3000,
       system:
-        "You plan market research for a marketing team that makes short videos to grow a customer's sales, not just its views: it needs both what gets watched in this category and what makes people buy (reviews, demos, comparisons, ads that keep running). Call the research_plan tool exactly once. Be concrete and use the words real customers use.",
+        "You plan market research for a marketing team that makes short videos to grow a customer's sales, not just its views: it needs both what gets watched in this category and what makes people buy (reviews, demos, comparisons, ads that keep running). Above all it needs one person talking to camera about the category (testimonials, 'I tried X', storytime, POV reactions, green-screen commentary): it remakes those best, and they sell. Call the research_plan tool exactly once. Be concrete and use the words real customers use.",
       messages: [
         {
           role: "user",
@@ -313,6 +333,7 @@ function mergePlan(raw: Partial<ResearchPlan>, fallback: ResearchPlan): Research
   const competitors = Array.isArray(raw.competitors) ? raw.competitors.filter((c) => c && typeof c.name === "string" && c.name.trim()) : [];
   const queries = strings(raw.content_queries);
   const conversion = strings(raw.conversion_queries);
+  const face = strings(raw.face_queries);
   const prompts = strings(raw.aeo_prompts);
   return {
     brand_name: text(raw.brand_name) || fallback.brand_name,
@@ -321,6 +342,7 @@ function mergePlan(raw: Partial<ResearchPlan>, fallback: ResearchPlan): Research
     competitors: competitors.length ? competitors.slice(0, 5) : fallback.competitors,
     content_queries: queries.length ? queries.slice(0, 5) : fallback.content_queries,
     conversion_queries: conversion.length ? conversion.slice(0, 3) : fallback.conversion_queries,
+    face_queries: face.length ? face.slice(0, 2) : fallback.face_queries,
     ads_query: text(raw.ads_query) || fallback.ads_query,
     reddit_query: text(raw.reddit_query) || fallback.reddit_query,
     aeo_prompts: prompts.length ? prompts.slice(0, 2) : fallback.aeo_prompts,
@@ -343,6 +365,7 @@ export function fallbackPlan(domain: string, brand: ResearchPack["brand"], simil
     competitors: similar.slice(0, 4).map((site) => ({ name: titleCase(site.split(".")[0]), domain: site })),
     content_queries: [category, `${name} review`, `best ${category}`, `${category} tips`],
     conversion_queries: [`${category} review`, `I tried ${category}`],
+    face_queries: [`${category} storytime`, `${category} testimonial`],
     ads_query: category,
     reddit_query: `best ${category}`,
     aeo_prompts: [`What are the best ${category} brands?`, `Which ${category} should I buy?`],

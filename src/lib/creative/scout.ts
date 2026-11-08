@@ -1,6 +1,7 @@
 import type { NaiveClient } from "../naive";
 import { extractJson, type ResearchPlan, roughScore, type RunSpec, videoSearch, type Video } from "../research";
 import { getSetting } from "../settings";
+import { cloneabilityPrior } from "./cloneability";
 
 // The scout: after the first wave of searches, an agent reads what came back (stats, captions,
 // hashtags, which accounts broke out) and decides where to dig next. It is what makes research
@@ -44,7 +45,8 @@ const SCOUT_TOOL = {
 /**
  * The top of the first wave, as the scout sees it: numbers it can reason about, no links to follow.
  * Ads are left out (they have no views to compare); saves per like is in, because a video people
- * save is one they mean to act on.
+ * save is one they mean to act on, and so is the cloneability prior, so the scout follows formats the
+ * footage clone can remake.
  */
 export function scoutDigest(videos: Video[], limit = 18) {
   return videos
@@ -60,6 +62,7 @@ export function scoutDigest(videos: Video[], limit = 18) {
       views_per_follower: video.followers ? Math.round((video.views / Math.max(video.followers, 1000)) * 10) / 10 : null,
       engagement_pct: Math.round(((video.likes + video.comments + 2 * video.shares + 2 * video.saves) / Math.max(video.views, 1)) * 1000) / 10,
       saves_per_like: video.likes >= 100 && video.saves > 0 ? Math.round((video.saves / video.likes) * 100) / 100 : null,
+      clones: cloneabilityPrior(video).score,
       seconds: video.duration,
       caption: video.caption.slice(0, 160),
       hashtags: hashtags(video.caption),
@@ -72,8 +75,8 @@ export function hashtags(caption: string) {
 
 export async function scout(naive: NaiveClient, input: { plan: ResearchPlan; videos: Video[]; brand: { name: string; description: string }; alreadySearched: string[] }): Promise<ScoutReport> {
   const digest = scoutDigest(input.videos);
-  // The conversion searches ran in the first wave too; the caller's list predates them.
-  const alreadySearched = [...new Set([...input.alreadySearched, ...(input.plan.conversion_queries ?? [])])];
+  // The conversion and face searches ran in the first wave too; the caller's list predates them.
+  const alreadySearched = [...new Set([...input.alreadySearched, ...(input.plan.conversion_queries ?? []), ...(input.plan.face_queries ?? [])])];
   const reply = await naive.message({
     model: getSetting("planner_model"),
     max_tokens: 1500,
@@ -81,6 +84,7 @@ export async function scout(naive: NaiveClient, input: { plan: ResearchPlan; vid
       "You are the research scout on a short-form video team. Your job is to find videos that perform because the video is good, not because the account is big: a video with 10x more views than its account has followers proves its hook and format work.",
       "The team is paid for its customer's sales, not views, so it needs two kinds of evidence: videos that earn reach, and videos that make people act. A video that sells shows it in its numbers and caption: many saves per like (people keep it to come back to), a call to action or offer (link in bio, a code, 'comment AGENT'), a review, a demo, an 'I tried' or a comparison.",
       "Read the first wave of search results and decide where to dig next. Good follow-ups: a hashtag several breakout videos share; the exact phrasing of a breakout hook or topic; the buyer's identity as creators tag it; an adjacent niche whose formats would transfer to this product; a competitor's name plus 'review' or 'vs'. Make at least one search find videos that sell in this niche (a review, demo, comparison or testimonial phrase, or the phrasing of a high-saves video that asks for action).",
+      "The team remakes a chosen video from its own footage with one AI presenter copying the original's motion, so one person talking to camera is the format it can use best, and the one that sells best. Make at least one search find that face-to-camera UGC in this niche: a talking-head testimonial, 'I tried X', storytime, a POV reaction or green-screen commentary, phrased the way the best such results are. Each result's 'clones' (0-10) guesses from its caption and length how cleanly it could be remade: follow the high ones, not dances, duets, vlogs or crowds.",
       "Bad follow-ups: the brand name alone, generic words like 'marketing' or 'viral', anything already searched.",
       "If the results are thin or off-topic (the category barely exists on short video), search adjacent topics where the same buyer spends attention. Call the scout_report tool once.",
     ].join("\n"),

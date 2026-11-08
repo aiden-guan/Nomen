@@ -94,7 +94,69 @@ export type ReferenceCandidate = Video & {
     role?: FunnelRole;
     /** The named signals behind `conversion`: "ran 94 days", "saves per like 2.1x the pool's". */
     signals?: string[];
+    /** How cleanly the footage clone can remake it: a prior from the caption and length (see cloneabilityPrior). */
+    cloneability?: Cloneability;
   };
+};
+
+/**
+ * The parts of a cloneability score. The metadata prior uses base, face_format, green_screen,
+ * several_people, moving, music, hands, tied and length; the breakdown's read uses people, face,
+ * takes, camera, set, audio, script, product, overlays and length.
+ */
+export type CloneComponent =
+  | "base"
+  | "face_format"
+  | "green_screen"
+  | "several_people"
+  | "moving"
+  | "music"
+  | "hands"
+  | "tied"
+  | "people"
+  | "face"
+  | "takes"
+  | "camera"
+  | "set"
+  | "audio"
+  | "script"
+  | "product"
+  | "overlays"
+  | "length";
+
+/**
+ * How faithfully the footage clone can remake a reference one-to-one (0-10): a lookalike AI persona
+ * performs the original's exact motion (one person, continuous takes), the original audio is
+ * re-voiced and graphics and captions are replaced in place. See src/lib/creative/cloneability.ts.
+ */
+export type Cloneability = {
+  score: number;
+  /** "metadata": guessed from the caption and length before anyone watched it; "breakdown": read from its frames, cuts and transcript. */
+  basis: "metadata" | "breakdown";
+  /** Every component with its points, so a person (or the director) can see why. */
+  parts: Array<{ name: CloneComponent; points: number; signal: string }>;
+};
+
+/** What the breakdown analyst saw of a reference's footage that decides whether the clone can reproduce it. */
+export type FootageRead = {
+  /** Different people on camera over the whole video (one person in two outfits counts once). */
+  people: number;
+  /** Share of the video (0-1) with a face and mouth visible, talking to the lens. */
+  face_to_camera: number;
+  /** static: a propped-up phone or tripod; handheld: held, small sway; moving: walking, panning, following action. */
+  camera: "static" | "handheld" | "moving";
+  /** plain: a room, desk, car or wall; green_screen: a person over a keyed picture; location: a real place; crowd: other people around. */
+  set: "plain" | "green_screen" | "location" | "crowd";
+  /** none; brief: held up or shown for a moment; close_up: hands using the product in close-up. */
+  product: "none" | "brief" | "close_up";
+  /** none; separable: captions, text boxes, stickers or screenshots laid over; baked: text tracked to objects or behind the person. */
+  overlays: "none" | "separable" | "baked";
+  /** What carries the sound: one voice (speech), a narrator over footage (voiceover), music only, people talking to each other (dialogue), a song, or none. */
+  audio: "speech" | "voiceover" | "music_only" | "dialogue" | "song" | "none";
+  /** template: a hook, claim and ask that would carry another product; tied: depends on a specific event, person, place or trend. */
+  script: "template" | "tied";
+  /** The hardest thing for one AI performer copying the original's motion to reproduce, in one sentence. */
+  hardest: string;
 };
 
 /** The direct-response structure a video follows, as performance teams name them. */
@@ -186,6 +248,10 @@ export type ReferenceBreakdown = {
   conversion?: { score: number; signals: string[] };
   /** Its selling beats (problem, proof, offer, call to action), for remakes that must convert. */
   anatomy?: ConversionAnatomy;
+  /** What its footage is made of, as the footage clone needs to know it (people, face, camera, set, sound). */
+  footage?: FootageRead;
+  /** How cleanly the footage clone can remake it, from `footage`, the cuts and the length. */
+  cloneability?: Cloneability;
 };
 
 // ---------- what we will make ----------

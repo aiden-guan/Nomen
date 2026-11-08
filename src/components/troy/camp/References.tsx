@@ -111,12 +111,19 @@ export function ReferenceCard({ reference: r, onScreen }: { reference: Reference
             {r.signals.length ? `: ${r.signals.join(" · ")}` : ""}
           </p>
         )}
+        {r.cloneability !== null && (
+          <p className="mt-1 text-[11px] leading-snug text-[var(--ink-soft)]" title="How faithfully the footage clone can remake it: one person talking to camera, in long takes, in a plain room clones best">
+            <b className={`font-semibold ${r.hardToClone ? "text-[var(--crimson-dark)]" : "text-[var(--ink)]"}`}>clones {r.cloneability}/10</b>
+            {r.cloneBasis === "metadata" ? " (guessed from the caption)" : ""}
+            {open && r.cloneSignals.length ? `: ${r.cloneSignals.join(" · ")}` : r.hardestToClone ? ` · hardest: ${r.hardestToClone}` : ""}
+          </p>
+        )}
         {r.hook?.line && <p className="mt-1.5 leading-snug">“{r.hook.line}”</p>}
         {note && <p className={`mt-1 leading-snug text-[12px] text-[var(--ink-soft)] ${open ? "" : "line-clamp-2"}`}>{note}</p>}
         {r.hook?.mechanic && open && <p className="mt-1 text-[12px] leading-snug text-[var(--ink-soft)]">Hook: {r.hook.mechanic}</p>}
         {r.format && open && <p className="mt-1 text-[12px] leading-snug text-[var(--ink-soft)]">Format: {r.format}{r.beats ? `, ${r.beats} beats` : ""}</p>}
         {r.error && <p className="mt-1 text-[12px] text-[var(--crimson-dark)]">{r.error}</p>}
-        {(r.hook?.mechanic || r.format || (note && note.length > 110)) && (
+        {(r.hook?.mechanic || r.format || r.cloneSignals.length > 0 || (note && note.length > 110)) && (
           <button type="button" className={`${styles.link} mt-0.5 text-[11px] underline decoration-dotted underline-offset-4`} onClick={() => setOpen((o) => !o)}>
             {open ? "less" : "more"}
           </button>

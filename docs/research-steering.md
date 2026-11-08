@@ -181,6 +181,101 @@ product's real facts, and end on the brief's CTA (added to the last beat if the 
 asks). Reach scripts keep the ending and stay soft. The linter fails a convert script with no beat
 that asks; the critic scores `does_its_job`.
 
+## Cloneability: references the footage clone can reproduce
+
+Dylan's follow-up: the agents should find videos that went viral and converted *and* that Nomen
+can remake one-to-one, with face videos (the hardest, and the most return) done best. The remake
+now clones the reference's own footage: a lookalike AI persona performs the original's exact
+motion (Kling 3.0 Motion Control: one person, single continuous takes), the original audio is
+re-voiced, and graphics and captions are replaced in place. So every candidate gets a third score,
+`cloneability` (0-10), next to reach and conversion (`src/lib/creative/cloneability.ts`).
+
+### Before anyone watches it: a prior from the caption and length
+
+`cloneabilityPrior`, attached by `scoreVideo` as `score.cloneability` with `basis: "metadata"`:
+
+| Component | Points | Cue in the caption |
+| - | - | - |
+| base | 5 | not watched yet |
+| face_format | +2 | storytime, POV, "I tried", review, rant, hot take, PSA, "replying to @", reaction, green screen, #talkinghead, #ugc |
+| green_screen | +0.5 | green screen: the set is a picture |
+| several_people | -2.5 | duet, stitch, interview, podcast, prank, "my boyfriend", "ft. @", "we tried" |
+| moving | -1.5 | vlog, day in my life, travel, gym, concert, street |
+| music | -1.5 | lip-sync, dance, song, challenge, trend |
+| hands | -1 | unboxing, ASMR, recipe, makeup, GRWM, haul |
+| tied | -0.5 | news, drama, "part 2" |
+| length | 0 to -2 | -(s - 45) / 15 past 45 s |
+
+Each cue counts once and is quoted in its signal. The prior tops out at 7.5: only frames can call
+a video an easy clone.
+
+### After the breakdown: read from the frames
+
+The breakdown's vision call (no extra call) now fills a `clone` block (`FootageRead`): how many
+people, the share of time a face and mouth talk to the lens, the camera (static, handheld,
+moving), the set (plain, green screen, location, crowd), product handling (none, brief, close-up),
+overlays (none, separable, baked), what carries the sound (speech, voice-over, music, dialogue,
+song, none), whether the script is a template or tied to an event, and the hardest thing to
+reproduce. `cloneabilityOf` scores it with ffmpeg's cut count and the transcript:
+
+| Component | Points | Signal |
+| - | - | - |
+| people | 0-2.5 | one person 2.5; nobody (screens, text) 1.5; two 0.5; three or more 0 |
+| face | 0-2 | 2 x the share of time a face and mouth talk to the lens |
+| takes | 0-1.5 | cuts per 10 s: 1.5 at 2 or fewer, 0 at 6 or more (rapid jump cuts) |
+| camera | 0-1 | propped-up phone or tripod 1; handheld 0.5; moving 0 |
+| set | 0-1 | plain or green screen 1; a real location 0.3; a crowd 0 |
+| audio | 0-1.5 | one voice 1.5; voice-over 1; music only or silence 0.5; dialogue or a song 0 |
+| script | 0-0.5 | a template (hook, claim, ask) 0.5; tied to an event or person 0 |
+| product | -1.5 or -0.5 | hands using it in close-up; held up briefly |
+| overlays | -1 | text or graphics baked into the footage (captions laid over cost nothing) |
+| length | 0 to -2 | -(s - 45) / 15 past 45 s |
+
+The ideal face video (one person talking to a propped-up phone in a plain room, long takes, a
+template script) scores 10; a faceless screen recording with a voice-over about 6.5; a two-person
+street skit about 3. Claimed speech with no words in the transcript counts as music only. Without a
+`clone` block the breakdown keeps the caption's prior. Every part carries its points ("one person
+on camera +2.5"), shown to the screen, the director and the camp.
+
+### How picking uses it (`references.ts`, `relevance.ts`)
+
+- **Gate**: below `CLONE_GATE` (4) a reference is a last resort. `pickOrder` puts every cloneable
+  candidate ahead of every hard one; `pickForBreakdown` fills the funnel mix, the lanes and the
+  rest from cloneable ones first.
+- **Weight**: `reachValue = total + 1.5 x cloneability` orders reach picks and the fill;
+  `sellValue = conversion - length cost + 0.5 x cloneability` orders converters. At these weights a
+  face video (about 9) beats an unknown format (5) by 6 reach points, about a 3x versus a 9x
+  outlier, and by 2 conversion points.
+- **The mix still holds**: two convert and two reach seats (one each from n = 2), cloneable first;
+  a job with no cloneable reference at all gets its one best hard reference rather than none.
+  Lanes only seat cloneable references.
+- The relevance screen's pool follows the pick order (cloneable first), its converter seats go to
+  cloneable converters first, and ties in relevance break on `reachValue`. Each candidate shows
+  the screen a `clones` line, and the screen takes 1-2 points off what the clone cannot reproduce.
+- The director reads breakdowns in `orderBreakdowns` order: cloneable first, then fit, then
+  cloneability.
+
+### What the agents are told
+
+- **Planner** (`research.ts`): 2 `face_queries` for one person talking to camera about the
+  category (testimonial, "I tried X", storytime, POV reaction, green-screen commentary), searched
+  on TikTok (`tiktok_face_*`) and the first on Reels (`reels_face_0`); a face query that repeats a
+  conversion query is skipped. Fallback: "<category> storytime", "<category> testimonial".
+- **Scout**: sees each video's `clones` guess and must spend at least one follow-up on face UGC.
+- **Director** (`strategyMessage`, `naive/agents/director.md`): sees `cloneability` and
+  `hardest_to_clone` per reference; face-to-camera UGC is the core format; prefer references at
+  6 or more; a brief that remakes one below 6 says why in `why`. The director.md change reaches
+  Naive only after `npm run naive:plan` and an approved apply; the per-campaign message carries
+  the same rules now.
+- **Camp**: the Oracle shows "clones N/10" under "converts N/10" (red when below the gate), the
+  hardest part, and every signal under "more".
+
+### Needs a live run to confirm
+
+- Whether the vision model's head count and face share match the frames, and whether 4 cuts per
+  10 s is the right point for Kling's takes (its shortest usable take).
+- The weights (1.5 and 0.5) and the gate (4) against what the clone actually reproduces.
+
 ## Measuring conversions for real (follow-up, not built)
 
 Research can only guess which videos sell. To learn it:

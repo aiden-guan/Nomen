@@ -1,6 +1,8 @@
 import type { NaiveClient } from "../naive";
 import { QC_MODEL } from "../qc";
 import { extractJson } from "../research";
+import { cloneable, cloneabilityPrior, cloneLine } from "./cloneability";
+import { pickOrder, reachValue, sellValue } from "./references";
 import { hashtags } from "./scout";
 import type { ProductBrief, ReferenceCandidate } from "./types";
 
@@ -14,19 +16,20 @@ const CONVERT_SEATS = 8;
 export const MIN_RELEVANCE = 6;
 
 /**
- * Who the screen reads: the top of the reach ranking, plus the candidates with the most conversion
- * evidence (ads, reviews, videos that ask for the sale) that the ranking left below the cut. Only
- * videos whose footage can be downloaded: a remake is rebuilt from the reference's own frames.
+ * Who the screen reads: the top of the pick order (videos the footage clone can reproduce first, then
+ * by reach and cloneability), plus the candidates with the most conversion evidence (ads, reviews,
+ * videos that ask for the sale) that the order left below the cut, cloneable ones first. Only videos
+ * whose footage can be downloaded: a remake is rebuilt from the reference's own frames.
  */
 export function screenPool(candidates: ReferenceCandidate[], size = SCREEN_SIZE, convertSeats = CONVERT_SEATS): ReferenceCandidate[] {
-  const usable = candidates.filter((c) => Boolean(c.media_url));
+  const usable = pickOrder(candidates.filter((c) => Boolean(c.media_url)));
   const converters = usable
     .filter((c) => c.score.role === "convert")
-    .sort((a, b) => (b.score.conversion ?? 0) - (a.score.conversion ?? 0))
+    .sort((a, b) => Number(cloneable(b)) - Number(cloneable(a)) || sellValue(b) - sellValue(a))
     .slice(0, convertSeats);
   const top = usable.slice(0, size).filter((c) => !converters.includes(c));
   const pool = [...top.slice(0, size - converters.length), ...converters];
-  // Keep the ranking's order so the list reads best first.
+  // Keep the pick order so the list reads best first.
   return pool.sort((a, b) => usable.indexOf(a) - usable.indexOf(b));
 }
 
@@ -69,6 +72,7 @@ export async function screenRelevance(naive: Pick<NaiveClient, "message">, candi
     from: c.origin,
     stats: c.score.why,
     ...(c.score.signals?.length ? { sells: `${c.score.conversion ?? 0}/10: ${c.score.signals.join(", ")}` } : {}),
+    clones: cloneLine(c.score.cloneability ?? cloneabilityPrior(c)),
     seconds: c.duration,
     caption: c.caption.slice(0, 220),
     hashtags: hashtags(c.caption),
@@ -80,7 +84,7 @@ export async function screenRelevance(naive: Pick<NaiveClient, "message">, candi
       "You screen viral short videos for a team that remakes them for a brand: the remake keeps the video's hook, beats and wording and swaps in the brand's product. A video is only useful if a remake would make sense for this product's buyer.",
       "Judge each candidate from its caption, hashtags, author and stats. Be strict about topic: going viral on a shared hashtag or word is not relevance. The exception is a candidate marked from: benchmark (a brand or creator famous for viral short-form, like Cluely or MrBeast): judge whether its hook and format could be remade for this product, not its topic (6-8 if it clearly transfers).",
       "Some candidates are there because they sell, not because they were seen (the 'sells' field: an ad that kept running, a review, a video that asks for the sale). A candidate marked from: ad is a paid ad from an ad library and has no view count: judge it by whether its buyer and offer match this product's, the same as any video. A keyword search of an ad library also returns unrelated advertisers; score those 0-2.",
-      "The team copies a chosen video one-to-one (layout, graphics, captions, timing) with its own AI presenter and product. A presenter talking to camera, a green screen or a screen recording rebuilds cleanly; when the caption or hashtags show the video depends on real-world footage it cannot recreate (travel, crowds, sports, a stunt, a live event), take 1-2 points off.",
+      "The team copies a chosen video one-to-one from its own footage: a lookalike AI presenter performs the original's exact motion (it needs one person, in continuous takes), the original audio is re-voiced with new words, and graphics and captions are replaced in place. The 'clones' field guesses how cleanly that works (0-10) from the caption and length. One person talking to camera is what it reproduces best and the UGC format that sells best: a talking-head testimonial, 'I tried X', storytime, a POV reaction, green-screen commentary. Between candidates on the same topic, score that format higher. When the caption or hashtags show the video depends on what the clone cannot reproduce (several people, a song or dance, travel, crowds or real locations, hands working a product in close-up, a stunt or a live event), take 1-2 points off and say so in the reason.",
       "Call the relevance_screen tool once with every candidate.",
     ].join("\n"),
     messages: [
@@ -89,7 +93,7 @@ export async function screenRelevance(naive: Pick<NaiveClient, "message">, candi
         content: [
           `Product: ${input.product.name}: ${input.product.one_liner} (${input.product.kind}). Buyer: ${input.product.audience || "unknown"}. Problem it solves: ${input.product.problem || "unknown"}.`,
           input.scoutNotes ? `The research scout's notes on these results: ${input.scoutNotes}` : "",
-          `Candidates, ranked by how far they outran their accounts (ads, which have no views, come last):\n${JSON.stringify(list)}`,
+          `Candidates, ranked by how far they outran their accounts and how cleanly they clone (ads, which have no views, come last):\n${JSON.stringify(list)}`,
         ]
           .filter(Boolean)
           .join("\n\n"),
@@ -109,16 +113,17 @@ export async function screenRelevance(naive: Pick<NaiveClient, "message">, candi
 }
 
 /**
- * Relevant candidates first: those at or above the bar, ordered by relevance and then by their
- * performance score. When fewer than three pass, the best of the rest follow so there is always
- * something to learn from.
+ * Relevant candidates first: those at or above the bar, ordered by relevance and then by their reach
+ * value (the reach score plus cloneability). When fewer than three pass, the best of the rest follow
+ * so there is always something to learn from. pickForBreakdown keeps this order behind its
+ * cloneability gate.
  */
 export function applyRelevance(candidates: ReferenceCandidate[], screened: Relevance[]): ReferenceCandidate[] {
   const byUrl = new Map(screened.map((r) => [r.url, r]));
   const judged = candidates.filter((c) => byUrl.has(c.url));
   const passing = judged.filter((c) => byUrl.get(c.url)!.relevance >= MIN_RELEVANCE);
-  // Relevance first; among equally relevant videos, the one that outran its account more.
-  const order = (list: ReferenceCandidate[]) => [...list].sort((a, b) => byUrl.get(b.url)!.relevance - byUrl.get(a.url)!.relevance || b.score.total - a.score.total);
+  // Relevance first; among equally relevant videos, the one that went further and clones more cleanly.
+  const order = (list: ReferenceCandidate[]) => [...list].sort((a, b) => byUrl.get(b.url)!.relevance - byUrl.get(a.url)!.relevance || reachValue(b) - reachValue(a));
   if (passing.length >= 3) return order(passing);
   const rest = order(judged.filter((c) => !passing.includes(c)));
   return [...order(passing), ...rest.slice(0, 3 - passing.length)];
