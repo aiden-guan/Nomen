@@ -82,23 +82,34 @@ breakdowns ─ formula analyst ─ 3-5 formulas (each backed by references and t
   selling structure. Kept in the campaign's `style_json.formulas`.
 - **Director** (`organicStrategyMessage`, `ORGANIC_STRATEGY_SCHEMA`): every brief names a
   `formula_id` and a `persona_setting` instead of a `reference_id`, keeps the funnel mix, and is
-  always `talking_head_broll`, about 15-20 s.
+  always `talking_head_broll`.
 - **Persona** (`persona` setting, JSON): one presenter kept across videos, `{ name, look, voice,
   stills: [{ setting, file_id, place }] }` where `file_id` is a Naive file. Every take of a video
-  starts from the same still, so her face never changes and no frame is generated; the same `voice`
-  sentence goes into every take's prompt.
-- **Writer, linter, critic** (`src/lib/creative/organic.ts`, the shared loop in `script.ts`): an
-  original script in the formula, in the product brief's facts, with no ad copy. Shaped for AI
-  rendering: one sentence (6-18 words) per beat, so one take per beat; the presenter on camera for
-  the hook and emotional beats; every claim (demo, proof, reveal) on a product screen; product
-  screens on 25-60% of the runtime. The linter also fails six words copied in a row from a backing
-  video, and the backing videos' handles.
-- **Plan** (`planOrganic`): one Kling take per spoken beat, rendered for `ceil(words / 3.2 + 0.7)`
-  seconds (3-10; Kling bills whole seconds and stretches a line to fill its take). A take the
-  product covers for its whole length is `covered`: rendered at 720p ($0.126/s instead of $0.168/s)
-  and not reviewed for looks, since only its voice is used. QC never rebuilds a persona's frame.
-- **Edit**: a jump cut between takes, alternating the full frame and a 12% punch-in
-  (`EditTimeline.aroll[].zoom`, cropped above centre to keep the face), captions per take.
+  starts from the same still, so her face never changes and no frame is generated (one signed link
+  serves every take). Her takes keep the still's own framing (the stills are phone selfies), play
+  calm (Kling turns "whispers" and "excited" into mugging, so tags are calmed), describe her voice
+  the same way every time, and say brand names and addresses the spoken way ("Naive", "use naive dot
+  A I"); captions keep the written form.
+- **Writer, linter, critic** (`src/lib/creative/organic.ts`, the shared loop in `script.ts`, three
+  rounds): an original script in the formula, in the product brief's facts, with no ad copy, for a
+  12-16 s target and a word budget of 3.3 words a second. One short sentence (at most 18 words) per
+  beat; the presenter on camera for the hook, the emotional beats and the closing ask (forced for
+  a last beat that asks); every claim (demo, proof, reveal) on a product screen, 25-60% of the
+  words. Large text only on the presenter's beats. The linter also fails six words copied in a row
+  from a backing video, and the backing videos' handles.
+- **Plan** (`planOrganic`): each sentence on camera is its own take (a jump cut between any two);
+  a run of screen-covered sentences is one take, only heard, rendered at 720p ($0.126/s instead of
+  $0.168/s) and not reviewed for looks. A take renders `ceil(words / 3.4 + 0.6)` seconds (3-10;
+  Kling bills whole seconds and stretches a line to fill its take). QC never rebuilds a persona's
+  frame, and the continuity check is skipped (one still).
+- **Edit**: the visible takes alternate the full frame and a 12% punch-in
+  (`EditTimeline.aroll[].zoom`, cropped above centre to keep the face). Organic screens are built
+  `captioned`: they show the product, not the spoken line again.
+
+First live run (Naïve, 2026-11-08): three videos of 16-19 s for $8.48 of Kling, against $13.88
+for the 32 s one-to-one remake on Veo 3.1. Voice pitch across a video's takes spread 4-9% (the
+remake's: 20%). Naive's capacity limits (HTTP 429) made the script room drop scripts: one 429
+anywhere restarts a whole script.
 
 ## The edit
 
