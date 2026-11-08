@@ -998,6 +998,8 @@ export type RemakeDeps = {
   separate?: ((input: string, outDir: string) => Promise<{ voice: string; bed: string }>) | null;
   /** Builds graphics and screens (default: the screen builder, with headless Chrome). */
   buildGraphics?: (requests: ScreenRequest[], workDir: string) => Promise<{ clips: ScreenClip[]; failures: Array<{ id: string; error: string; retryable?: boolean }> }>;
+  /** Waits before building again the graphics that failed only because the model was busy (default 20, 45 and 90 s). */
+  busyWaitsMs?: number[];
 };
 
 /** One line of the script per reference beat, with how it is said and the on-screen text. */
@@ -1630,6 +1632,17 @@ async function buildGraphics(work: Work, deps: RemakeDeps, manifest: Manifest, r
   await mkdir(dir, { recursive: true });
   const build = deps.buildGraphics ?? ((list: ScreenRequest[], at: string) => buildScreens(deps.naive, list, { product: input.product, kit: input.kit, style: input.breakdown.format }, { workDir: at, render: { pushIn: 0 }, keepFailed: true }));
   const result = await build(todo, dir);
+  // A graphic that failed only because the model was busy is built again in this run, after a
+  // wait: left for a rerun, the Cluely remake went out without its opening LinkedIn card.
+  for (const wait of deps.busyWaitsMs ?? [20_000, 45_000, 90_000]) {
+    const again = todo.filter((r) => result.failures.some((f) => f.id === r.id && busy(f)));
+    if (!again.length) break;
+    work.say(`The model was busy for ${again.length} graphic${again.length === 1 ? "" : "s"}: trying again in ${Math.round(wait / 1000)} s`);
+    await new Promise((done) => setTimeout(done, wait));
+    const retry = await build(again, dir);
+    result.failures = [...result.failures.filter((f) => !again.some((r) => r.id === f.id)), ...retry.failures];
+    result.clips = [...result.clips.filter((c) => !again.some((r) => r.id === c.id)), ...retry.clips];
+  }
   const redone = new Set(todo.map((r) => r.id));
   const kept = await Promise.all(
     result.clips.map(async (clip) => ({ id: clip.id, kind: clip.kind, hash: wanted.get(clip.id), key: await work.keep(`graphics/${basename(clip.path)}`, clip.path, clip.kind === "video" ? "video/mp4" : "image/png") })),

@@ -272,6 +272,23 @@ describe.skipIf(!ffmpeg)("remakeVideo with Kling voicing itself (fake providers,
     expect(again.calls).toMatchObject({ layout: 0, images: 0, kling: [], stt: [], sts: 0, tts: 0 });
   }, 240_000);
 
+  it("builds a graphic again in the same run when the model was only busy", async () => {
+    const { deps } = fakes();
+    const real = deps.buildGraphics!;
+    let calls = 0;
+    deps.busyWaitsMs = [0, 0];
+    deps.buildGraphics = async (requests, workDir) => {
+      calls++;
+      if (calls === 1) return { clips: [], failures: requests.map((r) => ({ id: r.id, error: "naive: the service is at capacity" })) };
+      return real(requests, workDir);
+    };
+    await remakeVideo(deps, input("crv_busy"));
+    expect(calls).toBe(2);
+    const manifest = JSON.parse(await readFile(join(dir, "kept", "crv_busy", "remake", "manifest.json"), "utf8"));
+    expect(manifest.graphics.clips).toHaveLength(1);
+    expect(manifest.graphics.failures).toEqual([]);
+  }, 240_000);
+
   it("refuses a remake over its cap before paying for anything", async () => {
     const { deps, calls } = fakes();
     await expect(remakeVideo(deps, input("crv_cap", { maxUsd: 0.5 }))).rejects.toBeInstanceOf(OverBudget);
