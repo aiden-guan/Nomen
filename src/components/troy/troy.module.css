@@ -17,6 +17,8 @@
   inset: 0;
   z-index: 60;
   overflow: hidden;
+  /* Not even focus or scrollIntoView may scroll the camp: a panel's heading taking focus would shift it. */
+  overflow: clip;
   background: var(--page);
   color: var(--ink);
   color-scheme: light;
