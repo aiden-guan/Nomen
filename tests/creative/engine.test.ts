@@ -374,3 +374,12 @@ describe("presenter-only prompts", () => {
     expect(presenterOnly("Very fast, confident and plain-spoken. Each sentence cues a new card change.")).toBe("Very fast, confident and plain-spoken.");
   });
 });
+
+describe("QC frame fixes", () => {
+  it("never passes quoted gibberish to the image model", async () => {
+    const { cleanFix } = await import("@/lib/production");
+    const fix = cleanFix(["Gibberish caption text at the split line in every frame (e.g. 'Dho bfeoke to no youragie', 'Dho pheno'). It is garbled.", 'A card reads "12 cpadadpetes s vs annhropic".']);
+    expect(fix).not.toMatch(/Dho|cpadadpetes|annhropic/);
+    expect(fix).toMatch(/Gibberish caption text at the split line in every frame/);
+  });
+});

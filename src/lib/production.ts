@@ -96,6 +96,20 @@ export type ProductionContext = {
 
 const MAX_RENDERS = 3;
 
+/** QC issues about drawn-in text or interface, which an image model copies forward if shown the old frame. */
+const TEXT_DEFECT = /\b(text|captions?|subtitles?|gibberish|garbled|letters|cards?|status bar|screen|monitor|logo|ui|graphics?|overlay|labels?)\b/i;
+
+/** A QC complaint fit for an image prompt: quoted gibberish removed, so the model never draws it. */
+export function cleanFix(issues: string[]) {
+  return issues
+    .join(" ")
+    .replace(/(['"\u2018\u201C])[^'"\u2019\u201D]{0,200}(['"\u2019\u201D])/g, "")
+    .replace(/\(e\.g\.[^)]*\)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
+}
+
 /** Provider trouble (a 5xx, a rate limit) waits it out: 15 s, 30 s, 1 min… up to 5 min apart, 8 tries. */
 const MAX_SUBMIT_ERRORS = 8;
 function backoff(shot: ShotState) {
@@ -269,7 +283,8 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
     : shot.frame_prompt;
   if (shot.frame_fix) prompt += `\nA reviewer rejected the previous version of this frame. Fix exactly this: ${shot.frame_fix}`;
   // House rules for every frame, whatever the concept says: these are what make AI video look fake.
-  prompt += "\nPhotorealistic phone photo. No readable text anywhere, no monitors or screens facing the camera, no logos except the product's own label.";
+  prompt +=
+    "\nPhotorealistic. No readable text anywhere, no captions, subtitles, cards, labels or graphics, no phone interface or status bar, no monitors or screens facing the camera, no logos except the product's own label.";
   try {
     const result = await ctx.naive.generateImage({ prompt, aspect_ratio: "9:16", image_urls: references.length ? references : undefined }, shot.frame_idem);
     const file = result.files[0];
@@ -434,10 +449,13 @@ async function checkQuality(ctx: ProductionContext, concept: Concept, shot: Shot
       if (shot.frame_file_id && ctx.naive && !ctx.naiveOut()) {
         // The first frame sets the composition, so a defect is often already in it: rebuild the
         // frame from the old one with the fixes, keeping the same person and room, then re-render.
+        // Drawn-in text, cards or UI live in the old frame itself, so those rebuild from the
+        // presenter's identity instead of copying the defect forward.
+        const textDefect = TEXT_DEFECT.test(verdict.issues.join(" "));
         Object.assign(shot, {
           status: "pending",
-          previous_frame_file_id: shot.frame_file_id,
-          frame_fix: verdict.issues.slice(0, 3).join(" "),
+          previous_frame_file_id: textDefect ? null : shot.frame_file_id,
+          frame_fix: cleanFix(verdict.issues.slice(0, 3)),
           frame_file_id: null,
           frame_url: null,
           frame_idem: `${shot.frame_idem.replace(/-fix\d+$/, "")}-fix${shot.qc_rounds}`,

@@ -114,11 +114,11 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
     seconds,
     line,
     frame_prompt: [
-      "Vertical 9:16 photo taken on a phone propped up at eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed.",
+      "Vertical 9:16 candid photo from a camera propped up at eye level, about an arm and a half away (the camera and any phone interface are not visible). Chest-up, face centered, looking into the lens, mouth closed, relaxed.",
       `${presenterOnly(brief.creator)}.`,
       `${presenterOnly(brief.setting)}.`,
       productLine.trim(),
-      "Natural phone-camera exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. No readable text, no screens facing the camera, no logos.",
+      "Natural phone-camera exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. No readable text, captions, cards, graphics or status bar, no screens facing the camera, no logos.",
     ]
       .filter(Boolean)
       .join(" "),
