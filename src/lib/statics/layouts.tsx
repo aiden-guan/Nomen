@@ -446,6 +446,9 @@ function Visual({ c, width, height, radius = 0, lift = false }: { c: Ctx; width:
   );
 }
 
+/** The height of a browser window's title bar at this width. */
+const windowBar = (c: Ctx, width: number) => Math.max(c.u(40), Math.round(width * 0.045));
+
 /**
  * A screenshot in a plain browser window: three dots and the address. The picture is fitted to
  * the window's width, so nothing is cut at the sides; a tall window shows more of the page.
@@ -453,7 +456,7 @@ function Visual({ c, width, height, radius = 0, lift = false }: { c: Ctx; width:
 function Window({ c, width, height, radius }: { c: Ctx; width: number; height: number; radius?: number }) {
   const v = c.input.visual;
   const r = radius ?? c.u(20);
-  const bar = Math.max(c.u(40), Math.round(width * 0.045));
+  const bar = windowBar(c, width);
   const dot = Math.round(bar * 0.26);
   const chrome = c.g.dark ? "#1c1c1e" : "#f3f3f2";
   const imgH = height - bar;
@@ -629,18 +632,22 @@ function copyBlock(c: Ctx, opts: { max: number; lines?: number; width?: number; 
 /**
  * The frame for the software looks: copy, then the product (window, terminal or chat), as a
  * balanced stack in vertical shapes; copy left and product right in landscape. With no
- * decoration, a product window may run off the bottom edge like a launch screenshot.
+ * decoration, a product taller than the room below the copy runs off the bottom edge like a
+ * launch screenshot, inside the side margins, so what continues past the edge is the product
+ * itself. A shorter one keeps its natural size: nothing is stretched, cut at the sides or
+ * padded with an empty strip.
  */
 function productFrame(c: Ctx, media: (box: { width: number; height: number }) => ReactElement, opts: { natural: (width: number) => number; bleed?: boolean; center?: boolean }) {
   const { w, h, u, g, input, band } = c;
   if (c.shape === "landscape") {
     const textW = Math.round((w - band.left) * 0.42);
     const mediaLeft = band.left + textW + u(44);
-    const mediaW = w - mediaLeft - (opts.bleed ? 0 : band.left);
+    const mediaW = w - mediaLeft - band.left;
     const head = headline(c, input.copy.headline, { width: textW, height: h * 0.44, max: u(58), lines: 4 });
     const sub = input.copy.subhead ? bodyText(c, input.copy.subhead, { width: textW, height: u(84), max: u(22), lines: 3 }) : null;
-    const room = opts.bleed ? h - band.top : h - band.top * 2;
-    const mediaH = opts.bleed ? room : Math.min(room, opts.natural(mediaW));
+    const bleed = Boolean(opts.bleed) && opts.natural(mediaW) >= h - band.top;
+    const room = bleed ? h - band.top : h - band.top * 2;
+    const mediaH = bleed ? room + u(40) : Math.min(room, opts.natural(mediaW));
     return (
       <>
         <Abs top={band.top} left={band.left} width={textW} height={h - band.top * 2}>
@@ -651,7 +658,7 @@ function productFrame(c: Ctx, media: (box: { width: number; height: number }) =>
           </div>
           <Action c={c} />
         </Abs>
-        <Abs top={opts.bleed ? band.top : band.top + Math.round((room - mediaH) / 2)} left={mediaLeft} width={mediaW} height={mediaH}>
+        <Abs top={bleed ? band.top : band.top + Math.round((room - mediaH) / 2)} left={mediaLeft} width={mediaW} height={bleed ? room : mediaH}>
           {media({ width: mediaW, height: mediaH })}
         </Abs>
       </>
@@ -660,11 +667,11 @@ function productFrame(c: Ctx, media: (box: { width: number; height: number }) =>
   const width = band.right - band.left;
   const align = opts.center ? "center" : "left";
   const copy = copyBlock(c, { max: u(c.shape === "square" ? 72 : 84), lines: 3, heightShare: c.shape === "square" ? 0.2 : 0.24, align });
-  if (opts.bleed && c.shape !== "story") {
+  const top = band.top + u(96);
+  const mediaTop = top + copy.height + u(c.shape === "square" ? 44 : 60);
+  if (opts.bleed && c.shape !== "story" && opts.natural(width) >= h - mediaTop) {
     // Copy at the top, the window running off the bottom edge.
-    const top = band.top + u(96);
-    const mediaTop = top + copy.height + u(c.shape === "square" ? 44 : 60);
-    const mediaW = w - band.left;
+    const mediaW = width;
     return (
       <>
         <Abs top={band.top} left={band.left} width={width}>
@@ -731,7 +738,7 @@ const LAYOUTS: Record<Archetype, (c: Ctx) => ReactElement> = {
   /** The real website in a browser window, under a one-line claim. */
   product_ui(c) {
     const v = c.input.visual;
-    const natural = (width: number) => (v ? Math.round((v.height / v.width) * width) : Math.round(width * 0.6)) + Math.max(c.u(40), Math.round(width * 0.045));
+    const natural = (width: number) => (v ? Math.round((v.height / v.width) * width) : Math.round(width * 0.6)) + windowBar(c, width);
     return productFrame(c, ({ width, height }) => <Window c={c} width={width} height={height} />, { natural, bleed: c.look.decoration === "none" && c.shape !== "story", center: c.shape === "story" });
   },
 

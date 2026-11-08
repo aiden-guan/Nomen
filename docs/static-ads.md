@@ -116,6 +116,21 @@ the Google text assets. Then every line is checked (`src/lib/statics/validate.ts
   punctuation, words in capitals the brand does not write that way, or phone numbers; for X no
   hashtags (not allowed in promoted posts since June 2025). Lines are dropped, never cut.
 
+## The image check
+
+Each finished ad is looked at once more, as it will run: its 4:5 feed image and its 1.91:1
+landscape go to the vision model (`static_model`) with a strict schema (score 1 to 10, pass at 7
+or more, the problems, and whether a new picture or new copy would fix the worst one). It fails
+ads for text that is cut off, overlapping or too small for a phone, garbled letters in a picture,
+broken or unrelated pictures, and a cheap or templated look. A generated picture that fails is
+made again once with the reviewer's notes; every other verdict is shown on the ad in the tab.
+
+The check cannot see the site, so it is told that the copy was already checked word for word
+against it and not to second-guess facts or the brand's own phrasing. Without that, on monid.ai it
+called the site's own `monid.discover()` "an invented API call", and the first reason it gave for
+failing another ad was that "We killed the subscriptions", the site's own headline, read as
+machine-written.
+
 ## What a pack holds
 
 | Folder | Images | Copy |

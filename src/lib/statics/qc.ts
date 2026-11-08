@@ -28,7 +28,11 @@ const QC_TOOL = {
 export async function reviewStatic(naive: NaiveClient, input: { images: Buffer[]; concept: Concept; brandName: string }): Promise<StaticVerdict> {
   const rubric = [
     `These are two sizes of the same static ad for ${input.brandName}, exactly as they will be uploaded: a 4:5 feed image and a 1.91:1 landscape image. Concept: ${input.concept.angle || input.concept.archetype}.`,
-    "You are the last check before a performance team runs it. Fail it (pass false) for any of these: text that is cut off, overlapping, too small or low-contrast to read on a phone; garbled, misspelled or invented letters inside the picture; a deformed product, hands or face; a screenshot or picture that looks broken, empty or unrelated; a claim that looks invented; anything that makes the brand look cheap, templated or machine-made.",
+    // The copy checks (validate.ts) already compared every word with the brand's site; this step
+    // cannot see the site, and in testing it flagged the brand's own figures, API names and
+    // headline as "invented" or "machine-written".
+    "The ad's set text (headline, subhead, labels, numbers, code and commands) was checked word for word against the brand's own website before this step, and much of it is the brand's own wording. Do not question whether its facts, figures, product names, API calls or commands are real, and do not fail the ad or ask for a rewrite because of how the brand phrases things.",
+    "You are the last check before a performance team runs it. Fail it (pass false) for any of these: text that is cut off, overlapping, too small or low-contrast to read on a phone; garbled, misspelled or invented letters inside a photo or generated picture; a deformed product, hands or face; a screenshot or picture that looks broken, empty or unrelated; anything that makes the brand look cheap, templated or machine-made.",
     "Do not fail it for taste: a restrained, minimal design with lots of space is intended.",
     "Call the static_qc tool exactly once.",
   ].join("\n");

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { appearsIn, checkSearchAssets, cleanXPost, googleProblems, keepValid, normalize, type SearchAssets, slopIn, unsupportedNumbers } from "@/lib/statics/validate";
 import { type Concept, conceptProblems, downgrade } from "@/lib/statics/writer";
 
+// Made-up site text for the checks below: it is not monid.ai's current copy, and its quote is invented
+// to test quote matching.
 const SITE = `Monid
 One skill unlocks 1,800+ tools & APIs for your agent.
 Connect your agent to every tool it needs.
