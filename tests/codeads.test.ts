@@ -238,6 +238,18 @@ describe("the page's story.json", () => {
     expect(lintStory({ ...vs, beats: vs.beats.map((b) => ({ ...b, who: "hero" as const })) }, ctx)).toEqual(expect.arrayContaining([expect.stringMatching(/no rival beat/)]));
   });
 
+  it("gives each scene its own sound: a keynote's applause on the payoff, gym clanks, surf at the pool, a basement drone", () => {
+    const withEnd = { ...raw, beats: [...raw.beats.slice(0, 3), { ...raw.beats[3], gag: "celebrate" }] };
+    const cuesFor = (scene: string, extra: Record<string, unknown> = {}) => buildCues(layoutStory(normalizeStory({ ...withEnd, scene, ...extra }, ctx), voiced, brand, {}).story, "test");
+    const stage = cuesFor("stage");
+    expect(stage.ambience.map((a) => a.sound)).toEqual(expect.arrayContaining(["crowd_cheer", "applause"]));
+    expect(stage.ambience.find((a) => a.sound === "applause")!.t0).toBeGreaterThan(5);
+    expect(cuesFor("gym").events.filter((e) => e.sound === "metal_clang").length).toBeGreaterThan(1);
+    expect(cuesFor("rooftop").ambience.map((a) => a.sound)).toContain("surf");
+    expect(cuesFor("versus", { rival: { name: "the old way" } }).ambience.map((a) => a.sound)).toContain("cabin_hum");
+    expect(cuesFor("office").ambience.map((a) => a.sound)).toEqual(["room_tone", "city_day", "fan"]);
+  });
+
   it("scores it like ED Studio's build reels: music from beat 2, a ta-da on every term, foley per gag, the narrator on top", () => {
     const story = normalizeStory(raw, ctx);
     const { story: page } = layoutStory(story, voiced, brand, {});
