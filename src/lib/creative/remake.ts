@@ -50,6 +50,7 @@ import {
   GREEN_GATE,
   keyFilter,
   cornerColor,
+  ffmpegBin,
   layersOf,
   motionClipArgs,
   parseQuads,
@@ -68,7 +69,7 @@ import {
   voiceStats,
   warpKeys,
 } from "./clone";
-import { type AudioRecord, demucs, makeVoice, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
+import { type AudioRecord, demucs, extractArgs, makeVoice, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
 import { DEFAULT_FONT, FINISHED_ENCODE, fontMetrics, PICTURE_FINISH, renderTimeline } from "./edit";
 import { CHARACTER_STYLE, genderOf, type Persona } from "./persona";
 import { decodeRgb, makePlate, newPlateRecord, type PlateRecord } from "./plate";
@@ -76,8 +77,9 @@ import { presenterOnly } from "./plan";
 import { type Presenter, type PresenterInput, presenterFor, type RenderRecord, renderPresenter } from "./presenter";
 import { detectCuts } from "./references";
 import { buildScreens } from "./screens";
+import { SOFT_CUT_THRESHOLD, shotReadTimes, trackerPython, trackScreen } from "./track";
 import type { BrandKit, EditTimeline, ProductBrief, ReferenceBeat, ReferenceBreakdown, ScreenClip, ScreenRequest } from "./types";
-import { diffWords, type TimedWord, tokens } from "./words";
+import { diffWords, normWord, type TimedWord, tokens } from "./words";
 
 export const OUT = { width: 1080, height: 1920, fps: 30 } as const;
 
@@ -166,7 +168,17 @@ export type CaptionLook = {
   size: number;
   /** A sticker by the captions (an emoji badge), in fractions of the frame. */
   badge: { box: Box; color: string; accent: string; looks_like: string } | null;
+  /** Whether the reference captions its spoken words at all (a voice-over ad often does not); missing means yes. */
+  present?: boolean;
 };
+
+/**
+ * Whether a caption-style note says the spoken words are not captioned ("No word-by-word speech
+ * captions.", "no captions"), the fallback when the layout reader leaves `present` out.
+ */
+export function captionsAbsent(style: string): boolean {
+  return /(?:^|[.;]\s*)(?:there are\s+)?(?:no|without)\s+(?:[\w-]+\s+){0,3}captions?\b/i.test(style.trim());
+}
 
 /** How the reference is built, read from its frames. The stage is the band, or the whole frame. */
 export type RemakeLayout = {
@@ -217,6 +229,18 @@ export function graphicKind(raw: unknown): GraphicKind {
   if (/photo|image|picture|selfie|billboard|video/.test(value)) return "photo";
   if (/text|title|label|card|quote/.test(value)) return "text_card";
   return "other";
+}
+
+/** A computer's screen in a segment's description: a filmed laptop or monitor, not scenery. */
+const COMPUTER_SCREEN = /\b(laptop|monitor|computer|desktop|chromebook|browser|website|web ?page|dashboard|code editor|terminal|vs ?code)\b/i;
+
+/**
+ * A segment the reader called b-roll that films a computer's screen is a screen walkthrough: the
+ * remake keeps the footage and puts our product on that screen, rather than keeping the original
+ * product on it (faceless filmed-laptop videos have nobody in them, so they read as b-roll).
+ */
+export function screenSegmentKind(kind: SegmentKind, shows: string): SegmentKind {
+  return kind === "broll" && COMPUTER_SCREEN.test(shows) ? "screen_walkthrough" : kind;
 }
 
 /** A model's name for a segment, mapped onto the kinds we clone. */
@@ -314,7 +338,7 @@ export function parseLayout(raw: unknown, context: { beats: ReferenceBeat[]; unt
         return {
           start: clamp(num(s?.start), 0, context.until),
           end: clamp(num(s?.end), 0, context.until),
-          kind: segmentKind(s?.kind),
+          kind: screenSegmentKind(segmentKind(s?.kind), `${text(s?.shows, 300)} ${text(s?.screen_shows, 400)}`),
           shows: text(s?.shows, 300),
           presenter: { box: readBox(s?.presenter_box), inset, green: Boolean(inset) && s?.green_screen !== false },
           other: text(s?.other_person, 200),
@@ -383,9 +407,64 @@ export function parseLayout(raw: unknown, context: { beats: ReferenceBeat[]; unt
     center_y: round(clamp(num(c.center_y) || 0.67, 0.12, 0.92), 4),
     size: round(clamp(num(c.size) || 0.03, 0.012, 0.07), 4),
     badge: badgeBox ? { box: badgeBox, color: hex(badgeRaw?.color, "#FFD43B"), accent: hex(badgeRaw?.accent, "#E5383B"), looks_like: text(badgeRaw?.looks_like, 120) } : null,
+    present: typeof c.present === "boolean" ? c.present : !captionsAbsent(style),
   };
   return { frame, set: text(o.set, 300), presenter: text(o.presenter, 300), beats, segments, graphics, texts, captions };
 }
+
+/**
+ * A reference that is not vertical (a square or landscape ad) keeps its shape: its whole frame
+ * becomes a band across the middle of our 9:16 frame, over a blurred copy of itself, and its
+ * text and caption places (read as fractions of its own frame) move into that band. A vertical
+ * reference is returned as it is. `stageRef` is the stage in the reference's own pixels when it
+ * is the whole reference, else null (the stage is then mapped from our frame as usual).
+ */
+export function fitToVertical(layout: RemakeLayout, reference: { width: number; height: number }): { layout: RemakeLayout; stageRef: { x: number; y: number; width: number; height: number } | null } {
+  if (!(reference.width > 0) || reference.height / reference.width >= 1.5) return { layout, stageRef: null };
+  const h = round(Math.min(1, (OUT.width * reference.height) / reference.width / OUT.height), 4);
+  const band: Box = { x: 0, y: round((1 - h) / 2, 4), w: 1, h };
+  const inBand = (box: Box): Box => ({ x: box.x, y: round(band.y + box.y * band.h, 4), w: box.w, h: round(box.h * band.h, 4) });
+  const captions: CaptionLook = {
+    ...layout.captions,
+    center_y: round(band.y + layout.captions.center_y * band.h, 4),
+    size: round(layout.captions.size * band.h, 4),
+    badge: layout.captions.badge ? { ...layout.captions.badge, box: inBand(layout.captions.badge.box) } : null,
+  };
+  return {
+    layout: { ...layout, frame: { kind: "band", band }, texts: layout.texts.map((t) => ({ ...t, box: inBand(t.box), size: round(t.size * band.h, 4) })), captions },
+    stageRef: { x: 0, y: 0, width: 2 * Math.floor(reference.width / 2), height: 2 * Math.floor(reference.height / 2) },
+  };
+}
+
+/**
+ * Where the reference has words burned into its footage during a stretch, in stage pixels: its
+ * caption strip (while captions show) and every text overlay's box in its window. Kept footage
+ * (a filmed screen) gets them painted out, so ours are the only words on screen.
+ */
+export function burnedInText(layout: Pick<RemakeLayout, "texts" | "captions">, stage: Stage, span: { start: number; end: number }): Array<{ x: number; y: number; width: number; height: number; start: number; end: number }> {
+  const toStage = (box: Box, pad: number) => {
+    const x = Math.max(0, Math.round((box.x - pad) * OUT.width - stage.x));
+    const y = Math.max(0, Math.round((box.y - pad / 2) * OUT.height - stage.y));
+    const right = Math.min(stage.width, Math.round((box.x + box.w + pad) * OUT.width - stage.x));
+    const bottom = Math.min(stage.height, Math.round((box.y + box.h + pad / 2) * OUT.height - stage.y));
+    return right - x >= 4 && bottom - y >= 4 ? { x, y, width: right - x, height: bottom - y } : null;
+  };
+  const out: Array<{ x: number; y: number; width: number; height: number; start: number; end: number }> = [];
+  for (const t of layout.texts) {
+    if (t.end <= span.start || t.start >= span.end) continue;
+    const rect = toStage(t.box, 0.02);
+    if (rect) out.push({ ...rect, start: Math.max(span.start, t.start), end: Math.min(span.end, t.end) });
+  }
+  if (layout.captions.present !== false) {
+    const c = layout.captions;
+    const rect = toStage({ x: 0.04, y: c.center_y - 1.7 * c.size, w: 0.92, h: 3.4 * c.size }, 0);
+    if (rect) out.push({ ...rect, start: span.start, end: span.end });
+  }
+  return out;
+}
+
+/** Whether the script says anything at all: with no words, the reference's whole soundtrack is kept (its music, its singing). */
+export const saysAnything = (lines: string[]) => lines.some((line) => /[\p{L}\p{N}]/u.test(line));
 
 // ---------- the stage ----------
 
@@ -444,6 +523,35 @@ export function graphicRequest(graphic: RemakeGraphic, context: { stage: Pick<St
     box: { width: px.width, height: px.height },
   };
   return { ...graphic, request, px };
+}
+
+/** A rect on the stage in the pixels of `into` (the reference's own frame when the stage is all of it), even-sized. */
+export function scaleRect(r: { x: number; y: number; width: number; height: number }, stage: Pick<Stage, "width" | "height">, into: { x: number; y: number; width: number; height: number }) {
+  const sx = into.width / stage.width;
+  const sy = into.height / stage.height;
+  const x = Math.round(into.x + r.x * sx);
+  const y = Math.round(into.y + r.y * sy);
+  return { x, y, width: Math.min(into.x + into.width - x, even(r.width * sx)), height: Math.min(into.y + into.height - y, even(r.height * sy)) };
+}
+
+/**
+ * The reference moment a graphic or screen request stands for, so its designer can see it: the
+ * middle of a laid-over graphic's window, a third into a full-stage graphic's segment, the middle of
+ * a filmed screen's beat. null for our own fallbacks, which replace footage that could not be cloned.
+ */
+export function referenceMoment(id: string, o: { planned: Array<Pick<RemakeGraphic, "id" | "start" | "end">>; layers: Array<{ id: string; start: number; end: number }>; beats: Array<Pick<ReferenceBeat, "start" | "end">>; end: number }): number | null {
+  const at = (t: number) => round(clamp(t, 0, Math.max(0, o.end - 0.05)), 3);
+  const graphic = o.planned.find((g) => g.id === id);
+  if (graphic) return at((graphic.start + Math.min(o.end, graphic.end)) / 2);
+  const beat = id.match(/^(.+)-b(\d+)$/);
+  if (beat) {
+    const layer = o.layers.find((l) => l.id === beat[1]);
+    const b = o.beats[Number(beat[2]) - 1];
+    if (!layer || !b) return null;
+    return at((Math.max(b.start, layer.start) + Math.min(b.end, layer.end)) / 2);
+  }
+  const layer = o.layers.find((l) => l.id === id);
+  return layer ? at(layer.start + (layer.end - layer.start) / 3) : null;
 }
 
 /** Our words said between two reference times (from the script's lines, by beat). */
@@ -505,13 +613,21 @@ export function captionStyle(look: CaptionLook): CaptionStyle {
  * word-by-word look). Each shows from its first word until the next one starts, or briefly after
  * its last word when a pause follows.
  */
-export function wordCaptions(words: TimedWord[], per: number, end: number): EditTimeline["captions"] {
+export function wordCaptions(words: TimedWord[], per: number, end: number, breaks: number[] = []): EditTimeline["captions"] {
   const size = Math.max(1, per);
   const chunks: Array<{ start: number; last: number; text: string }> = [];
-  for (let i = 0; i < words.length; i += size) {
-    const group = words.slice(i, i + size);
-    chunks.push({ start: group[0].start, last: group[group.length - 1].end, text: group.map((w) => w.text.replace(/^[^\p{L}\p{N}$]+|[^\p{L}\p{N}%!?]+$/gu, "")).join(" ") });
+  // A chunk never runs across a break (a new line of the script): each line's words chunk on their own.
+  const lineOf = (t: number) => breaks.filter((b) => b <= t + 0.05).length;
+  let group: TimedWord[] = [];
+  const flush = () => {
+    if (group.length) chunks.push({ start: group[0].start, last: group[group.length - 1].end, text: group.map((w) => w.text.replace(/^[^\p{L}\p{N}$]+|[^\p{L}\p{N}%!?]+$/gu, "")).join(" ") });
+    group = [];
+  };
+  for (const word of words) {
+    if (group.length >= size || (group.length && lineOf(word.start) !== lineOf(group[0].start))) flush();
+    group.push(word);
   }
+  flush();
   return chunks
     .map((c, i) => {
       const next = chunks[i + 1]?.start ?? end;
@@ -607,6 +723,29 @@ export function textsAss(items: Array<{ overlay: TextOverlay; lines: string[] }>
     ...events,
     "",
   ].join("\n");
+}
+
+/**
+ * Whether a text overlay just shows what is said (a label the voice reads out, as on TikTok's text
+ * to speech): most of its words are the spoken line's and most of the line's are its own.
+ */
+export function labelSaysLine(label: string[], line: string): boolean {
+  const a = tokens(label.join(" ").replace(/\p{Extended_Pictographic}/gu, "")).map(normWord);
+  const b = tokens(line).map(normWord);
+  if (!a.length || !b.length) return false;
+  const bs = new Set(b);
+  const as = new Set(a);
+  const shared = a.filter((w) => bs.has(w)).length;
+  return shared / a.length >= 0.6 && b.filter((w) => as.has(w)).length / b.length >= 0.6;
+}
+
+/** Our words in a label's letter case: all-caps stays all-caps; all-lowercase stays lowercase, without a closing full stop. */
+export function labelCase(ours: string, label: string[]): string {
+  const letters = label.join(" ").replace(/[^\p{L}]/gu, "");
+  if (!letters) return ours;
+  if (letters === letters.toUpperCase()) return ours.toUpperCase();
+  if (letters === letters.toLowerCase()) return ours.toLowerCase().replace(/[.,]+$/, "");
+  return ours;
 }
 
 /** Which script line a text overlay belongs to: the beat it starts in. */
@@ -834,8 +973,9 @@ const LAYOUT_TOOL = {
       },
       captions: {
         type: "object",
-        required: ["case", "italic", "color", "outline", "shadow", "words", "center_y", "size"],
+        required: ["present", "case", "italic", "color", "outline", "shadow", "words", "center_y", "size"],
         properties: {
+          present: { type: "boolean", description: "Whether the spoken words are captioned on screen at all. false for a video with no word captions (a voice-over ad whose only text is inside its graphics, a music video with text labels); then describe the house style anyway." },
           case: { type: "string", enum: ["upper", "lower", "sentence"] },
           italic: { type: "boolean" },
           color: { type: "string", description: "#RRGGBB of the letters." },
@@ -878,10 +1018,10 @@ function layoutPrompt(breakdown: ReferenceBreakdown, beats: ReferenceBeat[], end
     "- The stage is the band (or the whole frame for full). Boxes of people, segments and graphics are in fractions of the stage; boxes of texts and the captions' badge are in fractions of the whole frame. x and y of the top-left corner, then w and h, each 0 to 1.",
     "- set: the filmed background alone, without the person and without anything laid over it. presenter: the main person (the creator whose video it is).",
     "- beats: for every beat n, whether the main person is visible and speaking, their box at the beat's start, their framing and place on the stage, and their motion during the beat in plain body terms (what they hold, too).",
-    "- segments: split the whole video into continuous stretches by what is on screen, covering 0 to the end with no gaps: talking_head (the main person talking to the camera), stitch (another creator's clip, usually with the main person as a small cut-out over it), screen_walkthrough (a phone filming a computer monitor or laptop, usually with the main person as a cut-out over it), broll (footage with nobody in it), graphic (a full-screen graphic, slide or screenshot). For each: its times, kind, what it shows, the main person's box (talking head), the main person's cut-out box and whether it is green-screened (no frame or background of its own) when they appear as a cut-out over other footage, the other creator's look (stitch), and what the monitor shows (screen walkthrough).",
+    "- segments: split the whole video into continuous stretches by what is on screen, covering 0 to the end with no gaps: talking_head (the main person talking to the camera), stitch (another creator's clip, usually with the main person as a small cut-out over it), screen_walkthrough (a phone filming a computer monitor or laptop screen, with or without the main person as a cut-out over it), broll (footage with nobody in it and no computer screen), graphic (a full-screen graphic, slide or screenshot). For each: its times, kind, what it shows, the main person's box (talking head), the main person's cut-out box and whether it is green-screened (no frame or background of its own) when they appear as a cut-out over other footage, the other creator's look (stitch), and what the monitor shows (screen walkthrough).",
     "- graphics: every element laid over the footage in editing apart from the captions, the text overlays and the main person's cut-out: posts, screenshots, photos, charts, webcam insets, text cards on a card background, game scenes, stickers. Give its kind, its box on the stage, when it appears and when it is gone (from the frame labels), what it shows in one sentence, and how it enters. One entry per element per appearance.",
     "- texts: every text-only overlay that is not a spoken-word caption (a hook title at the top, a label, a series line such as 'Part 67'): its words exactly as shown, line by line, its box in fractions of the whole frame, when it shows, its colour, outline, shadow, the colour of a box behind it if any, and the height of a capital letter as a fraction of the frame's height.",
-    "- captions: the spoken-word captions' case, slant, colour, outline and shadow, how many words show at once (1 for word-by-word), the vertical centre of the caption line and the height of a capital letter as fractions of the whole frame's height, and any sticker or emoji badge beside them.",
+    "- captions: whether the spoken words are captioned at all (present: false when the only words on screen are the text overlays or the graphics' own UI), then the spoken-word captions' case, slant, colour, outline and shadow, how many words show at once (1 for word-by-word), the vertical centre of the caption line and the height of a capital letter as fractions of the whole frame's height, and any sticker or emoji badge beside them.",
     "Call the remake_layout tool once.",
   ].join("\n");
 }
@@ -1054,6 +1194,8 @@ type Manifest = {
   version: 3;
   layout?: RemakeLayout;
   cuts?: number[];
+  /** The softer cut list (SOFT_CUT_THRESHOLD) a filmed screen's tracker splits its shots at. */
+  soft_cuts?: number[];
   real?: Record<string, number[]>;
   estimate?: CostEstimate;
   audio: AudioRecord;
@@ -1183,15 +1325,24 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     manifest.real = undefined;
     await save();
   }
-  const layout = manifest.layout;
+  // A square or landscape reference keeps its shape, as a band across our vertical frame.
+  const fitted = fitToVertical(manifest.layout, info);
+  const layout = fitted.layout;
   const stage = stageOf(layout);
-  const stageRef = toReference({ x: 0, y: 0, width: stage.width, height: stage.height }, stage, info);
+  const stageRef = fitted.stageRef ?? toReference({ x: 0, y: 0, width: stage.width, height: stage.height }, stage, info);
+  // A stage rect in the reference's pixels (the band of a square reference is the whole reference).
+  const toRef = (r: Rect): Rect => (fitted.stageRef ? scaleRect(r, stage, fitted.stageRef) : toReference(r, stage, info));
 
   // 2. The reference's scene changes, the segments snapped onto them, and each layer's own cuts.
   manifest.cuts ??= (await detectCuts(input.referencePath, 0.3, info.duration).catch(() => [] as number[])).filter((c) => c < end);
   const cuts = manifest.cuts;
   const segments = snapSegments(layout.segments, cuts);
   const layers = layersOf({ segments }, stage, presenter.ratios);
+  // A filmed screen often cuts between shots of the same room, which the usual setting misses.
+  if (layers.some((l) => l.kind === "screen") && !manifest.soft_cuts) {
+    manifest.soft_cuts = (await detectCuts(input.referencePath, SOFT_CUT_THRESHOLD, info.duration).catch(() => cuts)).filter((c) => c < end);
+    await save();
+  }
   if (!manifest.real) {
     const greyW = 96;
     const greyH = Math.max(2, 2 * Math.round((greyW * stage.height) / stage.width / 2));
@@ -1237,6 +1388,19 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     if (layer.kind === "graphic") requests.push(stageGraphic(layer.id, { stage, seconds: layer.end - layer.start, line: lineAt(span.beats, scriptLines, layer.start, layer.end), shows: segment.shows, product: input.product }));
     if (layer.kind === "screen") requests.push(...screenRequests(layer, segment, span.beats, scriptLines, input.product));
   }
+  // The designer sees the reference's own frame at each graphic's moment, to copy its look.
+  for (const request of requests) {
+    const at = referenceMoment(request.id, { planned, layers, beats: span.beats, end });
+    if (at === null) continue;
+    const graphic = planned.find((g) => g.id === request.id);
+    const crop = graphic ? toRef({ x: graphic.px.x, y: graphic.px.y, width: graphic.px.width, height: graphic.px.height }) : stageRef;
+    const still = join(dir, `reference-${request.id}.jpg`);
+    if (!existsSync(still)) {
+      const jpeg = await grabJpeg(input.referencePath, at, 720, crop).catch(() => null);
+      if (jpeg?.length) await writeFile(still, jpeg);
+    }
+    if (existsSync(still)) request.reference_frame = still;
+  }
 
   // 4. The cost guard: nothing is paid for until the estimate is under the cap.
   const needsCohost = layers.some((l) => l.role === "cohost");
@@ -1279,13 +1443,24 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   // 6. The people: the host is given; the co-host is made when a stitch needs one.
   const cohost = needsCohost && input.cohost ? await input.cohost(segments.find((s) => s.kind === "stitch")?.other ?? "") : null;
   if (cohost?.cost_micro) work.spend("naive", cohost.cost_micro);
-  const hostPerson = { handle: input.host, url: await work.host(input.host.portrait, "image/png"), jpeg: await grabJpeg(input.host.portrait, null).catch(() => null) };
+  // A faceless remake has nobody on screen: the host is only a voice, and has no portrait to send.
+  const people = layers.some((l) => l.kind === "clone");
+  const hostPerson = { handle: input.host, url: people ? await work.host(input.host.portrait, "image/png") : "", jpeg: people ? await grabJpeg(input.host.portrait, null).catch(() => null) : null };
   const cohostPerson = cohost ? { handle: cohost as PersonaHandle, url: await work.host(cohost.portrait, "image/png"), jpeg: await grabJpeg(cohost.portrait, null).catch(() => null) } : hostPerson;
   const personFor = (layer: CloneLayer) => (layer.role === "cohost" ? cohostPerson : hostPerson);
 
   // 7. The reference's sound: the bed, and when each word is said. Our words land on its clock.
   const separate = deps.separate === undefined ? ((python) => (python ? (file: string, out: string) => demucs(python, file, out) : null))(stemsPython()) : deps.separate;
-  const reference = await referenceAudio(work, deps.monid, manifest.audio, { reference: input.referencePath, end, separate });
+  let reference: { stem: string; bed: string | null; words: TimedWord[] };
+  if (saysAnything(lines.map((l) => l.line))) {
+    reference = await referenceAudio(work, deps.monid, manifest.audio, { reference: input.referencePath, end, separate });
+  } else {
+    // Nothing to say (a music video with text labels): its whole soundtrack stays, singing included.
+    const whole = join(dir, "original.wav");
+    if (!existsSync(whole)) await ffmpeg(extractArgs(input.referencePath, end, whole));
+    reference = { stem: whole, bed: whole, words: [] };
+    notes.push("no words to say: the reference's whole soundtrack is kept");
+  }
   notes.push(...(manifest.audio.notes ?? []).filter((n) => !notes.includes(n)));
   const ourWords = timeOurWords(reference.words, scriptLines.join(" "));
   const voiceInput = {
@@ -1316,9 +1491,9 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     if (rec.failed) return;
     try {
       const seconds = round(chunk.end - chunk.start);
-      const crop = toReference(layer.crop, stage, info);
+      const crop = toRef(layer.crop);
       const blank = layer.blank.map((b) => {
-        const r = toReference(b, stage, info);
+        const r = toRef(b);
         return { ...r, x: r.x - crop.x, y: r.y - crop.y };
       });
       const first = chunk.takes[0];
@@ -1379,7 +1554,8 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   for (const layer of layers.filter((l) => l.kind === "screen")) {
     const segment = segments.find((s) => s.n === layer.segment)!;
     try {
-      const path = await filmedMonitor(work, naive, manifest, { layer, segment, layout, stage, stageRef, reference: input.referencePath, built, product: input.product, mode: input.screens ?? "auto", cuts: manifest.real?.[layer.id] ?? [], idem: `${input.idem}-${layer.id}` });
+      const softCuts = (manifest.soft_cuts ?? cuts).filter((c) => c > layer.start + 0.2 && c < layer.end - 0.2);
+      const path = await filmedMonitor(work, naive, manifest, { layer, segment, layout, stage, stageRef, reference: input.referencePath, built, product: input.product, mode: input.screens ?? "auto", cuts: manifest.real?.[layer.id] ?? [], softCuts, idem: `${input.idem}-${layer.id}` });
       if (!path) manifest.fallbacks[layer.id] ??= "the filmed monitor could not be rebuilt";
     } catch (error) {
       if (stopping(error)) throw error;
@@ -1517,7 +1693,13 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   await copyFile(DEFAULT_FONT, join(cut, "fonts", basename(DEFAULT_FONT)));
   const ass: string[] = [];
   const texts = layout.texts
-    .map((overlay) => ({ overlay, lines: overlayLines(lines[overlayBeat(overlay, span.beats)]?.on_screen_text ?? "", overlay.lines) }))
+    .map((overlay) => {
+      const i = overlayBeat(overlay, span.beats);
+      // A label that shows the spoken line shows ours (TikTok's read-out labels), in its letter case.
+      const spoken = labelSaysLine(overlay.lines, span.beats[i]?.line ?? "");
+      const ours = lines[i]?.on_screen_text || (spoken ? labelCase(lines[i]?.line ?? "", overlay.lines) : "");
+      return { overlay, spoken, lines: overlayLines(ours, overlay.lines) };
+    })
     .filter((t) => t.lines.length && t.overlay.start < end)
     .map((t) => ({ ...t, overlay: { ...t.overlay, end: Math.min(end, t.overlay.end) } }));
   const skipped = layout.texts.length - texts.length;
@@ -1526,7 +1708,12 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     await writeFile(join(cut, "texts.ass"), textsAss(texts), "utf8");
     ass.push("texts.ass");
   }
-  const captions = wordCaptions(captionWords, layout.captions.words, end);
+  // Word captions only where the reference has them (a voice-over ad's only words may be its graphics').
+  // A chunk stays inside its own line, and none shows while a label already says that line.
+  const captions =
+    layout.captions.present === false
+      ? []
+      : wordCaptions(captionWords, layout.captions.words, end, span.beats.slice(1).map((b) => b.start)).filter((c) => !texts.some((t) => t.spoken && c.start >= t.overlay.start - 0.05 && c.start < t.overlay.end));
   if (captions.length) {
     const metrics = await fontMetrics(DEFAULT_FONT);
     await writeFile(join(cut, "captions.ass"), toAss({ captions, overlays: [] }, { width: OUT.width, height: OUT.height, metrics, caption: captionStyle(layout.captions) }), "utf8");
@@ -1667,7 +1854,7 @@ async function filmedMonitor(
   work: Work,
   naive: RemakeNaive,
   manifest: Manifest,
-  o: { layer: CloneLayer; segment: RemakeSegment; layout: RemakeLayout; stage: Stage; stageRef: Rect; reference: string; built: Map<string, { kind: "video" | "image"; path: string }>; product: ProductBrief; mode: "auto" | "track" | "plate"; cuts: number[]; idem: string },
+  o: { layer: CloneLayer; segment: RemakeSegment; layout: RemakeLayout; stage: Stage; stageRef: Rect; reference: string; built: Map<string, { kind: "video" | "image"; path: string }>; product: ProductBrief; mode: "auto" | "track" | "plate"; cuts: number[]; softCuts?: number[]; idem: string },
 ): Promise<string | null> {
   const { layer, segment, stage } = o;
   const seconds = round(layer.end - layer.start);
@@ -1677,12 +1864,46 @@ async function filmedMonitor(
   if (!content.length) content = o.product.visuals.filter((v) => !/^https?:/.test(v.url) && existsSync(v.url) && v.kind !== "video").slice(0, 3).map((v) => ({ path: v.url, kind: "image" as const }));
   if (!content.length) return null;
   const pieces = content.map((c) => ({ ...c, seconds: round(seconds / content.length) }));
-  const key = hash([layer.id, layer.start, layer.end, o.mode, pieces.map((p) => basename(p.path))]);
+  // A faceless filmed screen (no cut-out over it) is tracked frame by frame when OpenCV is set up.
+  const python = o.mode !== "plate" && !segment.presenter.inset ? trackerPython() : null;
+  const key = hash([layer.id, layer.start, layer.end, o.mode, pieces.map((p) => basename(p.path)), python ? "flow" : ""]);
   const rec = (manifest.screens[layer.id] = manifest.screens[layer.id]?.key === key ? manifest.screens[layer.id] : { key });
   const kept = await work.local(rec.clip_key);
   if (kept) return kept;
   const stream = join(work.dir, `${layer.id}-screens.mp4`);
   await ffmpeg(screenStreamArgs(pieces, stream));
+
+  if (python) {
+    try {
+      // One corner read per shot (more in long shots), at most twelve frames per vision call.
+      const times = shotReadTimes(layer, o.softCuts ?? o.cuts);
+      const anchors: QuadKey[] = [];
+      for (let i = 0; i < times.length; i += MAX_ANALYSIS_FRAMES) {
+        const frames: Array<{ t: number; jpeg: Buffer }> = [];
+        for (const t of times.slice(i, i + MAX_ANALYSIS_FRAMES)) {
+          const jpeg = await grabJpeg(o.reference, t, 720, o.stageRef).catch(() => null);
+          if (jpeg?.length) frames.push({ t, jpeg });
+        }
+        if (frames.length) anchors.push(...parseQuads(await readScreenCorners(naive, frames, QC_MODEL), stage));
+      }
+      if (anchors.length) {
+        const out = join(work.dir, `${layer.id}-tracked.mp4`);
+        const erase = burnedInText(o.layout, stage, layer);
+        const report = await trackScreen(python, { ffmpeg: await ffmpegBin(), reference: o.reference, start: layer.start, seconds, crop: o.stageRef, size: { width: stage.width, height: stage.height }, screen: stream, screen_size: { width: 1440, height: 900 }, cuts: o.softCuts ?? o.cuts, anchors, erase, out }, work.dir);
+        const loose = report.shots.filter((s) => s.fallback);
+        work.say(`Tracked the filmed screen through ${report.shots.length - loose.length} of ${report.shots.length} shots${loose.length ? ` (${loose.map((s) => s.fallback).join("; ")})` : ""}`);
+        rec.mode = "track";
+        rec.reason = loose.length ? `${loose.length} shot${loose.length > 1 ? "s" : ""} followed the corner reads only` : undefined;
+        rec.clip_key = await work.keep(`screens/${layer.id}.mp4`, out, "video/mp4");
+        await work.save();
+        return out;
+      }
+      work.say("No display was found for the tracker; warping between corner reads instead");
+    } catch (error) {
+      if (stopping(error)) throw error;
+      work.say(`The screen tracker failed (${error instanceof Error ? error.message.slice(0, 200) : String(error)}); warping between corner reads instead`);
+    }
+  }
 
   if (o.mode !== "plate") {
     const times = cornerTimes(layer, o.cuts);

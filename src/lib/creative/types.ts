@@ -476,6 +476,8 @@ export type ScreenRequest = {
   size: "full" | "half" | "desktop";
   /** An exact canvas in px, overriding `size`: a remake's graphic built at its reference box (a post card, a chart). */
   box?: { width: number; height: number };
+  /** A remake's: a still of the reference at this moment (local file), so the designer copies its look. */
+  reference_frame?: string;
 };
 
 /** A rendered screen: a short clip (or a still when it does not move) ready for the edit. */

@@ -1,7 +1,9 @@
 // Sets up the optional stem splitter for one-to-one remakes: a Python virtual environment with
 // Demucs in data/tools/stems (data/ is gitignored). With it, a remake keeps the reference's music
 // and sound effects under our voice; without it, the voice is isolated by ElevenLabs and the remake
-// has no music bed. Run it once per machine:
+// has no music bed. It also installs OpenCV, which tracks a filmed monitor frame by frame for
+// faceless remakes (scripts/track-screen.py); without it the remake warps between corner reads.
+// Run it once per machine:
 //
 //   npm run setup:stems            (creates the venv, installs Demucs, fetches its model once)
 //   npm run setup:stems -- --no-warm   (skips the model download)
@@ -69,6 +71,10 @@ try {
   run(python, ["-m", "pip", "install", "--quiet", "--upgrade", "pip"]);
   run(python, ["-m", "pip", "install", "--quiet", "demucs", "soundfile"]);
   run(python, ["-c", "import demucs, soundfile; print('demucs', demucs.__version__)"]);
+  // OpenCV for faceless remakes: scripts/track-screen.py tracks a filmed monitor frame by frame.
+  console.log("Installing OpenCV (the filmed-screen tracker)");
+  run(python, ["-m", "pip", "install", "--quiet", "opencv-python-headless"]);
+  run(python, ["-c", "import cv2; print('opencv', cv2.__version__)"]);
   if (warm) {
     console.log("Fetching the htdemucs model once (about 80 MB)");
     const dir = mkdtempSync(join(tmpdir(), "nomen-stems-"));

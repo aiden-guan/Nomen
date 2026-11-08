@@ -625,6 +625,29 @@ async function referenceImages(ctx: ScreenContext): Promise<Array<{ type: "image
   return images;
 }
 
+/** A remake's still of the reference at the screen's moment, as the designer's image (null when there is none). */
+async function referenceFrameImage(path: string | undefined): Promise<{ type: "image"; source: { type: "base64"; media_type: "image/jpeg"; data: string } } | null> {
+  if (!path || !existsSync(path)) return null;
+  const bin = await ffmpegBin();
+  if (!bin) return null;
+  try {
+    const { stdout } = await exec(bin, ["-hide_banner", "-loglevel", "error", "-i", path, "-frames:v", "1", "-vf", "scale='min(720,iw)':-2", "-q:v", "4", "-f", "mjpeg", "pipe:1"], { encoding: "buffer", maxBuffer: 16 * 1024 * 1024, timeout: 30_000 });
+    const data = (stdout as unknown as Buffer).toString("base64");
+    return data ? { type: "image", source: { type: "base64", media_type: "image/jpeg", data } } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What the designer is told about the reference's still: copy its composition, in this brand. */
+export function referenceFrameNote(request: Pick<ScreenRequest, "size" | "box">, afterBrand: boolean): string {
+  const which = afterBrand ? "The last image" : "The image";
+  if (request.size === "desktop" && !request.box) {
+    return `${which} is the reference video at this moment: a phone filming a monitor. Build only what its display shows, as this product's equivalent: the same kind of screen (app, site, terminal or desktop), light or dark like it, laid out like it, with the same amount on screen, so it sits on that monitor naturally.`;
+  }
+  return `${which} is the reference video's own frame at this moment. Remake it one to one for this product: the same composition, element sizes and places, background style, depth and motion idea, with this product's words, UI and logo in place of the original's, in the brand's colours. Nothing of the original brand (its name, logo or wordmark) appears.`;
+}
+
 /**
  * One designer call: a self-contained HTML document for the screen (sanitized against the brand
  * kit's files and assets/fonts) and the keyframes worth capturing. Throws when the answer has no
@@ -632,8 +655,11 @@ async function referenceImages(ctx: ScreenContext): Promise<Array<{ type: "image
  */
 export async function writeScreen(naive: Messenger, request: ScreenRequest, ctx: ScreenContext): Promise<{ html: string; states: ScreenState[] }> {
   const images = await referenceImages(ctx);
+  const frame = await referenceFrameImage(request.reference_frame);
   const text = screenPrompt(request, ctx);
-  const content = images.length ? [...images, { type: "text", text: `The images above are the brand's real UI, for its look.\n\n${text}` }] : text;
+  const note = [images.length ? `The first ${images.length === 1 ? "image is" : `${images.length} images are`} the brand's real UI, for its look.` : "", frame ? referenceFrameNote(request, images.length > 0) : ""].filter(Boolean).join(" ");
+  const all = [...images, ...(frame ? [frame] : [])];
+  const content = all.length ? [...all, { type: "text", text: `${note}\n\n${text}` }] : text;
   const reply = await naive.message({
     model: QC_MODEL,
     max_tokens: 14000,
