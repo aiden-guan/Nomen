@@ -234,3 +234,79 @@ export type EditTimeline = {
   /** Total length; defaults to the soundtrack's length. */
   duration?: number;
 };
+
+// ---------- the brand kit (assets the brand gives us) ----------
+
+/** One file the brand uploaded or Nomen found in its repo. */
+export type BrandAsset = {
+  /** Stable id within the brand, e.g. "a3". */
+  id: string;
+  kind: "logo" | "icon" | "screenshot" | "image" | "video" | "font" | "doc";
+  /** Absolute path under data/brandkits/<brandId>/. */
+  path: string;
+  /** Where it came from: "upload" or "repo:<path in repo>". */
+  source: string;
+  /** What is visible or what it is, in a few words (filled by a vision pass for images). */
+  caption: string;
+  width?: number;
+  height?: number;
+  bytes: number;
+};
+
+/** What a read-only scan of the brand's code found (never executed). */
+export type RepoScan = {
+  /** "github:owner/repo" or "local:/path". */
+  origin: string;
+  scanned_at: string;
+  name: string;
+  description: string;
+  /** README, first ~4k characters. */
+  readme: string;
+  /** Brand colors from Tailwind config, CSS variables or theme files, most used first. */
+  colors: Array<{ name: string; hex: string; source: string }>;
+  /** Font families the app uses (and bundled font files, as assets). */
+  fonts: string[];
+  /** Commands a user runs, from README code blocks, package.json bin/scripts or docs: "npx monid init". */
+  commands: string[];
+  /** The app's main screens: route or page names with a one-line summary each. */
+  screens: Array<{ route: string; summary: string; file: string }>;
+  /** Key UI components worth recreating on screen, with short source excerpts (styles, structure). */
+  components: Array<{ name: string; file: string; excerpt: string }>;
+  /** Real strings that appear in the product (button labels, headings, sample data), for realistic screens. */
+  ui_strings: string[];
+};
+
+/** Everything the brand gave us, merged: uploaded assets, repo assets and the repo scan. */
+export type BrandKit = {
+  brand_id: string;
+  updated_at: string;
+  assets: BrandAsset[];
+  repo: RepoScan | null;
+};
+
+// ---------- generated screens (the screen builder) ----------
+
+/** One beat's on-screen graphic, to be built from the brand kit and product facts. */
+export type ScreenRequest = {
+  /** Unique within a video, e.g. "crv_x-b3". */
+  id: string;
+  /** What the viewer should see, in plain words: "a terminal where `set up monid.ai/SKILL.md` is typed and the agent replies 'connected: 2900+ tools'". */
+  brief: string;
+  /** The spoken line it accompanies (for timing and emphasis). */
+  line: string;
+  seconds: number;
+  /** How the reference's matching beat looked, from its breakdown, so the screen copies its style. */
+  reference_visual: string;
+  /** Full screen (1080x1920) or the half a split layout gives it (1080x960). */
+  size: "full" | "half";
+};
+
+/** A rendered screen: a short clip (or a still when it does not move) ready for the edit. */
+export type ScreenClip = {
+  id: string;
+  kind: "video" | "image";
+  path: string;
+  seconds: number;
+  /** The HTML that produced it, kept for debugging and re-renders. */
+  html_path: string;
+};
