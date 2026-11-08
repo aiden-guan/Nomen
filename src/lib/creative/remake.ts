@@ -464,6 +464,59 @@ export function burnedInText(layout: Pick<RemakeLayout, "texts" | "captions">, s
   return out;
 }
 
+/** Text split into `count` lines of about equal length, at word breaks. */
+export function balanceLines(text: string, count: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const n = Math.max(1, Math.min(count, words.length));
+  const target = text.length / n;
+  const lines: string[] = [];
+  let line: string[] = [];
+  for (const word of words) {
+    if (line.length && lines.length < n - 1 && [...line, word].join(" ").length > target + 2) {
+      lines.push(line.join(" "));
+      line = [];
+    }
+    line.push(word);
+  }
+  if (line.length) lines.push(line.join(" "));
+  return lines;
+}
+
+/**
+ * A static premise caption the layout reader took for spoken-word captions (@risingpower__: one
+ * black-on-white caption for the whole video, no word captions). When the breakdown's caption note
+ * says the words are not captioned, there are none; and when the reader found no text overlay but
+ * every beat shows the same on-screen text, that text is an overlay of its own, in the place and
+ * look the reader measured (on white boxes when the note says so), so it is redrawn with our words
+ * and the original is painted out of the footage.
+ */
+export function staticCaption(layout: RemakeLayout, breakdown: Pick<ReferenceBreakdown, "caption_style">, beats: Array<Pick<ReferenceBeat, "on_screen_text">>, end: number): RemakeLayout {
+  const style = breakdown.caption_style ?? "";
+  if (!captionsAbsent(style)) return layout;
+  const captions = { ...layout.captions, present: false };
+  const text = beats[0]?.on_screen_text?.trim() ?? "";
+  const same = text && beats.every((b) => (b.on_screen_text ?? "").trim() === text);
+  if (layout.texts.length || !same) return { ...layout, captions };
+  const named = style.match(/\b(\d|two|three|four|five)\s+lines?\b/i)?.[1]?.toLowerCase();
+  const count = named ? (Number(named) || ["", "one", "two", "three", "four", "five"].indexOf(named)) : Math.ceil(text.length / 38);
+  const lines = balanceLines(text, count);
+  const size = layout.captions.size;
+  const h = round(Math.min(0.5, lines.length * size * 1.9), 4);
+  const overlay: TextOverlay = {
+    id: "t1",
+    lines,
+    box: { x: 0.1, y: round(clamp(layout.captions.center_y - h / 2, 0, 1 - h), 4), w: 0.8, h },
+    start: 0,
+    end: round(end, 3),
+    color: layout.captions.color,
+    outline: layout.captions.outline,
+    shadow: layout.captions.shadow,
+    background: /\bwhite\s+(?:box|boxes|background|bar|bars|label|labels)\b|\bon\s+white\b/i.test(style) ? "#FFFFFF" : null,
+    size,
+  };
+  return { ...layout, texts: [overlay], captions };
+}
+
 /** Whether the script says anything at all: with no words, the reference's whole soundtrack is kept (its music, its singing). */
 export const saysAnything = (lines: string[]) => lines.some((line) => /[\p{L}\p{N}]/u.test(line));
 
@@ -1365,7 +1418,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     await save();
   }
   // A square or landscape reference keeps its shape, as a band across our vertical frame.
-  const fitted = fitToVertical(manifest.layout, info);
+  const fitted = fitToVertical(staticCaption(manifest.layout, input.breakdown, span.beats, end), info);
   const layout = fitted.layout;
   const stage = stageOf(layout);
   const stageRef = fitted.stageRef ?? toReference({ x: 0, y: 0, width: stage.width, height: stage.height }, stage, info);

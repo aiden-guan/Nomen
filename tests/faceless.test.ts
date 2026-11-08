@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { editFfmpeg } from "@/lib/creative/edit";
-import { burnedInText, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, wordCaptions } from "@/lib/creative/remake";
+import { balanceLines, burnedInText, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, staticCaption, wordCaptions } from "@/lib/creative/remake";
 import { readScreenCorners } from "@/lib/creative/clone";
 import { beatsOfWords, fitSegments, freshVoiceArgs, PHONE_EQ, soundArgs, timeOurLines, timeOurWords, wordsFromSegments } from "@/lib/creative/dub";
 import { referenceFrameNote } from "@/lib/creative/screens";
@@ -264,6 +264,37 @@ describe("faceless remakes: motion graphics", () => {
   it("keeps a plain graphic's brief as it was", () => {
     const request = stageGraphic("fb-s2", { stage: { width: 1080, height: 890 }, seconds: 3, line: "we spent three dollars", shows: "", product: { name: "Monid", one_liner: "one balance" } });
     expect(request.brief).not.toContain("appear on it in turn");
+  });
+});
+
+describe("faceless remakes: a static premise caption", () => {
+  const premise = "claude now calls me from terminal if it has a question or if it needs me for something";
+  const style = "No word-by-word captions. One static caption in black text on white boxes, centred in the middle of the screen, 3 lines, stated as the premise.";
+  const read = layout({ texts: [], captions: { case: "lower", italic: false, color: "#000000", outline: "none", shadow: false, words: 5, center_y: 0.52, size: 0.022, badge: null, present: true } });
+
+  it("turns a caption the reader took for spoken words into the overlay it is", () => {
+    const fixed = staticCaption(read, { caption_style: style }, [premise, premise, premise, premise].map((t) => ({ on_screen_text: t })), 16.7);
+    expect(fixed.captions.present).toBe(false);
+    expect(fixed.texts).toHaveLength(1);
+    const [overlay] = fixed.texts;
+    expect(overlay.lines).toHaveLength(3);
+    expect(overlay.lines.join(" ")).toBe(premise);
+    expect(overlay).toMatchObject({ start: 0, end: 16.7, color: "#000000", background: "#FFFFFF", size: 0.022 });
+    expect(overlay.box.y + overlay.box.h / 2).toBeCloseTo(0.52, 2);
+  });
+
+  it("leaves videos with word captions, or with overlays already read, as they were", () => {
+    const captioned = staticCaption(read, { caption_style: "Word-by-word burned-in captions in bold white uppercase." }, [{ on_screen_text: premise }], 16.7);
+    expect(captioned).toBe(read);
+    // A voice-over ad with no captions and different text per beat: captions off, nothing added.
+    const ad = staticCaption(read, { caption_style: "No word-by-word speech captions." }, [{ on_screen_text: "1. As" }, { on_screen_text: "" }], 60);
+    expect(ad.captions.present).toBe(false);
+    expect(ad.texts).toEqual([]);
+  });
+
+  it("balances a line into a given number of lines", () => {
+    expect(balanceLines("one two three four five six", 3)).toEqual(["one two", "three four", "five six"]);
+    expect(balanceLines("single", 3)).toEqual(["single"]);
   });
 });
 
