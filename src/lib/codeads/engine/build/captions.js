@@ -16,7 +16,7 @@ const CSS = `
 .bc.term  { top: 390px; font-size: 92px; color: #ffd43b; -webkit-text-stroke: 13px #2b1a05; text-shadow: 0 8px 0 rgba(0,0,0,.4), 0 0 26px rgba(0,0,0,.55); }
 /* bands (024 v5): term 20 %, label 14 %, money 17 % of frame height — above the faces (28–45 %) and the word (52 %).
    label/money: bigger + a wider dark halo — v2's orange "50 FEET A DAY" vanished on the orange TBM, the green money line was thin */
-.bc.label { top: 262px; font-size: 84px; color: #ffb43c; -webkit-text-stroke: 12px #2b1405; text-shadow: 0 7px 0 rgba(0,0,0,.45), 0 0 28px rgba(0,0,0,.75), 0 0 64px rgba(0,0,0,.45); }
+.bc.label { top: 262px; font-size: 84px; color: #ffc45c; -webkit-text-stroke: 13px #120a04; text-shadow: 0 7px 0 rgba(0,0,0,.55), 0 0 28px rgba(0,0,0,.9), 0 0 64px rgba(0,0,0,.6); }   /* Nomen: a darker outline and halo, the label sits over a wooden desk in code ads */
 .bc.money { top: 318px; font-size: 104px; color: #7cf05f; -webkit-text-stroke: 14px #0d2a0a; text-shadow: 0 8px 0 rgba(0,0,0,.45), 0 0 30px rgba(0,0,0,.75), 0 0 64px rgba(0,0,0,.45); }
 .bc.stamp { top: 560px; font-size: 100px; color: #ff3b30; -webkit-text-stroke: 13px #2a0606; text-shadow: 0 8px 0 rgba(0,0,0,.45), 0 0 26px rgba(0,0,0,.55); }
 .bc.sfx   { font-size: 66px; color: #ffe14d; -webkit-text-stroke: 10px #2b1a05; text-shadow: 0 6px 0 rgba(0,0,0,.4), 0 0 22px rgba(0,0,0,.55); left: auto; right: auto; }
