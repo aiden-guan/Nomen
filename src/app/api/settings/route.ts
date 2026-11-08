@@ -24,6 +24,8 @@ const EDITABLE: SettingKey[] = [
   "remake_max_usd",
   "remake_screens",
   "persona_character",
+  "production_mode",
+  "creator_fee_usd",
 ];
 
 let models: { at: number; ids: string[] } | null = null;

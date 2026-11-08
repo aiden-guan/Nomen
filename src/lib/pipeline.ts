@@ -29,7 +29,8 @@ import { type Concept, conceptFrom, normalizeStrategy, type PastResult, STRATEGY
 export type CampaignStage = "research" | "style" | "strategy" | "production" | "review" | "live";
 export type CampaignStatus = "running" | "review" | "publishing" | "live" | "failed" | "stopped";
 
-export type CampaignOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string; learnStyle: boolean };
+/** production: "ai" renders every video; "creators" casts each brief to a real creator instead (casting-job.ts). */
+export type CampaignOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string; learnStyle: boolean; production?: "ai" | "creators" };
 
 export type BrandRow = { id: string; name: string; domain: string; url: string; profile_json: string | null; identity_id: string | null; social_activated: number; created_at: string };
 
@@ -75,6 +76,7 @@ export function defaultOptions(): CampaignOptions {
     secondsPerShot: Math.max(4, Math.min(10, getInt("video_seconds"))),
     videoModel: getSetting("video_model"),
     learnStyle: getBool("learn_style"),
+    production: getSetting("production_mode") === "creators" ? "creators" : "ai",
   };
 }
 
@@ -614,6 +616,16 @@ export async function remadeReferences(brandId: string, exceptCampaignId: string
 
 async function stepProduction(campaign: CampaignRow) {
   const { naive, monid } = clients();
+  // Real-creator mode: each brief is cast to a creator and approved by the client-taste agent.
+  if (parse<Partial<CampaignOptions>>(campaign.options_json, {}).production === "creators") {
+    const { stepCastingStage } = await import("./casting-job");
+    const cast = await stepCastingStage(campaign, { naive, monid });
+    if (cast.settled) {
+      await save("campaigns", campaign.id, { stage: "review", status: "review" });
+      await logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, message: `${cast.ready} of ${cast.total} briefs have an approved creator; their outreach waits for you` });
+    }
+    return;
+  }
   const strategy = parse<Strategy | null>(campaign.strategy_json, null);
   if (!strategy) throw new Error("The campaign has no strategy yet.");
   // Read once per tick; flipped (and saved) the moment Naive runs out.

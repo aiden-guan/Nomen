@@ -443,7 +443,10 @@ function Theatre({ view, busy, actions, demo }: { view: BrandView; busy: string 
   const accounts = useAccounts(demo ? null : view.brand.id, view.brand.connected);
   const campaign = view.campaign;
   if (!campaign) return null;
-  const ready = campaign.creatives.filter((c) => c.status === "ready").sort((a, b) => a.idx - b.idx);
+  const finished = campaign.creatives.filter((c) => c.status === "ready").sort((a, b) => a.idx - b.idx);
+  // Real-creator mode: a brief cast to a creator, waiting for your OK to send its outreach.
+  const briefs = finished.filter((c) => castingOf(c));
+  const ready = finished.filter((c) => !castingOf(c));
   const approved = ready.filter((c) => c.approved).length;
   // Approved videos with no post yet (a failed post can go again). A real campaign can post a
   // finished video while the others are still being made; the demo's replay posts from the review.
@@ -452,6 +455,17 @@ function Theatre({ view, busy, actions, demo }: { view: BrandView; busy: string 
   const canPublish = unposted > 0 && (!demo || campaign.status === "review" || campaign.status === "live");
   return (
     <>
+      {briefs.length > 0 && (
+        <Section title={`Creator briefs · ${briefs.filter((c) => c.approved).length}/${briefs.length} approved to send`}>
+          <ul className="grid grid-cols-1 gap-3">
+            {briefs.map((creative) => (
+              <CastingCard key={creative.id} creative={creative} casting={castingOf(creative)!} busy={busy} actions={actions} />
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-[var(--ink-faint)]">The client-taste agent approved each creator and brief. Nothing goes out until you send it.</p>
+        </Section>
+      )}
+      {(ready.length > 0 || briefs.length === 0) && (
       <Section title={`The cut · ${approved}/${ready.length} approved`}>
         {ready.length === 0 ? (
           <p className="text-[13px] text-[var(--ink-soft)]">Finished videos play here for you to approve.</p>
@@ -463,6 +477,7 @@ function Theatre({ view, busy, actions, demo }: { view: BrandView; busy: string 
           </ul>
         )}
       </Section>
+      )}
       {ready.length > 0 && (
         <Section title="Send them out">
           {demo ? null : <Accounts state={accounts} busy={busy} connect={actions.connect} />}
@@ -529,6 +544,67 @@ function Accounts({ state, busy, connect }: { state: AccountsState; busy: string
         </>
       )}
     </p>
+  );
+}
+
+/** What real-creator mode keeps on a brief (creative/casting.ts), as the camp shows it. */
+type CastingView = {
+  status: string;
+  pick: { handle: string; platform: string; followers: number | null; url: string; evidence: string } | null;
+  briefing: { title: string; hook: string; summary: string; fee: string } | null;
+  reviews: Array<{ creator: string; approve: boolean; score: number; reasons: string[] }>;
+  outreach: { channel: string; message: string } | null;
+};
+
+function castingOf(creative: CreativeView): CastingView | null {
+  const casting = (creative.concept as unknown as { casting?: CastingView } | null)?.casting;
+  return casting?.pick ? casting : null;
+}
+
+const followersLabel = (n: number | null) => (n === null ? "" : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M followers` : n >= 1e3 ? `${Math.round(n / 1e3)}K followers` : `${n} followers`);
+
+function CastingCard({ creative, casting, busy, actions }: { creative: CreativeView; casting: CastingView; busy: string | null; actions: CampActions }) {
+  const key = `approve:${creative.id}`;
+  const pick = casting.pick!;
+  const verdict = casting.reviews.filter((r) => r.creator === pick.handle).at(-1);
+  const turnedDown = casting.reviews.filter((r) => r.creator !== pick.handle).map((r) => `@${r.creator}`);
+  return (
+    <li className="border-2 border-[var(--ink)] bg-[var(--paper)] p-3 text-[12px]">
+      <p className="font-semibold leading-snug">{casting.briefing?.title ?? creative.concept?.title}</p>
+      <p className="mt-1 text-[11px] text-[var(--ink-soft)]">
+        Creator:{" "}
+        <a href={pick.url} target="_blank" rel="noreferrer" className="font-semibold underline">
+          @{pick.handle}
+        </a>{" "}
+        · {pick.platform === "instagram" ? "Instagram" : "TikTok"}
+        {pick.followers !== null ? ` · ${followersLabel(pick.followers)}` : ""}
+      </p>
+      {pick.evidence && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--ink-faint)]">Made: {pick.evidence}</p>}
+      {creative.reference && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--crimson)]">{remakeLine(creative.reference)}</p>}
+      {casting.briefing && <p className="mt-2 italic leading-snug">&ldquo;{casting.briefing.hook}&rdquo;</p>}
+      {verdict && (
+        <p className="mt-2 text-[11px] leading-snug">
+          <span className="font-semibold text-[var(--crimson)]">
+            Client taste {verdict.approve ? "approved" : "turned down"} · {verdict.score}/10
+          </span>{" "}
+          {verdict.reasons[0] ?? ""}
+          {turnedDown.length ? ` (turned down before: ${turnedDown.join(", ")})` : ""}
+        </p>
+      )}
+      {casting.outreach && (
+        <details className="mt-2">
+          <summary className={`${styles.pixel} cursor-pointer text-[11px]`}>Outreach draft{casting.briefing?.fee ? ` · ${casting.briefing.fee}` : ""}</summary>
+          <p className="mt-1 whitespace-pre-wrap text-[11px] leading-snug">{casting.outreach.message}</p>
+          <button type="button" className={`${styles.button} ${styles.pixel} mt-1 h-7 px-2 text-[11px]`} onClick={() => void navigator.clipboard?.writeText(casting.outreach!.message)}>
+            Copy
+          </button>
+        </details>
+      )}
+      <label className="mt-2 flex cursor-pointer items-center gap-2">
+        <input type="checkbox" checked={creative.approved} disabled={busy === key} onChange={(event) => actions.approve(creative, event.target.checked)} className="size-4 accent-[var(--crimson)]" />
+        <span className={styles.pixel}>{creative.approved ? "Approved to send" : "Approve to send"}</span>
+      </label>
+    </li>
   );
 }
 

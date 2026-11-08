@@ -369,6 +369,9 @@ function editorTask(creative: CreativeView) {
 export function stationForEvent(message: string, stage: string): StationId {
   const m = message.toLowerCase();
   if (m.startsWith("campaign started")) return "scouts";
+  // Real-creator mode: the client's verdicts belong to the review, the casting to the workshop.
+  if (/^client taste /.test(m)) return "theatre";
+  if (/casting from \d+ creators|best fit @|outreach to @|people search for/.test(m)) return "workshop";
   // Rendering talk first: Monid is also the video fallback, so "monid" alone can't mean research.
   if (/\bshot\b|render|\bqc\b|kling|veo|naive is out|product screens|the edit failed|first frame/.test(m) && !/ready for review/.test(m)) return "workshop";
   if (/ready for review|approved/.test(m)) return "theatre";

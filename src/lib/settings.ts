@@ -23,6 +23,10 @@ export const DEFAULTS = {
   warmup_minutes: "12",
   /** Who renders presenter shots: Kling 3.0 on Monid with its own voice ("kling-3.0"), or the Naive video model ("naive", video_model). */
   presenter_engine: "kling-3.0",
+  /** "ai": AI-made videos end to end; "creators": each brief goes to a real creator, approved by the client-taste agent. */
+  production_mode: "ai",
+  /** The flat fee offered to a creator for one video, in USD. */
+  creator_fee_usd: "150",
   /** The finish on the final render: a touch of contrast, sharpening and grain, and the voice chain with loudness ("on" or "off", to A/B). */
   finish: "on",
   /** One-to-one remakes: who re-performs each render ("kling-native", "kling-motion", or "naive:<video model>"); see creative/presenter.ts. */
