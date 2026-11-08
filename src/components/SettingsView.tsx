@@ -141,6 +141,29 @@ export function SettingsView() {
           {saved && <span className="text-sm text-emerald-300">{saved} saved</span>}
         </div>
       </Card>
+
+      <Card title="Static ads" subtitle="Ready-to-upload image ads for Google, Meta, X and Reddit, made from the campaign's research. See docs/static-ads.md.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Concepts per pack" hint="Each concept is rendered at every size the four platforms recommend.">
+            <input type="number" min={1} max={8} value={values.static_concepts} onChange={(event) => set("static_concepts")(event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="Study, copy and check model" hint="Reads competitors' ads, writes the copy and checks every finished image.">
+            <input value={values.static_model} onChange={(event) => set("static_model")(event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="Image model" hint="Only for a physical product with no usable photo on its site.">
+            <input value={values.static_image_model} onChange={(event) => set("static_image_model")(event.target.value)} className={inputClass} />
+          </Field>
+        </div>
+        <div className="mt-5 space-y-3">
+          <Toggle checked={values.static_ads_auto === "true"} onChange={(v) => set("static_ads_auto")(String(v))} label="Make a static ad pack when a campaign's research is done" />
+          <Toggle checked={values.static_ai_images === "true"} onChange={(v) => set("static_ai_images")(String(v))} label="Allow generated product photos" hint="Off: static ads use only the brand's own site, photos and type." />
+        </div>
+        <div className="mt-6 flex items-center gap-3">
+          <Button variant="primary" loading={saving} onClick={() => void save(values, "Static ad settings")}>
+            Save
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }

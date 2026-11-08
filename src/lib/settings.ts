@@ -20,6 +20,14 @@ export const DEFAULTS = {
   qc_max_retries: "2",
   autopilot: "false",
   warmup_minutes: "12",
+  /** Static ads: start a pack when a campaign's research is done. */
+  static_ads_auto: "true",
+  static_concepts: "4",
+  /** The model that studies competitors' ads, writes the copy and checks every finished ad. */
+  static_model: "anthropic/claude-opus-5.5",
+  /** Image model for the rare concept that needs a generated photo; real product photos and screenshots come first. */
+  static_image_model: "google/gemini-3-pro-image",
+  static_ai_images: "true",
 } as const;
 
 export type SettingKey = keyof typeof DEFAULTS;

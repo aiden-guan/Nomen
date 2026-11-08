@@ -69,8 +69,8 @@ trust the agent.
 
 | Primitive | Used for |
 | --- | --- |
-| Model proxy (`/v1/proxy/anthropic/v1/messages`) | the research plan (Claude Haiku), the format study, shot QC and the continuity check (Claude Sonnet, with images) |
-| Media (`/v1/media/images`, `/v1/media/videos`) | first frames and Veo 3.1 renders |
+| Model proxy (`/v1/proxy/anthropic/v1/messages`) | the research plans (Claude Haiku), the format study, shot QC and the continuity check (Claude Sonnet, with images), and for static ads the ad study, the copy and the image check (Claude Opus 5.5, `static_model`). Calls use strict tool schemas; the proxy does not accept `output_config`. |
+| Media (`/v1/media/images`, `/v1/media/videos`) | first frames and Veo 3.1 renders, and the occasional generated photo for a static ad (`static_image_model`) |
 | Files | storing renders and the finished ads, and the signed links the review page plays |
 | Identities and Social | one identity per brand (`nomen-brand-<domain>`), its connection page and the posts |
 

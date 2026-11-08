@@ -12,3 +12,7 @@
   `NODE_USE_ENV_PROXY=1 NAIVE_API_KEY=proxy-injected`.
 - Working on video quality? Read `samples/monid/REVIEW.md` first and look at the `*-frames.jpg`
   contact sheets (you cannot play the MP4s): they show the current output and its known defects.
+- Working on static ads? Read `docs/static-ads.md`. Render every layout at every size with
+  `NOMEN_PREVIEW_DIR=… npx vitest run tests/statics/layouts.test.ts` and look at the PNGs before
+  and after a layout change. Platform sizes and limits live in `src/lib/statics/specs.ts` with
+  their sources; change them only against the platform's own help page.

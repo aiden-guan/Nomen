@@ -119,6 +119,47 @@ create table if not exists events (
 
 create index if not exists events_campaign on events (campaign_id, id);
 create index if not exists creatives_campaign on creatives (campaign_id, idx);
+
+create table if not exists static_packs (
+  id text primary key,
+  campaign_id text not null references campaigns(id) on delete cascade,
+  brand_id text not null references brands(id) on delete cascade,
+  status text not null,
+  stage text not null,
+  error text,
+  attempts integer not null default 0,
+  options_json text not null,
+  plan_json text,
+  research_json text,
+  study_json text,
+  search_json text,
+  assets_json text,
+  tokens_in integer not null default 0,
+  tokens_out integer not null default 0,
+  image_cost_micro integer not null default 0,
+  created_at text not null,
+  updated_at text not null
+);
+
+create table if not exists static_ads (
+  id text primary key,
+  pack_id text not null references static_packs(id) on delete cascade,
+  idx integer not null,
+  generation integer not null default 1,
+  concept_json text not null,
+  status text not null,
+  visual_json text,
+  renders_json text,
+  qc_json text,
+  approved integer not null default 0,
+  rejected integer not null default 0,
+  error text,
+  created_at text not null,
+  updated_at text not null
+);
+
+create index if not exists static_packs_campaign on static_packs (campaign_id, created_at);
+create index if not exists static_ads_pack on static_ads (pack_id, idx);
 `;
 
 export function db(): Database.Database {

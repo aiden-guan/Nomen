@@ -30,6 +30,7 @@ export function HomeView({ initialBrands, summary }: { initialBrands: BrandListI
   const [brands, setBrands] = useState(initialBrands);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [staticOnly, setStaticOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export function HomeView({ initialBrands, summary }: { initialBrands: BrandListI
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/brands", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) });
+      const response = await fetch("/api/brands", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url, staticOnly }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Could not start");
       router.push(`/brands/${data.brandId}`);
@@ -60,7 +61,7 @@ export function HomeView({ initialBrands, summary }: { initialBrands: BrandListI
   return (
     <div className="space-y-14">
       <section className="mx-auto max-w-3xl pt-10 text-center">
-        <Badge tone="accent">Research → strategy → video → posting</Badge>
+        <Badge tone="accent">Research → strategy → video and static ads → posting</Badge>
         <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white sm:text-5xl">Paste a website. Get a campaign.</h1>
         <p className="mx-auto mt-4 max-w-2xl text-base text-zinc-400">
           Nomen researches the brand, its competitors and what is winning on TikTok, Reels and in AI answers, then writes and produces original UGC-style video ads, checks every
@@ -78,6 +79,10 @@ export function HomeView({ initialBrands, summary }: { initialBrands: BrandListI
             Start campaign
           </Button>
         </form>
+        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
+          <input type="checkbox" checked={staticOnly} onChange={(event) => setStaticOnly(event.target.checked)} className="accent-violet-500" />
+          Static ads only: research and ready-to-upload image ads for Google, Meta, X and Reddit, no video
+        </label>
         <p className="mt-3 text-xs text-zinc-500">
           {summary} ·{" "}
           <Link href="/settings" className="text-zinc-400 underline-offset-2 hover:underline">

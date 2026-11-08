@@ -2,8 +2,9 @@ import { db, logEvent } from "./db";
 import { advancePhones } from "./phones";
 import { advanceCampaign } from "./pipeline";
 import { advancePosts } from "./publish";
+import { advanceStatics } from "./statics/pipeline";
 
-// One in-process loop drives every campaign, post and phone session. It is safe to restart at any
+// One in-process loop drives every campaign, static ad pack, post and phone session. It is safe to restart at any
 // time: all state lives in SQLite and every provider call is idempotent or polled.
 
 declare global {
@@ -26,6 +27,7 @@ export async function tick() {
   try {
     const running = db().prepare("select id from campaigns where status = 'running' order by created_at").all() as Array<{ id: string }>;
     for (const { id } of running) await advanceCampaign(id);
+    await advanceStatics().catch((error: unknown) => report("static ads", error));
     await advancePosts().catch((error: unknown) => report("posts", error));
     await advancePhones().catch((error: unknown) => report("phones", error));
   } catch (error) {
