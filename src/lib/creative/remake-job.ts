@@ -74,6 +74,13 @@ export async function advanceRemake(ctx: ProductionContext, creative: CreativeRo
 }
 
 /** The reference's full breakdown (beats) and its download link, from the campaign's own records. */
+/** The brand's site as it is shown on a remake's closing card ("monid.ai"), or null. */
+async function brandSite(brandId: string): Promise<string | null> {
+  const [brand] = await store().find<{ domain?: string | null; url?: string | null }>("brands", { id: brandId }, { limit: 1 }).catch(() => []);
+  const raw = brand?.domain || brand?.url || "";
+  return raw.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") || null;
+}
+
 export async function loadReference(campaignId: string, referenceId: string): Promise<{ breakdown: ReferenceBreakdown; mediaUrl: string | null } | null> {
   const [row] = await store().find<{ style_json: string | null; research_json: string | null }>("campaigns", { id: campaignId }, { limit: 1 });
   const breakdowns = parse<{ breakdowns?: ReferenceBreakdown[] } | null>(row?.style_json, null)?.breakdowns ?? [];
@@ -193,6 +200,7 @@ async function runRemake(ctx: ProductionContext, creative: CreativeRow, concept:
     },
     product: await localVisuals(ctx.product),
     kit: ctx.kit ?? null,
+    site: await brandSite(ctx.brandId),
     maxUsd: Number(getSetting("remake_max_usd")) || 15,
     presenter,
     voice: (["fresh", "convert", "auto"].includes(getSetting("remake_voice")) ? getSetting("remake_voice") : "fresh") as "fresh" | "convert" | "auto",

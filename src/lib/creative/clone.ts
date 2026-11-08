@@ -271,12 +271,14 @@ export function chunkTakes(takes: Take[], max: number, multiShot: boolean): Chun
  * Where a render that voices itself is cut onto the reference's span. Its lead-in silence is
  * skipped to start speaking when the reference does (at most 0.8 s), and a line that runs long is
  * played faster, picture and voice together so the lips still match, up to 1.25x; past that its
- * tail is cut (`cut`). A render with no speech is used from its start, at its own speed.
+ * tail is cut (`cut`). `breath` is the time kept after the last word: a little mid-video, more for
+ * the video's last take so the plug isn't clipped by the end. A render with no speech is used from
+ * its start, at its own speed.
  */
-export function fitChunk(clip: { duration: number; speech: { from: number; to: number } | null }, ref: { length: number; speechFrom: number | null }): { from: number; speed: number; cut: boolean } {
+export function fitChunk(clip: { duration: number; speech: { from: number; to: number } | null }, ref: { length: number; speechFrom: number | null }, breath = 0.12): { from: number; speed: number; cut: boolean } {
   if (!clip.speech || !(ref.length > 0)) return { from: 0, speed: 1, cut: false };
   const from = clamp(clip.speech.from - (ref.speechFrom ?? 0), 0, 0.8);
-  const needed = clip.speech.to - from + 0.12;
+  const needed = clip.speech.to - from + breath;
   const ratio = needed / ref.length;
   return { from: round(from), speed: round(clamp(ratio, 1, 1.25), 3), cut: ratio > 1.25 + 1e-6 };
 }
@@ -454,8 +456,12 @@ export function cornerColor(rgb: Uint8Array, width: number, height: number, size
   return `0x${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase().replace("0X", "0x");
 }
 
-/** The filter that cuts a green-screen clip out: chroma key around its own green, then green spill pulled out. */
-export const keyFilter = (color: string) => `chromakey=color=${color}:similarity=0.16:blend=0.08,despill=type=green:mix=0.6:expand=0.1`;
+/**
+ * The filter that cuts a green-screen clip out: chroma key tight around its own green, then a light
+ * green-spill pull. Looser settings (similarity 0.16, blend 0.08, despill 0.6) made her cream sweater
+ * half see-through and turned brown hair grey on the Jordan remake's screen walkthrough.
+ */
+export const keyFilter = (color: string) => `chromakey=color=${color}:similarity=0.10:blend=0.04,despill=type=green:mix=0.3:expand=0`;
 
 // ---------- the filmed monitor ----------
 

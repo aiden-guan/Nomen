@@ -255,7 +255,7 @@ function remakeBudgets(reference: ReferenceBreakdown) {
     "- Beat 1, the hook: the reference's exact words, word for word (filler, slang and sentence shape included), changing only the product facts: their product's name, numbers, prices, results and claims become this product's true facts from the brief.",
     "- Every later beat that is not about the reference's own product, method or story (hype, setup, reactions, teasers, a series line such as \"part sixty-seven\") keeps the reference's exact words too.",
     "- The beats about their product, method or story (their tutorial steps, their results, their numbers, \"Everyone is reposting them\") become this product's pitch: keep each beat's job, rhythm, length and energy, and write the words so the whole script is one coherent, true piece. Each line follows from the one before and makes sense to a viewer who never saw the reference. The creative brief's angle and cta say what the pitch is.",
-    "- The last beat ends on a complete thought, its payoff or a clear call to action, even where the reference's beat runs on.",
+    "- The last beat ends on a complete thought, its payoff or a clear call to action, even where the reference's beat runs on. It ends on the plug, the product's name said clearly as its last words, and uses at most three quarters of its max_words, so it finishes with a breath before the video ends.",
     "- Every claim stays true to the product brief. The one exception is obvious, unquantified hyperbole that the creative brief's angle asks for (a bait payoff such as \"it prints money while you sleep\"): never a specific number, result or guarantee that isn't in the product brief.",
     "- Write every line the way it is said aloud: numbers in words (\"about a tenth of a cent\", \"three dollars\"), a site as \"monid dot ai\", never a file name, a path or a symbol. On-screen text can show them exactly.",
     "- emotion: the reference's delivery on that beat as one voice tag ([excited], [smug], [deadpan], [sarcastic], [curious], [laughs], [sighs], [whispers]); the presenter says the line with it.",
@@ -427,6 +427,12 @@ export function lintRemake(script: Script, reference: Pick<ReferenceBreakdown, "
       }
     }
     if (beat.line && !beat.emotion) issues.push(`beat ${beat.n} has no emotion tags for its line`);
+    // The plug at the very end was clipped on the Cluely remake: the last line needs room to breathe.
+    if (beat.n === script.beats.length && beat.line) {
+      const room = Math.floor(beatWordBudget(ref.end - ref.start, null) * 0.75);
+      const said = tokens(beat.line).length;
+      if (said > room) issues.push(`the last beat runs ${said} words: keep it to ${room}, ending on the product's name, so the plug finishes before the video ends`);
+    }
     const series = ref.on_screen_text.match(/\bpart\s*\d+\b/i)?.[0];
     if (ref.on_screen_text && !beat.on_screen_text) issues.push(`beat ${beat.n} drops the reference's on-screen text "${ref.on_screen_text}"`);
     else if (series && !beat.on_screen_text.toLowerCase().includes(series.toLowerCase())) issues.push(`beat ${beat.n}'s on-screen text loses the series line "${series}"`);

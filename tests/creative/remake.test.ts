@@ -368,6 +368,21 @@ describe("the script and publishing for remakes", () => {
     expect(Object.keys(view)).not.toContain("change");
   });
 
+  it("asks for a last line short enough to breathe before the video ends", () => {
+    const script = normalizeScript(
+      [
+        { n: 1, line: "We spent four thousand dollars on these agent tools, and we saw, wow,", emotion: "[smug]" },
+        { n: 2, line: "Monid is a balance for every tool your agent uses and a skill file to set it up.", emotion: "[excited]" },
+        { n: 3, line: "The charge was about a tenth of a cent, and so this was worth it. We killed the subscriptions. This was successful. Monid dot ai.", emotion: "[smug]" },
+      ],
+      ctx,
+    );
+    const issues = lintRemake(script, ctx.reference);
+    expect(issues).toContainEqual(expect.stringMatching(/^the last beat runs \d+ words: keep it to \d+/));
+    const short = lintRemake({ ...script, beats: [...script.beats.slice(0, 2), { ...script.beats[2], line: "Worth it. Monid dot ai." }] }, ctx.reference);
+    expect(short.some((i) => i.startsWith("the last beat"))).toBe(false);
+  });
+
   it("plans nothing for the standard production path", () => {
     const plan = planProduction({ beats: [], total_seconds: 0, review: null }, brief, product);
     expect(plan).toEqual({ format: "remake", aroll: [], broll: [], voiceover: null, screens: [] });
@@ -413,6 +428,28 @@ describe("graphics at the end of a remade span", () => {
       ["g2", 9],
     ]);
   });
+});
+
+describe("the ending", () => {
+  it("closes on the product's site: the homepage capture first, the address under it", async () => {
+    const { endCardArgs, endCardVisual } = await import("@/lib/creative/remake");
+    const visuals = [
+      { id: "p1", kind: "photo", url: "https://x/logo.png" },
+      { id: "s2", kind: "screenshot", url: "/v/site-docs.png", caption: "docs page" },
+      { id: "s1", kind: "screenshot", url: "/v/site-home.png", caption: "homepage, as a phone shows it" },
+    ] as ProductBrief["visuals"];
+    expect(endCardVisual({ visuals })).toEqual({ url: "/v/site-home.png" });
+    expect(endCardVisual({ visuals: visuals.slice(0, 2) })).toEqual({ url: "/v/site-docs.png" });
+    expect(endCardVisual({ visuals: visuals.slice(0, 1) })).toEqual({ url: "https://x/logo.png" });
+    expect(endCardVisual({ visuals: [] })).toBeNull();
+    const args = endCardArgs({ image: "in.png", site: "monid.ai", font: "/f.ttf", width: 1080, height: 1920, out: "out.png" });
+    const graph = args[args.indexOf("-filter_complex") + 1];
+    expect(graph).toContain("text='monid.ai'");
+    expect(graph).toContain("overlay=(W-w)/2:230");
+    expect(endCardArgs({ image: "in.png", site: "a:b's", font: "/f.ttf", width: 1080, height: 1920, out: "o.png" }).join(" ")).toContain("text='a\\:b\u2019s'");
+    expect(endCardArgs({ image: "in.png", site: null, font: "/f.ttf", width: 1080, height: 1920, out: "o.png" }).join(" ")).not.toContain("drawtext");
+  });
+
 });
 
 describe("where a take's first frame is grabbed", () => {

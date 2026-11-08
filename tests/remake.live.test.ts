@@ -197,6 +197,7 @@ describe.skipIf(!live)("one-to-one remake, footage clone (live, paid)", () => {
             },
             product,
             kit: kit.assets.length || kit.repo ? kit : null,
+            site: c.product,
             until,
             maxUsd: mode === "plan" ? 0 : Number(process.env.NOMEN_REMAKE_MAX_USD ?? c.maxUsd),
             presenter: process.env.NOMEN_REMAKE_PRESENTER ?? "kling-native",

@@ -1018,6 +1018,8 @@ export type RemakeInput = {
   cohost?: (otherLook: string) => Promise<PersonaHandle & { cost_micro: number }>;
   product: ProductBrief;
   kit: BrandKit | null;
+  /** The product's site as it is shown on the closing card ("monid.ai"). */
+  site?: string | null;
   /** Remake only the beats that start before this many seconds (the live tests do the first 8-12 s). */
   until?: number;
   /** The cost guard: refuse, before paying for anything, an estimate over this (USD). */
@@ -1120,6 +1122,57 @@ async function pool<T>(items: T[], limit: number, task: (item: T) => Promise<voi
 const stopping = (error: unknown) => error instanceof ApiError && (error.retryable || error.outOfCredits);
 
 /** Words said between two times, as one line. */
+/** Time kept after the last word of the video's final take, so the plug isn't clipped by the end. */
+const FINAL_BREATH = 0.7;
+/** How long the closing card with the product's site shows at the end. */
+const END_CARD_SECONDS = 1.4;
+
+/**
+ * The picture for the closing card: the product's homepage capture, else its first screenshot,
+ * else its first picture. A local path, a store key or a link.
+ */
+export function endCardVisual(product: Pick<ProductBrief, "visuals">): { url: string; key?: string } | null {
+  const shots = product.visuals.filter((v) => v.kind === "screenshot");
+  const home = shots.find((v) => /home/i.test(`${v.caption ?? ""} ${v.url}`));
+  const pick = home ?? shots[0] ?? product.visuals.find((v) => v.kind === "photo") ?? null;
+  return pick ? { url: pick.url, ...(pick.key ? { key: pick.key } : {}) } : null;
+}
+
+const drawtextSafe = (text: string) => text.replace(/\\/g, "\\\\").replace(/'/g, "\u2019").replace(/:/g, "\\:").replace(/%/g, "\\%");
+
+/**
+ * ffmpeg arguments for the closing card: the site's picture as a card near the top over a blurred,
+ * darkened copy of itself filling the frame, and the site's address under it.
+ */
+export function endCardArgs(o: { image: string; site: string | null; font: string; width: number; height: number; out: string }): string[] {
+  const { width: W, height: H } = o;
+  const cardW = 2 * Math.round((W * 0.84) / 2);
+  const cardH = 2 * Math.round((H * 0.5) / 2);
+  const top = Math.round(H * 0.12);
+  const filter = [
+    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=40:2,eq=brightness=-0.35[bg]`,
+    `[0:v]scale=${cardW}:-2,crop=${cardW}:'min(ih,${cardH})':0:0[card]`,
+    `[bg][card]overlay=(W-w)/2:${top}${o.site ? "[v0]" : "[v]"}`,
+    ...(o.site ? [`[v0]drawtext=fontfile='${o.font}':text='${drawtextSafe(o.site)}':fontcolor=white:fontsize=${Math.round(H * 0.05)}:x=(w-text_w)/2:y=${top + cardH + Math.round(H * 0.05)}:borderw=5:bordercolor=black@0.55[v]`] : []),
+  ];
+  return ["-hide_banner", "-loglevel", "error", "-y", "-i", o.image, "-filter_complex", filter.join(";"), "-map", "[v]", "-frames:v", "1", o.out];
+}
+
+async function endCard(work: Work, input: Pick<RemakeInput, "product" | "site">, dir: string): Promise<string | null> {
+  const visual = endCardVisual(input.product);
+  if (!visual) return null;
+  let image = visual.key ? await work.local(visual.key) : null;
+  if (!image && existsSync(visual.url)) image = visual.url;
+  if (!image && /^https?:\/\//.test(visual.url)) {
+    image = join(dir, "end-card-source.png");
+    await work.fetch(visual.url, image);
+  }
+  if (!image) return null;
+  const out = join(dir, "end-card.png");
+  await ffmpeg(endCardArgs({ image, site: input.site?.trim() || null, font: DEFAULT_FONT, width: OUT.width, height: OUT.height, out }));
+  return out;
+}
+
 /**
  * Where a take's first frame is grabbed: just after a cut that comes at or soon after its planned
  * time. The layout's segment times are approximate, and a frame grabbed before the cut shows the
@@ -1456,7 +1509,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
       const said = await renderVoice(work, deps.monid, (rec.voice ??= {}), { clip, id, matchVoice: input.voiceMatch ? person.handle.persona.voice.id : null, voiceStats });
       const speech = said.words.length ? { from: said.words[0].start, to: said.words[said.words.length - 1].end } : null;
       const refFirst = ourWords.find((w) => w.start >= chunk.start - 0.05 && w.start < chunk.end);
-      const fit = fitChunk({ duration: (await probe(clip)).duration, speech }, { length: len, speechFrom: refFirst ? refFirst.start - chunk.start : null });
+      const fit = fitChunk({ duration: (await probe(clip)).duration, speech }, { length: len, speechFrom: refFirst ? refFirst.start - chunk.start : null }, chunk.end >= end - 0.05 ? FINAL_BREATH : undefined);
       fits.set(id, fit);
       if (fit.cut) notes.push(`${id}: the line ran past ${len.toFixed(1)} s even at 1.25x; its end is cut`);
       pieces.push({ path: said.audio, from: fit.from, seconds: len, speed: fit.speed, at: chunk.start });
@@ -1545,6 +1598,14 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     const clip = built.get(g.id);
     return clip && Math.min(end, g.end) - g.start >= 0.2 ? [{ path: clip.path, kind: clip.kind, start: g.start, end: Math.min(end, g.end), x: g.px.x, y: g.px.y, width: g.px.width, height: g.px.height, entrance: g.entrance }] : [];
   });
+
+  // The closing card: the product's own site over the end of the last line (Dylan: "make sure the
+  // plug is good... flash their site or the product").
+  const card = await endCard(work, input, dir).catch((error: unknown) => {
+    notes.push(`end card skipped: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  });
+  if (card && end > END_CARD_SECONDS + 1) graphics.push({ path: card, kind: "image", start: round(end - END_CARD_SECONDS), end, x: 0, y: 0, width: OUT.width, height: OUT.height, entrance: "fade" });
 
   const soundtrack = join(dir, "soundtrack.wav");
   await ffmpeg(soundArgs({ voices: pieces, bed: reference.bed, duration: end, finish, out: soundtrack }));

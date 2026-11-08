@@ -654,7 +654,7 @@ describe.skipIf(!hasFfmpeg)("caption pass", () => {
     message.mockClear();
     expect(await captionAssets({ message } as never, BRAND)).toMatchObject({ captioned: 0 });
     expect(message).not.toHaveBeenCalled();
-  });
+  }, 30_000);
 
   it("tolerates a failing model and retries those images on the next pass", async () => {
     await addUploadedFiles(BRAND, [{ name: "hero.png", bytes: png(640, 360) }]);

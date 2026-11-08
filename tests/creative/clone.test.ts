@@ -321,6 +321,16 @@ describe("the voice", () => {
     expect(timed[timed.length - 1]).toEqual({ text: "wow,", start: 3.38, end: 3.66 });
   });
 
+  it("leaves the video's last take a breath after its last word", async () => {
+    const { fitChunk } = await import("@/lib/creative/clone");
+    const clip = { duration: 8.04, speech: { from: 0.3, to: 7.2 } };
+    const mid = fitChunk(clip, { length: 6.6, speechFrom: 0.2 });
+    const last = fitChunk(clip, { length: 6.6, speechFrom: 0.2 }, 0.7);
+    expect(mid.speed).toBeCloseTo((7.2 - 0.1 + 0.12) / 6.6, 3);
+    expect(last.speed).toBeCloseTo((7.2 - 0.1 + 0.7) / 6.6, 3);
+    expect(last.cut).toBe(false);
+  });
+
   it("keeps each beat's words inside its own beat, however much the line was rewritten", () => {
     // The Cluely remake: beat 2 shares no words with the reference, beat 3 shares "and so this was
     // worth it". Timed as one script, beat 3's opening slid into beat 2's window and take 3 was silent.

@@ -197,7 +197,8 @@ export function creatorDirection(input: { who: "She" | "He" | "They"; arc: strin
       ? `${who} ${s("listen")} and ${s("react")} like a real creator watching a clip: a small nod, a raised eyebrow, a half-smile, mouth closed, not speaking.`
       : `${who} ${s("talk")} straight into the camera like a real TikTok creator: ${input.arc}.`,
     input.action ? `One gentle action: ${input.action.replace(/\.$/, "")}.` : "",
-    `Natural micro-expressions, eyebrow raises, small head tilts, natural blinking, eye contact with the lens${input.listening ? "." : ", mouth movements that match every word."}`,
+    // Aiden: Kling's presenter opened her mouth "way too wide compared to a normal person".
+    `Natural micro-expressions, eyebrow raises, small head tilts, natural blinking, eye contact with the lens${input.listening ? "." : ", relaxed mouth movements that match every word, lips opening only as wide as in casual conversation, never exaggerated, over-enunciated or cartoonish."}`,
     "Hands relaxed and mostly below the frame, the body mostly still; no pointing, no thumbs-up, no head turns past a slight angle.",
     `Real phone-camera look: natural daylight, slight sensor noise, no studio lighting, no music.${input.green ? " The background stays one flat chroma-key green." : ""}`,
     input.line && !input.listening ? `${who} ${s("say")}: "${input.line}"` : "",
