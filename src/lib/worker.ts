@@ -1,10 +1,11 @@
 import { db, logEvent } from "./db";
+import { advanceLoop } from "./loop";
 import { advancePhones } from "./phones";
 import { advanceCampaign } from "./pipeline";
 import { advancePosts } from "./publish";
 
-// One in-process loop drives every campaign, post and phone session. It is safe to restart at any
-// time: all state lives in SQLite and every provider call is idempotent or polled.
+// One in-process loop drives every campaign, post, brand autopilot and phone session. It is safe to
+// restart at any time: all state lives in SQLite and every provider call is idempotent or polled.
 
 declare global {
   var __nomenWorker: { timer: NodeJS.Timeout; busy: boolean } | undefined;
@@ -27,6 +28,8 @@ export async function tick() {
     const running = db().prepare("select id from campaigns where status = 'running' order by created_at").all() as Array<{ id: string }>;
     for (const { id } of running) await advanceCampaign(id);
     await advancePosts().catch((error: unknown) => report("posts", error));
+    // After posts, so the loop sees which of them are still going out.
+    await advanceLoop().catch((error: unknown) => report("loop", error));
     await advancePhones().catch((error: unknown) => report("phones", error));
   } catch (error) {
     report("worker", error);

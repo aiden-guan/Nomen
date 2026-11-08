@@ -268,6 +268,18 @@ describe("pickForBreakdown", () => {
     expect(picked).toHaveLength(6);
     expect(picked.map((c) => c.score.total)).toEqual([11, 10, 9, 8, 7, 6]);
   });
+
+  it("skips videos the brand already remade, whatever form their link takes", () => {
+    const pool = [
+      candidate({ author: "done", total: 50, url: "https://www.tiktok.com/@done/video/111?is_from_webapp=1" }),
+      candidate({ author: "comp", origin: "competitor", total: 40, url: "https://www.tiktok.com/@comp/video/222" }),
+      candidate({ author: "fresh", total: 30, url: "https://www.tiktok.com/@fresh/video/333" }),
+    ];
+    const exclude = ["https://m.tiktok.com/@done/video/111/", "https://www.tiktok.com/@comp/video/222"];
+    expect(pickForBreakdown(pool, 6, { exclude }).map((c) => c.author)).toEqual(["fresh"]);
+    expect(pickForBreakdown(pool, 6, { exclude, keepOrder: true }).map((c) => c.author)).toEqual(["fresh"]);
+    expect(pickForBreakdown(pool, 6, { exclude: [] }).map((c) => c.author)).toEqual(["done", "comp", "fresh"]);
+  });
 });
 
 // ---------- pure helpers ----------
