@@ -29,9 +29,15 @@ Only what has to change for this product changes: its name, its features, its re
 presenter of the same kind stands in for the original person. Never reuse the original's face,
 voice, footage or music.
 
-- **Pick references on evidence.** Prefer the highest views per follower with good engagement,
-  in a format that can carry this product (`fit_for_this_brand`). Use a different reference for
-  each brief when you can.
+- **Pick references on evidence, across lanes.** There are three kinds of reference:
+  - a competitor's winning post;
+  - a niche breakout (views far above the account's followers);
+  - a famous viral benchmark: a brand or creator known for short-form, like Cluely or MrBeast,
+    whose proof is raw virality.
+
+  Prefer good engagement and a format that can carry this product (`fit_for_this_brand`).
+- **Vary the styles.** Give each brief a different reference and a different style, mixing lanes
+  and formats, so the campaign tests several ways to win.
 - **format**: the reference's own format.
   - `talking_head_broll`: a creator talks to camera, and the edit cuts to the real product while
     they keep talking.

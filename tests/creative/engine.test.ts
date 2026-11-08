@@ -383,3 +383,38 @@ describe("QC frame fixes", () => {
     expect(fix).toMatch(/Gibberish caption text at the split line in every frame/);
   });
 });
+
+describe("the viral benchmark lane", () => {
+  it("searches the benchmarks and keeps only results that name them", async () => {
+    const { phaseCSpecs, compactResearch } = await import("@/lib/research");
+    const plan = {
+      brand_name: "Monid",
+      category: "agent tools",
+      audience: "devs",
+      competitors: [],
+      content_queries: ["agent tools"],
+      ads_query: "api",
+      reddit_query: "agents",
+      aeo_prompts: ["?"],
+      benchmarks: [{ name: "Cluely", why: "AI startup UGC" }],
+    };
+    expect(phaseCSpecs(plan).map((s) => s.key)).toContain("tiktok_bench_0");
+    const item = (caption: string) => ({ url: `https://x/${caption}`, caption, author: "a", playCount: 5_000_000, authorFollowers: 2_000_000 });
+    const pack = compactResearch("monid.ai", [{ key: "tiktok_bench_0", status: "done", output: { videos: [item("cluely ad that broke the internet"), item("cloud computing basics")] } }], plan);
+    expect(pack.videos.map((v) => v.caption)).toEqual(["cluely ad that broke the internet"]);
+  });
+
+  it("ranks a famous benchmark on virality without the big-account penalty, and picks across lanes", async () => {
+    const { scoreCandidates, pickForBreakdown } = await import("@/lib/creative/references");
+    const base = { likes: 400_000, comments: 5_000, shares: 20_000, saves: 30_000, duration: 30, paid: false, thumbnail: null, media_url: "https://cdn/x.mp4", caption: "" };
+    const videos = [
+      { ...base, platform: "tiktok" as const, url: "bench", author: "mrbeast", views: 40_000_000, followers: 100_000_000, source: "tiktok_bench_0" },
+      { ...base, platform: "tiktok" as const, url: "niche", author: "dev", views: 300_000, followers: 3_000, likes: 20_000, shares: 2_000, saves: 9_000, comments: 300, source: "tiktok_0" },
+    ];
+    const originOf = (v: { source: string }) => (v.source.startsWith("tiktok_bench") ? ("benchmark" as const) : ("category" as const));
+    const ranked = scoreCandidates(videos, originOf);
+    const asBig = scoreCandidates(videos, () => "category");
+    expect(ranked.find((c) => c.url === "bench")!.score.total).toBeGreaterThan(asBig.find((c) => c.url === "bench")!.score.total);
+    expect(pickForBreakdown(ranked, 2).map((c) => c.origin).sort()).toEqual(["benchmark", "category"]);
+  });
+});

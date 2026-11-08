@@ -262,7 +262,7 @@ export type CreativeState = {
 };
 
 const originOf = (video: Video): ReferenceCandidate["origin"] =>
-  /^tiktok_comp_/.test(video.source) ? "competitor" : /^scout_/.test(video.source) ? "adjacent" : "category";
+  /^tiktok_comp_/.test(video.source) ? "competitor" : /^tiktok_bench_/.test(video.source) ? "benchmark" : /^scout_/.test(video.source) ? "adjacent" : "category";
 
 export const creativeState = (campaign: Pick<CampaignRow, "style_json">) => parse<CreativeState | null>(campaign.style_json, null);
 

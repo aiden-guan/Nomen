@@ -164,7 +164,7 @@ export function strategyMessage(
   const { product, breakdowns } = creative;
   return [
     `Build the campaign for ${product.name || pack.brand.name || pack.domain}.`,
-    `Deliver exactly ${options.concepts} video briefs. Each brief remakes one of the viral reference videos below for this product, as closely as possible: the same hook, beats, wording, timing, shots and on-screen text, with an AI presenter of the same kind in the same kind of setting, and only the product-specific parts changed. Pick the references with the best mix of proof (views far above the account's followers) and fit for this product, and use a different reference for each brief when you can.`,
+    `Deliver exactly ${options.concepts} video briefs. Each brief remakes one of the viral reference videos below for this product, as closely as possible: the same hook, beats, wording, timing, shots and on-screen text, with an AI presenter of the same kind in the same kind of setting, and only the product-specific parts changed. Pick the references with the best mix of proof (views far above the account's followers, or raw virality for a famous benchmark like Cluely or MrBeast) and fit for this product. Give the briefs different styles, not just different references: mix the lanes (a competitor's winning format, a niche breakout, a famous viral hook) and the formats, so the campaign tests several ways to win.`,
     breakdowns.length
       ? `Reference videos, broken down beat by beat from their transcripts and frames:\n<references>\n${JSON.stringify(referenceDigest(breakdowns))}\n</references>`
       : "No reference videos could be broken down for this run. Base each brief on the strongest patterns in the research and set reference_id to an empty string.",

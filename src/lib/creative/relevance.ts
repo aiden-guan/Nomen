@@ -58,7 +58,7 @@ export async function screenRelevance(naive: Pick<NaiveClient, "message">, candi
     max_tokens: 3000,
     system: [
       "You screen viral short videos for a team that remakes them for a brand: the remake keeps the video's hook, beats and wording and swaps in the brand's product. A video is only useful if a remake would make sense for this product's buyer.",
-      "Judge each candidate from its caption, hashtags, author and stats. Be strict about topic: going viral on a shared hashtag or word is not relevance. Call the relevance_screen tool once with every candidate.",
+      "Judge each candidate from its caption, hashtags, author and stats. Be strict about topic: going viral on a shared hashtag or word is not relevance. The exception is a candidate marked from: benchmark (a brand or creator famous for viral short-form, like Cluely or MrBeast): judge whether its hook and format could be remade for this product, not its topic (6-8 if it clearly transfers). Call the relevance_screen tool once with every candidate.",
     ].join("\n"),
     messages: [
       {

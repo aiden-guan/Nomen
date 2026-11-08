@@ -58,8 +58,12 @@ export type ProductBrief = {
 
 /** A public video worth learning from, with why it was picked. Views alone are not enough. */
 export type ReferenceCandidate = Video & {
-  /** "competitor" (a competitor's own post), "category" (a search in the space), "adjacent" (a format that transfers), "ad". */
-  origin: "competitor" | "category" | "adjacent" | "ad";
+  /**
+   * "competitor" (a competitor's own post), "category" (a search in the space), "adjacent" (a format
+   * that transfers), "benchmark" (a brand or creator famous for viral short-form, e.g. Cluely or
+   * MrBeast: judged on raw virality, not on beating its account), "ad".
+   */
+  origin: "competitor" | "category" | "adjacent" | "benchmark" | "ad";
   score: {
     /** views / max(followers, 1000): how far it outran its account. > 3 is good, > 10 is a breakout. */
     outlier: number | null;

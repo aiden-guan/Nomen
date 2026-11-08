@@ -98,7 +98,11 @@ export function scoreCandidates(videos: Video[], originOf: (video: Video) => Ref
   const maxPerAuthor = options.maxPerAuthor ?? 2;
   const scored: ReferenceCandidate[] = videos
     .filter((video) => typeof video.url === "string" && video.url.trim() !== "")
-    .map((video) => ({ ...video, origin: originOf(video), score: scoreVideo(video, options) }))
+    .map((video) => {
+      const origin = originOf(video);
+      // A benchmark (Cluely, MrBeast) is famous for raw virality: no big-account penalty.
+      return { ...video, origin, score: scoreVideo(video, origin === "benchmark" ? { ...options, bigAccount: Number.POSITIVE_INFINITY } : options) };
+    })
     .sort((a, b) => b.score.total - a.score.total || count(b.views) - count(a.views));
 
   const seen = new Set<string>();
@@ -136,7 +140,9 @@ export function pickForBreakdown(candidates: ReferenceCandidate[], n = 6, option
     picked.push(candidate);
     authors.add(authorKey(candidate.author));
   };
-  for (const origin of ["competitor", "category"] as const) {
+  // One from each lane first, so the director gets different styles: a competitor, a niche outlier,
+  // a famous viral benchmark, an adjacent format.
+  for (const origin of ["competitor", "category", "benchmark", "adjacent"] as const) {
     const best = usable.find((candidate) => candidate.origin === origin);
     if (best && picked.length < n && !picked.includes(best)) take(best);
   }
@@ -535,6 +541,7 @@ const ORIGIN_LABEL: Record<ReferenceCandidate["origin"], string> = {
   competitor: "a competitor's own post",
   category: "from a search in the brand's category",
   adjacent: "from an adjacent category whose format may transfer",
+  benchmark: "from a brand or creator famous for viral short-form (judge the hook and format, not the topic)",
   ad: "a paid ad",
 };
 

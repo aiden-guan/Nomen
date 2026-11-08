@@ -15,6 +15,8 @@ export type ResearchPlan = {
   ads_query: string;
   reddit_query: string;
   aeo_prompts: string[];
+  /** Brands or creators famous for viral short-form whose hooks and formats would transfer (e.g. Cluely, MrBeast). */
+  benchmarks?: Array<{ name: string; why: string }>;
   /** Set once the scout has looked at the first results and queued its follow-up searches (phase D). */
   scouted?: boolean;
   /** What the scout saw and why it searched further, for the activity feed and the research tab. */
@@ -29,7 +31,7 @@ export function videoSearch(key: string, platform: "tiktok" | "instagram" | "you
 }
 
 /** Run keys whose output is a list of short videos, and which platform each searched. */
-export const VIDEO_RUN = /^(tiktok_(brand|\d+|comp_\d+)|reels(_\d+)?|shorts(_\d+)?|scout_(tiktok|reels|shorts)_\d+)$/;
+export const VIDEO_RUN = /^(tiktok_(brand|\d+|comp_\d+|bench_\d+)|reels(_\d+)?|shorts(_\d+)?|scout_(tiktok|reels|shorts)_\d+)$/;
 export const platformOfRun = (key: string): Video["platform"] => (key.includes("reels") ? "instagram" : key.includes("shorts") ? "youtube" : "tiktok");
 
 export type Video = {
@@ -111,6 +113,7 @@ export function phaseCSpecs(plan: ResearchPlan): RunSpec[] {
     videoSearch("tiktok_brand", "tiktok", plan.brand_name, "C"),
     ...queries.map((query, i) => videoSearch(`tiktok_${i}`, "tiktok", query, "C")),
     ...plan.competitors.slice(0, 3).map((competitor, i) => videoSearch(`tiktok_comp_${i}`, "tiktok", competitor.name, "C")),
+    ...(plan.benchmarks ?? []).slice(0, 3).map((benchmark, i) => videoSearch(`tiktok_bench_${i}`, "tiktok", benchmark.name, "C")),
     ...top.map((query, i) => videoSearch(`reels_${i}`, "instagram", query, "C")),
     ...top.map((query, i) => videoSearch(`shorts_${i}`, "youtube", query, "C")),
     { key: "tiktok_ads", phase: "C", label: `TikTok ads: ${plan.ads_query}`, provider: "anyapi", endpoint: "/tiktok.ad_library_search", input: { body: { query: plan.ads_query } } },
@@ -136,7 +139,7 @@ const PLAN_TOOL = {
   description: "Record the research plan for this brand.",
   input_schema: {
     type: "object",
-    required: ["brand_name", "category", "audience", "competitors", "content_queries", "ads_query", "reddit_query", "aeo_prompts"],
+    required: ["brand_name", "category", "audience", "competitors", "content_queries", "ads_query", "reddit_query", "aeo_prompts", "benchmarks"],
     properties: {
       brand_name: { type: "string", description: "The brand's name as customers say it." },
       category: { type: "string", description: "The product category in 2-4 words, e.g. 'prebiotic soda'." },
@@ -155,6 +158,13 @@ const PLAN_TOOL = {
       ads_query: { type: "string", description: "A 1-3 word phrase to search ad libraries for this category." },
       reddit_query: { type: "string", description: "A phrase that finds real customer discussions of this category on Reddit." },
       aeo_prompts: { type: "array", items: { type: "string" }, description: "2 questions a buyer would ask ChatGPT or Perplexity when choosing a product in this category." },
+      benchmarks: {
+        type: "array",
+        maxItems: 3,
+        description:
+          "2-3 brands or creators famous for viral short-form video whose hooks and formats would transfer to this brand (not competitors), as they are known on TikTok: e.g. Cluely for an AI startup, Duolingo for a consumer app, MrBeast for hooks. Real, well-known names only.",
+        items: { type: "object", required: ["name", "why"], properties: { name: { type: "string" }, why: { type: "string", description: "What about their videos would transfer." } } },
+      },
     },
   },
 };
@@ -201,6 +211,7 @@ function mergePlan(raw: Partial<ResearchPlan>, fallback: ResearchPlan): Research
     ads_query: text(raw.ads_query) || fallback.ads_query,
     reddit_query: text(raw.reddit_query) || fallback.reddit_query,
     aeo_prompts: prompts.length ? prompts.slice(0, 2) : fallback.aeo_prompts,
+    benchmarks: Array.isArray(raw.benchmarks) ? raw.benchmarks.filter((b) => b && typeof b.name === "string" && b.name.trim()).slice(0, 3) : [],
   };
 }
 
@@ -235,11 +246,14 @@ export function compactResearch(domain: string, runs: RunResult[], plan: Researc
   const squash = (value: string) => value.toLowerCase().replace(/[\s#@._-]+/g, "");
   const brandName = squash(plan?.brand_name ?? brand.name);
   const competitorNames = (plan?.competitors ?? []).map((c) => squash(c.name));
+  const benchmarkNames = (plan?.benchmarks ?? []).map((b) => squash(b.name));
   const mentions = (video: Video, name: string | undefined) => !name || squash(`${video.caption} ${video.author}`).includes(name);
   const onTopic = (video: Video) => {
     if (video.source === "tiktok_brand") return mentions(video, brandName);
     const comp = video.source.match(/^tiktok_comp_(\d+)$/);
-    return comp ? mentions(video, competitorNames[Number(comp[1])]) : true;
+    if (comp) return mentions(video, competitorNames[Number(comp[1])]);
+    const bench = video.source.match(/^tiktok_bench_(\d+)$/);
+    return bench ? mentions(video, benchmarkNames[Number(bench[1])]) : true;
   };
   const allVideos = unique(
     runs
