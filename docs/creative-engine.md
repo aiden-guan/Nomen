@@ -174,6 +174,35 @@ gender, age and vibe).
 hustle.jordan99's "Part 67" (the first ~12 s) for usenaive.ai. See the file's header for the
 commands, the plan-only mode and the options.
 
+### Faceless remakes
+
+A reference with nobody on camera is the dependable remake: there is no face to fake, so the
+reference's own footage stays and only the product content and the voice change.
+
+- **A filmed screen** (a phone filming a laptop or monitor) is a screen walkthrough, also when the
+  layout reader calls it b-roll. With OpenCV set up (`npm run setup:stems` installs it next to
+  Demucs), `scripts/track-screen.py` (via `track.ts`) puts our screens into the display frame by
+  frame: one vision corner read per shot, snapped onto the display's edges, then optical flow and a
+  homography per frame; our screen is matched to how the phone saw the display (black level,
+  white point, tint, softness), and the reference's burned-in captions are painted out of the
+  footage it keeps. Shots are split at a softer cut list (scene score 0.12), since a filmed screen
+  cuts between shots of the same room. Without OpenCV it warps between corner reads, as before.
+- **Labels a voice reads out** (TikTok's text to speech) show our line in their case; captions stay
+  out of a label's window and never run across two lines.
+- **A voice-over ad** keeps no captions when the reference has none (`captions.present`), and a
+  script with no words at all keeps the reference's whole soundtrack.
+- **A square or landscape reference** keeps its shape as a band over a blurred fill.
+- **Motion graphics**: a full-stage graphic segment draws the elements the reference lays over it
+  itself, at their places and times (no separate cards with edges); every graphic and screen
+  designer sees the reference's still at its moment.
+- **Voice**: our narrator (an ElevenLabs voice matched to the reference's: gender, pitch,
+  delivery) reads every line with its emotion tag, best of three by length, timed onto the
+  reference's words.
+
+**Live tests:** `tests/faceless.live.test.ts`: @vqgts for Mobilerun (a filmed laptop with labels),
+@ai.with.ni for Monid (a filmed monitor with a voice-over) and ElevenLabs' Meta ad for Naive (a
+voice-over over motion graphics). See the file's header for the commands.
+
 ## Costs
 
 - **Research:** about $0.10–0.40 on Monid.

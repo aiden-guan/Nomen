@@ -563,15 +563,44 @@ export function lineAt(beats: Array<Pick<ReferenceBeat, "start" | "end">>, lines
     .join(" ");
 }
 
+/** Where a box sits, in words for a designer ("centre, 66% wide"). */
+const placeOf = (box: Box) => {
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const across = cx < 0.4 ? "left" : cx > 0.6 ? "right" : "centre";
+  const down = cy < 0.4 ? "top" : cy > 0.6 ? "bottom" : "middle";
+  return `${down === "middle" && across === "centre" ? "centre" : `${down} ${across}`}, ${Math.round(box.w * 100)}% wide and ${Math.round(box.h * 100)}% tall`;
+};
+
+/**
+ * The laid-over elements a full-stage graphic segment holds (a motion-graphic ad's cards, pills
+ * and orbs), as the segment's own graphic must draw them: at their places and times, relative to
+ * the segment. They are not laid over as separate cards, which would show their edges.
+ */
+export function segmentElements(segment: { start: number; end: number }, graphics: RemakeGraphic[]): Array<{ at: number; until: number; box: Box; shows: string; entrance: Entrance }> {
+  return graphics
+    .filter((g) => g.start >= segment.start - 0.3 && g.end <= segment.end + 0.3)
+    .map((g) => ({ at: round(Math.max(0, g.start - segment.start), 2), until: round(Math.min(segment.end, g.end) - segment.start, 2), box: g.box, shows: g.shows, entrance: g.entrance }));
+}
+
 /** A full-stage graphic for a segment: the reference's own graphic segment, or our equivalent for one that could not be cloned. */
-export function stageGraphic(id: string, input: { stage: Pick<Stage, "width" | "height">; seconds: number; line: string; shows: string; product: Pick<ProductBrief, "name" | "one_liner"> }): ScreenRequest {
+export function stageGraphic(
+  id: string,
+  input: { stage: Pick<Stage, "width" | "height">; seconds: number; line: string; shows: string; product: Pick<ProductBrief, "name" | "one_liner">; elements?: Array<{ at: number; until: number; box: Box; shows: string; entrance: Entrance }> },
+): ScreenRequest {
+  const elements = input.elements ?? [];
   return {
     id,
     brief: [
       `A full-frame graphic about ${input.product.name} (${input.product.one_liner}) for what is said here: "${input.line}".`,
       input.shows ? `The reference showed: ${input.shows}. Make the same kind of picture, about this product.` : "Show the product doing what the line says, with its real UI or words.",
+      elements.length
+        ? `In the reference, these appear on it in turn (seconds from the start of this graphic, where, how they enter): ${elements.map((e) => `${e.at.toFixed(1)}-${e.until.toFixed(1)} s, ${placeOf(e.box)}, ${e.entrance === "cut" ? "appears" : e.entrance.replace("_", " ")}: ${e.shows}`).join("; ")}. Draw each one at that place and time, as this product's equivalent.`
+        : "",
       "It fills the whole frame. Nothing about any other brand.",
-    ].join(" "),
+    ]
+      .filter(Boolean)
+      .join(" "),
     line: input.line,
     seconds: round(Math.max(1, input.seconds + 0.3), 2),
     reference_visual: input.shows,
@@ -1381,11 +1410,14 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
 
   // 3. Graphics and the screens the filmed monitors show.
   const scriptLines = lines.map((l) => l.line);
-  const planned = layout.graphics.map((g) => graphicRequest(g, { stage, line: lineAt(span.beats, scriptLines, g.start, g.end), product: input.product }));
+  // Elements inside a full-stage graphic segment are drawn by that segment's own graphic.
+  const graphicSegments = segments.filter((s) => s.kind === "graphic");
+  const laidOver = layout.graphics.filter((g) => !graphicSegments.some((s) => segmentElements(s, [g]).length));
+  const planned = laidOver.map((g) => graphicRequest(g, { stage, line: lineAt(span.beats, scriptLines, g.start, g.end), product: input.product }));
   const requests: ScreenRequest[] = [...planned.map((g) => g.request)];
   for (const layer of layers) {
     const segment = segments.find((s) => s.n === layer.segment)!;
-    if (layer.kind === "graphic") requests.push(stageGraphic(layer.id, { stage, seconds: layer.end - layer.start, line: lineAt(span.beats, scriptLines, layer.start, layer.end), shows: segment.shows, product: input.product }));
+    if (layer.kind === "graphic") requests.push(stageGraphic(layer.id, { stage, seconds: layer.end - layer.start, line: lineAt(span.beats, scriptLines, layer.start, layer.end), shows: segment.shows, product: input.product, elements: segmentElements(segment, layout.graphics) }));
     if (layer.kind === "screen") requests.push(...screenRequests(layer, segment, span.beats, scriptLines, input.product));
   }
   // The designer sees the reference's own frame at each graphic's moment, to copy its look.
