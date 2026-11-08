@@ -350,11 +350,11 @@ export async function build(studio, story) {
       update(t); camera.updateMatrixWorld(); gary.root.updateMatrixWorld(true); gary.head.getWorldPosition(P); P.project(camera);
       const fy = (1 - P.y) / 2, fxp = (P.x + 1) / 2; if (fxp < 0 || fxp > 1 || fy < 0 || fy > 1) continue;
       const w = (story.words || []).find((x) => t >= x.t0 && t < x.t1);
-      if (w && Math.abs(fy - 0.52) < 0.045) out.push(`t=${t.toFixed(2)}: Gary's face under the caption ("${w.w}")`);
+      if (w && Math.abs(fy - 0.52) < 0.045) out.push(`t=${t.toFixed(2)}: the developer's face under the caption ("${w.w}")`);
       for (const co of story.callouts || []) {
         if (t < co.t0 || t > co.t1) continue;
         const y = co.y ?? (co.pos ? co.pos[1] : bands[co.style]); if (y == null) continue;
-        if (Math.abs(fy - y) < 0.065 && (co.x == null || Math.abs(fxp - co.x) < 0.3)) out.push(`t=${t.toFixed(2)}: Gary's face under the ${co.style} callout "${co.text}"`);
+        if (Math.abs(fy - y) < 0.065 && (co.x == null || Math.abs(fxp - co.x) < 0.3)) out.push(`t=${t.toFixed(2)}: the developer's face under the ${co.style} callout "${co.text}"`);
       }
     }
     return out;

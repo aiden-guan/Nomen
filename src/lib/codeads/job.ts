@@ -202,8 +202,10 @@ export async function reviewCodeAd(naive: Pick<NaiveClient, "message">, input: {
     const reply = await ask(`${rubric.replace("Call the qc_verdict tool once.", "")}\n\nAnswer with only a JSON object: {"score": 1-10, "pass": true|false, "issues": ["..."], "fix_prompt": "..."}`);
     raw = extractJson(reply.content.map((block) => block.text ?? "").join("\n")) as Partial<Verdict> | null;
   }
-  if (!raw || typeof raw.score !== "number") throw new ApiError("naive", 502, "qc_unreadable", "the code-ad check returned no verdict");
-  const score = Math.max(1, Math.min(10, Math.round(raw.score)));
+  // a score written as "7", "7/10" or 7.5 counts; anything else is no verdict
+  const found = raw ? Number.parseFloat(String((raw as { score?: unknown }).score ?? "")) : Number.NaN;
+  if (!raw || !Number.isFinite(found)) throw new ApiError("naive", 502, "qc_unreadable", "the code-ad check returned no verdict");
+  const score = Math.max(1, Math.min(10, Math.round(found)));
   return { score, pass: Boolean(raw.pass) && score >= 7, issues: Array.isArray(raw.issues) ? raw.issues.filter((i): i is string => typeof i === "string").slice(0, 8) : [], fix_prompt: typeof raw.fix_prompt === "string" ? raw.fix_prompt : "" };
 }
 
