@@ -13,7 +13,7 @@ import { normalizeScript } from "@/lib/creative/script";
 import type { CreativeBrief, ProductBrief, ReferenceBreakdown, Script } from "@/lib/creative/types";
 import { createBrand, listCreatives, startCampaign } from "@/lib/pipeline";
 import { advanceCreative, insertCreative, type ProductionContext } from "@/lib/production";
-import { probe } from "@/lib/media";
+import { peakLevel, probe } from "@/lib/media";
 import type { ResearchPack } from "@/lib/research";
 import { normalizeStrategy, ORGANIC_STRATEGY_SCHEMA, organicStrategyMessage } from "@/lib/strategy";
 
@@ -587,6 +587,15 @@ describe.skipIf(!ffmpeg)("the punch-in", () => {
     // In the pause there is music (and the pop) where the plain cut is silent.
     expect(await pauseLevel(scored)).toBeGreaterThan((await pauseLevel(plain)) + 20);
   }, 120_000);
+
+  it("hears whether a generated sound effect is audible: a near-silent one is not used", async () => {
+    const tone = join(dir, "tone.wav");
+    const hush = join(dir, "hush.wav");
+    await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=500:duration=0.5:sample_rate=48000", tone]);
+    await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "anoisesrc=color=pink:amplitude=0.003:duration=0.5:sample_rate=48000", hush]);
+    expect(await peakLevel(tone)).toBeGreaterThan(-24); // the sine source plays at 1/8 scale, -18 dB
+    expect(await peakLevel(hush)).toBeLessThan(-40);
+  });
 
   it("crops into the take when a clip asks for a zoom", async () => {
     const still = async (zoom: number | undefined, name: string) => {

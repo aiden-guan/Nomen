@@ -63,6 +63,18 @@ export async function probe(path: string): Promise<{ duration: number; hasAudio:
   };
 }
 
+/** The loudest sample of a file's audio in dB (0 is full scale; -200 for silence or no audio). */
+export async function peakLevel(path: string): Promise<number> {
+  const bin = await ffmpegPath();
+  if (!bin) throw new Error("ffmpeg is not available");
+  const stderr: string = await exec(bin, ["-hide_banner", "-nostats", "-i", path, "-af", "astats=measure_overall=Peak_level:measure_perchannel=none", "-f", "null", "-"]).then(
+    (r) => r.stderr,
+    (error: { stderr?: string }) => error.stderr ?? "",
+  );
+  const level = /Peak level dB: (\S+)/.exec(stderr)?.[1];
+  return level === undefined || level === "-inf" ? -200 : Number(level);
+}
+
 /** Evenly spaced stills from a clip, as JPEG buffers small enough to send to a vision model. */
 export async function extractFrames(path: string, count = 4, width = 540): Promise<Buffer[]> {
   const bin = await ffmpegPath();

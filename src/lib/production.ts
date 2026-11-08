@@ -13,7 +13,7 @@ import { makePlate, newPlateRecord, type PlateRecord } from "./creative/plate";
 import { buildScreens } from "./creative/screens";
 import { trimSilence } from "./creative/trim";
 import type { BrandKit, EditTimeline, FilmedPlate, ProductBrief, ProductionPlan } from "./creative/types";
-import { download, extractFrames, ffmpegPath, probe, scratchDir, stitch } from "./media";
+import { download, extractFrames, ffmpegPath, peakLevel, probe, scratchDir, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import type { NaiveClient } from "./naive";
 import { type Continuity, reviewContinuity, reviewFrame, reviewShot, type Verdict } from "./qc";
@@ -1007,8 +1007,10 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
 /** The two small sound effects every organic video shares, made once and kept in the store. */
 const SFX = {
   whoosh: { key: "sound/whoosh", prompt: "A soft quick airy whoosh for a cut in a social video, subtle, clean, no music", seconds: 1 },
-  pop: { key: "sound/pop", prompt: "A light soft pop, like a chat bubble appearing in an app, subtle and clean, no music", seconds: 1 },
+  pop: { key: "sound/pop", prompt: "A short crisp pop sound effect, like a bubble popping or a notification pop, clean and clearly audible, no music", seconds: 1 },
 } as const;
+/** A generated sound quieter than this (peak, dB) is near silence: the first pop came back at -48. */
+const AUDIBLE_DB = -30;
 
 /**
  * An organic video's sound: its own music bed (Naive's music model, from the plan's description,
@@ -1026,8 +1028,17 @@ async function soundFor(ctx: ProductionContext, creativeId: string, sound: NonNu
     try {
       const made = await make();
       const ext = /wav/i.test(`${made.file.content_type ?? ""} ${made.file.name ?? ""}`) ? "wav" : "mp3";
-      await files.saveUrl(`${stem}.${ext}`, (await naive.fileUrl(made.file.id)).url, ext === "wav" ? "audio/wav" : "audio/mpeg");
-      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Made ${what} on Naive ($${((made.cost_micro_usd ?? 0) / 1e6).toFixed(3)})` });
+      // Heard before it is kept: a near-silent sound is no sound, and would never be made again.
+      const local = join(workDir(creativeId), `sound-${basename(stem)}.${ext}`);
+      await download((await naive.fileUrl(made.file.id)).url, local);
+      const peak = await peakLevel(local);
+      const cost = `$${((made.cost_micro_usd ?? 0) / 1e6).toFixed(3)}`;
+      if (peak < AUDIBLE_DB) {
+        await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `Cut without ${what}: Naive's came back near silent (peak ${Math.round(peak)} dB, ${cost})` });
+        return null;
+      }
+      await files.putFile(`${stem}.${ext}`, local, ext === "wav" ? "audio/wav" : "audio/mpeg");
+      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Made ${what} on Naive (${cost})` });
       return files.localPath(`${stem}.${ext}`);
     } catch (error) {
       if (error instanceof ApiError && error.retryable) throw error; // the cut waits for the next tick
