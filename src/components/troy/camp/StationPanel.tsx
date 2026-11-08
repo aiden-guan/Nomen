@@ -660,7 +660,7 @@ function Theatre({ view, busy, actions, demo, focus }: { view: BrandView; busy: 
         <Section title={`Creator briefs · ${briefs.filter((c) => c.approved).length}/${briefs.length} approved to send`}>
           <ul className="grid grid-cols-1 gap-3">
             {briefs.map((creative) => (
-              <CastingCard key={creative.id} creative={creative} casting={castingOf(creative)!} busy={busy} actions={actions} />
+              <CastingCard key={creative.id} creative={creative} casting={castingOf(creative)!} busy={busy} actions={actions} brandId={demo ? null : view.brand.id} />
             ))}
           </ul>
           <p className="mt-2 text-[11px] text-[var(--ink-faint)]">The client-taste agent approved each creator and brief. Nothing goes out until you send it.</p>
@@ -734,7 +734,7 @@ function castingOf(creative: CreativeView): CastingView | null {
 
 const followersLabel = (n: number | null) => (n === null ? "" : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M followers` : n >= 1e3 ? `${Math.round(n / 1e3)}K followers` : `${n} followers`);
 
-function CastingCard({ creative, casting, busy, actions }: { creative: CreativeView; casting: CastingView; busy: string | null; actions: CampActions }) {
+function CastingCard({ creative, casting, busy, actions, brandId }: { creative: CreativeView; casting: CastingView; busy: string | null; actions: CampActions; brandId: string | null }) {
   const key = `approve:${creative.id}`;
   const pick = casting.pick!;
   const verdict = casting.reviews.filter((r) => r.creator === pick.handle).at(-1);
@@ -775,7 +775,80 @@ function CastingCard({ creative, casting, busy, actions }: { creative: CreativeV
         <input type="checkbox" checked={creative.approved} disabled={busy === key} onChange={(event) => actions.approve(creative, event.target.checked)} className="size-4 accent-[var(--crimson)]" />
         <span className={styles.pixel}>{creative.approved ? "Approved to send" : "Approve to send"}</span>
       </label>
+      {brandId && casting.outreach && creative.approved && <SendFromPhone brandId={brandId} creativeId={creative.id} handle={casting.pick!.handle} />}
     </li>
+  );
+}
+
+type OutreachSession = { status: string; message: string | null; error: string | null; finishedAt: string | null } | null;
+const OUTREACH_WORD: Record<string, string> = {
+  pending: "Waiting for the phone",
+  waiting: "Waiting for the phone",
+  starting: "Opening the app",
+  queued: "Queued on the phone",
+  running: "Sending from the phone",
+  succeeded: "Sent",
+  failed: "Not sent",
+  cancelled: "Stopped",
+};
+
+/**
+ * Sends the approved outreach DM from the brand's own account on its phone (phones track,
+ * /api/phones/outreach), and follows it until it is sent or stops.
+ */
+function SendFromPhone({ brandId, creativeId, handle }: { brandId: string; creativeId: string; handle: string }) {
+  const [state, setState] = useState<{ session: OutreachSession; linked: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const url = `/api/phones/outreach?brandId=${encodeURIComponent(brandId)}&creativeId=${encodeURIComponent(creativeId)}`;
+  const status = state?.session?.status ?? null;
+  const active = status !== null && !["succeeded", "failed", "cancelled"].includes(status);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      fetch(url, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => alive && data && setState(data))
+        .catch(() => undefined);
+    void load();
+    // While it is on its way, check every few seconds.
+    const timer = active ? setInterval(load, 4000) : null;
+    return () => {
+      alive = false;
+      if (timer) clearInterval(timer);
+    };
+  }, [url, active]);
+  const send = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/phones/outreach", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ brandId, creativeId }) });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error ?? `The server answered ${response.status}.`);
+      setState((s) => ({ linked: s?.linked ?? true, session: data.session }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSending(false);
+    }
+  };
+  if (state && !state.linked) return <p className="mt-1 text-[11px] text-[var(--ink-faint)]">Link the brand&apos;s phone (Phones) to send this DM from its own account.</p>;
+  const sent = status === "succeeded";
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {!sent && !active && (
+        <button type="button" onClick={() => void send()} disabled={sending || !state} className={`${styles.button} ${styles.buttonInk} ${styles.pixel} h-7 px-2.5 text-[11px]`}>
+          {sending ? "Sending…" : status === "failed" || status === "cancelled" ? `Try again: DM @${handle}` : `Send from the phone: DM @${handle}`}
+        </button>
+      )}
+      {status && (
+        <span className={`${styles.pixel} text-[11px] ${sent ? "text-[var(--olive)]" : status === "failed" ? "text-[var(--crimson)]" : "text-[var(--ink-soft)]"}`} title={state?.session?.message ?? undefined}>
+          {sent ? `Sent to @${handle} from the phone` : OUTREACH_WORD[status] ?? status}
+          {status === "failed" && state?.session?.message ? `: ${state.session.message}` : ""}
+        </span>
+      )}
+      {error && <span className="text-[11px] text-[var(--crimson)]">{error}</span>}
+    </div>
   );
 }
 

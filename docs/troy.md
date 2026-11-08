@@ -222,7 +222,8 @@ progress, and every agent's post and activity:
   the theatre and takes its seats when there is a cut to watch. Each card says which viral video it
   remakes; the screening room shows that video's numbers and the script. In real-creator mode a
   brief's card is its casting instead: the creator, why they fit, the client-taste agent's verdict
-  and the outreach draft, waiting for you to send it. While the campaign waits for your review,
+  and the outreach draft. Approve it, and "Send from the phone" sends that DM from the brand's own
+  account on its linked phone (docs/phones.md). While the campaign waits for your review,
   the theatre calls for you: a bobbing "N videos ready" marker over the screen opens its panel, its
   tag and its step in the top bar say "Your turn" and pulse, and on phones its card in the strip
   does the same.

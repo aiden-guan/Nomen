@@ -30,7 +30,10 @@ const TAIL_SECONDS = Number(process.env.TAIL || 8.2);
   const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: SCALE });
   const page = await context.newPage();
   const errors = [];
+  let frame = 0;
   page.on("pageerror", (e) => errors.push(e.message));
+  // FILM_LOG=text: print the page's console lines that contain it, with the frame they came on.
+  if (process.env.FILM_LOG) page.on("console", (m) => m.text().includes(process.env.FILM_LOG) && console.log(`frame ${frame}: ${m.text()}`));
   await page.clock.install({ time: Date.now() });
   await page.goto(`${base}/demo?record=1`);
   const input = page.locator("input").first();
@@ -44,7 +47,6 @@ const TAIL_SECONDS = Number(process.env.TAIL || 8.2);
     "-c:v", "libx264", "-preset", "medium", "-crf", "12", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out], { stdio: ["pipe", "inherit", "inherit"] });
   const write = (buf) => new Promise((resolve) => (ff.stdin.write(buf) ? resolve() : ff.stdin.once("drain", resolve)));
 
-  let frame = 0;
   const log = { fps: FPS, site, steps: [], videos: [] };
   let step = null;
   /** One frame: the clock on by 1/30 s, animations and videos to it, a screenshot. */

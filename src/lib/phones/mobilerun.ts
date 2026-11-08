@@ -174,3 +174,26 @@ export function warmupTask(input: { platform: string; brand: string; niche: stri
     "When finished, return to the home feed and report how many videos you watched, liked and which creators you followed.",
   ].join("\n");
 }
+
+/**
+ * One outreach DM, sent from the brand's own account: to exactly this creator, exactly this message
+ * (the one a person approved), once. Anything unclear (no exact handle, messages closed, a login
+ * code) stops it before anything is sent.
+ */
+export function outreachTask(input: { platform: string; brand: string; handle: string; message: string }) {
+  return [
+    `You are the social media manager for ${input.brand}, using the brand's own official ${input.platform} account on this phone.`,
+    `Open the ${input.platform} app. If it asks you to log in, use the saved credential for this app; if it asks for a code you do not have, stop and report it.`,
+    `Your only job is to send one direct message to the creator @${input.handle}:`,
+    `1. Search for the account "${input.handle}" and open its profile. The profile's username must be exactly @${input.handle}; if no account matches exactly, stop and report it without messaging anyone.`,
+    "2. Open a message thread with them from their profile. If the app does not let you message them (messages closed, not allowed, a request limit), stop and report why.",
+    "3. Type the message below exactly as written, with nothing added, removed or changed, and send it once.",
+    "4. Check that it appears in the thread as sent, then stop.",
+    "Never message anyone else, never send a second message, and never follow, like, comment, post, buy anything or change account settings.",
+    "The message (between the lines):",
+    "-----",
+    input.message,
+    "-----",
+    `When finished, report whether the message was sent to @${input.handle}, and if not, why.`,
+  ].join("\n");
+}

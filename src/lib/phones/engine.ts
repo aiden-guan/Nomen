@@ -5,7 +5,7 @@
 // failed or cancelled. Every step is one short API call, so a tick never blocks for long.
 import { logEvent, now } from "../db";
 import { getInt, secretStatus } from "../settings";
-import { APP_PACKAGES, MobilerunClient, PLATFORM_LABELS, TERMINAL_TASK_STATES, warmupTask, type Device, type TaskInput } from "./mobilerun";
+import { APP_PACKAGES, MobilerunClient, outreachTask, PLATFORM_LABELS, TERMINAL_TASK_STATES, warmupTask, type Device, type TaskInput } from "./mobilerun";
 import {
   LIMITS,
   POLL,
@@ -29,6 +29,7 @@ import {
   linkTopics,
   listAccounts,
   listLinks,
+  outreachOf,
   phonesDb,
   updateActive,
   type SessionRow,
@@ -138,13 +139,18 @@ async function createTask(client: MobilerunClient, session: SessionRow) {
   if (!link || !brand || !account || link.device_id !== session.device_id) {
     return finish(session, "cancelled", "The phone or this account was unlinked before the session started.");
   }
+  const outreach = outreachOf(session);
+  if (session.task === "outreach" && !outreach) return finish(session, "failed", "The outreach message was missing.");
   const topics = linkTopics(link);
-  if (topics.length === 0) return finish(session, "failed", "The brand has no niche topics to browse. Add some in the phones panel.");
+  if (!outreach && topics.length === 0) return finish(session, "failed", "The brand has no niche topics to browse. Add some in the phones panel.");
 
   const limits = taskLimits(session.minutes);
   const packageName = APP_PACKAGES[session.platform];
+  const label = PLATFORM_LABELS[session.platform];
   const input: TaskInput = {
-    task: warmupTask({ platform: PLATFORM_LABELS[session.platform], brand: brand.name, niche: topics, minutes: limits.minutes }),
+    task: outreach
+      ? outreachTask({ platform: label, brand: brand.name, handle: outreach.handle, message: outreach.message })
+      : warmupTask({ platform: label, brand: brand.name, niche: topics, minutes: limits.minutes }),
     deviceId: session.device_id,
     llmModel: AGENT_MODEL,
     maxSteps: limits.maxSteps,
@@ -180,7 +186,10 @@ async function createTask(client: MobilerunClient, session: SessionRow) {
     await client.cancelTask(created.id).catch(() => undefined);
     return;
   }
-  logEvent({ brandId: session.brand_id, message: `Phones: ${PLATFORM_LABELS[session.platform]} warm-up started (about ${limits.minutes} minutes).` });
+  logEvent({
+    brandId: session.brand_id,
+    message: outreach ? `Phones: sending the outreach DM to @${outreach.handle} on ${label}.` : `Phones: ${label} warm-up started (about ${limits.minutes} minutes).`,
+  });
 }
 
 async function poll(client: MobilerunClient, session: SessionRow) {
@@ -209,10 +218,13 @@ export function finish(session: SessionRow, status: Extract<SessionStatus, "succ
   const changed = claimSession(session.id, ACTIVE_STATUSES, status, { message, finished_at: now(), ...fields });
   if (!changed) return;
   const label = PLATFORM_LABELS[session.platform];
+  const outreach = outreachOf(session);
+  const what = outreach ? `outreach DM to @${outreach.handle} on ${label}` : `${label} warm-up`;
+  const done = outreach ? "sent" : "finished";
   logEvent({
     brandId: session.brand_id,
     level: status === "failed" ? "warn" : "info",
-    message: `Phones: ${label} warm-up ${status === "succeeded" ? "finished" : status === "failed" ? "failed" : "stopped"}. ${message}`.slice(0, 500),
+    message: `Phones: ${what} ${status === "succeeded" ? done : status === "failed" ? "failed" : "stopped"}. ${message}`.slice(0, 500),
   });
 }
 

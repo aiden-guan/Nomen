@@ -2,7 +2,8 @@
 
 Nomen can warm up a brand's own new social accounts on a Mobilerun cloud phone before posting
 starts. A warm-up session opens the app on the brand's phone and has Mobilerun's phone agent browse
-the brand's niche the way its social manager would. Phones are optional: campaigns and posting work
+the brand's niche the way its social manager would. The same phone can also send a creator the
+outreach DM a person approved in real-creator mode. Phones are optional: campaigns and posting work
 without them.
 
 ## Rules
@@ -13,6 +14,12 @@ without them.
 - **Passive warm-up.** The brief (`warmupTask()` in `src/lib/phones/mobilerun.ts`) browses and
   watches the niche, likes at most 8 videos and follows at most 2 creators. It never posts, comments,
   messages, buys, changes settings or engages with the brand's own posts.
+- **Outreach: one approved DM, word for word.** A brief cast to a creator (`creative/casting.ts`)
+  has an outreach draft. Once a person approves the brief, "Send from the phone" on its card queues
+  an outreach session: the brief (`outreachTask()`) opens the brand's own account, finds the
+  creator's exact handle (or stops), opens their DMs (or stops if they are closed), types the
+  approved message exactly and sends it once. Nothing else: no second message, follows, likes or
+  comments. A DM is sent once per brief. Nomen does not read replies or carry on the conversation.
 - **The risk is on screen.** The panel always states that automated activity can break a
   platform's terms and put the account at risk.
 - **Keys stay out of the repo.** Use `.env.local` or the Settings page. Logins live in Mobilerun's
@@ -83,8 +90,11 @@ Checked against docs.mobilerun.ai on 2026-11-07. Base URL `https://api.mobilerun
   - The schedule.
 - `phone_accounts`: one row per brand and platform, with the saved login name (or none if the app
   is already logged in).
-- `phone_sessions`: every warm-up session, with its status, its Mobilerun task, steps, result and
-  timestamps. A scheduled session is unique per brand, platform and day.
+- `phone_sessions`: every warm-up and outreach session, with its status, its Mobilerun task, steps,
+  result and timestamps. `task` is `warmup` or `outreach`; an outreach session keeps its DM in
+  `payload_json` (the brief, the creator's handle, the approved message). A scheduled session is
+  unique per brand, platform and day. The phone runs one session at a time; a DM queued during a
+  warm-up waits for it.
 
 The tables are created by the module on first use. `brands` is only read.
 
@@ -102,6 +112,8 @@ The tables are created by the module on first use. `brands` is only read.
 | `PUT /api/phones/schedule` | `{ brandId, enabled, days }` |
 | `POST /api/phones/sessions` | Run now (`{ brandId, platform? }`) |
 | `POST /api/phones/sessions/{id}/cancel` | Stop a session |
+| `GET /api/phones/outreach?brandId=&creativeId=` | A brief's outreach DM: its latest session |
+| `POST /api/phones/outreach` | Send a brief's approved outreach DM from the phone (`{ brandId, creativeId }`) |
 
 ## Running and testing
 

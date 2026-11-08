@@ -11,7 +11,8 @@ import type { ProductBrief } from "./types";
 // campaign's own research first, then Monid's TikTok and Instagram people search), ranks their fit,
 // writes the creator-facing briefing, and has the client-taste agent (the brand's taste, tone and
 // red lines) approve or deny the brief and creator together, trying the next creator on a "no". An
-// approved pair gets an outreach draft. Nothing is sent: outreach waits for a person.
+// approved pair gets an outreach draft. Nothing is sent here: once a person approves the brief, the
+// brand's phone can send it (src/lib/phones, an outreach session).
 
 export type Creator = {
   platform: "tiktok" | "instagram";

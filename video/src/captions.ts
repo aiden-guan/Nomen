@@ -26,7 +26,7 @@ export const CAPTIONS: Caption[] = [
   { key: "video-1", kicker: "Video 2 · One-to-one clone", title: "I told Naïve I'm exhausted", place: "right" },
   { key: "video-2", kicker: "Video 3 · Code ad (3D)", title: "Two founders, one instruction: make money", place: "right" },
   { key: "video-3", kicker: "Video 4 · Brainrot meme", title: "Gary the Potato Deploys a Company", place: "right" },
-  { key: "creators", kicker: "Or real creators", title: "The same briefs, to people who make these videos", body: "A client-taste agent vets each creator: @mplentg approved, 7/10. Outreach is drafted for you to send.", place: "bottom-left" },
+  { key: "creators", kicker: "Or real creators", title: "The same briefs, to people who make these videos", body: "A client-taste agent vets each creator (@mplentg: 7/10). Once you approve, the phone agent sends the DM from the brand's own account.", place: "bottom-left" },
   { key: "post", kicker: "5 · Posting", title: "Approve and post", body: "One click, and they go out to TikTok, Instagram and YouTube, labeled AI-generated.", place: "bottom-left" },
   { key: "battle", kicker: "6 · Results", title: "Into battle", body: "Each video fights the category's top videos on likes per view. Numbers here are illustrative.", place: "top-left" },
   { key: "loop", kicker: "Autopilot", title: "Then it goes again", body: "Campaign 2 starts on its own, planned from how these posts did: more of what led (illustrative numbers here).", place: "top-right" },

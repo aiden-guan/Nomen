@@ -352,7 +352,7 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
         fleetFollow.current = follow;
         e.stage.follow = follow;
         const at = follow.at();
-        if (at) e.stage.look({ x: projectX(at.x, at.y) + follow.dx / zoom, y: projectY(at.x, at.y, 0) + follow.dy / zoom, zoom }, reduced ? 0 : Math.max(duration, 1.2), easeInOutCubic);
+        if (at) e.stage.look({ x: projectX(at.x, at.y) + follow.dx / zoom, y: projectY(at.x, at.y, 0) + follow.dy / zoom, zoom }, reduced ? 0 : Math.max(duration, 1.2) * e.stage.timeScale, easeInOutCubic);
         return;
       }
       const target = sailing
@@ -366,7 +366,8 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
               ? e.camp.world(ins)
               : e.camp.camera(ins)
           : e.camp.focus(shown, ins);
-      e.stage.look(target, reduced ? 0 : sailing ? Math.max(duration, 1.4) : tourCamera === "world" ? Math.max(duration, 1.6) : duration, easeInOutCubic);
+      // A fast-forwarded step (the tour's autoplay) still moves the camera at its own pace.
+      e.stage.look(target, reduced ? 0 : (sailing ? Math.max(duration, 1.4) : tourCamera === "world" ? Math.max(duration, 1.6) : duration) * e.stage.timeScale, easeInOutCubic);
     },
     [engine, insets, selected, wide, shown, reduced, agentId, following, panel, battling, voyage, tourCamera],
   );
@@ -378,8 +379,10 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
     const e = engine.current;
     if (!e) return;
     e.camp.selected = agentId;
+    // Only a soldier's follow is this effect's to clear: the fleet's (frameCamera) stays.
+    const mine = () => e.stage.follow !== null && e.stage.follow !== fleetFollow.current;
     if (!agentId || !following || !arrived) {
-      e.stage.follow = null;
+      if (mine()) e.stage.follow = null;
       return;
     }
     const agent = plan.agents.find((a) => a.id === agentId);
@@ -392,14 +395,14 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
     e.stage.follow = { at: () => e.camp.position(agentId), dx, dy };
     const aim = () => {
       const p = e.camp.position(agentId);
-      if (p) e.stage.look({ x: projectX(p.x, p.y) + dx / zoom, y: projectY(p.x, p.y, p.z) + dy / zoom, zoom }, reduced ? 0 : 0.8, easeInOutCubic);
+      if (p) e.stage.look({ x: projectX(p.x, p.y) + dx / zoom, y: projectY(p.x, p.y, p.z) + dy / zoom, zoom }, reduced ? 0 : 0.8 * e.stage.timeScale, easeInOutCubic);
       return Boolean(p);
     };
     // A soldier still inside the horse (a scout the plan just called out) is aimed at once he is out.
     const timer = aim() ? null : setInterval(() => aim() && timer && clearInterval(timer), 250);
     return () => {
       if (timer) clearInterval(timer);
-      e.stage.follow = null;
+      if (mine()) e.stage.follow = null;
     };
     // The plan changes every tick in the demo; who is followed and how is what matters here.
     // eslint-disable-next-line react-hooks/exhaustive-deps

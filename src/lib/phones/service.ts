@@ -1,5 +1,5 @@
 // OWNED BY THE PHONES TRACK (see docs/handoff-dylan.md). What the /api/phones routes do.
-import { logEvent, now } from "../db";
+import { logEvent, now, parse, store } from "../db";
 import { secretStatus } from "../settings";
 import { warmupMinutes, stopSession } from "./engine";
 import { APP_PACKAGES, MobilerunClient, PLATFORMS, PLATFORM_LABELS, VPN_COUNTRIES, type Device, type Platform } from "./mobilerun";
@@ -15,6 +15,8 @@ import {
   linkTopics,
   listAccounts,
   listSessions,
+  outreachOf,
+  outreachSessions,
   phonesDb,
   saveLink,
   updateLink,
@@ -76,6 +78,9 @@ export function sessionView(row: SessionRow) {
     platform: row.platform,
     platformLabel: PLATFORM_LABELS[row.platform] ?? row.platform,
     kind: row.kind,
+    task: row.task,
+    /** An outreach session: the creator the DM goes to. */
+    to: outreachOf(row)?.handle ?? null,
     day: row.day_index === null ? null : row.day_index + 1,
     status: row.status,
     minutes: row.minutes,
@@ -261,4 +266,57 @@ export async function cancelSession(sessionId: string) {
   const stopped = await stopSession(session, "Stopped by you.", secretStatus("mobilerun_api_key").set ? new MobilerunClient() : undefined);
   if (!stopped) throw new PhonesError(409, "That session already finished.");
   return getStatus(session.brand_id);
+}
+
+/** Minutes an outreach DM may take on the phone: open the app, find the creator, send one message. */
+export const OUTREACH_MINUTES = 5;
+
+type CastingRow = { pick?: { handle?: string; platform?: string } | null; outreach?: { message?: string } | null };
+
+/**
+ * Sends a brief's approved outreach DM from the brand's own account on its phone. Only a brief a
+ * person approved, with a creator and a drafted message, on a platform the brand's phone has an
+ * account for; and only once (a DM already sent, or on its way, is not sent again).
+ */
+export async function sendOutreach(input: { brandId?: unknown; creativeId?: unknown }) {
+  const brand = requireBrand(input.brandId);
+  if (!secretStatus("mobilerun_api_key").set) throw new PhonesError(400, "No Mobilerun API key. Add one in Settings.");
+  if (typeof input.creativeId !== "string" || !input.creativeId) throw new PhonesError(400, "Which brief?");
+  const [creative] = await store().find<{ id: string; campaign_id: string; approved: number | boolean; concept_json: string | null }>("creatives", { id: input.creativeId });
+  if (!creative) throw new PhonesError(404, "Brief not found.");
+  const [campaign] = await store().find<{ id: string; brand_id: string }>("campaigns", { id: creative.campaign_id });
+  if (!campaign || campaign.brand_id !== brand.id) throw new PhonesError(404, "Brief not found.");
+  const casting = parse<{ casting?: CastingRow } | null>(creative.concept_json, null)?.casting;
+  const handle = casting?.pick?.handle?.replace(/^@/, "");
+  const message = casting?.outreach?.message?.trim();
+  const platform = casting?.pick?.platform as Platform | undefined;
+  if (!handle || !message || !platform) throw new PhonesError(400, "This brief has no creator and outreach draft to send.");
+  if (!creative.approved) throw new PhonesError(400, "Approve the brief before its outreach is sent.");
+  if (!PLATFORMS.includes(platform)) throw new PhonesError(400, `Outreach on ${platform} isn't supported from the phone.`);
+  const link = getLink(brand.id);
+  if (!link) throw new PhonesError(400, "Link the brand's phone and accounts first.");
+  if (!listAccounts(brand.id).some((account) => account.platform === platform)) throw new PhonesError(400, `Link the brand's ${PLATFORM_LABELS[platform]} account on the phone first.`);
+  if (outreachSessions(brand.id, creative.id).some((row) => row.status === "succeeded")) throw new PhonesError(409, `The DM to @${handle} was already sent.`);
+  const session = insertSession({
+    brandId: brand.id,
+    deviceId: link.device_id,
+    platform,
+    kind: "manual",
+    dayIndex: null,
+    minutes: OUTREACH_MINUTES,
+    task: "outreach",
+    outreach: { creativeId: creative.id, campaignId: campaign.id, handle, message },
+  });
+  if (!session) throw new PhonesError(409, `The DM to @${handle} is already on its way.`);
+  logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Phones: outreach DM to @${handle} on ${PLATFORM_LABELS[platform]} queued` });
+  return { session: sessionView(session) };
+}
+
+/** A brief's outreach DM on the phone: its latest session, if any. */
+export function outreachStatus(input: { brandId?: unknown; creativeId?: unknown }) {
+  phonesDb();
+  const brand = requireBrand(input.brandId);
+  if (typeof input.creativeId !== "string") throw new PhonesError(400, "Which brief?");
+  const [latest] = outreachSessions(brand.id, input.creativeId);
+  return { session: latest ? sessionView(latest) : null, linked: Boolean(getLink(brand.id)) };
 }

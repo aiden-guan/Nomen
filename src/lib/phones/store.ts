@@ -33,6 +33,8 @@ create table if not exists phone_sessions (
   device_id text not null,
   platform text not null,
   kind text not null,
+  task text not null default 'warmup',
+  payload_json text,
   day_index integer,
   status text not null,
   minutes integer not null,
@@ -64,6 +66,10 @@ export function phonesDb() {
   const conn = db();
   if (!ready) {
     conn.exec(SCHEMA);
+    // Tables made before outreach sessions: add their columns.
+    const columns = new Set((conn.prepare("pragma table_info(phone_sessions)").all() as Array<{ name: string }>).map((c) => c.name));
+    if (!columns.has("task")) conn.exec("alter table phone_sessions add column task text not null default 'warmup'");
+    if (!columns.has("payload_json")) conn.exec("alter table phone_sessions add column payload_json text");
     ready = true;
   }
   return conn;
@@ -99,12 +105,20 @@ export type LinkRow = {
 
 export type AccountRow = { id: string; brand_id: string; platform: Platform; credential_name: string | null; created_at: string; updated_at: string };
 
+/** What a session does: a warm-up (browse, like, follow), or one outreach DM to a creator. */
+export type SessionTask = "warmup" | "outreach";
+
+/** An outreach session's DM: who to, and the approved message, word for word. */
+export type OutreachPayload = { creativeId: string; campaignId: string; handle: string; message: string };
+
 export type SessionRow = {
   id: string;
   brand_id: string;
   device_id: string;
   platform: Platform;
   kind: "manual" | "scheduled";
+  task: SessionTask;
+  payload_json: string | null;
   day_index: number | null;
   status: SessionStatus;
   minutes: number;
@@ -189,27 +203,49 @@ export function deleteLink(brandId: string) {
 }
 
 /**
- * Adds a session unless one is already active for the same brand and platform. A scheduled
- * session is also unique per day, so a worker tick that repeats is harmless.
+ * Adds a session unless one like it is already active: a warm-up, unless the account has an active
+ * warm-up; an outreach DM, unless one to the same brief is active. A scheduled session is also
+ * unique per day, so a worker tick that repeats is harmless. (The phone runs one session at a time:
+ * the engine waits for it.)
  */
-export function insertSession(input: { brandId: string; deviceId: string; platform: Platform; kind: "manual" | "scheduled"; dayIndex: number | null; minutes: number }): SessionRow | undefined {
+export function insertSession(input: {
+  brandId: string;
+  deviceId: string;
+  platform: Platform;
+  kind: "manual" | "scheduled";
+  dayIndex: number | null;
+  minutes: number;
+  task?: SessionTask;
+  outreach?: OutreachPayload;
+}): SessionRow | undefined {
   const conn = phonesDb();
+  const task = input.task ?? "warmup";
   return conn.transaction(() => {
-    const busy = conn
-      .prepare(`select 1 from phone_sessions where brand_id = ? and platform = ? and status in (${ACTIVE_STATUSES.map(() => "?").join(",")})`)
-      .get(input.brandId, input.platform, ...ACTIVE_STATUSES);
+    const active = conn
+      .prepare(`select task, payload_json from phone_sessions where brand_id = ? and platform = ? and status in (${ACTIVE_STATUSES.map(() => "?").join(",")})`)
+      .all(input.brandId, input.platform, ...ACTIVE_STATUSES) as Array<{ task: SessionTask; payload_json: string | null }>;
+    const busy = active.some((row) => row.task === task && (task === "warmup" || parse<OutreachPayload | null>(row.payload_json, null)?.creativeId === input.outreach?.creativeId));
     if (busy) return undefined;
     const id = newId("phs");
     const stamp = now();
     const result = conn
       .prepare(
-        `insert or ignore into phone_sessions (id, brand_id, device_id, platform, kind, day_index, status, minutes, next_check_at, created_at, updated_at)
-         values (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+        `insert or ignore into phone_sessions (id, brand_id, device_id, platform, kind, task, payload_json, day_index, status, minutes, next_check_at, created_at, updated_at)
+         values (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
       )
-      .run(id, input.brandId, input.deviceId, input.platform, input.kind, input.dayIndex, input.minutes, stamp, stamp, stamp);
+      .run(id, input.brandId, input.deviceId, input.platform, input.kind, task, input.outreach ? JSON.stringify(input.outreach) : null, input.dayIndex, input.minutes, stamp, stamp, stamp);
     return result.changes ? getSession(id) : undefined;
   })();
 }
+
+/** The outreach sessions for one brief, newest first. */
+export function outreachSessions(brandId: string, creativeId: string) {
+  return (phonesDb().prepare("select * from phone_sessions where brand_id = ? and task = 'outreach' order by created_at desc").all(brandId) as SessionRow[]).filter(
+    (row) => parse<OutreachPayload | null>(row.payload_json, null)?.creativeId === creativeId,
+  );
+}
+
+export const outreachOf = (row: SessionRow) => (row.task === "outreach" ? parse<OutreachPayload | null>(row.payload_json, null) : null);
 
 /** Moves a session from one of `from` to `to` only if nobody else moved it first. */
 export function claimSession(id: string, from: SessionStatus[], to: SessionStatus, fields: Record<string, unknown> = {}) {
