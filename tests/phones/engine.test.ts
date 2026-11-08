@@ -267,6 +267,98 @@ describe("advancePhones", () => {
   });
 });
 
+describe("parking the phone between sessions", () => {
+  const stops = () => mr.callsTo("POST", /^\/devices\/dev_ready_1\/stop$/);
+  const phoneState = () => mr.devices.get("dev_ready_1")!.state;
+
+  /** Runs one TikTok session until its task finishes, then makes the tick that records the finish. */
+  async function finishOneSession() {
+    link();
+    await queueRun();
+    await tickAndWait(11_000);
+    mr.finishTask(only().task_id!, { message: "Watched 20 videos." });
+  }
+
+  it("parks the phone once its session finishes", async () => {
+    await finishOneSession();
+    await advancePhones();
+    expect(only().status).toBe("succeeded");
+    expect(stops()).toHaveLength(1);
+    expect(phoneState()).toBe("stopped");
+    expect(events().some((e) => e.level === "info" && /Phones: parked the phone/.test(e.message))).toBe(true);
+
+    // Parked once: later ticks leave it alone.
+    advanceClock(10 * 60_000);
+    await advancePhones();
+    expect(stops()).toHaveLength(1);
+  });
+
+  it("parks the phone after a session the user stopped", async () => {
+    link();
+    await queueRun();
+    await tickAndWait();
+    await cancelSession(only().id);
+    await advancePhones();
+    expect(only().status).toBe("cancelled");
+    expect(stops()).toHaveLength(1);
+    expect(phoneState()).toBe("stopped");
+  });
+
+  it("retries a failed park on a later tick without failing the tick", async () => {
+    await finishOneSession();
+    mr.failNext("POST", /\/stop$/, 503, { title: "Service Unavailable", status: 503, detail: "try again later", errors: [] });
+    await expect(advancePhones()).resolves.toBeUndefined();
+    expect(only().status).toBe("succeeded");
+    expect(phoneState()).toBe("ready");
+    expect(events().filter((e) => e.level === "warn" && /couldn't park/.test(e.message))).toHaveLength(1);
+
+    advanceClock(31_000);
+    await advancePhones();
+    expect(stops()).toHaveLength(2);
+    expect(phoneState()).toBe("stopped");
+  });
+
+  it("gives up with a warning on a phone Mobilerun can't park", async () => {
+    await finishOneSession();
+    mr.failNext("POST", /\/stop$/, 404, { title: "Not Found", status: 404, detail: "stop is not supported on this device", errors: [] });
+    await advancePhones();
+    expect(events().some((e) => e.level === "warn" && /can't park this phone/.test(e.message))).toBe(true);
+
+    advanceClock(10 * 60_000);
+    await advancePhones();
+    expect(stops()).toHaveLength(1);
+  });
+
+  it("keeps the phone on when another session is due within a few minutes", async () => {
+    link([
+      { platform: "tiktok", credentialName: "acme-tiktok" },
+      { platform: "instagram", credentialName: "acme-ig" },
+    ]);
+    await queueRun();
+    await advancePhones(); // TikTok starts; Instagram waits for the phone and checks again in 20 s.
+    const [first, second] = sessions();
+
+    advanceClock(11_000);
+    mr.finishTask(getSession(first.id)!.task_id!, { message: "done" });
+    await advancePhones(); // TikTok finishes while Instagram is due in a few seconds.
+    expect(getSession(first.id)!.status).toBe("succeeded");
+    expect(getSession(second.id)!.status).toBe("pending");
+    expect(stops()).toHaveLength(0);
+    expect(phoneState()).toBe("ready");
+
+    advanceClock(10_000);
+    await advancePhones(); // Instagram starts on the phone that was left on.
+    expect(getSession(second.id)!.status).toBe("running");
+    expect(mr.callsTo("POST", /\/resume$/)).toHaveLength(0);
+
+    advanceClock(11_000);
+    mr.finishTask(getSession(second.id)!.task_id!, { message: "done" });
+    await advancePhones(); // The last session is over: now the phone is parked.
+    expect(stops()).toHaveLength(1);
+    expect(phoneState()).toBe("stopped");
+  });
+});
+
 describe("daily schedule", () => {
   it("queues one session per account per day, for the configured days", async () => {
     link([

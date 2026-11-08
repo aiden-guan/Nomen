@@ -25,6 +25,16 @@ export const LIMITS = {
   maxAttempts: 5,
 };
 
+/**
+ * Parking a phone once its work is done. A phone is left on when another session is due within
+ * `graceMs` (parking and waking it again would only slow that session down). A failed park is
+ * retried with a growing wait, at most `maxBackoffMs` apart, until the phone is parked.
+ */
+export const PARK = {
+  graceMs: 5 * 60 * 1000,
+  maxBackoffMs: 10 * 60 * 1000,
+};
+
 /** Step and time budget for one warm-up session of `minutes` minutes (Mobilerun caps the timeout at 2700 s). */
 export function taskLimits(minutes: number) {
   const safeMinutes = Math.min(Math.max(Math.round(minutes) || 12, 1), 40);

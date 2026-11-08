@@ -2,12 +2,15 @@
 //
 // Each worker tick: queue today's scheduled sessions, then look at the active sessions whose next
 // check is due. A session moves pending -> (waiting) -> starting -> queued/running -> succeeded,
-// failed or cancelled. Every step is one short API call, so a tick never blocks for long.
+// failed or cancelled. Every step is one short API call, so a tick never blocks for long. Once a
+// session is over, its phone is parked so a per-minute phone is not billed between sessions.
 import { logEvent, now } from "../db";
+import { ApiError } from "../http";
 import { getInt, secretStatus } from "../settings";
 import { APP_PACKAGES, MobilerunClient, PLATFORM_LABELS, TERMINAL_TASK_STATES, warmupTask, type Device, type TaskInput } from "./mobilerun";
 import {
   LIMITS,
+  PARK,
   POLL,
   describeApiError,
   describeDevice,
@@ -21,7 +24,9 @@ import {
 import {
   ACTIVE_STATUSES,
   claimSession,
+  clearPark,
   deviceBusy,
+  dueParks,
   dueSessions,
   getBrand,
   getLink,
@@ -29,14 +34,19 @@ import {
   linkTopics,
   listAccounts,
   listLinks,
+  phoneNeededBefore,
   phonesDb,
+  requestPark,
   updateActive,
+  updatePark,
+  type ParkRow,
   type SessionRow,
   type SessionStatus,
 } from "./store";
 
-/** At most this many sessions are looked at per tick, so one tick stays a few API calls long. */
+/** At most this many sessions (and phones to park) are looked at per tick, so one tick stays a few API calls long. */
 const SESSIONS_PER_TICK = 8;
+const PARKS_PER_TICK = 4;
 
 export const AGENT_MODEL = "mobilerun/mobile-agent-fast";
 
@@ -59,9 +69,9 @@ export function tick(): Promise<void> {
 async function runTick() {
   phonesDb();
   if (!secretStatus("mobilerun_api_key").set) return;
-  queueScheduledSessions(new Date());
+  await queueScheduledSessions(new Date());
   const due = dueSessions(now(), SESSIONS_PER_TICK);
-  if (due.length === 0) return;
+  if (due.length === 0 && dueParks(now(), 1).length === 0) return;
   const client = new MobilerunClient();
   const devices = new Map<string, Promise<Device>>();
   const device = (id: string) => {
@@ -72,20 +82,22 @@ async function runTick() {
     try {
       await step(client, session, device);
     } catch (error) {
-      onError(session, error);
+      await onError(session, error);
     }
   }
+  // After the sessions, so a phone whose session just ended is parked in the same tick.
+  await parkIdlePhones(client, device);
 }
 
 /** Adds today's session for every scheduled brand account that does not have one yet. */
-export function queueScheduledSessions(at: Date) {
+export async function queueScheduledSessions(at: Date) {
   const minutes = warmupMinutes();
   for (const link of listLinks()) {
     const day = scheduleDay({ enabled: link.schedule_enabled === 1, days: link.schedule_days, startedAt: link.schedule_started_at }, at);
     if (day === null) continue;
     for (const account of listAccounts(link.brand_id)) {
       const created = insertSession({ brandId: link.brand_id, deviceId: link.device_id, platform: account.platform, kind: "scheduled", dayIndex: day, minutes });
-      if (created) logEvent({ brandId: link.brand_id, message: `Phones: day ${day + 1} of ${link.schedule_days} warm-up queued for ${PLATFORM_LABELS[account.platform]}.` });
+      if (created) await logEvent({ brandId: link.brand_id, message: `Phones: day ${day + 1} of ${link.schedule_days} warm-up queued for ${PLATFORM_LABELS[account.platform]}.` });
     }
   }
 }
@@ -121,7 +133,7 @@ async function startWhenPhoneReady(client: MobilerunClient, session: SessionRow,
   if (age(waitingSince) > LIMITS.waitForPhoneMs) return finish(session, "failed", `The phone wasn't ready within an hour. ${words.detail}`);
   if (action === "resume") {
     await client.resumeDevice(session.device_id);
-    if (session.status === "pending") logEvent({ brandId: session.brand_id, message: "Phones: waking up the parked phone for a warm-up session." });
+    if (session.status === "pending") await logEvent({ brandId: session.brand_id, message: "Phones: waking up the parked phone for a warm-up session." });
   }
   updateActive(session.id, {
     status: "waiting",
@@ -180,7 +192,7 @@ async function createTask(client: MobilerunClient, session: SessionRow) {
     await client.cancelTask(created.id).catch(() => undefined);
     return;
   }
-  logEvent({ brandId: session.brand_id, message: `Phones: ${PLATFORM_LABELS[session.platform]} warm-up started (about ${limits.minutes} minutes).` });
+  await logEvent({ brandId: session.brand_id, message: `Phones: ${PLATFORM_LABELS[session.platform]} warm-up started (about ${limits.minutes} minutes).` });
 }
 
 async function poll(client: MobilerunClient, session: SessionRow) {
@@ -204,19 +216,23 @@ async function poll(client: MobilerunClient, session: SessionRow) {
   updateActive(session.id, { ...fields, status: sessionStatusFor(task), message: task.status === "queued" ? "Queued behind another task on the phone." : null, next_check_at: later(POLL.running) });
 }
 
-/** Ends a session once; a session the user already stopped keeps its status. */
-export function finish(session: SessionRow, status: Extract<SessionStatus, "succeeded" | "failed" | "cancelled">, message: string, fields: Record<string, unknown> = {}) {
+/**
+ * Ends a session once; a session the user already stopped keeps its status. Its phone is then
+ * parked, unless another session needs it within a few minutes (see parkIdlePhones).
+ */
+export async function finish(session: SessionRow, status: Extract<SessionStatus, "succeeded" | "failed" | "cancelled">, message: string, fields: Record<string, unknown> = {}) {
   const changed = claimSession(session.id, ACTIVE_STATUSES, status, { message, finished_at: now(), ...fields });
   if (!changed) return;
+  requestPark(session.device_id, session.brand_id);
   const label = PLATFORM_LABELS[session.platform];
-  logEvent({
+  await logEvent({
     brandId: session.brand_id,
     level: status === "failed" ? "warn" : "info",
     message: `Phones: ${label} warm-up ${status === "succeeded" ? "finished" : status === "failed" ? "failed" : "stopped"}. ${message}`.slice(0, 500),
   });
 }
 
-function onError(session: SessionRow, error: unknown) {
+async function onError(session: SessionRow, error: unknown) {
   const { message, retry } = describeApiError(error);
   const attempts = session.attempts + 1;
   if (retry && attempts < LIMITS.maxAttempts) {
@@ -229,7 +245,7 @@ function onError(session: SessionRow, error: unknown) {
     });
     return;
   }
-  finish(session, "failed", message, { error: message, attempts });
+  await finish(session, "failed", message, { error: message, attempts });
 }
 
 /** Stops a session now. Used by the panel's Stop button and when a brand's phone is unlinked. */
@@ -242,6 +258,49 @@ export async function stopSession(session: SessionRow, reason: string, client?: 
       // Already finished on Mobilerun's side, or unreachable; the session is stopped here either way.
     }
   }
-  finish(session, "cancelled", reason);
+  await finish(session, "cancelled", reason);
   return true;
+}
+
+/**
+ * Parks phones whose work is done (`requestPark`), so a phone billed per minute stops billing
+ * between sessions. A phone another session holds, or needs within PARK.graceMs, is left on and
+ * looked at again later. A failed park is retried on a later tick and never fails the tick.
+ */
+async function parkIdlePhones(client: MobilerunClient, device: (id: string) => Promise<Device>) {
+  for (const park of dueParks(now(), PARKS_PER_TICK)) {
+    try {
+      await parkPhone(client, park, device);
+    } catch (error) {
+      await onParkError(park, error);
+    }
+  }
+}
+
+async function parkPhone(client: MobilerunClient, park: ParkRow, device: (id: string) => Promise<Device>) {
+  if (phoneNeededBefore(park.device_id, later(PARK.graceMs))) return updatePark(park.device_id, { due_at: later(PARK.graceMs) });
+  const phone = await device(park.device_id).catch((error: unknown) => {
+    // A phone Mobilerun no longer knows has nothing left to park.
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  });
+  if (!phone || phone.state === "stopped" || phone.state === "terminated") return clearPark(park.device_id);
+  await client.stopDevice(park.device_id);
+  clearPark(park.device_id);
+  await logEvent({ brandId: park.brand_id ?? undefined, message: "Phones: parked the phone until its next session. A parked phone keeps its apps and logins and is not billed." });
+}
+
+async function onParkError(park: ParkRow, error: unknown) {
+  const brandId = park.brand_id ?? undefined;
+  // The phone exists (it was just read), so a 404 here means its capabilities lack `stop`.
+  const { message, retry } = error instanceof ApiError && error.status === 404 ? { message: "Mobilerun can't park this phone.", retry: false } : describeApiError(error);
+  if (retry) {
+    const attempts = park.attempts + 1;
+    updatePark(park.device_id, { attempts, error: message, due_at: later(Math.min(POLL.retryAfterError * attempts, PARK.maxBackoffMs)) });
+    // One warning, not one per try.
+    if (attempts === 1) await logEvent({ brandId, level: "warn", message: `Phones: couldn't park the phone yet. ${message} A per-minute phone is billed until it is parked.` });
+    return;
+  }
+  clearPark(park.device_id);
+  await logEvent({ brandId, level: "warn", message: `Phones: couldn't park the phone. ${message} It stays on between sessions, and a per-minute phone is billed while it is on.` });
 }

@@ -55,6 +55,16 @@ create table if not exists phone_sessions (
 create unique index if not exists phone_sessions_scheduled on phone_sessions (brand_id, platform, day_index) where kind = 'scheduled';
 create index if not exists phone_sessions_brand on phone_sessions (brand_id, created_at);
 create index if not exists phone_sessions_status on phone_sessions (status, next_check_at);
+
+create table if not exists phone_parks (
+  device_id text primary key,
+  brand_id text,
+  due_at text not null,
+  attempts integer not null default 0,
+  error text,
+  created_at text not null,
+  updated_at text not null
+);
 `;
 
 let ready = false;
@@ -245,5 +255,43 @@ export function dueSessions(at: string, limit: number) {
 export function deviceBusy(deviceId: string, exceptId: string) {
   return Boolean(
     phonesDb().prepare("select 1 from phone_sessions where device_id = ? and id != ? and status in ('starting', 'queued', 'running')").get(deviceId, exceptId),
+  );
+}
+
+// --- Parking: a phone whose work is done is parked so a per-minute phone stops billing. --------
+
+/** A phone waiting to be parked, one row per phone, until it is parked or can't be. */
+export type ParkRow = { device_id: string; brand_id: string | null; due_at: string; attempts: number; error: string | null; created_at: string; updated_at: string };
+
+/** Asks the worker to park the phone now. Repeating the request just moves it up. */
+export function requestPark(deviceId: string, brandId: string | null) {
+  const stamp = now();
+  phonesDb()
+    .prepare(
+      `insert into phone_parks (device_id, brand_id, due_at, attempts, error, created_at, updated_at) values (?, ?, ?, 0, null, ?, ?)
+       on conflict (device_id) do update set brand_id = excluded.brand_id, due_at = excluded.due_at, attempts = 0, error = null, updated_at = excluded.updated_at`,
+    )
+    .run(deviceId, brandId, stamp, stamp, stamp);
+}
+
+export function dueParks(at: string, limit: number) {
+  return phonesDb().prepare("select * from phone_parks where due_at <= ? order by due_at limit ?").all(at, limit) as ParkRow[];
+}
+
+export function updatePark(deviceId: string, fields: Partial<Pick<ParkRow, "due_at" | "attempts" | "error">>) {
+  const keys = Object.keys(fields);
+  phonesDb()
+    .prepare(`update phone_parks set ${keys.map((key) => `${key} = @${key}`).join(", ")}${keys.length ? ", " : ""}updated_at = @updated_at where device_id = @device_id`)
+    .run({ ...fields, device_id: deviceId, updated_at: now() });
+}
+
+export const clearPark = (deviceId: string) => phonesDb().prepare("delete from phone_parks where device_id = ?").run(deviceId);
+
+/** Whether a session holds the phone, or another one is due on it before `until`. */
+export function phoneNeededBefore(deviceId: string, until: string) {
+  return Boolean(
+    phonesDb()
+      .prepare("select 1 from phone_sessions where device_id = ? and (status in ('starting', 'queued', 'running') or (status in ('pending', 'waiting') and next_check_at <= ?))")
+      .get(deviceId, until),
   );
 }

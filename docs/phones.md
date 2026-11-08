@@ -30,6 +30,12 @@ worker ──advancePhones() every ~4 s──▶ engine.ts ──▶ same store 
   a parked phone is resumed) → `starting` (creating the Mobilerun task) → `queued`/`running` →
   `succeeded`, `failed` or `cancelled`.
 - **One task per phone.** Sessions on the same phone run one after another.
+- **Parking.** Once a session ends (finished, failed, stopped or timed out), the worker parks its
+  phone with `POST /devices/{id}/stop`: the phone keeps its apps and logins and is not billed until
+  a session wakes it again. A phone is left on while another session holds it or is due on it
+  within 5 minutes; the end of that session parks it. A failed park is retried on later ticks (30 s,
+  60 s, … at most 10 minutes apart) and never fails a tick; the first failure puts one warning in
+  the activity log. A phone Mobilerun can't park (it answers 404) gets one warning and stays on.
 - **Idempotent ticks.** Each step claims its session with a conditional update. The Mobilerun task
   is created with the session id as its `Idempotency-Key`, so a create that is retried after a crash
   returns the same task. An overlapping `advancePhones()` call returns the tick already in flight.
@@ -56,7 +62,9 @@ worker ──advancePhones() every ~4 s──▶ engine.ts ──▶ same store 
   - `vpnCountry`: if one was chosen.
 - **Cost.** At about 0.5 Mobilerun credits per step, a 12-minute session costs at most about 72
   credits ($0.72). Android cloud phones are provisioned with `billing=minute` and bill per minute
-  while they run.
+  while they run past the plan's included minutes, so the worker parks a phone between sessions.
+  A phone you wake by hand (the panel's Wake button or Mobilerun's dashboard) is billed until you
+  park it in Mobilerun's dashboard or the next session on it ends.
 
 ## Mobilerun API used
 
@@ -69,6 +77,7 @@ Checked against docs.mobilerun.ai on 2026-11-07. Base URL `https://api.mobilerun
 | `GET /devices/{id}` | Phone state: `creating`, `assigned`, `ready`, `rebooting`, `migrating`, `resetting`, `maintenance`, `stopped`, `terminated`, `unknown` |
 | `POST /devices?deviceType=android_cloud_phone&billing=minute` | New Android cloud phone, with an `Idempotency-Key` per click |
 | `POST /devices/{id}/resume` | Wake a parked (`stopped`) phone (204) |
+| `POST /devices/{id}/stop` | Park a phone once its sessions are over (204; 404 when the phone can't be parked) |
 | `POST /tasks` | Start a warm-up (201 `{ id, status, streamUrl }`) |
 | `GET /tasks/{id}/status` | `{ status, succeeded, message, steps, recordingId, execution.terminationReason }` |
 | `POST /tasks/{id}/cancel` | Stop a task (`{ cancelled }`) |
@@ -85,6 +94,8 @@ Checked against docs.mobilerun.ai on 2026-11-07. Base URL `https://api.mobilerun
   is already logged in).
 - `phone_sessions`: every warm-up session, with its status, its Mobilerun task, steps, result and
   timestamps. A scheduled session is unique per brand, platform and day.
+- `phone_parks`: phones waiting to be parked, one row per phone, with when to try next, how many
+  tries failed and the last error. A row is removed once the phone is parked or can't be.
 
 The tables are created by the module on first use. `brands` is only read.
 

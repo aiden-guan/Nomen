@@ -141,7 +141,7 @@ export async function provisionDevice(input: { brandId?: unknown; idempotencyKey
   if (!key) throw new PhonesError(400, "Missing idempotency key.");
   const country = typeof input.country === "string" && /^[A-Z]{2}$/.test(input.country) ? input.country : undefined;
   const device = await mobilerun(() => client().provisionAndroidPhone({ idempotencyKey: key, name: `nomen-${brand.name}`.slice(0, 60), country }));
-  logEvent({ brandId: brand.id, message: `Phones: requested a new Android cloud phone (${device.name || device.id}). It is billed per minute while it runs.` });
+  await logEvent({ brandId: brand.id, message: `Phones: requested a new Android cloud phone (${device.name || device.id}). It is billed per minute while it runs.` });
   return deviceView(device);
 }
 
@@ -209,7 +209,7 @@ export async function linkAccounts(input: { brandId?: unknown; deviceId?: unknow
     if (!accounts.some((account) => account.platform === session.platform)) await stopSession(session, "This account was unlinked.");
   }
   saveLink({ brandId: brand.id, deviceId, topics, vpnCountry, accounts });
-  logEvent({ brandId: brand.id, message: `Phones: linked ${accounts.map((account) => PLATFORM_LABELS[account.platform]).join(", ")} on phone ${device.name || deviceId}.` });
+  await logEvent({ brandId: brand.id, message: `Phones: linked ${accounts.map((account) => PLATFORM_LABELS[account.platform]).join(", ")} on phone ${device.name || deviceId}.` });
   return getStatus(brand.id);
 }
 
@@ -217,7 +217,7 @@ export async function unlink(brandId: unknown) {
   const brand = requireBrand(brandId);
   for (const session of activeSessions(brand.id)) await stopSession(session, "The brand's phone was unlinked.");
   deleteLink(brand.id);
-  logEvent({ brandId: brand.id, message: "Phones: unlinked the brand's phone and accounts." });
+  await logEvent({ brandId: brand.id, message: "Phones: unlinked the brand's phone and accounts." });
   return getStatus(brand.id);
 }
 
@@ -232,7 +232,7 @@ export async function runNow(input: { brandId?: unknown; platform?: unknown }) {
   const minutes = warmupMinutes();
   const created = accounts.flatMap((account) => insertSession({ brandId: brand.id, deviceId: link.device_id, platform: account.platform, kind: "manual", dayIndex: null, minutes }) ?? []);
   if (created.length === 0) throw new PhonesError(409, "A warm-up is already queued or running for these accounts.");
-  logEvent({ brandId: brand.id, message: `Phones: warm-up queued for ${created.map((row) => PLATFORM_LABELS[row.platform]).join(", ")}.` });
+  await logEvent({ brandId: brand.id, message: `Phones: warm-up queued for ${created.map((row) => PLATFORM_LABELS[row.platform]).join(", ")}.` });
   return getStatus(brand.id);
 }
 
@@ -244,13 +244,13 @@ export async function setSchedule(input: { brandId?: unknown; enabled?: unknown;
   if (input.enabled === true) {
     const restart = link.schedule_enabled !== 1;
     updateLink(link.id, { schedule_enabled: 1, schedule_days: days, ...(restart ? { schedule_started_at: now() } : {}) });
-    logEvent({ brandId: brand.id, message: restart ? `Phones: daily warm-up scheduled for ${days} days.` : `Phones: warm-up schedule changed to ${days} days.` });
+    await logEvent({ brandId: brand.id, message: restart ? `Phones: daily warm-up scheduled for ${days} days.` : `Phones: warm-up schedule changed to ${days} days.` });
   } else {
     updateLink(link.id, { schedule_enabled: 0, schedule_days: days });
     for (const session of activeSessions(brand.id)) {
       if (session.kind === "scheduled" && (session.status === "pending" || session.status === "waiting")) await stopSession(session, "The schedule was turned off.");
     }
-    logEvent({ brandId: brand.id, message: "Phones: daily warm-up schedule turned off." });
+    await logEvent({ brandId: brand.id, message: "Phones: daily warm-up schedule turned off." });
   }
   return getStatus(brand.id);
 }

@@ -58,6 +58,13 @@ export function fakeMobilerun() {
       if (device.state === "stopped") device.state = "assigned";
       return new Response(null, { status: 204 });
     }
+    if ((match = path.match(/^\/devices\/([^/]+)\/stop$/)) && method === "POST") {
+      // Parks the phone: apps and logins stay, nothing is billed until it is resumed.
+      const device = devices.get(match[1]);
+      if (!device) return problem(404, "device not found", "Not Found");
+      device.state = "stopped";
+      return new Response(null, { status: 204 });
+    }
     if (method === "POST" && path === "/tasks") {
       const key = headers["idempotency-key"];
       if (key && idempotent.has(key)) {
@@ -139,7 +146,7 @@ export function fakeMobilerun() {
 /** Empties every table the tests touch and adds one brand. */
 export function resetDb(brands: Array<{ id: string; name: string }> = [{ id: "brand_acme", name: "Acme Skin" }]) {
   const conn = db();
-  for (const table of ["phone_sessions", "phone_accounts", "phone_links"]) conn.exec(`drop table if exists ${table}`);
+  for (const table of ["phone_parks", "phone_sessions", "phone_accounts", "phone_links"]) conn.exec(`drop table if exists ${table}`);
   resetSchemaFlag();
   conn.exec("delete from events; delete from brands;");
   for (const brand of brands) {

@@ -132,6 +132,14 @@ export class MobilerunClient {
     await this.call<null>("POST", `/devices/${encodeURIComponent(deviceId)}/resume`);
   }
 
+  /**
+   * `POST /devices/{id}/stop` (204): parks the phone. Its apps, logins and identity are kept, and
+   * nothing is billed until it is resumed. A phone whose capabilities lack `stop` answers 404.
+   */
+  async stopDevice(deviceId: string): Promise<void> {
+    await this.call<null>("POST", `/devices/${encodeURIComponent(deviceId)}/stop`);
+  }
+
   /** `POST /tasks` (201). The idempotency key (1-128 chars) makes a retried create return the same task. */
   createTask(input: TaskInput, idempotencyKey: string) {
     return this.call<TaskCreated>("POST", "/tasks", { body: input, headers: { "idempotency-key": idempotencyKey.slice(0, 128) }, retries: 2 });
