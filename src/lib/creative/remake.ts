@@ -942,7 +942,33 @@ export async function ensurePersona(naive: Pick<NaiveClient, "generateImage" | "
  * idempotency key, so a rerun after a crash, a restart or a retryable provider error (thrown as an
  * ApiError with `.retryable`) picks up where it stopped without paying again.
  */
-export async function remakeVideo(naive: RemakeClient, input: RemakeInput): Promise<RemakeResult> {
+/**
+ * Naive answers "at capacity" in bursts (on the first live runs, even to file-link requests). A remake
+ * makes dozens of calls over several minutes, so each call waits out a busy answer (5 s doubling to
+ * 1 min, about 5 minutes in all) instead of failing the whole remake. Every call carries its own
+ * idempotency key where it costs money, so a retry never pays twice.
+ */
+export function patient<T extends object>(client: T, delaysMs: number[] = [5, 10, 20, 40, 60, 60, 60, 60].map((s) => s * 1000)): T {
+  return new Proxy(client, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver);
+      if (typeof value !== "function") return value;
+      return async (...args: unknown[]) => {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            return await value.apply(target, args);
+          } catch (error) {
+            if (!(error instanceof ApiError && error.retryable) || attempt >= delaysMs.length) throw error;
+            await sleep(delaysMs[attempt]);
+          }
+        }
+      };
+    },
+  });
+}
+
+export async function remakeVideo(client: RemakeClient, input: RemakeInput): Promise<RemakeResult> {
+  const naive = patient(client);
   const workDir = resolve(input.workDir);
   for (const dir of ["frames", "shots", "graphics"]) await mkdir(join(workDir, dir), { recursive: true });
   const manifestPath = join(workDir, "manifest.json");

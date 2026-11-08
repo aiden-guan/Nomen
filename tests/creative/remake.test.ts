@@ -548,3 +548,18 @@ describe.skipIf(!ffmpeg)("remakeVideo (fake Naive)", () => {
     await expect(ensureReferenceVideo({ id: "ref_missing", url: "https://example.invalid" }, null, dir)).rejects.toThrow(/save it as/);
   });
 });
+
+describe("a remake's calls when Naive is busy", () => {
+  it("wait out busy answers, and give up on anything else at once", async () => {
+    const { patient } = await import("@/lib/creative/remake");
+    const { ApiError } = await import("@/lib/http");
+    let calls = 0;
+    const flaky = { fileUrl: async () => (++calls < 3 ? Promise.reject(new ApiError("naive", 429, "rate_limited", "the service is at capacity")) : { url: "https://x" }) };
+    expect(await patient(flaky, [1, 1, 1]).fileUrl()).toEqual({ url: "https://x" });
+    expect(calls).toBe(3);
+    const broken = { fileUrl: async () => Promise.reject(new ApiError("naive", 400, "invalid", "bad request")) };
+    await expect(patient(broken, [1, 1]).fileUrl()).rejects.toThrow(/bad request/);
+    const busy = { fileUrl: async () => Promise.reject(new ApiError("naive", 429, "rate_limited", "the service is at capacity")) };
+    await expect(patient(busy, [1, 1]).fileUrl()).rejects.toThrow(/capacity/);
+  });
+});
