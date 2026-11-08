@@ -5,7 +5,7 @@ import { type BrandView, campaignAction, getBrand } from "../api";
 import type { Baker } from "../engine/baker";
 import { easeInOutCubic, type Stage } from "../engine/stage";
 import type { CampScene } from "../scenes/camp";
-import { derive, stationOf } from "../scenes/derive";
+import { derive, stationForEvent, stationOf } from "../scenes/derive";
 import { STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
@@ -471,18 +471,6 @@ function StationStrip({ plan, shown, bubbles, onPick }: { plan: ReturnType<typeo
       </div>
     </nav>
   );
-}
-
-/** Which station a core event line is about. */
-export function stationForEvent(message: string, stage: string): StationId {
-  const m = message.toLowerCase();
-  if (m.startsWith("campaign started") || /research|monid|scout|sources/.test(m)) return "scouts";
-  if (/format study|studying the format|format of/.test(m)) return "oracle";
-  if (/strategist|concepts, now producing|^campaign "/.test(m)) return "tent";
-  if (/ready for review|approved/.test(m)) return "theatre";
-  if (/post|publish|account|autopilot/.test(m)) return "agora";
-  if (/shot|render|qc|kling|veo|is ready|re-render|naive is out/.test(m)) return "workshop";
-  return stationOf(stage);
 }
 
 function useWide() {

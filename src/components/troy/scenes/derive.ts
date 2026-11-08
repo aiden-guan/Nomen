@@ -340,3 +340,18 @@ function editorTask(creative: CreativeView) {
   const verb = { pending: "framing", framed: "queuing", rendering: shot.provider === "monid" ? "rendering on Kling" : "rendering on Veo", rendered: "in quality check", passed: "approved", failed: "failed" }[shot.status];
   return `${title}: shot ${shot.n} of ${creative.shots.length} ${verb}`;
 }
+
+/** Which station a core event line is about (see the logEvent calls in the core's pipeline). */
+export function stationForEvent(message: string, stage: string): StationId {
+  const m = message.toLowerCase();
+  if (m.startsWith("campaign started")) return "scouts";
+  // Rendering talk first: Monid is also the video fallback, so "monid" alone can't mean research.
+  if (/\bshot\b|render|\bqc\b|kling|veo|naive is out/.test(m) && !/ready for review/.test(m)) return "workshop";
+  if (/ready for review|approved/.test(m)) return "theatre";
+  if (/research|monid|scout|sources/.test(m)) return "scouts";
+  if (/format study|studying the format|format of/.test(m)) return "oracle";
+  if (/strategist|concepts, now producing|^campaign "/.test(m)) return "tent";
+  if (/post|publish|account|autopilot/.test(m)) return "agora";
+  if (/is ready/.test(m)) return "workshop";
+  return stationOf(stage);
+}
