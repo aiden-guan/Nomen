@@ -123,13 +123,20 @@ export function scoreCandidates(videos: Video[], originOf: (video: Video) => Ref
 /**
  * The candidates worth a full breakdown: downloadable, a plausible length (5-90 s, or unknown and
  * checked after download), best first, with the best competitor post and the best category video
- * included whenever there is one, and one per author before anyone gets a second.
+ * included whenever there is one, and one per author before anyone gets a second. `exclude` lists
+ * video URLs (any form of the link) that must not be picked: ones the brand already remade.
  */
-export function pickForBreakdown(candidates: ReferenceCandidate[], n = 6, options: { minSeconds?: number; maxSeconds?: number; keepOrder?: boolean } = {}): ReferenceCandidate[] {
+export function pickForBreakdown(
+  candidates: ReferenceCandidate[],
+  n = 6,
+  options: { minSeconds?: number; maxSeconds?: number; keepOrder?: boolean; exclude?: Iterable<string> } = {},
+): ReferenceCandidate[] {
   const min = options.minSeconds ?? 5;
   const max = options.maxSeconds ?? 90;
+  const excluded = new Set([...(options.exclude ?? [])].map(canonicalUrl));
   const usable = candidates
     .filter((candidate) => Boolean(candidate.media_url))
+    .filter((candidate) => !excluded.has(canonicalUrl(candidate.url)))
     .filter((candidate) => candidate.duration === null || (candidate.duration >= min && candidate.duration <= max))
     // keepOrder: the caller already ranked them (by relevance, then performance).
     .sort((a, b) => (options.keepOrder ? 0 : b.score.total - a.score.total));

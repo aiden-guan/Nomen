@@ -80,7 +80,9 @@ and the campaign says so. Research always runs on Monid, so Naive's balance goes
 - **Inspired, not copied.** Competitor videos inform structure and pacing, never people, scripts or
   branding.
 - **A person approves.** Nothing posts until someone approves it, unless Autopilot is switched on in
-  Settings.
+  Settings, or a brand's Autopilot tab is on with "Post automatically" ticked.
+- **Budgets come from people.** A brand's Autopilot starts its next campaign by itself only within
+  the weekly budget someone typed in; with no budget it never starts one (`src/lib/loop.ts`).
 
 ## Architecture
 
