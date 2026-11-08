@@ -370,7 +370,7 @@ describe("the script and publishing for remakes", () => {
     expect(postingHold({ brief })).toBe("internal remake: not cleared for posting");
     expect(postingHold({ internal: true, cleared: { at: "2026-11-07T00:00:00Z", by: "Dylan", note: "consent on file" } })).toBeNull();
     expect(postingHold({})).toBeNull();
-    expect(postingHold(null)).toBeNull();
+    expect(postingHold(null)).toBe("the video's concept is unreadable, so it can't be checked for posting");
     expect(isInternal({ brief })).toBe(true);
     expect(isInternal({})).toBe(false);
   });

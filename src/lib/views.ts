@@ -7,7 +7,7 @@ import type { Cloneability, FunnelRole, ReferenceBreakdown, ReferenceCandidate }
 import { type BrandRow, type CampaignOptions, type CampaignRow, type CreativeState, creativeState, defaultOptions, originOf } from "./pipeline";
 import { mediaRoot } from "./store/sqlite";
 import type { CreativeRow, ShotState } from "./production";
-import { isInternal, type PostRow } from "./publish";
+import { isInternal, type PostRow, postStats } from "./publish";
 import type { Continuity } from "./qc";
 import type { ResearchPack, ResearchPlan, Video } from "./research";
 import { getSetting } from "./settings";
@@ -104,15 +104,22 @@ function campaignView(campaign: CampaignRow, runs: RunRow[], creativeRows: Creat
     strategy,
     runs: runs.map((run) => ({ key: run.key, phase: run.phase, provider: run.provider, endpoint: run.endpoint, status: run.status, error: run.error, cost_micro: run.cost_micro, cost: usd(run.cost_micro) })),
     creatives,
-    posts: posts.map((post) => ({
-      id: post.id,
-      creativeId: post.creative_id,
-      platforms: parse<string[]>(post.platforms_json, []),
-      scheduledAt: post.scheduled_at,
-      status: post.status,
-      error: post.error,
-      analytics: parse<Record<string, unknown> | null>(post.analytics_json, null),
-    })),
+    posts: posts.map((post) => {
+      const { url, ...stats } = postStats(post);
+      return {
+        id: post.id,
+        creativeId: post.creative_id,
+        platforms: parse<string[]>(post.platforms_json, []),
+        scheduledAt: post.scheduled_at,
+        status: post.status,
+        error: post.error,
+        /** The live post, once a network has it. */
+        url,
+        /** Views, likes, comments, shares and saves, read from the network's analytics. */
+        stats,
+        analytics: parse<Record<string, unknown> | null>(post.analytics_json, null),
+      };
+    }),
     spend: { naive: usd(campaign.naive_spend_micro), monid: usd(campaign.monid_spend_micro), style: usd(campaign.style_spend_micro), strategy: usd(campaign.strategy_spend_micro) },
     createdAt: campaign.created_at,
   };

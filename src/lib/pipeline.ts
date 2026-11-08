@@ -573,24 +573,28 @@ function emptyReference(): ReferenceBreakdown {
 
 /** What this brand's earlier posted videos did, so the next campaign learns from them. */
 async function pastResults(brandId: string, currentCampaignId: string): Promise<PastResult[]> {
-  type Post = { creative_id: string; platforms_json: string; status: string; analytics_json: string | null };
+  const { postStats } = await import("./publish");
+  type Post = { creative_id: string; platforms_json: string; status: string; result_json: string | null; analytics_json: string | null; error: string | null };
   const posts = await store().find<Post>("posts", { brand_id: brandId, status: { in: ["posted", "failed"] } }, { order: [["created_at", "desc"]] });
   const creatives = posts.length ? await store().find<{ id: string; campaign_id: string; concept_json: string }>("creatives", { id: { in: [...new Set(posts.map((p) => p.creative_id))] } }) : [];
   const byId = new Map(creatives.map((c) => [c.id, c]));
   const rows = posts
     .map((post) => ({ post, creative: byId.get(post.creative_id) }))
     .filter((row) => row.creative && row.creative.campaign_id !== currentCampaignId)
-    .slice(0, 12)
-    .map(({ post, creative }) => ({ concept_json: creative!.concept_json, platforms_json: post.platforms_json, status: post.status, analytics_json: post.analytics_json }));
-  return rows.map((row) => {
-    const concept = parse<Partial<Concept>>(row.concept_json, {});
+    .slice(0, 12);
+  return rows.map(({ post, creative }) => {
+    const concept = parse<Partial<Concept>>(creative!.concept_json, {});
+    const { url, ...stats } = postStats(post);
     return {
       title: concept.title ?? "",
       format: concept.format ?? "",
       hook: concept.hook ?? "",
-      platforms: parse<string[]>(row.platforms_json, []),
-      status: row.status,
-      analytics: parse<Record<string, unknown> | null>(row.analytics_json, null),
+      platforms: parse<string[]>(post.platforms_json, []),
+      status: post.status,
+      url,
+      stats: Object.keys(stats).length ? stats : null,
+      error: post.status === "failed" ? post.error : null,
+      analytics: parse<Record<string, unknown> | null>(post.analytics_json, null),
     };
   });
 }

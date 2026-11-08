@@ -1,7 +1,7 @@
 "use client";
 
-import { type ReactNode, type SyntheticEvent, useEffect, useRef } from "react";
-import type { BrandView, CreativeView } from "../api";
+import { type ReactNode, type SyntheticEvent, useEffect, useRef, useState } from "react";
+import { type BrandView, type CreativeView, type PostView, type SocialAccountView, socialAccounts } from "../api";
 import type { Baker } from "../engine/baker";
 import { type CampPlan, runLabel } from "../scenes/derive";
 import { STATION, type StationId } from "../scenes/layout";
@@ -121,7 +121,7 @@ export function StationPanel({
         {id === "oracle" && <Oracle view={view} state={state.state} actions={actions} />}
         {id === "tent" && <Tent view={view} />}
         {id === "workshop" && <Workshop view={view} busy={busy} actions={actions} />}
-        {id === "theatre" && <Theatre view={view} busy={busy} actions={actions} />}
+        {id === "theatre" && <Theatre view={view} busy={busy} actions={actions} demo={Boolean(demo)} />}
         {id === "agora" && <Agora view={view} actions={actions} />}
       </div>
 
@@ -439,12 +439,17 @@ function Workshop({ view, busy, actions }: { view: BrandView; busy: string | nul
   );
 }
 
-function Theatre({ view, busy, actions }: { view: BrandView; busy: string | null; actions: CampActions }) {
+function Theatre({ view, busy, actions, demo }: { view: BrandView; busy: string | null; actions: CampActions; demo: boolean }) {
+  const accounts = useAccounts(demo ? null : view.brand.id, view.brand.connected);
   const campaign = view.campaign;
   if (!campaign) return null;
   const ready = campaign.creatives.filter((c) => c.status === "ready").sort((a, b) => a.idx - b.idx);
   const approved = ready.filter((c) => c.approved).length;
-  const canPublish = campaign.status === "review" || campaign.status === "live";
+  // Approved videos with no post yet (a failed post can go again). A real campaign can post a
+  // finished video while the others are still being made; the demo's replay posts from the review.
+  const sent = new Set(campaign.posts.filter((p) => p.status !== "failed").map((p) => p.creativeId));
+  const unposted = ready.filter((c) => c.approved && !sent.has(c.id)).length;
+  const canPublish = unposted > 0 && (!demo || campaign.status === "review" || campaign.status === "live");
   return (
     <>
       <Section title={`The cut · ${approved}/${ready.length} approved`}>
@@ -460,27 +465,15 @@ function Theatre({ view, busy, actions }: { view: BrandView; busy: string | null
       </Section>
       {ready.length > 0 && (
         <Section title="Send them out">
-          {!view.brand.connected && (
-            <p className="mb-3 text-[12px] leading-relaxed text-[var(--ink-soft)]">
-              Posting goes to the brand&apos;s own accounts, labeled AI-generated. Connect them once:{" "}
-              <button
-                type="button"
-                className={`${styles.link} underline decoration-dotted underline-offset-4`}
-                onClick={actions.connect}
-              >
-                {busy === "connect" ? "Opening…" : "connect accounts"}
-              </button>
-              .
-            </p>
-          )}
+          {demo ? null : <Accounts state={accounts} busy={busy} connect={actions.connect} />}
           <div className="flex flex-wrap gap-3">
             <button type="button" className={`${styles.button} ${styles.buttonInk} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={busy === "approve" || approved === ready.length} onClick={actions.approveAll}>
               Approve all
             </button>
-            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || approved === 0 || busy === "daily"} onClick={() => actions.publish("daily")}>
+            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || busy === "daily"} onClick={() => actions.publish("daily")}>
               {busy === "daily" ? <span className={styles.spinner} aria-hidden="true" /> : null} One a day
             </button>
-            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || approved === 0 || busy === "now"} onClick={() => actions.publish("now")}>
+            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || busy === "now"} onClick={() => actions.publish("now")}>
               {busy === "now" ? <span className={styles.spinner} aria-hidden="true" /> : null} Post now
             </button>
           </div>
@@ -488,6 +481,54 @@ function Theatre({ view, busy, actions }: { view: BrandView; busy: string | null
         </Section>
       )}
     </>
+  );
+}
+
+type AccountsState = { accounts: SocialAccountView[] | null; error: string | null };
+
+/** The brand's connected accounts, read live from Naive when the theatre opens (none before it is activated). */
+function useAccounts(brandId: string | null, activated: boolean): AccountsState {
+  const [state, setState] = useState<AccountsState>({ accounts: null, error: null });
+  useEffect(() => {
+    if (!brandId) return;
+    if (!activated) {
+      setState({ accounts: [], error: null });
+      return;
+    }
+    let alive = true;
+    socialAccounts(brandId).then(
+      (result) => alive && setState(result),
+      (error: unknown) => alive && setState({ accounts: null, error: error instanceof Error ? error.message : String(error) }),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [brandId, activated]);
+  return state;
+}
+
+/** Where posts go, or the way to connect the brand's accounts. */
+function Accounts({ state, busy, connect }: { state: AccountsState; busy: string | null; connect: () => void }) {
+  const link = (label: string) => (
+    <button type="button" className={`${styles.link} underline decoration-dotted underline-offset-4`} onClick={connect}>
+      {busy === "connect" ? "Opening…" : label}
+    </button>
+  );
+  const { accounts, error } = state;
+  return (
+    <p className="mb-3 text-[12px] leading-relaxed text-[var(--ink-soft)]">
+      {error ? (
+        <>Couldn&apos;t read the brand&apos;s accounts ({error}). {link("Connect accounts")}</>
+      ) : accounts === null ? (
+        "Checking the brand's accounts…"
+      ) : accounts.length === 0 ? (
+        <>Posting goes to the brand&apos;s own accounts, labeled AI-generated. Connect them once: {link("connect accounts")}.</>
+      ) : (
+        <>
+          Posting to {accounts.map((a) => `${platformName(a.platform)} ${a.name}`).join(", ")}, labeled AI-generated. {link("Add accounts")}
+        </>
+      )}
+    </p>
   );
 }
 
@@ -553,7 +594,7 @@ function Agora({ view, actions }: { view: BrandView; actions: CampActions }) {
           <ul className="space-y-2.5">
             {posts.map((post) => {
               const title = campaign.creatives.find((c) => c.id === post.creativeId)?.concept?.title ?? "Video";
-              const numbers = post.analytics ? Object.entries(post.analytics).filter(([, v]) => typeof v === "number").slice(0, 3) : [];
+              const numbers = postNumbers(post);
               return (
                 <li key={post.id} className="text-[13px]">
                   <div className="flex items-baseline gap-2">
@@ -564,8 +605,13 @@ function Agora({ view, actions }: { view: BrandView; actions: CampActions }) {
                     {post.platforms.map(platformName).join(", ")}
                     {post.scheduledAt ? ` · ${when(post.scheduledAt)}` : ""}
                   </p>
-                  {numbers.length > 0 && <p className="text-[12px] text-[var(--ink-faint)]">{numbers.map(([k, v]) => `${k} ${v}`).join(" · ")}</p>}
-                  {post.error && <p className="text-[12px] text-[var(--crimson-dark)]">{post.error}</p>}
+                  {numbers.length > 0 && <p className="text-[12px] text-[var(--ink-faint)]">{numbers.map(([k, v]) => `${COMPACT.format(v)} ${k}`).join(" · ")}</p>}
+                  {post.url && (
+                    <a href={post.url} target="_blank" rel="noreferrer" className={`${styles.link} text-[12px] underline decoration-dotted underline-offset-4`}>
+                      See the post
+                    </a>
+                  )}
+                  {post.error && <p className={`text-[12px] ${post.status === "failed" ? "text-[var(--crimson-dark)]" : "text-[var(--ink-faint)]"}`}>{post.error}</p>}
                 </li>
               );
             })}
@@ -574,6 +620,16 @@ function Agora({ view, actions }: { view: BrandView; actions: CampActions }) {
       </Section>
     </>
   );
+}
+
+const COMPACT = new Intl.NumberFormat("en", { notation: "compact" });
+
+/** A post's numbers: the stats read from the network's analytics, or (the demo) its flat analytics. */
+function postNumbers(post: PostView): Array<[string, number]> {
+  const stats: Record<string, unknown> = post.stats && Object.keys(post.stats).length ? post.stats : (post.analytics ?? {});
+  return Object.entries(stats)
+    .filter((entry): entry is [string, number] => typeof entry[1] === "number")
+    .slice(0, 4);
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {

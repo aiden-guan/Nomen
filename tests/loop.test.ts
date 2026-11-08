@@ -292,9 +292,18 @@ describe("loopHistory", () => {
     insertPost(crv, "scheduled", ahead(3, real));
     const history = await loopHistory(BRAND, real);
     expect(history.campaigns).toHaveLength(1);
-    // fresh $21 beats stored $20; 3 video rows beat 2 planned
-    expect(history.campaigns[0]).toMatchObject({ spend_micro: 21 * M + 3 * UNTRACKED_USD_PER_VIDEO * M, ready: 1 });
+    // fresh $21 beats stored $20; 3 video rows beat 2 planned; the one ready video is scheduled, so none waits
+    expect(history.campaigns[0]).toMatchObject({ spend_micro: 21 * M + 3 * UNTRACKED_USD_PER_VIDEO * M, ready: 0 });
     expect(history.posts).toEqual({ inFlight: 0, until: ahead(3, real) });
+  });
+
+  it("counts only the videos not yet posted as waiting for review", async () => {
+    const real = new Date();
+    insertCampaign({ id: "cmp_a", status: "review", created_at: ago(1, real) });
+    insertPost(insertCreative("cmp_a"), "posted", null);
+    insertPost(insertCreative("cmp_a"), "failed", null); // a failed post can be sent again
+    insertCreative("cmp_a");
+    expect((await loopHistory(BRAND, real)).campaigns[0].ready).toBe(2);
   });
 
   it("stops counting a post stuck in processing a day after it was due", async () => {
