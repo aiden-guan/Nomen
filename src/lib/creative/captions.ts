@@ -364,10 +364,15 @@ export function assTime(seconds: number): string {
 /**
  * Makes arbitrary text safe inside an ASS Dialogue line: braces become the \{ \} escapes, a literal
  * backslash is followed by a zero-width word joiner so it can never start \N, \h or \{, and line
- * breaks become \N (or spaces when `newlines` is "space").
+ * breaks become \N (or spaces when `newlines` is "space"). Emoji are dropped (no glyphs in the font).
  */
 export function escapeAssText(text: string, newlines: "break" | "space" = "break"): string {
   return text
+    // The caption font has no emoji: libass draws a box for each (the first Naive video's hook ended
+    // in one). Drop them, with their joiners and variation selectors, and the space they leave.
+    .replace(/[\p{Extended_Pictographic}\u200d\ufe0e\ufe0f]/gu, "")
+    .replace(/ {2,}/g, " ")
+    .replace(/ +$/gm, "")
     .replace(/\r\n?/g, "\n")
     .replace(/\\/g, "\\\u2060")
     .replace(/\{/g, "\\{")

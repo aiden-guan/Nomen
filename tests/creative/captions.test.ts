@@ -251,3 +251,12 @@ describe("toAss", () => {
     expect(ass.split("\n").filter((l) => l.startsWith("Dialogue:"))).toHaveLength(4);
   });
 });
+
+describe("emoji in caption text", () => {
+  it("are dropped, since the caption font can't draw them", async () => {
+    const { escapeAssText } = await import("@/lib/creative/captions");
+    expect(escapeAssText("Ways to run a company with AI agents 🤖")).toBe("Ways to run a company with AI agents");
+    expect(escapeAssText("ship it 🚀🔥 now")).toBe("ship it now");
+    expect(escapeAssText("$3 → 2,000 tools")).toBe("$3 → 2,000 tools");
+  });
+});
