@@ -7,12 +7,25 @@
 import { logEvent, now } from "../db";
 import { ApiError } from "../http";
 import { getInt, secretStatus } from "../settings";
-import { AGENT_MODEL, APP_PACKAGES, MobilerunClient, PLATFORM_LABELS, TERMINAL_TASK_STATES, warmupTask, type Device, type TaskInput } from "./mobilerun";
+import {
+  AGENT_MODEL,
+  APP_PACKAGES,
+  MobilerunClient,
+  PLATFORM_LABELS,
+  SETUP_APPS,
+  SETUP_OUTPUT_SCHEMA,
+  TERMINAL_TASK_STATES,
+  setupTask,
+  warmupTask,
+  type Device,
+  type TaskInput,
+} from "./mobilerun";
 import { advancePost, onPostError } from "./posting";
 import {
   LIMITS,
   PARK,
   POLL,
+  SETUP_LIMITS,
   describeApiError,
   describeDevice,
   describeTaskOutcome,
@@ -20,6 +33,7 @@ import {
   phoneAction,
   scheduleDay,
   sessionStatusFor,
+  setupOutcome,
   taskLimits,
 } from "./rules";
 import {
@@ -143,7 +157,9 @@ async function startWhenPhoneReady(client: MobilerunClient, session: SessionRow,
   if (age(waitingSince) > LIMITS.waitForPhoneMs) return finish(session, "failed", `The phone wasn't ready within an hour. ${words.detail}`);
   if (action === "resume") {
     await client.resumeDevice(session.device_id);
-    if (session.status === "pending") await logEvent({ brandId: session.brand_id, message: "Phones: waking up the parked phone for a warm-up session." });
+    if (session.status === "pending") {
+      await logEvent({ brandId: session.brand_id, message: `Phones: waking up the parked phone ${session.kind === "setup" ? "to set it up for posting" : "for a warm-up session"}.` });
+    }
   }
   updateActive(session.id, {
     status: "waiting",
@@ -157,28 +173,12 @@ async function createTask(client: MobilerunClient, session: SessionRow) {
   const link = getLink(session.brand_id);
   const brand = getBrand(session.brand_id);
   const account = listAccounts(session.brand_id).find((row) => row.platform === session.platform);
-  if (!link || !brand || !account || link.device_id !== session.device_id) {
+  // The setup installs the app, so it needs the phone but not a linked account.
+  if (!link || !brand || (!account && session.kind !== "setup") || link.device_id !== session.device_id) {
     return finish(session, "cancelled", "The phone or this account was unlinked before the session started.");
   }
-  const topics = linkTopics(link);
-  if (topics.length === 0) return finish(session, "failed", "The brand has no niche topics to browse. Add some in the phones panel.");
-
-  const limits = taskLimits(session.minutes);
-  const packageName = APP_PACKAGES[session.platform];
-  const input: TaskInput = {
-    task: warmupTask({ platform: PLATFORM_LABELS[session.platform], brand: brand.name, niche: topics, minutes: limits.minutes }),
-    deviceId: session.device_id,
-    llmModel: AGENT_MODEL,
-    maxSteps: limits.maxSteps,
-    executionTimeout: limits.executionTimeout,
-    reasoning: true,
-    vision: true,
-    humanize: true,
-    recordingEnabled: true,
-    apps: [packageName],
-    credentials: account.credential_name ? [{ packageName, credentialNames: [account.credential_name] }] : [],
-    ...(link.vpn_country ? { vpnCountry: link.vpn_country } : {}),
-  };
+  const input = session.kind === "setup" ? setupInput(session, link.vpn_country) : warmupInput(session, brand.name, link, account!);
+  if (typeof input === "string") return finish(session, "failed", input);
 
   let created;
   try {
@@ -202,7 +202,54 @@ async function createTask(client: MobilerunClient, session: SessionRow) {
     await client.cancelTask(created.id).catch(() => undefined);
     return;
   }
-  await logEvent({ brandId: session.brand_id, message: `Phones: ${PLATFORM_LABELS[session.platform]} warm-up started (about ${limits.minutes} minutes).` });
+  await logEvent({
+    brandId: session.brand_id,
+    message:
+      session.kind === "setup"
+        ? "Phones: setting up the phone for posting (installing TikTok and letting it see the phone's videos)."
+        : `Phones: ${PLATFORM_LABELS[session.platform]} warm-up started (about ${session.minutes} minutes).`,
+  });
+}
+
+/** A warm-up: browse the brand's niche in the platform's app, logged in with the saved login if there is one. */
+function warmupInput(session: SessionRow, brand: string, link: NonNullable<ReturnType<typeof getLink>>, account: ReturnType<typeof listAccounts>[number]): TaskInput | string {
+  const topics = linkTopics(link);
+  if (topics.length === 0) return "The brand has no niche topics to browse. Add some in the phones panel.";
+  const limits = taskLimits(session.minutes);
+  const packageName = APP_PACKAGES[session.platform];
+  return {
+    task: warmupTask({ platform: PLATFORM_LABELS[session.platform], brand, niche: topics, minutes: limits.minutes }),
+    deviceId: session.device_id,
+    llmModel: AGENT_MODEL,
+    maxSteps: limits.maxSteps,
+    executionTimeout: limits.executionTimeout,
+    reasoning: true,
+    vision: true,
+    humanize: true,
+    recordingEnabled: true,
+    apps: [packageName],
+    credentials: account.credential_name ? [{ packageName, credentialNames: [account.credential_name] }] : [],
+    ...(link.vpn_country ? { vpnCountry: link.vpn_country } : {}),
+  };
+}
+
+/** The one-time setup for posting: install TikTok and let it see the phone's videos. No logins are passed: signing in stays with a person. */
+function setupInput(session: SessionRow, vpnCountry: string | null): TaskInput {
+  return {
+    task: setupTask(),
+    deviceId: session.device_id,
+    llmModel: AGENT_MODEL,
+    maxSteps: SETUP_LIMITS.maxSteps,
+    executionTimeout: SETUP_LIMITS.executionTimeout,
+    reasoning: true,
+    vision: true,
+    humanize: true,
+    recordingEnabled: true,
+    apps: SETUP_APPS,
+    credentials: [],
+    outputSchema: SETUP_OUTPUT_SCHEMA,
+    ...(vpnCountry ? { vpnCountry } : {}),
+  };
 }
 
 async function poll(client: MobilerunClient, session: SessionRow) {
@@ -218,27 +265,31 @@ async function poll(client: MobilerunClient, session: SessionRow) {
   const fields = { task_status: task.status, steps: task.steps ?? session.steps, recording_id: task.recordingId ?? session.recording_id };
   const next = sessionStatusFor(task);
   if (next === "succeeded" || next === "failed" || next === "cancelled") {
-    return finish(session, next, describeTaskOutcome(task, session.minutes), {
-      ...fields,
-      succeeded: task.succeeded == null ? null : Number(task.succeeded),
-    });
+    const succeeded = task.succeeded == null ? null : Number(task.succeeded);
+    if (session.kind === "setup") {
+      // The agent's report, not the task's own verdict, says what is left for a person.
+      const outcome = setupOutcome(task);
+      return finish(session, outcome.status, outcome.message, { ...fields, succeeded });
+    }
+    return finish(session, next, describeTaskOutcome(task, session.minutes), { ...fields, succeeded });
   }
   updateActive(session.id, { ...fields, status: sessionStatusFor(task), message: task.status === "queued" ? "Queued behind another task on the phone." : null, next_check_at: later(POLL.running) });
 }
 
 /**
  * Ends a session once; a session the user already stopped keeps its status. Its phone is then
- * parked, unless another session needs it within a few minutes (see parkIdlePhones).
+ * parked, unless another session needs it within a few minutes (see parkIdlePhones). After a
+ * setup the phone stays on a while, so a person can sign in to Google or TikTok on it.
  */
 export async function finish(session: SessionRow, status: Extract<SessionStatus, "succeeded" | "failed" | "cancelled">, message: string, fields: Record<string, unknown> = {}) {
   const changed = claimSession(session.id, ACTIVE_STATUSES, status, { message, finished_at: now(), ...fields });
   if (!changed) return;
-  requestPark(session.device_id, session.brand_id);
-  const label = PLATFORM_LABELS[session.platform];
+  requestPark(session.device_id, session.brand_id, session.kind === "setup" ? later(SETUP_LIMITS.keepOnMs) : now());
+  const what = session.kind === "setup" ? "phone setup for posting" : `${PLATFORM_LABELS[session.platform]} warm-up`;
   await logEvent({
     brandId: session.brand_id,
     level: status === "failed" ? "warn" : "info",
-    message: `Phones: ${label} warm-up ${status === "succeeded" ? "finished" : status === "failed" ? "failed" : "stopped"}. ${message}`.slice(0, 500),
+    message: `Phones: ${what} ${status === "succeeded" ? "finished" : status === "failed" ? "failed" : "stopped"}. ${message}`.slice(0, 500),
   });
 }
 

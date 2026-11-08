@@ -93,7 +93,8 @@ export function PhonesPanel({ brandId, brandName, niche }: PhonesPanelProps) {
   const device = status.device;
   const running = status.active.find((session) => session.status === "running" || session.status === "starting" || session.status === "queued");
   const finished = status.history.filter((session) => !status.active.some((active) => active.id === session.id));
-  const succeeded = status.history.filter((session) => session.status === "succeeded").length;
+  const warmups = status.history.filter((session) => session.kind !== "setup");
+  const succeeded = warmups.filter((session) => session.status === "succeeded").length;
   const strategyHasNewTopics = Boolean(link && niche.length && niche.some((topic) => !link.topics.map((t) => t.toLowerCase()).includes(topic.toLowerCase())));
 
   return (
@@ -177,7 +178,7 @@ export function PhonesPanel({ brandId, brandName, niche }: PhonesPanelProps) {
                 }
                 hint={link.schedule.nextAt ? `Next: ${clock(link.schedule.nextAt)}` : link.schedule.state === "finished" ? `Ended ${ago(link.schedule.endsAt, now)}` : "Daily, one session per account"}
               />
-              <Stat label="Completed" value={succeeded} hint={`of the last ${status.history.length} sessions`} />
+              <Stat label="Completed" value={succeeded} hint={`of the last ${warmups.length} warm-ups`} />
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -188,6 +189,9 @@ export function PhonesPanel({ brandId, brandName, niche }: PhonesPanelProps) {
                 onClick={() => void act("run", () => phonesApi<PhonesStatus>("/sessions", { method: "POST", body: { brandId } }))}
               >
                 Run warm-up now
+              </Button>
+              <Button loading={busy === "setup"} onClick={() => void act("setup", () => phonesApi<PhonesStatus>("/setup", { method: "POST", body: { brandId } }))}>
+                Set up for posting
               </Button>
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-1.5 text-sm text-zinc-300">
                 <span>Daily for</span>
@@ -218,6 +222,10 @@ export function PhonesPanel({ brandId, brandName, niche }: PhonesPanelProps) {
                 )}
               </div>
             </div>
+            <p className="text-[11px] leading-relaxed text-zinc-500">
+              Set up for posting: the phone agent installs TikTok and lets it see the phone&apos;s videos. Signing in stays with you: Google Play (once) and the
+              brand&apos;s TikTok, on the phone&apos;s screen in Mobilerun&apos;s dashboard. The phone stays on for 30 minutes afterwards.
+            </p>
             {actionError && <p className="text-sm text-rose-300">{actionError}</p>}
 
             {status.active.length > 0 && (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "@/lib/http";
-import { DAY_MS, clampDays, describeApiError, describeTaskOutcome, phoneAction, phoneCaption, postOutcome, scheduleDay, scheduleSummary, sessionStatusFor, taskLimits } from "@/lib/phones/rules";
+import { DAY_MS, clampDays, describeApiError, describeTaskOutcome, phoneAction, phoneCaption, postOutcome, scheduleDay, scheduleSummary, sessionStatusFor, setupOutcome, taskLimits } from "@/lib/phones/rules";
 
 const start = "2026-11-07T18:00:00.000Z";
 const at = (ms: number) => new Date(Date.parse(start) + ms);
@@ -158,5 +158,33 @@ describe("posting through a phone", () => {
     const long = phoneCaption("x".repeat(3000));
     expect(long).toHaveLength(2200);
     expect(long.endsWith(" #AIgenerated")).toBe(true);
+  });
+});
+
+describe("setting up a phone for posting", () => {
+  const done = { status: "completed" as const, succeeded: true, message: "Done.", execution: null };
+  const report = (fields: Record<string, unknown>) => ({ googleSignInNeeded: false, tiktokInstalled: true, photoAccess: true, tiktokLoggedIn: false, reason: "", ...fields });
+
+  it("says the phone is ready once TikTok is in, can see the videos, and is logged in", () => {
+    expect(setupOutcome({ ...done, output: report({ tiktokLoggedIn: true }) })).toEqual({
+      status: "succeeded",
+      message: "TikTok is installed, can see the phone's videos and is logged in: the phone is ready to post.",
+    });
+  });
+
+  it("fails with what a person must do when TikTok can't see the videos or isn't installed", () => {
+    expect(setupOutcome({ ...done, output: report({ photoAccess: false }) })).toMatchObject({ status: "failed", message: expect.stringMatching(/can't see the phone's videos yet/) });
+    expect(setupOutcome({ ...done, output: report({ tiktokInstalled: false, photoAccess: false, reason: "No space left" }) })).toEqual({
+      status: "failed",
+      message: "TikTok isn't installed: No space left.",
+    });
+  });
+
+  it("explains a task that ended without a report", () => {
+    expect(setupOutcome({ status: "failed", succeeded: false, message: null, output: null, execution: { terminationReason: "worker_lost" } })).toMatchObject({
+      status: "failed",
+      message: expect.stringMatching(/lost contact with the phone/),
+    });
+    expect(setupOutcome({ status: "cancelled", succeeded: null, message: null, output: null, execution: null })).toMatchObject({ status: "cancelled" });
   });
 });

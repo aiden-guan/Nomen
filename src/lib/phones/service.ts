@@ -6,7 +6,7 @@ import { secretStatus } from "../settings";
 import type { Concept } from "../strategy";
 import { warmupMinutes, stopSession } from "./engine";
 import { APP_PACKAGES, MobilerunClient, PLATFORMS, PLATFORM_LABELS, VPN_COUNTRIES, type Device, type Platform } from "./mobilerun";
-import { POST_LIMITS, clampDays, describeApiError, describeDevice, estimateCredits, estimatePostCredits, phoneCaption, scheduleSummary } from "./rules";
+import { POST_LIMITS, SETUP_LIMITS, clampDays, describeApiError, describeDevice, estimateCredits, estimatePostCredits, phoneCaption, scheduleSummary } from "./rules";
 import {
   activeSessions,
   deleteLink,
@@ -240,6 +240,22 @@ export async function runNow(input: { brandId?: unknown; platform?: unknown }) {
   const created = accounts.flatMap((account) => insertSession({ brandId: brand.id, deviceId: link.device_id, platform: account.platform, kind: "manual", dayIndex: null, minutes }) ?? []);
   if (created.length === 0) throw new PhonesError(409, "A warm-up is already queued or running for these accounts.");
   await logEvent({ brandId: brand.id, message: `Phones: warm-up queued for ${created.map((row) => PLATFORM_LABELS[row.platform]).join(", ")}.` });
+  return getStatus(brand.id);
+}
+
+/**
+ * "Set up for posting": the phone agent installs TikTok on the brand's phone and lets it see the
+ * phone's videos. Signing in to Google Play and to the brand's TikTok stays with a person; the
+ * phone stays on for a while afterwards so they can.
+ */
+export async function setUpForPosting(input: { brandId?: unknown }) {
+  const brand = requireBrand(input.brandId);
+  if (!secretStatus("mobilerun_api_key").set) throw new PhonesError(400, "No Mobilerun API key. Add one in Settings.");
+  const link = getLink(brand.id);
+  if (!link) throw new PhonesError(400, "Link the brand's phone first.");
+  const created = insertSession({ brandId: brand.id, deviceId: link.device_id, platform: "tiktok", kind: "setup", dayIndex: null, minutes: SETUP_LIMITS.minutes });
+  if (!created) throw new PhonesError(409, "A TikTok session is already queued or running on this phone.");
+  await logEvent({ brandId: brand.id, message: "Phones: setup for posting queued (install TikTok, let it see the phone's videos)." });
   return getStatus(brand.id);
 }
 

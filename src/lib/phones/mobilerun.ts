@@ -276,3 +276,37 @@ export function postTask(input: { brand: string; fileName: string; folder: strin
     'Report whether the video was posted, its link, whether the AI-generated label was on, whether "Who can watch this video" was "Only you", and what stopped you if it was not posted.',
   ].join("\n");
 }
+
+/** Apps the setup task uses: the Play Store, Android's Settings, and TikTok. */
+export const SETUP_APPS = ["com.android.vending", "com.android.settings", APP_PACKAGES.tiktok];
+
+/** The setup task's report (`outputSchema`). Mobilerun returns it as the task status's `output`. */
+export const SETUP_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    googleSignInNeeded: { type: "boolean", description: "True if the Play Store asked you to sign in to a Google account, so you couldn't install TikTok." },
+    tiktokInstalled: { type: "boolean", description: "True if TikTok is installed on the phone when you finish." },
+    photoAccess: { type: "boolean", description: 'True if TikTok\'s "Photos and videos" permission is set to "Allow all" when you finish.' },
+    tiktokLoggedIn: { type: "boolean", description: "True if TikTok's Profile tab shows an account, not a sign-up or log-in screen." },
+    reason: { type: "string", description: "Anything that stopped you, in one sentence; otherwise an empty string." },
+  },
+  required: ["googleSignInNeeded", "tiktokInstalled", "photoAccess", "tiktokLoggedIn", "reason"],
+  additionalProperties: false,
+};
+
+/**
+ * The one-time setup brief before posting through a phone: install TikTok from the Play Store and
+ * let it see all the phone's photos and videos. Signing in to Google or TikTok, and making
+ * accounts, stay with a person: the agent stops or skips those screens and reports what it saw.
+ */
+export function setupTask() {
+  return [
+    "You are setting up this phone so the brand's social media manager can post videos from TikTok on it later.",
+    "1. Open the Play Store. If it asks you to sign in to a Google account, stop and report it: do not sign in or create a Google account.",
+    `2. If TikTok (by TikTok Pte. Ltd., package ${APP_PACKAGES.tiktok}) is not installed, search the Play Store for TikTok, install it, and wait until it has installed.`,
+    '3. Open the Settings app, then Apps, TikTok, Permissions, "Photos and videos" (on some phones "Files and media"), and choose "Allow all".',
+    "4. Open TikTok and look at its Profile tab to see whether an account is logged in. Do not log in, sign up or create an account, even if TikTok asks: skip or close those screens.",
+    "Do not post, like, follow, comment, send messages, buy anything, or change any other setting.",
+    "Report whether Google sign-in was needed, whether TikTok is installed, whether it can see all photos and videos, and whether a TikTok account is logged in.",
+  ].join("\n");
+}

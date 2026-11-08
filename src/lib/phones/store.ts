@@ -154,7 +154,8 @@ export type SessionRow = {
   brand_id: string;
   device_id: string;
   platform: Platform;
-  kind: "manual" | "scheduled";
+  /** "setup": the one-time setup for posting (install TikTok, allow its photos), not a warm-up. */
+  kind: "manual" | "scheduled" | "setup";
   day_index: number | null;
   status: SessionStatus;
   minutes: number;
@@ -242,7 +243,7 @@ export function deleteLink(brandId: string) {
  * Adds a session unless one is already active for the same brand and platform. A scheduled
  * session is also unique per day, so a worker tick that repeats is harmless.
  */
-export function insertSession(input: { brandId: string; deviceId: string; platform: Platform; kind: "manual" | "scheduled"; dayIndex: number | null; minutes: number }): SessionRow | undefined {
+export function insertSession(input: { brandId: string; deviceId: string; platform: Platform; kind: SessionRow["kind"]; dayIndex: number | null; minutes: number }): SessionRow | undefined {
   const conn = phonesDb();
   return conn.transaction(() => {
     const busy = conn
@@ -314,15 +315,15 @@ export function deviceBusy(deviceId: string, exceptId: string) {
 /** A phone waiting to be parked, one row per phone, until it is parked or can't be. */
 export type ParkRow = { device_id: string; brand_id: string | null; due_at: string; attempts: number; error: string | null; created_at: string; updated_at: string };
 
-/** Asks the worker to park the phone now. Repeating the request just moves it up. */
-export function requestPark(deviceId: string, brandId: string | null) {
+/** Asks the worker to park the phone at `dueAt` (now by default). A new request replaces the old one. */
+export function requestPark(deviceId: string, brandId: string | null, dueAt = now()) {
   const stamp = now();
   phonesDb()
     .prepare(
       `insert into phone_parks (device_id, brand_id, due_at, attempts, error, created_at, updated_at) values (?, ?, ?, 0, null, ?, ?)
        on conflict (device_id) do update set brand_id = excluded.brand_id, due_at = excluded.due_at, attempts = 0, error = null, updated_at = excluded.updated_at`,
     )
-    .run(deviceId, brandId, stamp, stamp, stamp);
+    .run(deviceId, brandId, dueAt, stamp, stamp);
 }
 
 export function dueParks(at: string, limit: number) {

@@ -112,27 +112,33 @@ minutes of phone time.
 
 ## One-time phone setup for posting
 
-A person sets up each phone once, before its first post. The phone agent can't do these steps:
-they need your Google and TikTok logins and often a code sent to you.
+Each phone is set up once, before its first post. "Set up for posting" in the Phones panel has the
+phone agent do the app work: install TikTok from the Play Store and give it access to all photos
+and videos. Signing in stays with a person, since it needs your Google and TikTok logins and often
+a code sent to you; the agent never signs in, signs up or creates accounts. Nomen doesn't create
+social accounts at all: the brand's own account is made by a person, in the app or on TikTok's
+site.
 
 1. Link the brand's phone and its TikTok account in the Phones panel on the brand's page. A saved
    login name is optional.
-2. Wake the phone (Wake in the panel, or Mobilerun's dashboard) and open its screen in Mobilerun's
-   dashboard.
-3. Open the Play Store and sign in with a Google account you are happy to keep on a cloud phone.
-4. Install TikTok (`com.zhiliaoapp.musically`) from the Play Store.
-5. Open TikTok and log in to the brand's own official TikTok account, entering any code TikTok
-   sends. The account must be public: TikTok refuses public posts from a private account.
-6. Give TikTok access to all photos and videos: tap +, then Upload, and choose "Allow all", not
-   "Select photos and videos", which hides the videos Nomen copies later. Back out without posting.
-   (Or in Android's Settings: Apps, TikTok, Permissions, Photos and videos, Allow all.)
-7. Optional: save the TikTok login in Mobilerun's credential store and pick it in the panel, so the
+2. Click "Set up for posting". The session list shows what the agent found and what is left for
+   you. Afterwards the phone stays on for 30 minutes, then it is parked.
+3. If it says to sign in to Google Play: open the phone's screen in Mobilerun's dashboard, sign in
+   with a Google account you are happy to keep on a cloud phone, and run the setup again.
+4. Log in to the brand's own official TikTok account on the phone's screen, entering any code
+   TikTok sends. The account must be public: TikTok refuses public posts from a private account.
+5. Optional: save the TikTok login in Mobilerun's credential store and pick it in the panel, so the
    agent can log back in if TikTok logs out.
-8. Park the phone in Mobilerun's dashboard when you are done: it bills per minute while it is on.
-   Don't run warm-ups while you set it up, because a finished session parks the phone.
 
-Then approve a video and use "Post through phone" in the camp's theatre. Mobilerun's dashboard
-shows the task live and keeps its recording.
+If the agent couldn't give TikTok access to the videos, do it by hand: in Android's Settings, Apps,
+TikTok, Permissions, Photos and videos, choose "Allow all" ("Select photos and videos" hides the
+videos Nomen copies later). The setup task: model `mobilerun/mobile-agent-fast`, up to 60 steps
+(about 30 credits) and 15 minutes; `apps`: Play Store, Settings and TikTok; no logins passed; an
+`outputSchema` for the report (`googleSignInNeeded`, `tiktokInstalled`, `photoAccess`,
+`tiktokLoggedIn`, `reason`).
+
+Then approve a video and use "Post through phone" in the camp's theatre, ticking "Only you" for a
+first private test. Mobilerun's dashboard shows each task live and keeps its recording.
 
 ## Mobilerun API used
 
@@ -163,8 +169,9 @@ Checked against docs.mobilerun.ai on 2026-11-07. Base URL `https://api.mobilerun
   - The schedule.
 - `phone_accounts`: one row per brand and platform, with the saved login name (or none if the app
   is already logged in).
-- `phone_sessions`: every warm-up session, with its status, its Mobilerun task, steps, result and
-  timestamps. A scheduled session is unique per brand, platform and day.
+- `phone_sessions`: every warm-up session, and each setup for posting (`kind` = `setup`), with its
+  status, its Mobilerun task, steps, result and timestamps. A scheduled session is unique per
+  brand, platform and day.
 - `phone_parks`: phones waiting to be parked, one row per phone, with when to try next, how many
   tries failed and the last error. A row is removed once the phone is parked or can't be.
 - `phone_posts`: every post through a phone: the video, its title and caption, public or private
@@ -188,6 +195,7 @@ are only read (posting reads the video, its cut and its earlier posts).
 | `PUT /api/phones/schedule` | `{ brandId, enabled, days }` |
 | `POST /api/phones/sessions` | Run now (`{ brandId, platform? }`) |
 | `POST /api/phones/sessions/{id}/cancel` | Stop a session |
+| `POST /api/phones/setup` | Set the brand's phone up for posting (`{ brandId }`): install TikTok and allow it all photos and videos |
 | `GET /api/phones/posts?brandId=` | Whether "Post through phone" is offered here and can run now (if not, what to do first), its cost, and the brand's phone posts |
 | `POST /api/phones/posts` | Post one finished, approved video through the brand's phone (`{ creativeId, visibility? }`: `"public"`, the default, or `"private"` for TikTok's "Only you") |
 

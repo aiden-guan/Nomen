@@ -10,7 +10,8 @@ export type SessionView = {
   id: string;
   platform: Platform;
   platformLabel: string;
-  kind: "manual" | "scheduled";
+  /** "setup": the one-time setup for posting (install TikTok, allow its photos), not a warm-up. */
+  kind: "manual" | "scheduled" | "setup";
   day: number | null;
   status: "pending" | "waiting" | "starting" | "queued" | "running" | "succeeded" | "failed" | "cancelled";
   minutes: number;
@@ -145,7 +146,7 @@ export function SessionLine({ session, now, action }: { session: SessionView; no
           <span className="font-medium">{session.platformLabel}</span>
           <SessionBadge status={session.status} />
           <span className="text-xs text-zinc-500">
-            {session.kind === "scheduled" && session.day ? `Day ${session.day}` : "Run now"} · {session.minutes} min
+            {session.kind === "setup" ? "Setup for posting" : session.kind === "scheduled" && session.day ? `Day ${session.day}` : "Run now"} · {session.minutes} min
             {session.steps != null && ` · ${session.steps} steps`} · {ago(when, now)}
           </span>
         </div>

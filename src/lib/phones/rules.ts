@@ -52,6 +52,12 @@ export const estimateCredits = (minutes: number) => Math.round(taskLimits(minute
 export const POST_LIMITS = { maxSteps: 80, executionTimeout: 900, minutes: 15 };
 export const estimatePostCredits = () => Math.round(POST_LIMITS.maxSteps * 0.5);
 
+/**
+ * The one-time setup for posting (install TikTok, let it see the phone's videos). The phone stays
+ * on for `keepOnMs` after it, so a person can sign in to Google or TikTok on it, then it is parked.
+ */
+export const SETUP_LIMITS = { maxSteps: 60, executionTimeout: 900, minutes: 15, keepOnMs: 30 * 60 * 1000 };
+
 const CAPTION_MAX = 2200; // TikTok's caption limit
 const AI_TAG = "#AIgenerated";
 
@@ -109,6 +115,29 @@ export function postOutcome(task: Pick<TaskStatus, "status" | "succeeded" | "mes
           ? `The phone agent couldn't finish: ${sentence(task.message.trim())}`
           : "The task failed without a reason from Mobilerun.";
   return { status: "failed", url: null, warn: true, message: `${why} ${MAY_BE_OUT}` };
+}
+
+/**
+ * What the setup task did, from its report (`SETUP_OUTPUT_SCHEMA`), and what is left for a person.
+ * Signing in to Google or TikTok is always a person's job; the agent only reports the need.
+ */
+export function setupOutcome(task: Pick<TaskStatus, "status" | "succeeded" | "message" | "execution" | "output">): { status: "succeeded" | "failed" | "cancelled"; message: string } {
+  if (sessionStatusFor(task) === "cancelled") return { status: "cancelled", message: "Stopped before it finished." };
+  const report = (task.output ?? null) as { googleSignInNeeded?: unknown; tiktokInstalled?: unknown; photoAccess?: unknown; tiktokLoggedIn?: unknown; reason?: unknown } | null;
+  if (!report) return { status: "failed", message: describeTaskOutcome(task, SETUP_LIMITS.minutes) };
+  const reason = typeof report.reason === "string" ? report.reason.trim() : "";
+  if (report.googleSignInNeeded === true) {
+    return { status: "failed", message: "Sign in to Google Play on the phone first (open its screen in Mobilerun's dashboard), then run the setup again." };
+  }
+  if (report.tiktokInstalled !== true) return { status: "failed", message: `TikTok isn't installed${reason ? `: ${sentence(reason)}` : "."}` };
+  if (report.photoAccess !== true) {
+    return { status: "failed", message: "TikTok is installed but can't see the phone's videos yet: in Android's Settings, open Apps, TikTok, Permissions, Photos and videos, and choose Allow all." };
+  }
+  if (report.tiktokLoggedIn === true) return { status: "succeeded", message: "TikTok is installed, can see the phone's videos and is logged in: the phone is ready to post." };
+  return {
+    status: "succeeded",
+    message: "TikTok is installed and can see the phone's videos. Left for you: log in to the brand's TikTok on the phone's screen in Mobilerun's dashboard. The phone stays on for 30 minutes.",
+  };
 }
 
 /** Which day of the schedule `at` falls in (0-based), or null outside it. */
