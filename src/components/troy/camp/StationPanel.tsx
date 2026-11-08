@@ -1,16 +1,20 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef } from "react";
-import type { BrandView, CreativeView } from "../api";
+import { type ReactNode, type SyntheticEvent, useEffect, useRef, useState } from "react";
+import { type BrandView, type CreativeView, type PostView, type SocialAccountView, socialAccounts } from "../api";
 import type { Baker } from "../engine/baker";
 import type { BattlePlan } from "../scenes/battle";
 import { type AgentPlan, type CampPlan, runLabel, stationForEvent } from "../scenes/derive";
 import { LAND, landFor, STATION, type StationId } from "../scenes/layout";
 import styles from "../troy.module.css";
 import { Basket, VideoDossier } from "./AgentCard";
-import { type CampActions } from "./Camp";
-import { ago, money, platformName, when } from "./format";
+import { type CampActions, Pip } from "./Camp";
+import { ago, money, platformName, remakeLine, when } from "./format";
+import { InternalBadge, ReferenceList, RoleBadge } from "./References";
 import { CampMap, Chip, crispIfTiny, Emblem, greekName, Icon, type IconName, Parchment, Portrait, quote, Section, Stat, STATE_COLOR, STATE_WORD, Steps } from "./ui";
+
+/** What a brief's video is judged on once posted, as the War tent says it. */
+const METRIC_WORDS: Record<string, string> = { views: "views", shares: "shares", saves: "saves", link_clicks: "link clicks", sign_ups: "sign-ups", purchases: "purchases" };
 
 /** What each station does, in a sentence, for someone seeing the camp for the first time. */
 const ABOUT: Record<StationId, string> = {
@@ -136,12 +140,12 @@ export function StationPanel({
           {agents.length > 12 && <p className="mt-2 text-[12px] text-[var(--ink-soft)]">and {agents.length - 12} more</p>}
         </Section>
 
-        {id === "scouts" && <Scouts view={view} />}
-        {id === "oracle" && <Oracle view={view} state={state.state} />}
+        {id === "scouts" && <Scouts view={view} actions={actions} />}
+        {id === "oracle" && <Oracle view={view} state={state.state} actions={actions} />}
         {id === "tent" && <Tent view={view} focus={focus ?? null} />}
         {id === "workshop" && <Workshop view={view} busy={busy} actions={actions} />}
-        {id === "theatre" && <Theatre view={view} busy={busy} actions={actions} />}
-        {id === "agora" && <Agora view={view} />}
+        {id === "theatre" && <Theatre view={view} busy={busy} actions={actions} demo={Boolean(demo)} focus={focus ?? null} />}
+        {id === "agora" && <Agora view={view} actions={actions} />}
 
         {latest.length > 0 && (
           <Section title="Latest here">
@@ -206,13 +210,29 @@ function Progress({ value, color }: { value: number; color: string }) {
 const RUN_ICON: Record<string, IconName> = { pending: "hourglass", running: "horse", done: "scroll", failed: "cross" };
 const RUN_WORD: Record<string, string> = { pending: "Waiting", running: "Out riding", done: "Back", failed: "Empty-handed" };
 
-function Scouts({ view }: { view: BrandView }) {
+/** A nudge to bring the brand kit while it can still shape this campaign's product study. */
+function KitNudge({ actions, children }: { actions: CampActions; children: ReactNode }) {
+  if (!actions.openKit) return null;
+  return (
+    <p className="mb-6 bg-[rgba(201,143,58,0.12)] px-3 py-2 text-[12px] leading-snug">
+      {children}{" "}
+      <button type="button" className={`${styles.link} ${styles.pixel} underline decoration-dotted underline-offset-4`} onClick={actions.openKit}>
+        Open the brand kit
+      </button>
+    </p>
+  );
+}
+
+function Scouts({ view, actions }: { view: BrandView; actions: CampActions }) {
   const campaign = view.campaign;
   if (!campaign) return null;
   const plan = campaign.plan;
   const pack = campaign.research;
   return (
     <>
+      {campaign.stage === "research" && campaign.status === "running" && (
+        <KitNudge actions={actions}>While the scouts are out: give the agents your real logo, product screens and code, so the videos show the actual product.</KitNudge>
+      )}
       {pack && (
         <Section title="What came back">
           <div className="grid grid-cols-4 gap-2">
@@ -268,9 +288,48 @@ function Scouts({ view }: { view: BrandView }) {
   );
 }
 
-function Oracle({ view, state }: { view: BrandView; state: string }) {
+function Oracle({ view, state, actions }: { view: BrandView; state: string; actions: CampActions }) {
   const campaign = view.campaign;
   if (!campaign) return null;
+  const study = campaign.study ?? null;
+  const references = campaign.references ?? [];
+  // The creative engine's reference study; campaigns from before it (and the demo) had a format study.
+  if (study || references.length) {
+    const ready = campaign.creatives.filter((c) => c.status === "ready");
+    const onScreen = (creativeId: string) => {
+      const creative = ready.find((c) => c.id === creativeId);
+      if (creative) actions.screen(creative);
+    };
+    const studied = references.filter((r) => r.status === "studied").length;
+    return (
+      <>
+        {study && (
+          <Section title="The study">
+            <dl className="space-y-1.5 text-[13px]">
+              <Row label="Product">{study.product ? `${study.product.name}: ${study.product.oneLiner}` : "Reading the site…"}</Row>
+              {study.product && (
+                <Row label="On screen">
+                  {study.product.visuals} visuals{study.product.fromKit ? `, ${study.product.fromKit} from your brand kit` : ""}
+                  {!study.captured && " · screenshotting the site…"}
+                </Row>
+              )}
+              {study.screened > 0 && <Row label="Screened">{`${study.kept} of ${study.screened} top videos could be remade for this product`}</Row>}
+              {(study.picked > 0 || study.studied > 0) && <Row label="Broken down">{study.done ? `${study.studied} of ${Math.max(study.picked, study.studied)}${study.failed ? ` (${study.failed} couldn't be read)` : ""}` : `${study.studied} of ${Math.max(study.picked, study.studied)}, beat by beat…`}</Row>}
+            </dl>
+            {campaign.spend.style > 0 && <p className="mt-2 text-[12px] text-[var(--ink-faint)]">Cost so far {money(campaign.spend.style)}</p>}
+          </Section>
+        )}
+        {study && !study.product?.fromKit && state === "working" && <KitNudge actions={actions}>The oracle works best with your real screens and logo.</KitNudge>}
+        <Section title={`Viral references${studied ? ` · ${studied} broken down` : ""}`}>
+          {references.length === 0 ? (
+            <p className="text-[13px] text-[var(--ink-soft)]">The oracle ranks the videos the scouts found by how far they outran their accounts, then breaks the best down beat by beat. They show up here as soon as they&apos;re picked.</p>
+          ) : (
+            <ReferenceList references={references} onScreen={onScreen} />
+          )}
+        </Section>
+      </>
+    );
+  }
   const style = campaign.style;
   const steps = ["Gather the top videos", "Watch them frame by frame", "Write the format down"];
   const current = state === "done" ? 3 : state === "working" ? 1 : 0;
@@ -295,23 +354,83 @@ function Oracle({ view, state }: { view: BrandView; state: string }) {
   );
 }
 
-function Tent({ view, focus }: { view: BrandView; focus: string | null }) {
-  const strategy = view.campaign?.strategy;
-  const conceptsRef = useRef<HTMLDivElement>(null);
-  const planned = Boolean(strategy);
+/**
+ * The demo tour's pointer: once `ready`, scrolls the panel's own box (never the page, as
+ * scrollIntoView would) so the returned mark is at its top.
+ */
+function useScrollMark(on: boolean, ready: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const mark = conceptsRef.current;
-    if (focus !== "concepts" || !planned || !mark) return;
-    // The panel's own scrolling box (scrollIntoView would scroll the page too).
+    const mark = ref.current;
+    if (!on || !ready || !mark) return;
     let box = mark.parentElement;
     while (box && !(box.scrollHeight > box.clientHeight && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
     if (box) box.scrollTo({ top: box.scrollTop + mark.getBoundingClientRect().top - box.getBoundingClientRect().top - 8, behavior: "smooth" });
-  }, [focus, planned]);
+  }, [on, ready]);
+  return ref;
+}
+
+function Tent({ view, focus }: { view: BrandView; focus: string | null }) {
+  const strategy = view.campaign?.strategy;
+  const conceptsRef = useScrollMark(focus === "concepts", Boolean(strategy));
+  const engine = Boolean(view.campaign?.study || view.campaign?.references?.length);
   if (!strategy) {
     return (
       <Section title="Battle plan">
-        <p className="text-[13px] text-[var(--ink-soft)]">The strategist writes the brand brief, the search plan and every concept once the research is in.</p>
+        <p className="text-[13px] text-[var(--ink-soft)]">
+          {engine
+            ? "The creative director reads the oracle's breakdowns and picks which viral video each of ours remakes, and how. Then the script room writes every video line by line, and a critic scores each script."
+            : "The strategist writes the brand brief, the search plan and every concept once the research is in."}
+        </p>
       </Section>
+    );
+  }
+  const briefs = strategy.campaign.briefs ?? [];
+  const references = view.campaign?.references ?? [];
+  if (briefs.length) {
+    const concepts = strategy.campaign.concepts ?? [];
+    return (
+      <>
+        <Section title="The brief">
+          <p className={`${styles.pixel} text-[17px] leading-snug`}>{strategy.campaign.name}</p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-soft)]">{strategy.campaign.objective}</p>
+          <dl className="mt-3 space-y-1.5 text-[13px]">
+            <Row label="Brand">{strategy.brand.one_liner}</Row>
+            {strategy.audience.length > 0 && <Row label="For">{strategy.audience.map((a) => a.name).join(", ")}</Row>}
+          </dl>
+        </Section>
+        <Section title={`Videos · ${concepts.length} of ${briefs.length} scripted`}>
+          <ol className="space-y-3.5">
+            {briefs.map((brief, i) => {
+              const reference = references.find((r) => r.id && r.id === brief.reference_id);
+              const concept = concepts.find((c) => c.brief?.title === brief.title);
+              const review = concept?.script?.review;
+              return (
+                <li key={`${brief.title}-${i}`} className="text-[13px]">
+                  <p className="font-semibold">
+                    {i + 1}. {brief.title} <span className="font-normal text-[var(--ink-faint)]">· {brief.format.replace(/_/g, " ")}</span>
+                  </p>
+                  {(brief.role || brief.metric) && (
+                    <p className="mt-1 flex items-center gap-2 text-[12px] text-[var(--ink-soft)]">
+                      {brief.role && <RoleBadge role={brief.role} />}
+                      {brief.metric && <span>judged on {METRIC_WORDS[brief.metric] ?? brief.metric.replace(/_/g, " ")}</span>}
+                    </p>
+                  )}
+                  {reference && <p className="mt-0.5 text-[12px] text-[var(--crimson)]">{remakeLine(reference)}</p>}
+                  <p className="mt-0.5 leading-snug text-[var(--ink-soft)]">{brief.hook_plan || brief.angle}</p>
+                  <p className="mt-0.5 text-[12px] text-[var(--ink-faint)]">
+                    {concept?.script
+                      ? concept.script.beats.length
+                        ? `Script ${Math.round(concept.script.total_seconds)} s, ${concept.script.beats.length} beats${review ? ` · critic ${review.score}/10` : ""}`
+                        : `${Math.round(concept.script.total_seconds)} s video`
+                      : "The script room is writing it…"}
+                  </p>
+                </li>
+              );
+            })}
+          </ol>
+        </Section>
+      </>
     );
   }
   return (
@@ -374,9 +493,24 @@ function Workshop({ view, busy, actions }: { view: BrandView; busy: string | nul
             <li key={creative.id} className="bg-[rgba(43,29,20,0.04)] px-3 py-3 text-[13px]">
               <div className="mb-2 flex items-baseline gap-2">
                 <span className="min-w-0 flex-1 truncate font-semibold">{creative.concept?.title ?? `Video ${creative.idx + 1}`}</span>
+                {creative.internal && <InternalBadge cleared={creative.cleared} />}
+                {creative.role && <RoleBadge role={creative.role} />}
                 <Chip tone={creative.status === "ready" ? "olive" : creative.status === "failed" ? "crimson" : creative.status === "producing" ? "crimson" : "faint"}>{creative.status}</Chip>
               </div>
+              {creative.reference && (
+                <p className="mt-0.5 truncate text-[12px] text-[var(--crimson)]">
+                  <a href={creative.reference.url} target="_blank" rel="noreferrer" className={styles.link}>
+                    {remakeLine(creative.reference)}
+                  </a>
+                </p>
+              )}
+              {(creative.concept?.format || creative.script) && (
+                <p className="mb-1 mt-0.5 text-[12px] text-[var(--ink-faint)]">
+                  {[creative.concept?.format?.replace(/_/g, " "), creative.script ? `${Math.round(creative.script.seconds)} s script` : null, creative.script?.critic ? `critic ${creative.script.critic}/10` : null].filter(Boolean).join(" · ")}
+                </p>
+              )}
               <VideoDossier creative={creative} compact />
+              {creative.error && <p className="mt-1 text-[12px] text-[var(--crimson-dark)]">{creative.error}</p>}
               {(creative.status === "failed" || creative.status === "ready") && (
                 <button
                   type="button"
@@ -395,14 +529,25 @@ function Workshop({ view, busy, actions }: { view: BrandView; busy: string | nul
   );
 }
 
-function Theatre({ view, busy, actions }: { view: BrandView; busy: string | null; actions: CampActions }) {
+function Theatre({ view, busy, actions, demo, focus }: { view: BrandView; busy: string | null; actions: CampActions; demo: boolean; focus: string | null }) {
+  const accounts = useAccounts(demo ? null : view.brand.id, view.brand.connected);
   const campaign = view.campaign;
+  const finished = (campaign?.creatives ?? []).filter((c) => c.status === "ready").sort((a, b) => a.idx - b.idx);
+  // Real-creator mode: a brief cast to a creator, waiting for your OK to send its outreach. A brief
+  // can have its video, its creator, or both (an AI campaign whose briefs were also cast).
+  const briefs = finished.filter((c) => castingOf(c));
+  const ready = finished.filter((c) => c.videoUrl || !castingOf(c));
+  const creatorsRef = useScrollMark(focus === "creators", briefs.length > 0);
   if (!campaign) return null;
-  const ready = campaign.creatives.filter((c) => c.status === "ready").sort((a, b) => a.idx - b.idx);
   const approved = ready.filter((c) => c.approved).length;
-  const canPublish = campaign.status === "review" || campaign.status === "live";
+  // Approved videos with no post yet (a failed post can go again). A real campaign can post a
+  // finished video while the others are still being made; the demo's replay posts from the review.
+  const sent = new Set(campaign.posts.filter((p) => p.status !== "failed").map((p) => p.creativeId));
+  const unposted = ready.filter((c) => c.approved && !sent.has(c.id)).length;
+  const canPublish = unposted > 0 && (!demo || campaign.status === "review" || campaign.status === "live");
   return (
     <>
+      {(ready.length > 0 || briefs.length === 0) && (
       <Section title={`The cut · ${approved}/${ready.length} approved`}>
         {ready.length === 0 ? (
           <p className="text-[13px] text-[var(--ink-soft)]">Finished videos play here for you to approve.</p>
@@ -414,32 +559,145 @@ function Theatre({ view, busy, actions }: { view: BrandView; busy: string | null
           </ul>
         )}
       </Section>
+      )}
       {ready.length > 0 && (
         <Section title="Send them out">
-          {!view.brand.connected && (
-            <p className="mb-3 text-[12px] leading-relaxed text-[var(--ink-soft)]">
-              Posting goes to the brand&apos;s own accounts, labeled AI-generated. Connect them once:{" "}
-              <button type="button" className={`${styles.link} underline decoration-dotted underline-offset-4`} onClick={actions.connect}>
-                {busy === "connect" ? "Opening…" : "connect accounts"}
-              </button>
-              .
-            </p>
-          )}
+          {demo ? null : <Accounts state={accounts} busy={busy} connect={actions.connect} />}
           <div className="flex flex-wrap gap-3">
             <button type="button" className={`${styles.button} ${styles.buttonInk} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={busy === "approve" || approved === ready.length} onClick={actions.approveAll}>
               Approve all
             </button>
-            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || approved === 0 || busy === "daily"} onClick={() => actions.publish("daily")}>
+            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || busy === "daily"} onClick={() => actions.publish("daily")}>
               {busy === "daily" ? <span className={styles.spinner} aria-hidden="true" /> : null} One a day
             </button>
-            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || approved === 0 || busy === "now"} onClick={() => actions.publish("now")}>
+            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || busy === "now"} onClick={() => actions.publish("now")}>
               {busy === "now" ? <span className={styles.spinner} aria-hidden="true" /> : null} Post now
             </button>
           </div>
           <p className="mt-2 text-[11px] text-[var(--ink-faint)]">&ldquo;One a day&rdquo; posts each approved video at 16:00 UTC on consecutive days.</p>
         </Section>
       )}
+      <div ref={creatorsRef} className="scroll-mt-3" />
+      {briefs.length > 0 && (
+        <Section title={`Creator briefs · ${briefs.filter((c) => c.approved).length}/${briefs.length} approved to send`}>
+          <ul className="grid grid-cols-1 gap-3">
+            {briefs.map((creative) => (
+              <CastingCard key={creative.id} creative={creative} casting={castingOf(creative)!} busy={busy} actions={actions} />
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-[var(--ink-faint)]">The client-taste agent approved each creator and brief. Nothing goes out until you send it.</p>
+        </Section>
+      )}
     </>
+  );
+}
+
+type AccountsState = { accounts: SocialAccountView[] | null; error: string | null };
+
+/** The brand's connected accounts, read live from Naive when the theatre opens (none before it is activated). */
+function useAccounts(brandId: string | null, activated: boolean): AccountsState {
+  const [state, setState] = useState<AccountsState>({ accounts: null, error: null });
+  useEffect(() => {
+    if (!brandId) return;
+    if (!activated) {
+      setState({ accounts: [], error: null });
+      return;
+    }
+    let alive = true;
+    socialAccounts(brandId).then(
+      (result) => alive && setState(result),
+      (error: unknown) => alive && setState({ accounts: null, error: error instanceof Error ? error.message : String(error) }),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [brandId, activated]);
+  return state;
+}
+
+/** Where posts go, or the way to connect the brand's accounts. */
+function Accounts({ state, busy, connect }: { state: AccountsState; busy: string | null; connect: () => void }) {
+  const link = (label: string) => (
+    <button type="button" className={`${styles.link} underline decoration-dotted underline-offset-4`} onClick={connect}>
+      {busy === "connect" ? "Opening…" : label}
+    </button>
+  );
+  const { accounts, error } = state;
+  return (
+    <p className="mb-3 text-[12px] leading-relaxed text-[var(--ink-soft)]">
+      {error ? (
+        <>Couldn&apos;t read the brand&apos;s accounts ({error}). {link("Connect accounts")}</>
+      ) : accounts === null ? (
+        "Checking the brand's accounts…"
+      ) : accounts.length === 0 ? (
+        <>Posting goes to the brand&apos;s own accounts, labeled AI-generated. Connect them once: {link("connect accounts")}.</>
+      ) : (
+        <>
+          Posting to {accounts.map((a) => `${platformName(a.platform)} ${a.name}`).join(", ")}, labeled AI-generated. {link("Add accounts")}
+        </>
+      )}
+    </p>
+  );
+}
+
+/** What real-creator mode keeps on a brief (creative/casting.ts), as the camp shows it. */
+type CastingView = {
+  status: string;
+  pick: { handle: string; platform: string; followers: number | null; url: string; evidence: string } | null;
+  briefing: { title: string; hook: string; summary: string; fee: string } | null;
+  reviews: Array<{ creator: string; approve: boolean; score: number; reasons: string[] }>;
+  outreach: { channel: string; message: string } | null;
+};
+
+function castingOf(creative: CreativeView): CastingView | null {
+  const casting = (creative.concept as unknown as { casting?: CastingView } | null)?.casting;
+  return casting?.pick ? casting : null;
+}
+
+const followersLabel = (n: number | null) => (n === null ? "" : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M followers` : n >= 1e3 ? `${Math.round(n / 1e3)}K followers` : `${n} followers`);
+
+function CastingCard({ creative, casting, busy, actions }: { creative: CreativeView; casting: CastingView; busy: string | null; actions: CampActions }) {
+  const key = `approve:${creative.id}`;
+  const pick = casting.pick!;
+  const verdict = casting.reviews.filter((r) => r.creator === pick.handle).at(-1);
+  const turnedDown = casting.reviews.filter((r) => r.creator !== pick.handle).map((r) => `@${r.creator}`);
+  return (
+    <li className="border-2 border-[var(--ink)] bg-[var(--paper)] p-3 text-[12px]">
+      <p className="font-semibold leading-snug">{casting.briefing?.title ?? creative.concept?.title}</p>
+      <p className="mt-1 text-[11px] text-[var(--ink-soft)]">
+        Creator:{" "}
+        <a href={pick.url} target="_blank" rel="noreferrer" className="font-semibold underline">
+          @{pick.handle}
+        </a>{" "}
+        · {pick.platform === "instagram" ? "Instagram" : "TikTok"}
+        {pick.followers !== null ? ` · ${followersLabel(pick.followers)}` : ""}
+      </p>
+      {pick.evidence && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--ink-faint)]">Made: {pick.evidence}</p>}
+      {creative.reference && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--crimson)]">{remakeLine(creative.reference)}</p>}
+      {casting.briefing && <p className="mt-2 italic leading-snug">&ldquo;{casting.briefing.hook}&rdquo;</p>}
+      {verdict && (
+        <p className="mt-2 text-[11px] leading-snug">
+          <span className="font-semibold text-[var(--crimson)]">
+            Client taste {verdict.approve ? "approved" : "turned down"} · {verdict.score}/10
+          </span>{" "}
+          {verdict.reasons[0] ?? ""}
+          {turnedDown.length ? ` (turned down before: ${turnedDown.join(", ")})` : ""}
+        </p>
+      )}
+      {casting.outreach && (
+        <details className="mt-2">
+          <summary className={`${styles.pixel} cursor-pointer text-[11px]`}>Outreach draft{casting.briefing?.fee ? ` · ${casting.briefing.fee}` : ""}</summary>
+          <p className="mt-1 whitespace-pre-wrap text-[11px] leading-snug">{casting.outreach.message}</p>
+          <button type="button" className={`${styles.button} ${styles.pixel} mt-1 h-7 px-2 text-[11px]`} onClick={() => void navigator.clipboard?.writeText(casting.outreach!.message)}>
+            Copy
+          </button>
+        </details>
+      )}
+      <label className="mt-2 flex cursor-pointer items-center gap-2">
+        <input type="checkbox" checked={creative.approved} disabled={busy === key} onChange={(event) => actions.approve(creative, event.target.checked)} className="size-4 accent-[var(--crimson)]" />
+        <span className={styles.pixel}>{creative.approved ? "Approved to send" : "Approve to send"}</span>
+      </label>
+    </li>
   );
 }
 
@@ -466,11 +724,17 @@ function VideoCard({ creative, busy, actions }: { creative: CreativeView; busy: 
           </span>
         )}
       </button>
-      <p className="mt-1.5 line-clamp-2 font-semibold leading-snug">{title}</p>
+      <p className="mt-1.5 flex items-start gap-1.5 font-semibold leading-snug">
+        <span className="line-clamp-2 min-w-0 flex-1">{title}</span>
+        {creative.internal && <InternalBadge cleared={creative.cleared} />}
+      </p>
+      {creative.reference && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--crimson)]">{remakeLine(creative.reference)}</p>}
       <label className="mt-1 flex cursor-pointer items-center gap-2">
         <input type="checkbox" checked={creative.approved} disabled={busy === key} onChange={(event) => actions.approve(creative, event.target.checked)} className="size-4 accent-[var(--crimson)]" />
         <span className={styles.pixel}>{creative.approved ? "Approved" : "Approve"}</span>
-        {creative.qcScore ? <span className="ml-auto text-[var(--ink-faint)]">QC {creative.qcScore}</span> : null}
+        {creative.script?.critic || creative.qcScore ? (
+          <span className="ml-auto text-[var(--ink-faint)]">{[creative.script?.critic ? `script ${creative.script.critic}` : null, creative.qcScore ? `QC ${creative.qcScore}` : null].filter(Boolean).join(" · ")}</span>
+        ) : null}
       </label>
     </li>
   );
@@ -527,49 +791,74 @@ function Battle({ battle, category }: { battle: BattlePlan; category: string | n
   );
 }
 
-function Agora({ view }: { view: BrandView }) {
+function Agora({ view, actions }: { view: BrandView; actions: CampActions }) {
   const campaign = view.campaign;
   if (!campaign) return null;
   const posts = campaign.posts;
   return (
-    <Section title={`Posts · ${posts.length}`}>
-      {posts.length === 0 ? (
-        <p className="text-[13px] text-[var(--ink-soft)]">Approve videos in the theatre, then send them out. The herald posts each one to the brand&apos;s own accounts.</p>
-      ) : (
-        <ul className="space-y-3">
-          {posts.map((post) => {
-            const creative = campaign.creatives.find((c) => c.id === post.creativeId);
-            const title = creative?.concept?.title ?? "Video";
-            const numbers = post.analytics ? Object.entries(post.analytics).filter(([, v]) => typeof v === "number").slice(0, 3) : [];
-            const step = post.status === "posted" || post.status === "scheduled" ? 3 : post.status === "processing" ? 2 : post.status === "failed" ? 2 : 1;
-            return (
-              <li key={post.id} className="flex gap-3 bg-[rgba(43,29,20,0.04)] p-2.5 text-[13px]">
-                {creative?.posterUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={creative.posterUrl} alt="" onLoad={crispIfTiny} className="aspect-[9/16] w-[38px] shrink-0 self-start bg-[var(--ink)] object-cover" />
-                ) : (
-                  <span className="aspect-[9/16] w-[38px] shrink-0 self-start bg-[var(--ink)]" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{title}</p>
-                  <p className="mb-2 mt-0.5 flex flex-wrap gap-1">
-                    {post.platforms.map((p) => (
-                      <Chip key={p} tone="ink">
-                        {platformName(p)}
-                      </Chip>
-                    ))}
-                  </p>
-                  <Steps steps={["Queued", "Sent", post.status === "scheduled" ? `On ${when(post.scheduledAt)}` : "Posted"]} current={step} failed={post.status === "failed"} />
-                  {numbers.length > 0 && <p className="mt-1.5 text-[12px] text-[var(--ink-soft)]">{numbers.map(([k, v]) => `${k} ${(v as number).toLocaleString()}`).join(" · ")}</p>}
-                  {post.error && <p className="mt-1 text-[12px] text-[var(--crimson-dark)]">{post.error}</p>}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+    <>
+      {actions.openAutopilot && (
+        <p className="mb-6 bg-[rgba(45,123,152,0.1)] px-3 py-2 text-[12px] leading-snug">
+          Once these posts are out, autopilot can send the next campaign by itself, every few days and within a weekly budget you set.{" "}
+          <button type="button" className={`${styles.link} ${styles.pixel} underline decoration-dotted underline-offset-4`} onClick={actions.openAutopilot}>
+            Open autopilot
+          </button>
+        </p>
       )}
-    </Section>
+      <Section title={`Posts · ${posts.length}`}>
+        {posts.length === 0 ? (
+          <p className="text-[13px] text-[var(--ink-soft)]">Approve videos in the theatre, then send them out. The herald posts each one to the brand&apos;s own accounts.</p>
+        ) : (
+          <ul className="space-y-3">
+            {posts.map((post) => {
+              const creative = campaign.creatives.find((c) => c.id === post.creativeId);
+              const title = creative?.concept?.title ?? "Video";
+              const numbers = postNumbers(post);
+              const step = post.status === "posted" || post.status === "scheduled" ? 3 : post.status === "processing" ? 2 : post.status === "failed" ? 2 : 1;
+              return (
+                <li key={post.id} className="flex gap-3 bg-[rgba(43,29,20,0.04)] p-2.5 text-[13px]">
+                  {creative?.posterUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={creative.posterUrl} alt="" onLoad={crispIfTiny} className="aspect-[9/16] w-[38px] shrink-0 self-start bg-[var(--ink)] object-cover" />
+                  ) : (
+                    <span className="aspect-[9/16] w-[38px] shrink-0 self-start bg-[var(--ink)]" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{title}</p>
+                    <p className="mb-2 mt-0.5 flex flex-wrap gap-1">
+                      {post.platforms.map((p) => (
+                        <Chip key={p} tone="ink">
+                          {platformName(p)}
+                        </Chip>
+                      ))}
+                    </p>
+                    <Steps steps={["Queued", "Sent", post.status === "scheduled" ? `On ${when(post.scheduledAt)}` : "Posted"]} current={step} failed={post.status === "failed"} />
+                    {numbers.length > 0 && <p className="mt-1.5 text-[12px] text-[var(--ink-soft)]">{numbers.map(([k, v]) => `${COMPACT.format(v)} ${k}`).join(" · ")}</p>}
+                    {post.url && (
+                      <a href={post.url} target="_blank" rel="noreferrer" className={`${styles.link} mt-1 inline-block text-[12px] underline decoration-dotted underline-offset-4`}>
+                        See the post
+                      </a>
+                    )}
+                    {post.error && <p className={`mt-1 text-[12px] ${post.status === "failed" ? "text-[var(--crimson-dark)]" : "text-[var(--ink-faint)]"}`}>{post.error}</p>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
+    </>
   );
+}
+
+const COMPACT = new Intl.NumberFormat("en", { notation: "compact" });
+
+/** A post's numbers: the stats read from the network's analytics, or (the demo) its flat analytics. */
+function postNumbers(post: PostView): Array<[string, number]> {
+  const stats: Record<string, unknown> = post.stats && Object.keys(post.stats).length ? post.stats : (post.analytics ?? {});
+  return Object.entries(stats)
+    .filter((entry): entry is [string, number] => typeof entry[1] === "number")
+    .slice(0, 4);
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {

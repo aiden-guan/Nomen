@@ -33,7 +33,7 @@ const SHOWN = 0.4;
 
 const count = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 
 /** "a, b and c". */
 function list(items: string[]) {
@@ -61,6 +61,13 @@ function making(format: string, brand: string) {
   if (/remake|clone/i.test(format)) return "the remake is filmed again with an AI presenter, line for line";
   return `the ${format} is filmed and cut`;
 }
+
+/** A brief's real-creator casting, when it has one (creative/casting.ts, in the concept). */
+type Cast = { pick?: { handle: string } | null; reviews: Array<{ creator: string; approve: boolean; score?: number }> };
+const castOf = (concept: unknown) => {
+  const cast = (concept as { casting?: Cast } | null)?.casting;
+  return cast?.pick ? (cast as Cast & { pick: { handle: string } }) : null;
+};
 
 /** The research's format checks ("3D simulation shorts are breaking out"), from the scouts' lines. */
 function formatChecks(script: DemoScript) {
@@ -153,6 +160,25 @@ export function tourSteps(script: DemoScript): TourStep[] {
       video: creative.idx,
     });
   });
+
+  // The same briefs cast to real creators, when the recording has their castings.
+  const cast = videos.map((c) => castOf(c.concept)).filter((c): c is NonNullable<ReturnType<typeof castOf>> => c !== null);
+  if (cast.length) {
+    const picks = cast.map((c) => {
+      const verdict = c.reviews.filter((r) => r.creator === c.pick.handle).at(-1);
+      return `@${c.pick.handle}${verdict?.score ? ` (${verdict.score}/10)` : ""}`;
+    });
+    const turnedDown = cast.reduce((n, c) => n + c.reviews.filter((r) => !r.approve).length, 0);
+    steps.push({
+      key: "creators",
+      title: "Or hand them to real creators",
+      body: `The same briefs can go to people who already make these videos. A client-taste agent playing ${brand} vets each creator${turnedDown ? `, turned down ${plural(turnedDown, "of them", "of them")}` : ""} and approved ${list(picks)}. Their outreach messages are drafted and wait for you to send.`,
+      at: tl.review,
+      hold: tl.review,
+      station: "theatre",
+      focus: "creators",
+    });
+  }
 
   const platforms = [...new Set(videos.flatMap((c) => c.platforms ?? []))].map((p) => ({ tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube" })[p] ?? capital(p));
   steps.push({

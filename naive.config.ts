@@ -21,5 +21,16 @@ export default defineProject({
       tools: { default_config: { permission: "deny" }, configs: {} },
       handoffs: false,
     },
+    {
+      // The creative engine's director: picks which proven reference video each ad transplants and
+      // writes the briefs the script room works from. Same budget and no tools, like the strategist.
+      name: "nomen-director",
+      description: "Turns Nomen's product brief and reference-video breakdowns into a brand brief, a search plan and one video brief per ad.",
+      model: "anthropic/claude-sonnet-5.5",
+      budget: { cap_micro_usd: 40_000_000, max_task_micro_usd: 4_000_000, period: "month" },
+      system: readFileSync(new URL("./naive/agents/director.md", import.meta.url), "utf8"),
+      tools: { default_config: { permission: "deny" }, configs: {} },
+      handoffs: false,
+    },
   ],
 });

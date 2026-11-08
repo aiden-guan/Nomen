@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { BrandView } from "@/lib/views";
+import { AutopilotPanel } from "./AutopilotPanel";
 import { campaignBadge } from "./HomeView";
+import { BrandKitPanel } from "./brandkit/BrandKitPanel";
 import { PhonesPanel } from "./phones/PhonesPanel";
 import { CreativeCard } from "./CreativeCard";
 import { Pipeline } from "./Pipeline";
@@ -12,7 +14,7 @@ import { StaticAdsView } from "./StaticAdsView";
 import { StrategyView } from "./StrategyView";
 import { Badge, Button, Card, cx, Empty, Stat } from "./ui";
 
-const TABS = ["Videos", "Static ads", "Strategy", "Research", "Publish", "Phones", "Activity"] as const;
+const TABS = ["Videos", "Static ads", "Strategy", "Research", "Brand kit", "Publish", "Autopilot", "Phones", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 
 export function BrandWorkspace({ initial }: { initial: BrandView }) {
@@ -184,6 +186,8 @@ export function BrandWorkspace({ initial }: { initial: BrandView }) {
           {tab === "Strategy" && (campaign.strategy ? <StrategyView strategy={campaign.strategy} /> : <Empty title="The strategy is not written yet">It follows the research, usually within a few minutes.</Empty>)}
           {tab === "Research" && <ResearchView campaign={campaign} />}
           {tab === "Publish" && <PublishView brandId={view.brand.id} campaign={campaign} onChange={() => void refresh()} />}
+          {tab === "Autopilot" && <AutopilotPanel brandId={view.brand.id} onChange={() => void refresh()} />}
+          {tab === "Brand kit" && <BrandKitPanel brandId={view.brand.id} brandName={view.brand.name} />}
           {tab === "Phones" && <PhonesPanel brandId={view.brand.id} brandName={view.brand.name} niche={niche} />}
           {tab === "Activity" && (
             <Card title="Activity">

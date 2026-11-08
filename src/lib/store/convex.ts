@@ -1,7 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference } from "convex/server";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { BrandSnapshot, EventLine, Files, ListItem, Row, Store } from "./types";
@@ -83,8 +83,10 @@ function convexFiles(call: ConvexCaller, root: string): Files {
       return Boolean(await info(key));
     },
     async localPath(key) {
-      if (existsSync(local(key))) return local(key);
       const found = await info(key);
+      // Some keys are rewritten (a remade first frame, the screens manifest), and ticks may run on
+      // different instances: trust the local copy only while it matches the stored size.
+      if (existsSync(local(key)) && (!found || (await stat(local(key))).size === found.size)) return local(key);
       if (!found?.url) throw new Error(`no stored file ${key}`);
       const { download } = await import("../media");
       return download(found.url, local(key));

@@ -150,21 +150,23 @@ export function derive(view: BrandView | null): CampPlan {
     }
   }
 
-  // Oracle.
+  // Oracle: the reference study (product brief, site screenshots, relevance screen, breakdowns).
+  const study = studyStep(campaign);
   {
     const state = states[1];
-    if (state === "working") set("oracle", "Studying the top videos");
+    if (state === "working") set("oracle", study?.status ?? "Studying the top videos", study?.progress ?? null);
     else if (state === "skipped") set("oracle", "Skipped this time");
-    else if (state === "done") set("oracle", "Format learned", 1);
+    else if (state === "done") set("oracle", campaign?.study?.studied ? `${plural(campaign.study.studied, "viral video")} broken down` : "Format learned", 1);
     else if (state === "failed") set("oracle", campaign?.error ?? "Stopped");
     else set("oracle", "Waiting for the scouts");
   }
 
-  // War tent.
+  // War tent: the creative director's briefs, then the script room writes each video.
+  const room = scriptRoom(campaign);
   {
     const state = states[2];
     const strategy = campaign?.strategy;
-    if (state === "working") set("tent", `Writing ${plural(campaign?.options.concepts ?? 0, "concept")}`);
+    if (state === "working") set("tent", room ? `Script room: ${room.written} of ${plural(room.total, "script")}` : `Writing ${plural(campaign?.options.concepts ?? 0, "concept")}`, room ? room.written / Math.max(1, room.total) : null);
     else if (state === "done" && strategy) set("tent", `“${strategy.campaign.name}”`, 1);
     else if (state === "failed") set("tent", campaign?.error ?? "Stopped");
     else set("tent", "Waiting for the research");
@@ -178,7 +180,9 @@ export function derive(view: BrandView | null): CampPlan {
       const shots = creatives.flatMap((c) => c.shots);
       const rendering = shots.filter((s) => s.status === "rendering").length;
       const checking = shots.filter((s) => s.status === "rendered").length;
-      const doing = rendering ? `${plural(rendering, "shot")} rendering` : checking ? `checking ${plural(checking, "shot")}` : "painting first frames";
+      const framing = shots.some((s) => s.status === "pending");
+      // Faceless videos and finished shots: the screens, the voice-over and the edit are left.
+      const doing = rendering ? `${plural(rendering, "shot")} rendering` : checking ? `checking ${plural(checking, "shot")}` : framing ? "painting first frames" : "building screens and cutting";
       set("workshop", state === "failed" ? campaign?.error ?? "Stopped" : `${ready.length} of ${total} ready · ${doing}`, total ? ready.length / total : 0);
     } else if (state === "done" || state === "yours") set("workshop", `${plural(ready.length, "video")} ready`, 1);
     else set("workshop", "Waiting for the strategy");
@@ -247,7 +251,14 @@ export function derive(view: BrandView | null): CampPlan {
     id: "watcher",
     station: "oracle",
     role: "Oracle",
-    task: style === "working" ? "Watching the best short videos in the category and writing down why they work" : style === "done" ? "Wrote the format study" : "Resting",
+    task:
+      style === "working"
+        ? (study?.task ?? "Watching the best short videos in the category and writing down why they work")
+        : style === "done"
+          ? campaign?.study?.studied
+            ? `Broke down ${plural(campaign.study.studied, "viral video")} beat by beat`
+            : "Wrote the format study"
+          : "Resting",
     look: 4,
     act: style === "working" ? "watch" : style === "done" ? "stand" : "sit",
     ...SPOTS.watcher,
@@ -256,13 +267,24 @@ export function derive(view: BrandView | null): CampPlan {
   });
 
   const strat = states[2];
+  // With the creative engine the strategist is the creative director, and the scribe the script room.
+  const directing = strat === "working" && !room;
   agents.push({
     id: "general",
     station: "tent",
-    role: "Strategist",
-    task: strat === "working" ? "Writing the brief, the search plan and the concepts" : strat === "done" ? "Signed off the battle plan" : "Waiting for the scouts",
+    role: campaign?.study ? "Director" : "Strategist",
+    task:
+      strat === "working"
+        ? room
+          ? "Picked which viral video each of ours remakes; the script room has the briefs"
+          : campaign?.study
+            ? "Choosing which viral video each of ours remakes, and how"
+            : "Writing the brief, the search plan and the concepts"
+        : strat === "done"
+          ? "Signed off the battle plan"
+          : "Waiting for the scouts",
     look: -1,
-    act: strat === "working" ? "point" : "stand",
+    act: directing ? "point" : "stand",
     ...SPOTS.general,
     z: 0,
     state: strat === "working" ? "working" : strat === "done" ? "done" : "idle",
@@ -270,8 +292,8 @@ export function derive(view: BrandView | null): CampPlan {
   agents.push({
     id: "scribe",
     station: "tent",
-    role: "Scribe",
-    task: strat === "working" ? "Taking down every shot" : "Standing by",
+    role: room ? "Script room" : "Scribe",
+    task: strat === "working" ? (room ? `Writing the remakes line by line; a critic scores each (${room.written} of ${room.total} done)` : "Taking down every shot") : "Standing by",
     look: 5,
     act: strat === "working" ? "read" : "stand",
     ...SPOTS.scribe,
@@ -496,8 +518,9 @@ function editorTask(creative: CreativeView) {
   if (creative.status === "ready") return `${title} is cut and ready${creative.qcScore ? ` (QC ${creative.qcScore}/10)` : ""}`;
   if (creative.status === "failed") return `${title} failed: ${creative.error ?? "a shot could not be rendered"}`;
   if (creative.status === "queued") return `${title}: waiting for a desk`;
-  const shot = creative.shots.find((s) => s.status !== "passed") ?? creative.shots[creative.shots.length - 1];
-  if (!shot) return `${title}: starting`;
+  const shot = creative.shots.find((s) => s.status !== "passed");
+  // No presenter to film (a faceless format), or every shot passed: screens, voice-over, the edit.
+  if (!shot) return creative.shots.length ? `${title}: cutting the edit` : `${title}: building screens, the voice-over and the edit`;
   const verb = { pending: "framing", framed: "queuing", rendering: shot.provider === "monid" ? "rendering on Kling" : "rendering on Veo", rendered: "in quality check", passed: "approved", failed: "failed" }[shot.status];
   return `${title}: shot ${shot.n} of ${creative.shots.length} ${verb}`;
 }
@@ -508,13 +531,45 @@ export function stationForEvent(message: string, stage: string): StationId {
   if (m.startsWith("campaign started")) return "scouts";
   // The director's picks quote the research ("one silent desk shot…"): they are the war tent's.
   if (m.startsWith("the creative director")) return "tent";
+  // Real-creator mode: the client's verdicts belong to the review, the casting to the workshop.
+  if (/^client taste /.test(m)) return "theatre";
+  if (/casting from \d+ creators|best fit @|outreach to @|people search for/.test(m)) return "workshop";
   // Rendering talk first: Monid is also the video fallback, so "monid" alone can't mean research.
-  if (/\bshot\b|render|\bqc\b|kling|veo|naive is out/.test(m) && !/ready for review/.test(m)) return "workshop";
+  if (/\bshot\b|render|\bqc\b|kling|veo|naive is out|product screens|the edit failed|first frame/.test(m) && !/ready for review/.test(m)) return "workshop";
   if (/ready for review|approved/.test(m)) return "theatre";
+  // The creative engine's director and script room, before "reference" sends a line to the oracle.
+  if (/strategist|creative director|script room|scripts ready|concepts, now producing|^campaign "/.test(m)) return "tent";
+  if (/^research (done|plan)|^scout:|sources\)/.test(m)) return "scouts";
+  // The reference study (before the generic "monid": a brand can be called monid.ai).
+  if (/format study|studying the format|format of|product brief|screenshots? of|screenshot |relevance screen|breaking down|reference|broken down/.test(m)) return "oracle";
   if (/research|monid|scout|sources/.test(m)) return "scouts";
-  if (/format study|studying the format|format of/.test(m)) return "oracle";
-  if (/strategist|concepts, now producing|^campaign "/.test(m)) return "tent";
   if (/post|publish|account|autopilot/.test(m)) return "agora";
   if (/is ready/.test(m)) return "workshop";
   return stationOf(stage);
+}
+
+/**
+ * Where the reference study is (the core's campaign.study): reading the product, screenshotting
+ * the site, screening the viral videos, breaking the best down. Null before it starts, and for
+ * campaigns from before the creative engine.
+ */
+export function studyStep(campaign: CampaignView | null): { status: string; task: string; progress: number } | null {
+  const study = campaign?.study;
+  // A replayed demo (or an older core) sends no study at all: keep the generic line.
+  if (!campaign || campaign.stage !== "style" || study === undefined) return null;
+  if (!study?.product) return { status: "Reading the product", task: "Reading the site to learn what the product is, who it's for and what to show", progress: 0.1 };
+  if (!study.captured) return { status: "Screenshotting the site", task: `Taking phone-size screenshots of ${study.product.name} to cut to in the videos`, progress: 0.25 };
+  if (!study.picked && !study.studied) return { status: "Screening the viral videos", task: "Ranking the viral videos the scouts found and setting aside the ones that wouldn't make sense to remake", progress: 0.4 };
+  const picked = Math.max(study.picked, study.studied);
+  if (!study.done) {
+    return { status: `Breaking down ${plural(picked, "viral video")}`, task: "Breaking each reference down second by second: the hook, every beat, the lines, the cuts and why it works", progress: 0.5 + 0.45 * (study.studied / Math.max(1, picked)) };
+  }
+  return { status: `${plural(study.studied, "viral video")} broken down`, task: "Handing the breakdowns to the director", progress: 1 };
+}
+
+/** The script room's progress: briefs from the director, and the scripts written so far. */
+export function scriptRoom(campaign: CampaignView | null): { total: number; written: number } | null {
+  const briefs = campaign?.strategy?.campaign.briefs;
+  if (!briefs?.length) return null;
+  return { total: briefs.length, written: Math.min(briefs.length, campaign?.strategy?.campaign.concepts?.length ?? 0) };
 }

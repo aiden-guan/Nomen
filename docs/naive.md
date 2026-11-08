@@ -46,9 +46,14 @@ The guard requires every agent, app, skill, vault and identity name, and every n
 organization; the prefix means `naive up` can never match, change or delete one of theirs. The
 guard also refuses `tasks`, because they create or edit the organization's CEO agent.
 
-## The agent Nomen runs
+## The agents Nomen runs
 
-`naive.config.ts` declares one agent, `nomen-strategist` (Claude Sonnet 5.5). It reads the research
+`nomen-director` (Claude Sonnet 5.5) is the creative engine's director: it reads the product brief
+and the beat-by-beat breakdowns of proven reference videos and returns the brand brief, the search
+plan and one video brief per ad. Its standing instructions live in `naive/agents/director.md`;
+`settings.strategist_agent` names it. It has no tools and the same budget as the strategist below.
+
+`naive.config.ts` also declares the original agent, `nomen-strategist` (Claude Sonnet 5.5). It reads the research
 Nomen already collected and returns the brand brief, the search plan and the video concepts as a
 structured answer. Its standing instructions live in `naive/agents/strategist.md`. It has no tools,
 so it cannot browse, buy, post or spend on its own, and its budget is $4 per run and $40 a month.

@@ -36,6 +36,23 @@ as types (`src/components/troy/api.ts` re-exports `BrandView`, `CampaignView`, `
 | `POST /api/creatives/[id]` | "Send back for another take" |
 | `POST /api/brands/[id]/social {returnTo}` | The connect-accounts link before posting |
 | `GET /api/media/[id]/final.mp4` | Videos in the theatre and on its screen |
+| `GET/POST/DELETE /api/brands/[id]/brandkit` (and `/repo`, `/file`) | The camp's brand kit: drop files or a folder, link a repo |
+| `GET/POST /api/brands/[id]/loop` | The camp's autopilot: on/off, weekly budget, cadence, posting, the next run and the last decision |
+
+From the creative engine (docs/creative-engine.md) the camp reads, on the same `GET /api/brands/[id]`:
+- `campaign.study`: where the reference study is (product brief, site screenshots, relevance
+  screen, breakdowns), for the Oracle's status line;
+- `campaign.references`: every viral video the agents broke down, are breaking down, or set aside,
+  with its thumbnail, link, creator, platform, views, followers, views per follower, likes, saves,
+  shares, comments, length, lane, hook, fit and why it works, the relevance screen's reason, and
+  which of our videos remake it. Research steering adds its `role` (reach or convert), its
+  `conversion` score (0-10) and the named `signals` behind it; a paid ad from an ad library has
+  `paidAd` set and no view count ("views unknown"). The shortlist appears as soon as the
+  breakdowns start;
+- `campaign.strategy.campaign.briefs` and `.concepts`: the director's briefs (with each one's role
+  and the metric it is judged on) and the script room's scripts, for the War tent;
+- `creative.reference` ("Remake of @creator, 1.2M views"), `creative.script` (length, critic
+  score) and `creative.role`/`creative.metric` on every video.
 
 Two things are matched on the core's wording, and both are pinned by `tests/troy/derive.test.ts`:
 
@@ -80,6 +97,26 @@ consecutive days.
 
 `?auto=1` starts with autoplay on (for screen recordings) and `?speed=1.5` runs the clock faster.
 
+**The tour.** A recorded demo starts with a caption card along the bottom (`camp/tour.ts`,
+`useTour.ts`, `TourCard.tsx`). → (or Next) walks it one part of the work at a time, and each step
+moves the clock there, holds it, and opens what it is about:
+1. the website going in;
+2. the scouts riding to every land, with the camera pulled back to show them all;
+3. what they found (with the research's format checks);
+4. the format study;
+5. the director's picks, with each one's research reason (the War tent scrolls to them);
+6. the workshop;
+7. each finished video, playing in the screening room with the caption beside it;
+8. the same briefs cast to real creators, when the recording has their castings;
+9. posting;
+10. the battle;
+11. autopilot's next campaign.
+
+← goes back (a step before the posting un-posts), R starts the tour over and T turns it off, giving
+back the keys above. `?tour=0` starts with it off. Every number in a caption comes from the
+recording. A brief can have its video and its creator: the theatre shows the cut first, then the
+creator briefs.
+
 **Research takes as long as the rides.** Each research source stays out until its scout has ridden
 to its land and gathered a moment, so the panels and the riders agree. The planned sweep starts
 once its scouts have marched from the horse to the stable, farthest lands first. The research is
@@ -103,6 +140,20 @@ the front of `public/demo/index.json`:
   60 lines.
 
 Commit `public/demo` and deploy. Typing that website on `/demo` then replays it.
+
+`--only <creative ids>` records just those videos: lines about the others are dropped or trimmed
+("Campaign started" counts the kept ones). A kept video that was remade after its first version
+(the first version is in its concept's `previous`) keeps the remake's production lines, and the
+plan and script lines describe the remake.
+
+**The Monid recording** (`public/demo/monid-ai/`) is the Monid campaign with one video: the
+one-to-one remake of the @cluelyextras billboard video (628K views) that "We gave an agent $3 and
+one skill file" became. `tests/monid-clone.seed.test.ts` stores that remake as the video's second
+generation in `data/` (opt-in: `NOMEN_SEED_MONID=1`), then:
+
+```bash
+npm run demo:export -- monid.ai --only crv_376762f3ac4741cda217 --id monid-ai
+```
 
 The replay places each event line on its own clock. Lines that mark a step (the plan, research
 done, a video ready) land exactly when the camp shows that step. The rest keep their relative place
@@ -153,18 +204,37 @@ progress, and every agent's post and activity:
   again if its land gets another source. The stable has eight horses: seven for scouts and one for
   the courier. Scouts beyond seven run on foot. The lookout climbs the tower's ladder and keeps
   watch.
-- **Oracle:** watches the top videos on a CRT from the shrine's floor during the format study.
-- **War tent:** the strategist points at the map while the strategy is written, and a scribe
-  takes notes.
+- **Oracle:** watches the top videos on a CRT from the shrine's floor during the reference study:
+  reading the product, screenshotting the site, screening the viral videos, breaking the best
+  down. Its panel lists the references live (`camp/References.tsx`): the ones broken down or being
+  broken down, then, folded, the ones set aside with the screen's reason. Each links to the
+  original and names the videos that remake it.
+- **War tent:** the creative director points at the map while it picks which reference each video
+  remakes, a scribe takes notes, and the script room writes each script (the panel shows every
+  brief, the reference it remakes, why the research picked it, and the script's length and critic
+  score as it lands).
 - **Workshop:** one desk and one editor per planned video, set up before the concepts arrive. The
   CRT is blue while a shot renders, green when the video is ready and red when it failed. The
   painter works the easel while first frames are made, and the inspector walks to the desk whose
-  shot is in QC.
+  shot is in QC. Faceless videos (no presenter) show their screens, voice-over and edit instead of
+  shots.
 - **Theatre:** finished videos play on the screen as pixelated frames. The audience waits beside
-  the theatre and takes its seats when there is a cut to watch. While the campaign waits for your
-  review, the theatre calls for you: a bobbing "N videos ready" marker over the screen opens its
-  panel, its tag and its step in the top bar say "Your turn" and pulse, and on phones its card in
-  the strip does the same.
+  the theatre and takes its seats when there is a cut to watch. Each card says which viral video it
+  remakes; the screening room shows that video's numbers and the script. In real-creator mode a
+  brief's card is its casting instead: the creator, why they fit, the client-taste agent's verdict
+  and the outreach draft, waiting for you to send it. While the campaign waits for your review,
+  the theatre calls for you: a bobbing "N videos ready" marker over the screen opens its panel, its
+  tag and its step in the top bar say "Your turn" and pulse, and on phones its card in the strip
+  does the same.
+- **Brand kit:** not an island: the "Brand kit" button in the top bar (and a nudge in the Scouts
+  and Oracle panels while it can still shape the product study) opens `camp/BrandKitDrawer.tsx`.
+  Drop files or a whole folder, or link a repo; it uses the same intake as the workspace's Brand
+  kit tab (`src/components/brandkit/intake.ts`). The demo has no brand kit.
+- **Autopilot:** the "Autopilot" button in the top bar (a pip shows whether it is on), and a
+  nudge in the Agora, open `camp/AutopilotDrawer.tsx`: on/off, the weekly budget, the cadence,
+  automatic posting, the next run, this week's spend and the last decision, with "skip these
+  videos" when the loop waits on a review. Same rules as the workspace's Autopilot tab: it can't
+  be turned on until the budget is filled in.
 - **Agora:** the herald climbs the podium and trumpets while posts go out. While the core says
   "publishing" (its stage is still "review"), the theatre is done and the agora has the work; once
   every post is out the agora is done too. Below it, the army sails (see "The expedition").
@@ -373,6 +443,8 @@ npx vitest run tests/troy
 
 They cover:
 - the plan for every campaign state and event routing;
+- the creative engine in the camp (`tests/troy/references.test.ts`): the reference list and its
+  numbers, the study's steps, the script room, faceless videos and the engine's event lines;
 - that the website box accepts exactly what the server's `normalizeDomain` accepts;
 - deterministic baking, the door timeline and the knock;
 - the roads, the roads west to every land, and the stable and waiting places standing on sand;

@@ -1,4 +1,5 @@
-import type { BrandListItem as CoreBrandListItem, BrandView as CoreBrandView, CampaignView as CoreCampaignView, CreativeView as CoreCreativeView } from "@/lib/views";
+import type { LoopView as CoreLoopView } from "@/lib/loop";
+import type { BrandListItem as CoreBrandListItem, BrandView as CoreBrandView, CampaignView as CoreCampaignView, CreativeView as CoreCreativeView, ReferenceView as CoreReferenceView } from "@/lib/views";
 
 // The core track's HTTP API, as this UI uses it. The shapes are the core's own view types
 // (src/lib/views.ts), imported as types only, so a change there shows up here as a type error
@@ -8,6 +9,10 @@ export type BrandView = CoreBrandView;
 export type CampaignView = CoreCampaignView;
 export type CreativeView = CoreCreativeView;
 export type BrandListItem = CoreBrandListItem;
+/** A viral video the agents studied or set aside (the creative engine's reference study). */
+export type ReferenceView = CoreReferenceView;
+/** A brand's autopilot (the always-on loop, src/lib/loop.ts). */
+export type LoopView = CoreLoopView;
 export type RunView = CampaignView["runs"][number];
 export type ShotView = CreativeView["shots"][number];
 export type PostView = CampaignView["posts"][number];
@@ -69,14 +74,27 @@ export function regenerate(creativeId: string, note?: string) {
   return call<{ id: string }>(`/api/creatives/${encodeURIComponent(creativeId)}`, { method: "POST", body: JSON.stringify({ note }) });
 }
 
-/** The brand's connected social accounts (GET /api/brands/[id]/social). */
-export async function socialAccounts(brandId: string) {
-  return (await call<{ accounts: Array<{ platform: string; name: string; id: string }>; error?: string }>(`/api/brands/${encodeURIComponent(brandId)}/social`)).accounts;
+export type SocialAccountView = { platform: string; name: string; id: string };
+
+/** The brand's connected social accounts, read live from Naive (GET /api/brands/[id]/social), with why it failed if it did. */
+export async function socialAccounts(brandId: string): Promise<{ accounts: SocialAccountView[]; error: string | null }> {
+  const data = await call<{ accounts: SocialAccountView[]; error?: string }>(`/api/brands/${encodeURIComponent(brandId)}/social`, { cache: "no-store" });
+  return { accounts: data.accounts ?? [], error: data.error ?? null };
 }
 
 /** A hosted page where the brand's owner connects its accounts; returns here afterwards. */
 export async function connectLink(brandId: string, returnTo: string) {
   return (await call<{ url: string }>(`/api/brands/${encodeURIComponent(brandId)}/social`, { method: "POST", body: JSON.stringify({ returnTo }) })).url;
+}
+
+/** The brand's autopilot (GET /api/brands/[id]/loop): settings, the next decision and this week's spend. */
+export function getAutopilot(brandId: string) {
+  return call<LoopView>(`/api/brands/${encodeURIComponent(brandId)}/loop`, { cache: "no-store" });
+}
+
+/** Changes the brand's autopilot (POST /api/brands/[id]/loop). Turning it on needs a weekly budget. */
+export function setAutopilot(brandId: string, patch: { enabled?: boolean; weeklyBudgetUsd?: number | string; cadenceDays?: number; autopost?: boolean; skipCampaignId?: string }) {
+  return call<LoopView>(`/api/brands/${encodeURIComponent(brandId)}/loop`, { method: "POST", body: JSON.stringify(patch) });
 }
 
 /** The same check the server makes (src/lib/pipeline.ts normalizeDomain), for instant feedback. */

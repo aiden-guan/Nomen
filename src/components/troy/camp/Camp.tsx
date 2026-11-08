@@ -13,6 +13,8 @@ import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
 import { DEMO_ID, demoCreativeId, type PublishMode } from "./demo";
 import { AgentCard } from "./AgentCard";
+import { AutopilotDrawer, useAutopilot } from "./AutopilotDrawer";
+import { BrandKitDrawer } from "./BrandKitDrawer";
 import { Dispatches } from "./Dispatches";
 import { Icon } from "./ui";
 import { ago, money } from "./format";
@@ -36,6 +38,10 @@ export type CampActions = {
   retry: () => void;
   /** Opens a finished video at full height. */
   screen: (creative: CreativeView) => void;
+  /** Opens the brand kit (null in the demo, which has no server to upload to). */
+  openKit: (() => void) | null;
+  /** Opens the brand's autopilot (null in the demo). */
+  openAutopilot: (() => void) | null;
 };
 
 type Bubble = { id: number; station: StationId; text: string; level: string };
@@ -93,6 +99,10 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [screening, setScreening] = useState<string | null>(null);
+  // The brand kit or autopilot drawer takes the station panel's place while it is open.
+  const [drawer, setDrawer] = useState<"kit" | "autopilot" | null>(null);
+  // The brand's autopilot, for the top bar's button and its drawer (none in the demo).
+  const autopilot = useAutopilot(demo ? null : brandId);
   // The demo replays a campaign on a clock (./demo.ts) instead of reading the API.
   const player = useDemo(demo, arrived);
   // The presenter's tour of the replay (camp/tour.ts): each step opens what it is about.
@@ -208,8 +218,13 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const [focused, setFocused] = useState<StationId | null>(null);
   const current = activeStation(campaign);
   const shown = selected ?? focused ?? current;
-  const panel = Boolean(selected || agentId);
+  // A station's panel, a soldier's card or a drawer (brand kit, autopilot) holds the right side.
+  const panel = Boolean(selected || agentId || drawer);
   const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: panel && wide ? 440 : 0 }), [panel, wide]);
+  // Picking a station closes the drawer.
+  useEffect(() => {
+    if (selected) setDrawer(null);
+  }, [selected]);
   // Once the videos go out, the agora's army sails for the rival's city: the camera goes with it,
   // from the harbour below the agora, along with the fleet across the sea, to the battle there.
   const battling = plan.battle.phase === "advance" || plan.battle.phase === "clash";
@@ -247,7 +262,6 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
     const timer = setInterval(poll, 250);
     return () => clearInterval(timer);
   }, [engine, arrived]);
-
   const frameCamera = useCallback(
     (duration: number) => {
       const e = engine.current;
@@ -556,6 +570,8 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         connect: () => undefined,
         retry: () => undefined,
         screen,
+        openKit: null,
+        openAutopilot: null,
       };
     }
     return {
@@ -570,6 +586,14 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         }),
       retry: () => campaignId && void act("retry", () => campaignAction(campaignId, "retry")),
       screen,
+      openKit: () => {
+        setSelected(null);
+        setDrawer("kit");
+      },
+      openAutopilot: () => {
+        setSelected(null);
+        setDrawer("autopilot");
+      },
     };
   }, [demo, player.approve, player.approveAll, player.publish, act, campaignId, brandId]);
 
@@ -589,7 +613,19 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
 
   return (
     <>
-      <TopBar view={view} spend={spend} visible={arrived} onSelect={openStation} selected={selected} demo={demo ? presenter : undefined} home={home} />
+      <TopBar
+        view={view}
+        spend={spend}
+        visible={arrived}
+        onSelect={openStation}
+        selected={selected}
+        demo={demo ? presenter : undefined}
+        home={home}
+        onKit={demo ? null : () => (drawer === "kit" ? setDrawer(null) : actions.openKit?.())}
+        onAutopilot={demo ? null : () => (drawer === "autopilot" ? setDrawer(null) : actions.openAutopilot?.())}
+        drawer={drawer}
+        autopilotOn={autopilot.view?.settings.enabled ?? null}
+      />
 
       {lines.map((line) => (
         <SpeechBubble key={line.key} engine={engine} id={line.id} text={line.text} seconds={line.seconds} />
@@ -701,6 +737,13 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         />
       )}
 
+      {arrived && drawer === "kit" && !selected && view && !demo && (
+        <BrandKitDrawer brandId={view.brand.id} brandName={view.brand.name} stage={campaign?.stage ?? null} wide={wide} onClose={() => setDrawer(null)} />
+      )}
+      {arrived && drawer === "autopilot" && !selected && view && !demo && (
+        <AutopilotDrawer brandId={view.brand.id} autopilot={autopilot} wide={wide} onClose={() => setDrawer(null)} onChange={() => reloadRef.current()} />
+      )}
+
       {arrived && !hinted && !agentId && !selected && !battling && !tour.on && (
         <p role="status" className={`${styles.boxSoft} ${styles.rise} pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 px-3 py-1.5 text-[12px] ${wide ? "bottom-5" : "top-[64px]"}`}>
           <span className={`${styles.pixel} text-[var(--crimson)]`}>Tip </span>Click any soldier to follow them. Scroll or pinch to zoom, drag to look around.
@@ -708,7 +751,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
       )}
 
       {arrived && screening && finishedVideos.length > 0 && (
-        <Screening videos={finishedVideos} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} arrows={!tour.on} />
+        <Screening videos={finishedVideos} references={campaign?.references ?? []} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} arrows={!tour.on} />
       )}
 
       {arrived && demo && tour.on && <TourCard tour={tour} wide={wide} right={panel && wide && !screening ? 440 : 0} screening={Boolean(screening)} scoreboard={wide && battling && !panel} />}
@@ -750,6 +793,10 @@ function TopBar({
   selected,
   demo,
   home,
+  onKit,
+  onAutopilot,
+  drawer,
+  autopilotOn,
 }: {
   view: BrandView | null;
   spend: number;
@@ -758,6 +805,12 @@ function TopBar({
   selected: StationId | null;
   demo?: DemoPlayer;
   home: string;
+  /** Toggle the brand kit and the autopilot (absent in the demo). */
+  onKit: (() => void) | null;
+  onAutopilot: (() => void) | null;
+  drawer: "kit" | "autopilot" | null;
+  /** Whether the brand's autopilot is on (null until known). */
+  autopilotOn: boolean | null;
 }) {
   const campaign = view?.campaign ?? null;
   const plan = useMemo(() => derive(view), [view]);
@@ -820,6 +873,25 @@ function TopBar({
         <span className={`${styles.pixel} pointer-events-auto hidden shrink-0 text-[13px] text-[var(--ink-soft)] sm:inline`} title={`Naive ${money(campaign.spend.naive)} · Monid ${money(campaign.spend.monid)}${campaign.estimateUsd ? ` · video budget about ${money(campaign.estimateUsd)}` : ""}`}>
           {money(spend)} spent
         </span>
+      )}
+      {view && onAutopilot && (
+        <button
+          type="button"
+          onClick={onAutopilot}
+          aria-pressed={drawer === "autopilot"}
+          className={`${styles.link} ${styles.pixel} pointer-events-auto flex shrink-0 items-center gap-1.5 text-[13px] ${drawer === "autopilot" ? "text-[var(--crimson)]" : ""}`}
+          title={autopilotOn ? "Autopilot is on: the next campaign starts by itself" : "Autopilot is off"}
+        >
+          <Pip state={autopilotOn ? "working" : "waiting"} />
+          <span className="hidden sm:inline">Autopilot</span>
+          <span className="sm:hidden">Auto</span>
+        </button>
+      )}
+      {view && onKit && (
+        <button type="button" onClick={onKit} aria-pressed={drawer === "kit"} className={`${styles.link} ${styles.pixel} pointer-events-auto shrink-0 text-[13px] ${drawer === "kit" ? "text-[var(--crimson)]" : ""}`}>
+          <span className="sm:hidden">Kit</span>
+          <span className="hidden sm:inline">Brand kit</span>
+        </button>
       )}
       {view && !demo && (
         <a href={`/brands/${encodeURIComponent(view.brand.id)}`} className={`${styles.link} ${styles.pixel} pointer-events-auto hidden shrink-0 text-[13px] sm:inline`}>

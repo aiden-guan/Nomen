@@ -36,7 +36,7 @@ function at(id: StationId, stage: PipelineStage, name: string, role: string, sx:
 
 export const STATIONS: Station[] = [
   at("scouts", "research", "Scouts", "Research", -COLUMN, ROW_TOP),
-  at("oracle", "style", "Oracle", "Format study", 0, ROW_TOP),
+  at("oracle", "style", "Oracle", "Viral references", 0, ROW_TOP),
   at("tent", "strategy", "War tent", "Strategy", COLUMN, ROW_TOP),
   at("workshop", "production", "Workshop", "Production", COLUMN, ROW_BOTTOM),
   at("theatre", "review", "Theatre", "Review", 0, ROW_BOTTOM),

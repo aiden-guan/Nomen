@@ -9,7 +9,7 @@ export const DEFAULTS = {
   naive_base_url: "https://api.vetta.sh",
   monid_base_url: "https://api.monid.ai",
   mobilerun_base_url: "https://api.mobilerun.ai/v1",
-  strategist_agent: "nomen-strategist",
+  strategist_agent: "nomen-director",
   planner_model: "anthropic/claude-haiku-5.5",
   video_model: "google/veo-3.1",
   video_seconds: "8",
@@ -29,6 +29,26 @@ export const DEFAULTS = {
   /** Image model for the rare concept that needs a generated photo; real product photos and screenshots come first. */
   static_image_model: "google/gemini-3-pro-image",
   static_ai_images: "true",
+  /** Who renders presenter shots: Kling 3.0 on Monid with its own voice ("kling-3.0"), or the Naive video model ("naive", video_model). */
+  presenter_engine: "kling-3.0",
+  /** "ai": AI-made videos end to end; "creators": each brief goes to a real creator, approved by the client-taste agent. */
+  production_mode: "ai",
+  /** The flat fee offered to a creator for one video, in USD. */
+  creator_fee_usd: "150",
+  /** The finish on the final render: a touch of contrast, sharpening and grain, and the voice chain with loudness ("on" or "off", to A/B). */
+  finish: "on",
+  /** One-to-one remakes: who re-performs each render ("kling-native", "kling-motion", or "naive:<video model>"); see creative/presenter.ts. */
+  remake_presenter: "kling-native",
+  /** Our voice in a remake, where no render voices itself: fresh (an emotional read on the reference's timing), convert, or auto. */
+  remake_voice: "fresh",
+  /** Each render's own voice passed through ElevenLabs speech-to-speech into the persona's one voice ("on"/"off"); keeps the render's timing. */
+  remake_voice_match: "off",
+  /** The cost guard: a remake whose estimate is over this many dollars is refused before anything is paid for. */
+  remake_max_usd: "15",
+  /** Filmed monitors in a remake: track our screens into the reference's footage, use a monitor plate, or auto (track when the corners hold up). */
+  remake_screens: "auto",
+  /** A prebuilt Naive character (chr_…) the brand's persona is made from, instead of a portrait from words; empty for our own. */
+  persona_character: "",
 } as const;
 
 export type SettingKey = keyof typeof DEFAULTS;

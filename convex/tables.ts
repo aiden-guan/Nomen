@@ -2,7 +2,7 @@
 // stored as strings, 0/1 flags, string ids like "brd_…"), so the same code reads them whether the
 // store is SQLite (local development) or Convex (deployments). See src/lib/store/.
 
-export type TableName = "settings" | "brands" | "campaigns" | "monid_runs" | "creatives" | "posts" | "events";
+export type TableName = "settings" | "brands" | "campaigns" | "monid_runs" | "creatives" | "posts" | "events" | "brand_loops";
 
 type Spec = {
   /** The column rows are looked up by. */
@@ -78,6 +78,14 @@ export const TABLES: Record<TableName, Spec> = {
     defaults: nulls("brand_id", "campaign_id"),
     required: ["ts", "level", "message"],
     stamped: false,
+  },
+  /** Each brand's autopilot (src/lib/loop.ts): one row per brand that ever changed it. */
+  brand_loops: {
+    key: "brand_id",
+    indexed: { brand_id: "by_brand", enabled: "by_enabled" },
+    defaults: { ...nulls("waived_campaign_id", "last_json"), enabled: 0, weekly_budget_micro: 0, cadence_days: 7, autopost: 0 },
+    required: ["brand_id", "updated_at"],
+    stamped: true,
   },
 };
 

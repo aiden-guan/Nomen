@@ -72,6 +72,19 @@ describe("the tour", () => {
   });
 });
 
+describe("the tour's real creators", () => {
+  it("adds a step for the briefs cast to creators, with the client's verdicts", () => {
+    const casting = { status: "approved", pick: { handle: "maker" }, reviews: [{ creator: "loud", approve: false, score: 3.5 }, { creator: "maker", approve: true, score: 8 }] };
+    const script: DemoScript = { ...recording, creatives: recording.creatives.map((c, i) => (i === 1 ? { ...c, concept: c.concept && ({ ...c.concept, casting } as typeof c.concept) } : c)) };
+    const steps = tourSteps(script);
+    const creators = steps.find((s) => s.key === "creators")!;
+    expect(creators).toMatchObject({ station: "theatre", focus: "creators" });
+    expect(creators.body).toContain("turned down 1 of them and approved @maker (8/10)");
+    expect(steps.map((s) => s.key).indexOf("creators")).toBe(steps.map((s) => s.key).indexOf("post") - 1);
+    expect(tourSteps(recording).some((s) => s.key === "creators")).toBe(false);
+  });
+});
+
 describe("the clock under the tour", () => {
   it("stops at a step's hold, and a hold already passed leaves it where it is", () => {
     expect(advance(SAMPLE, at(10), 5, false, 12).t).toBe(12);

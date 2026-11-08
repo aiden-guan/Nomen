@@ -7,7 +7,8 @@ import type { MonidInput } from "./monid";
 // (phase S). A run is stored before it is submitted, so a restart never pays for it twice. Rows live
 // in the store (SQLite or Convex), so every read and write is awaited.
 
-export type Phase = "A" | "C" | "S";
+/** A: the brand's own sources; C: the planned sweep; D: the scouting sweep for formats beyond the category; S: static ads. */
+export type Phase = "A" | "C" | "D" | "S";
 
 export type RunSpec = { key: string; phase: Phase; label: string; provider: string; endpoint: string; input: MonidInput };
 
@@ -26,7 +27,7 @@ export type RunRow = {
   cost_micro: number;
 };
 
-export const listRuns = async (campaignId: string, phases: Phase[] = ["A", "C"]) =>
+export const listRuns = async (campaignId: string, phases: Phase[] = ["A", "C", "D"]) =>
   (await store().find<RunRow>("monid_runs", { campaign_id: campaignId }, { order: [["created_at", "asc"]] })).filter((run) => phases.includes(run.phase));
 
 export async function ensureRuns(campaignId: string, specs: RunSpec[]) {

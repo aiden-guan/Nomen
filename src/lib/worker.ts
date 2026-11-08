@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { logEvent, store } from "./db";
+import { advanceLoop } from "./loop";
 import { advancePhones } from "./phones";
 import { advanceCampaign } from "./pipeline";
 import { advancePosts } from "./publish";
 import { loadSettings } from "./settings";
 import { advanceStatics } from "./statics/pipeline";
 
-// One loop drives every campaign, static ad pack, post and phone session. It is safe to restart at
+// One loop drives every campaign, static ad pack, post, brand autopilot and phone session. It is safe to restart at
 // any time: all state lives in the store and every provider call is idempotent or polled.
 //
 // On a machine that stays up, the loop runs in-process every 4 s. On a serverless host nothing runs
@@ -44,6 +45,8 @@ export async function tick() {
     // Static ad packs and phones keep their own tables in SQLite; they don't run on Convex yet.
     if (store().kind === "sqlite") await advanceStatics().catch((error: unknown) => report("static ads", error));
     await advancePosts().catch((error: unknown) => report("posts", error));
+    // After posts, so the loop sees which of them are still going out.
+    await advanceLoop().catch((error: unknown) => report("loop", error));
     if (store().kind === "sqlite") await advancePhones().catch((error: unknown) => report("phones", error));
   } catch (error) {
     await report("worker", error);

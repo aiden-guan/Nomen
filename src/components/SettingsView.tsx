@@ -95,6 +95,17 @@ export function SettingsView() {
 
       <Card title="Video" subtitle={estimate}>
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Who makes the videos" hint="AI makes every video end to end, or each brief goes to a real creator: agents find creators who already make that kind of video, write their brief, and a client-taste agent approves the pair before any outreach.">
+            <select value={values.production_mode} onChange={(event) => set("production_mode")(event.target.value)} className={inputClass}>
+              <option value="ai">AI videos, end to end</option>
+              <option value="creators">Real creators, briefed by agents</option>
+            </select>
+          </Field>
+          {values.production_mode === "creators" ? (
+            <Field label="Creator fee (USD)" hint="The flat fee offered for one video, with usage on your own accounts.">
+              <input type="number" min={0} value={values.creator_fee_usd} onChange={(event) => set("creator_fee_usd")(event.target.value)} className={inputClass} />
+            </Field>
+          ) : null}
           <Field label="Video model" hint="Naive renders with this model; Monid's Kling 3.0 takes over if Naive runs out of credits.">
             <select value={values.video_model} onChange={(event) => set("video_model")(event.target.value)} className={inputClass}>
               {[...new Set([values.video_model, ...settings.videoModels])].map((id) => (

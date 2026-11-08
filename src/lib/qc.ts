@@ -36,11 +36,11 @@ export async function reviewShot(
 ): Promise<Verdict> {
   const rubric = [
     `You are the last quality gate before a brand posts this ad. These are ${input.frames.length} frames, in order, from shot ${input.shotNumber} of "${input.concept.title}", a vertical UGC-style ad for ${input.brand.name}.`,
-    `The product should look like this: ${input.brand.product_look}`,
+    `If the prompt puts the product in this shot, it should look like this: ${input.brand.product_look}. Many shots deliberately show only the creator (the real product is cut in during the edit): a product that is absent when the prompt does not ask for it is correct.`,
     `The creator should be: ${input.concept.creator}`,
     `The setting should be: ${input.concept.setting}`,
     `What should happen in this shot: ${input.shot.video_prompt}`,
-    "Critical defects (any one fails the shot): the product is missing, malformed or its label is garbled or wrong; deformed hands, faces, teeth or eyes; extra or merging limbs or objects; the person changes identity between frames; heavy lens distortion; eyes closed for most of the shot; readable or gibberish text or a screen facing the camera; unsafe or off-brand content.",
+    "Critical defects (any one fails the shot): the product is missing when the prompt puts it in the shot, or malformed, or its label is garbled or wrong; deformed hands, faces, teeth or eyes; extra or merging limbs or objects; the person changes identity between frames; heavy lens distortion; eyes closed for most of the shot; readable or gibberish text or a screen facing the camera; unsafe or off-brand content.",
     "Not critical (note it, do not fail for it): the person moves or reacts differently from the script but naturally and on message, a single natural blink, small framing differences. A re-render costs money, so fail only what a viewer would notice as fake or wrong.",
     "Judge whether it looks like a real person filmed it on a phone. Be strict about realism: a shot that would make the brand look cheap fails. Call the qc_verdict tool once.",
   ].join("\n");
@@ -64,6 +64,70 @@ export async function reviewShot(
     if (!raw) throw new ApiError("naive", 502, "qc_unreadable", "the quality check returned no verdict");
   }
   return toVerdict(raw);
+}
+
+/**
+ * The first-frame gate: the still a shot is animated from, checked before the video model runs.
+ * Every defect in it (wrong outfit, a phone interface, garbled text) is copied into a render that
+ * costs dollars and then into every later shot that takes it as its identity; a new still costs cents.
+ */
+export async function reviewFrame(
+  naive: Pick<NaiveClient, "message">,
+  input: {
+    image: Buffer;
+    creator: string;
+    setting: string;
+    prompt: string;
+    identity?: Buffer | null;
+    /** Remakes: our presenter's photo, whom the frame must show. */
+    persona?: Buffer | null;
+    /** Remakes: the reference frame it remakes; composition must match, and none of its overlays may remain. */
+    reference?: Buffer | null;
+    /** Remakes: what differs from the reference on purpose (a cut-out on green instead of its background). */
+    expect?: string;
+  },
+): Promise<{ pass: boolean; issues: string[] }> {
+  const images = [input.image, ...(input.identity ? [input.identity] : []), ...(input.persona ? [input.persona] : []), ...(input.reference ? [input.reference] : [])].map((image) => ({
+    type: "image",
+    source: { type: "base64", media_type: "image/jpeg", data: image.toString("base64") },
+  }));
+  const reply = await naive.message({
+    model: QC_MODEL,
+    max_tokens: 600,
+    messages: [
+      {
+        role: "user",
+        content: [
+          ...images,
+          {
+            type: "text",
+            text: [
+              `The first image is the opening frame of ${input.reference ? "a video shot that remakes the last image" : "a vertical UGC-style video shot"}. A video model will animate it next, so every defect in it ends up in the video.`,
+              input.identity
+                ? "The second image is shot 1 of the same video: the person, outfit and room must match it (that matters more than the wording below)."
+                : `The person should be: ${input.creator}`,
+              input.persona ? "The next image is our presenter: the person in the first image must be this person (face, hair, skin, build, outfit); its background does not matter." : "",
+              input.reference
+                ? "The last image is the frame of the viral video this one remakes. The first image must match its composition, background, camera framing and lighting, and the person's pose, position and size, with our presenter in place of its person and none of its edited-in captions, posts, pictures, stickers or text."
+                : "",
+              `The setting should be: ${input.setting}`,
+              `The prompt it was made from:\n${input.prompt.slice(0, 1500)}`,
+              `Fail it only for what a viewer would notice: any phone or app interface (status bar, clock, reply box, buttons, home bar); readable or garbled text, captions, cards or logos; a screen facing the camera; deformed face, eyes, teeth or hands; more than one person; clearly the wrong outfit or setting; a frame that does not look like a real ${input.reference ? "photo" : "phone photo"}.`,
+              input.reference ? "Also fail it for: anything overlaid in the reference left in (a caption, card, picture or sticker), the original person still there, or a clearly different composition, pose or framing." : "",
+              input.expect ?? "",
+              'Answer with only JSON: {"pass": true|false, "issues": ["each defect, concretely, most severe first"]}',
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          },
+        ],
+      },
+    ],
+  });
+  const raw = extractJson(reply.content.map((block) => block.text ?? "").join("\n")) as { pass?: unknown; issues?: unknown } | null;
+  if (!raw) throw new ApiError("naive", 502, "qc_unreadable", "the frame check returned no verdict");
+  const issues = Array.isArray(raw.issues) ? raw.issues.filter((issue): issue is string => typeof issue === "string").slice(0, 4) : [];
+  return { pass: raw.pass === true || (raw.pass !== false && issues.length === 0), issues };
 }
 
 /**
@@ -97,6 +161,46 @@ export async function reviewContinuity(naive: NaiveClient, input: { frames: Buff
   if (!raw) throw new ApiError("naive", 502, "qc_unreadable", "the continuity check returned no verdict");
   const mismatched = Array.isArray(raw.mismatched_shots) ? raw.mismatched_shots.map(Number).filter((n) => Number.isInteger(n) && n > 1 && n <= input.frames.length) : [];
   return { consistent: raw.consistent === true && mismatched.length === 0, mismatched, note: typeof raw.note === "string" ? raw.note : "" };
+}
+
+export type CloneVerdict = { score: number; pass: boolean; framing: boolean; same_people: boolean; original_visible: boolean; mismatched: number[]; issues: string[] };
+
+/**
+ * The remake's last check: pairs of frames at the same moments, the reference's and ours, then our
+ * host's portrait (and the co-host's). A one-to-one remake passes when every pair has the same
+ * framing and positions, our people stay the same people throughout, and the original people
+ * never show. Pairs are numbered from 1; `mismatched` lists the pairs that differ.
+ */
+export async function reviewClone(
+  naive: Pick<NaiveClient, "message">,
+  input: { pairs: Array<{ t: number; reference: Buffer; ours: Buffer; what: string }>; host: Buffer; cohost?: Buffer | null },
+): Promise<CloneVerdict> {
+  const jpeg = (image: Buffer) => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: image.toString("base64") } });
+  const content = [
+    ...input.pairs.flatMap((pair, i) => [{ type: "text", text: `Pair ${i + 1} at ${pair.t.toFixed(1)} s (${pair.what}): the reference, then ours.` }, jpeg(pair.reference), jpeg(pair.ours)]),
+    { type: "text", text: "Our host (everywhere the reference's main person is):" },
+    jpeg(input.host),
+    ...(input.cohost ? [{ type: "text", text: "Our co-host (where the reference stitches in another creator):" }, jpeg(input.cohost)] : []),
+    {
+      type: "text",
+      text: [
+        "Ours is a one-to-one remake of the reference: the same shots, framing, positions, sizes, set, graphic places and caption style, with our people in place of theirs and our product in the graphics and on any screen.",
+        "Check every pair: the framing and the people's positions and sizes match; our people are the portraits shown, the same person in every pair where they appear; the reference's own people never appear in ours; nothing looks broken (melted faces, extra fingers, keyed edges with green fringes, a screen that does not sit in its monitor).",
+        "Different words, product content and faces are expected. Score 1-10 how close and how real it is.",
+        'Answer with only JSON: {"score": 1-10, "framing": true|false, "same_people": true|false, "original_visible": true|false, "mismatched_pairs": [pair numbers that differ in framing or show the wrong person], "issues": ["concrete, worst first"]}',
+      ].join("\n"),
+    },
+  ];
+  const reply = await naive.message({ model: QC_MODEL, max_tokens: 1200, messages: [{ role: "user", content }] });
+  const raw = extractJson(reply.content.map((block) => block.text ?? "").join("\n")) as Record<string, unknown> | null;
+  if (!raw) throw new ApiError("naive", 502, "qc_unreadable", "the remake check returned no verdict");
+  const score = Math.max(1, Math.min(10, Math.round(Number(raw.score) || 0)));
+  const framing = raw.framing !== false;
+  const same_people = raw.same_people !== false;
+  const original_visible = raw.original_visible === true;
+  const mismatched = Array.isArray(raw.mismatched_pairs) ? raw.mismatched_pairs.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= input.pairs.length) : [];
+  const issues = Array.isArray(raw.issues) ? raw.issues.filter((issue): issue is string => typeof issue === "string").slice(0, 6) : [];
+  return { score, pass: score >= PASS_SCORE && framing && same_people && !original_visible, framing, same_people, original_visible, mismatched, issues };
 }
 
 function toVerdict(raw: Partial<Verdict>): Verdict {

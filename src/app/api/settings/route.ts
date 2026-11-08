@@ -21,6 +21,16 @@ const EDITABLE: SettingKey[] = [
   "static_model",
   "static_image_model",
   "static_ai_images",
+  "presenter_engine",
+  "finish",
+  "remake_presenter",
+  "remake_voice",
+  "remake_voice_match",
+  "remake_max_usd",
+  "remake_screens",
+  "persona_character",
+  "production_mode",
+  "creator_fee_usd",
 ];
 
 let models: { at: number; ids: string[] } | null = null;
