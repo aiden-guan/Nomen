@@ -45,6 +45,9 @@ export type ShotState = {
   /** The first-frame gate: whether this frame was checked, and how many times it was sent back. */
   frame_gated?: boolean;
   frame_checks?: number;
+  /** When the provider first said this frame's request was still in flight, and how often it was re-keyed. */
+  frame_inflight_since?: string | null;
+  frame_rekeys?: number;
   /** A product photo the provider could not fetch: frames use the identity reference only. */
   drop_product_refs?: boolean;
   /** Provider trouble: do not try this shot again before this time. */
@@ -114,6 +117,8 @@ async function readScreenManifest(creativeId: string): Promise<ScreenManifest> {
 }
 
 const MAX_RENDERS = 3;
+/** A frame request still "in flight" after this long was most likely cut off (a server restart). */
+const FRAME_INFLIGHT_MS = 10 * 60_000;
 /** How many times the first-frame gate may send one shot's frame back before it is used anyway. */
 const FRAME_CHECKS = 2;
 
@@ -322,13 +327,15 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
     if (!file) throw new ApiError("naive", 500, "no_file", "the image render returned no file");
     shot.naive_cost += result.cost_micro_usd ?? 0;
     shot.frame_file_id = file.id;
+    shot.frame_inflight_since = null;
     shot.frame_url = (await ctx.naive.fileUrl(file.id)).url;
     // Keep a local copy for the review page: signed links expire after seven days.
     await download(shot.frame_url, join(mediaDir(creativeId), `shot${shot.n}-frame.png`)).catch(() => undefined);
     shot.status = "framed";
   } catch (error) {
     if (error instanceof ApiError && error.inFlight) {
-      return; // the frame is still rendering under this key; ask again next tick
+      onFrameInFlight(shot); // usually still rendering under this key: ask again next tick
+      return;
     } else if (error instanceof ApiError && error.outOfCredits) {
       ctx.markNaiveOut();
       shot.frame_skipped = true;
@@ -396,6 +403,22 @@ async function frameJpeg(path: string): Promise<Buffer | null> {
   } finally {
     await rm(out, { force: true }).catch(() => undefined);
   }
+}
+
+/**
+ * The same key normally returns the finished frame a little later, so we wait. A request cut off
+ * mid-way (the server restarted while the provider was at capacity) can stay "in flight" at the
+ * provider for good: after FRAME_INFLIGHT_MS, ask again under a fresh key. At worst one extra still.
+ */
+export function onFrameInFlight(shot: Pick<ShotState, "frame_idem" | "frame_inflight_since" | "frame_rekeys">, now = Date.now()) {
+  if (!shot.frame_inflight_since) {
+    shot.frame_inflight_since = new Date(now).toISOString();
+    return;
+  }
+  if (now - Date.parse(shot.frame_inflight_since) < FRAME_INFLIGHT_MS) return;
+  shot.frame_rekeys = (shot.frame_rekeys ?? 0) + 1;
+  shot.frame_idem = `${shot.frame_idem.replace(/-r\d+$/, "")}-r${shot.frame_rekeys}`;
+  shot.frame_inflight_since = null;
 }
 
 async function submitRender(ctx: ProductionContext, shot: ShotState) {

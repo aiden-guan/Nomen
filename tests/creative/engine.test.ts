@@ -544,3 +544,20 @@ describe("the first-frame gate", () => {
     expect(content.at(-1)?.text).not.toMatch(/black hoodie/);
   });
 });
+
+describe("a frame request stuck in flight", () => {
+  it("waits, then asks again under a fresh key after 10 minutes", async () => {
+    const { onFrameInFlight } = await import("@/lib/production");
+    const shot: { frame_idem: string; frame_inflight_since?: string | null; frame_rekeys?: number } = { frame_idem: "crv-shot1-frame-fix1" };
+    const t0 = Date.parse("2026-11-08T02:00:00Z");
+    onFrameInFlight(shot, t0);
+    onFrameInFlight(shot, t0 + 9 * 60_000);
+    expect(shot.frame_idem).toBe("crv-shot1-frame-fix1"); // still waiting on the same key
+    onFrameInFlight(shot, t0 + 11 * 60_000);
+    expect(shot.frame_idem).toBe("crv-shot1-frame-fix1-r1");
+    expect(shot.frame_inflight_since).toBeNull();
+    onFrameInFlight(shot, t0 + 12 * 60_000);
+    onFrameInFlight(shot, t0 + 23 * 60_000);
+    expect(shot.frame_idem).toBe("crv-shot1-frame-fix1-r2");
+  });
+});
