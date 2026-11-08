@@ -442,12 +442,13 @@ describe("organic videos in production", () => {
 
     const images: unknown[] = [];
     const runs: Array<{ endpoint: string; body: Record<string, unknown> }> = [];
+    let links = 0;
     const naive = {
       generateImage: async (input: unknown) => {
         images.push(input);
         throw new Error("an organic video with a persona never generates a frame");
       },
-      fileUrl: async (fileId: string) => ({ url: `https://files.invalid/${fileId}.png`, expires_at: "" }),
+      fileUrl: async (fileId: string) => (links++, { url: `https://files.invalid/${fileId}.png`, expires_at: "" }),
       generateVideo: async () => {
         throw new Error("the Naive video model is not the engine");
       },
@@ -466,6 +467,8 @@ describe("organic videos in production", () => {
       await advanceCreative(ctx, row);
     }
     expect(images).toEqual([]);
+    // One link to the still serves every take: a busy Naive is asked once, not once per take.
+    expect(links).toBe(1);
     expect(runs).toHaveLength(4);
     expect(runs.map((r) => (r.body.media as Array<{ url: string }>)[0].url)).toEqual(Array(4).fill("https://files.invalid/fil_bedroom.png"));
     expect(runs.map((r) => r.body.resolution)).toEqual(["1080p", "1080p", "720p", "1080p"]);

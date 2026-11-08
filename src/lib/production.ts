@@ -396,7 +396,7 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
     shot.status = "framed";
     return;
   }
-  if (concept.persona?.file_id) return personaFrame(ctx, creativeId, concept.persona.file_id, shot);
+  if (concept.persona?.file_id) return personaFrame(ctx, creativeId, concept.persona.file_id, shot, shots);
   const first = shots[0];
   const identity = shot.previous_frame_file_id ?? (shot.n === 1 ? null : identityOf(first));
   const products = shot.drop_product_refs ? [] : concept.reference_images;
@@ -457,9 +457,11 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
  * An organic take with a persona starts from her own still, the same one for every take: the face
  * never changes and no image is generated. Kept like any frame, for the review page and the poster.
  */
-async function personaFrame(ctx: ProductionContext, creativeId: string, fileId: string, shot: ShotState) {
+async function personaFrame(ctx: ProductionContext, creativeId: string, fileId: string, shot: ShotState, shots: ShotState[]) {
   try {
-    const { url } = await ctx.naive!.fileUrl(fileId);
+    // One signed link (good for seven days) serves every take: a busy Naive is asked once per video.
+    const known = shots.find((other) => other !== shot && other.frame_file_id === fileId && other.frame_url)?.frame_url;
+    const url = known ?? (await ctx.naive!.fileUrl(fileId)).url;
     Object.assign(shot, { frame_file_id: fileId, frame_url: url, frame_inflight_since: null, frame_gated: true, status: "framed" } satisfies Partial<ShotState>);
     const key = fileKey(creativeId, `shot${shot.n}-frame.png`);
     shot.frame_key = await store()
