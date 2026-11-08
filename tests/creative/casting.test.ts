@@ -113,6 +113,26 @@ describe("casting a brief", () => {
     expect(seen.filter((s) => s.tool === "briefing")[1].user).toContain("lead with the price");
   });
 
+  it("asks for plain JSON when the model fumbles a tool call", async () => {
+    const { ApiError } = await import("@/lib/http");
+    const { message } = fakeModel([{ approve: true }]);
+    let fumbled = false;
+    const flaky: CastingDeps["message"] = async (req) => {
+      if ((req.tools?.[0] as { name?: string } | undefined)?.name === "briefing" && !fumbled) {
+        fumbled = true;
+        throw new ApiError("naive", 502, "bad_tool_call", "the model returned a malformed tool call");
+      }
+      if (!req.tools) {
+        expect(String(req.messages[0].content)).toMatch(/Answer with only one JSON object with these fields: title, summary, hook/);
+        return { content: [{ type: "text", text: JSON.stringify({ title: "T", summary: "s", hook: "H", talking_points: [], shots: [], reference: { url: "u", why: "w" }, deliverables: [], dos: [], donts: [], timeline: "t", fee: "f" }) }] } as never;
+      }
+      return message(req);
+    };
+    const casting = await castUntilSettled({ message: flaky, monid: null, log: () => undefined });
+    expect(fumbled).toBe(true);
+    expect(casting.status).toBe("approved");
+  });
+
   it(`sets the brief aside after ${MAX_CREATORS} creators are turned down`, async () => {
     const many = { ...input, research: [...research, video({ author: "third", views: 300_000, followers: 3_000 }), video({ author: "fourth", views: 200_000, followers: 4_000 })] };
     const { message } = fakeModel([{ approve: false }]);

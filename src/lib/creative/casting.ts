@@ -1,3 +1,4 @@
+import { ApiError } from "../http";
 import type { MonidRunner } from "../monid";
 import { runCostMicro } from "../monid";
 import type { NaiveClient } from "../naive";
@@ -185,9 +186,17 @@ export function searchKeywords(input: { category?: string; audience?: string; an
 type Message = (input: Parameters<NaiveClient["message"]>[0]) => ReturnType<NaiveClient["message"]>;
 
 async function ask<T>(message: Message, system: string, user: string, tool: { name: string; description: string; input_schema: object }, maxTokens = 3000): Promise<T | null> {
-  const reply = await message({ model: QC_MODEL, max_tokens: maxTokens, system, messages: [{ role: "user", content: user }], tools: [tool] });
-  const call = reply.content.find((block) => block.type === "tool_use" && block.name === tool.name);
-  return ((call?.input as T | undefined) ?? (extractJson(reply.content.map((block) => block.text ?? "").join("\n")) as T | null)) ?? null;
+  try {
+    const reply = await message({ model: QC_MODEL, max_tokens: maxTokens, system, messages: [{ role: "user", content: user }], tools: [tool] });
+    const call = reply.content.find((block) => block.type === "tool_use" && block.name === tool.name);
+    return ((call?.input as T | undefined) ?? (extractJson(reply.content.map((block) => block.text ?? "").join("\n")) as T | null)) ?? null;
+  } catch (error) {
+    // The model now and then fumbles the tool call itself (the Monid run's briefing): ask for plain JSON instead.
+    if (!(error instanceof ApiError) || !/malformed tool call/i.test(error.message)) throw error;
+    const fields = Object.keys((tool.input_schema as { properties?: Record<string, unknown> }).properties ?? {}).join(", ");
+    const reply = await message({ model: QC_MODEL, max_tokens: maxTokens, system, messages: [{ role: "user", content: `${user.replace(/Call \w+ once\.$/, "")}\n\nAnswer with only one JSON object with these fields: ${fields}.` }] });
+    return extractJson(reply.content.map((block) => block.text ?? "").join("\n")) as T | null;
+  }
 }
 
 const CASTING_SYSTEM =
@@ -363,8 +372,11 @@ export async function stepCasting(deps: CastingDeps, input: CastingInput, castin
       for (const note of search.notes) await deps.log(`"${title}": ${note}`, "warn");
     }
     const seen = new Set(fromResearch.map((c) => c.handle.toLowerCase()));
-    const candidates = [...fromResearch, ...found.filter((c) => !seen.has(c.handle.toLowerCase()))].slice(0, 30);
-    await deps.log(`"${title}": casting from ${candidates.length} creators (${fromResearch.length} from the research's videos, ${candidates.length - fromResearch.length} from people search)`);
+    // The best of the research's creators and the searched ones, interleaved, so both get a look.
+    const searched = found.filter((c) => !seen.has(c.handle.toLowerCase()));
+    const candidates = [...fromResearch.slice(0, 20), ...searched.slice(0, 10), ...fromResearch.slice(20)].slice(0, 30);
+    const fromResearchUsed = candidates.filter((c) => c.source === "research").length;
+    await deps.log(`"${title}": casting from ${candidates.length} creators (${fromResearchUsed} from the research's videos, ${candidates.length - fromResearchUsed} from people search)`);
     if (!candidates.length) return { status: "no_match", candidates, ranked: [], tried: [], pick: null, briefing: null, reviews: [], outreach: null, cost_micro: cost };
     const ranked = await rankCreators(deps.message, { title, hook: input.concept.hook, format: input.concept.format, reference_url: input.reference.url }, input.product, candidates);
     const top = ranked[0];
