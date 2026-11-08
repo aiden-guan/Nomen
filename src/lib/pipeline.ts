@@ -6,6 +6,7 @@ import { advanceCreative, type CreativeRow, insertCreative, type ShotState } fro
 import { mediaDir } from "./media";
 import { captureSiteVisuals } from "./creative/capture";
 import { planProduction } from "./creative/plan";
+import { getBrandKit } from "./creative/brandkit";
 import { analyzeProduct } from "./creative/product";
 import { breakdownAll, pickForBreakdown, scoreCandidates } from "./creative/references";
 import { applyRelevance, screenRelevance } from "./creative/relevance";
@@ -281,9 +282,14 @@ async function stepStyle(campaign: CampaignRow) {
   const work = mediaDir(`work-${campaign.id}`);
 
   if (!state.product) {
-    state.product = await analyzeProduct(naive, pack, work);
+    const kit = getBrandKit(brand.id);
+    const hasKit = kit.assets.length > 0 || kit.repo !== null;
+    state.product = await analyzeProduct(naive, pack, work, hasKit ? kit : null);
     save();
-    return log(`Product brief: ${state.product.kind}, "${state.product.one_liner}" (${state.product.visuals.length} usable product photos)`);
+    const fromKit = state.product.visuals.filter((v) => v.source.startsWith("brandkit:")).length;
+    return log(
+      `Product brief: ${state.product.kind}, "${state.product.one_liner}" (${state.product.visuals.length} visuals${fromKit ? `, ${fromKit} from the brand kit` : ""}${kit.repo ? `; code scanned: ${kit.repo.commands.length} commands, ${kit.repo.screens.length} screens` : ""})`,
+    );
   }
 
   if (!state.captured) {

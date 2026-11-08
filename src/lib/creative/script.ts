@@ -155,7 +155,7 @@ function writerSystem() {
     "",
     "What never carries over:",
     "- Their claims about themselves or their product. If the reference says \"this saved me $400\" or \"I've used it for 6 months\", that is not true of this product: replace it with a real fact from the product brief that plays the same role (a number, a feature, the price, the free tier). These ads are posted by the brand on its own accounts and labeled AI-generated, so the speaker never claims a personal history with the product, personal results, ratings or reviews.",
-    "- Every factual claim, number and price must come from the brief's claims, proof, offer or features. If the brief doesn't say it, don't say it.",
+    "- Every factual claim, number and price must come from the brief's claims, proof, offer, features or code (the product's real commands, screens and UI text). If the brief doesn't say it, don't say it.",
     "- Their brand names, handles, people's names and other brands' trademarks.",
     "",
     "Sounding human:",
@@ -315,7 +315,7 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
   if (/\p{Extended_Pictographic}/u.test(allText)) issues.push("emoji in the script");
 
   // Numbers must come from the brief: a number carried over from the reference is their claim, not ours.
-  const briefText = JSON.stringify({ claims: ctx.product.claims, proof: ctx.product.proof, offer: ctx.product.offer, features: ctx.product.features, one_liner: ctx.product.one_liner }).toLowerCase().replace(/(\d),(?=\d{3})/g, "$1");
+  const briefText = JSON.stringify({ claims: ctx.product.claims, proof: ctx.product.proof, offer: ctx.product.offer, features: ctx.product.features, one_liner: ctx.product.one_liner, code: ctx.product.code }).toLowerCase().replace(/(\d),(?=\d{3})/g, "$1");
   for (const number of spoken.match(/\$?\d[\d,.]*\s*(?:%|x|k|m)?/gi) ?? []) {
     const digits = number.replace(/[^\d.]/g, "");
     if (digits && !briefText.includes(digits)) issues.push(`the number "${number.trim()}" is not in the product brief`);

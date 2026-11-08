@@ -7,7 +7,7 @@ import { download, ffmpegPath } from "../media";
 import type { NaiveClient } from "../naive";
 import { QC_MODEL } from "../qc";
 import { extractJson, type ResearchPack } from "../research";
-import type { ProductBrief, ProductKind, ProductVisual } from "./types";
+import type { BrandKit, ProductBrief, ProductKind, ProductVisual } from "./types";
 
 const exec = promisify(execFile);
 
@@ -87,7 +87,41 @@ async function loadImages(urls: string[], dir: string): Promise<Array<{ url: str
   return loaded;
 }
 
-export async function analyzeProduct(naive: NaiveClient, pack: ResearchPack, workDir: string): Promise<ProductBrief> {
+export async function analyzeProduct(naive: NaiveClient, pack: ResearchPack, workDir: string, kit: BrandKit | null = null): Promise<ProductBrief> {
+  return withBrandKit(await analyzeSite(naive, pack, workDir, kit), kit);
+}
+
+/**
+ * The brand kit's assets join the visuals (real screenshots, product shots, demo clips, logos) and
+ * its code scan adds the product's real commands, screens and UI text.
+ */
+export function withBrandKit(brief: ProductBrief, kit: BrandKit | null): ProductBrief {
+  if (!kit) return brief;
+  const kinds: Record<string, ProductVisual["kind"] | null> = { screenshot: "screenshot", image: "photo", video: "video", logo: "photo", icon: null, font: null, doc: null };
+  const fromKit: ProductVisual[] = [];
+  for (const asset of kit.assets) {
+    const kind = kinds[asset.kind];
+    if (!kind) continue;
+    fromKit.push({
+      id: `k${fromKit.length + 1}`,
+      kind,
+      url: asset.path,
+      caption: asset.kind === "logo" ? `the ${brief.name} logo${asset.caption ? `: ${asset.caption}` : ""}` : asset.caption || asset.kind,
+      source: `brandkit:${asset.source}`,
+      ...(asset.width && asset.height ? { width: asset.width, height: asset.height } : {}),
+    });
+    if (fromKit.length >= 24) break;
+  }
+  const repo = kit.repo;
+  return {
+    ...brief,
+    // The brand's own assets first: they beat anything scraped from the site.
+    visuals: [...fromKit, ...brief.visuals],
+    ...(repo ? { code: { commands: repo.commands.slice(0, 15), screens: repo.screens.slice(0, 15).map(({ route, summary }) => ({ route, summary })), ui_strings: repo.ui_strings.slice(0, 80) } } : {}),
+  };
+}
+
+async function analyzeSite(naive: NaiveClient, pack: ResearchPack, workDir: string, kit: BrandKit | null): Promise<ProductBrief> {
   const images = await loadImages(pack.brand.images, join(workDir, "product-images")).catch(() => []);
   try {
     const content: unknown[] = [];
@@ -103,6 +137,18 @@ export async function analyzeProduct(naive: NaiveClient, pack: ResearchPack, wor
         `Top search keywords: ${pack.seo.keywords.slice(0, 10).map((k) => k.keyword).join(", ") || "unknown"}`,
         `What buyers say on Reddit: ${JSON.stringify(pack.reddit.slice(0, 6).map((post) => ({ title: post.title, text: post.text.slice(0, 200) })))}`,
         `The site's own words:\n<site>\n${pack.site_excerpt.slice(0, 7000)}\n</site>`,
+        ...(kit?.repo
+          ? [
+              `The product's own code (a read-only scan of its repository; facts here are as reliable as the site):\n<code>\n${JSON.stringify({
+                name: kit.repo.name,
+                description: kit.repo.description,
+                readme: kit.repo.readme.slice(0, 3500),
+                commands: kit.repo.commands,
+                screens: kit.repo.screens.map(({ route, summary }) => ({ route, summary })),
+                ui_strings: kit.repo.ui_strings.slice(0, 60),
+              })}\n</code>`,
+            ]
+          : []),
         images.length ? `You were shown ${images.length} images from the site, numbered from 0.` : "No images were available.",
       ].join("\n\n"),
     });
@@ -111,7 +157,7 @@ export async function analyzeProduct(naive: NaiveClient, pack: ResearchPack, wor
       max_tokens: 3000,
       system: [
         "You are the product analyst for a short-form video team. Writers will script ads from your brief alone, so it must be accurate, concrete and in the buyer's words.",
-        "Only state what the site and images support. Never invent numbers, features, customers, prices or results; leave a field short or empty rather than guess.",
+        "Only state what the site, the product's code and the images support. Never invent numbers, features, customers, prices or results; leave a field short or empty rather than guess. When the code shows the real commands or screens, use them in aha, features and how_to_show_it.",
         "Write like a person explaining it to a friend, not like the site's marketing. Call the product_brief tool once.",
       ].join("\n"),
       messages: [{ role: "user", content }],

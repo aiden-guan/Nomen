@@ -52,6 +52,8 @@ export type ProductBrief = {
   /** Physical: the product's look precisely enough for a video model. Software: what the main screen shows. */
   look: string;
   visuals: ProductVisual[];
+  /** From the brand's linked code (read-only scan): real commands, screens and UI text, for accurate scripts and screens. */
+  code?: { commands: string[]; screens: Array<{ route: string; summary: string }>; ui_strings: string[] };
 };
 
 // ---------- what already works ----------

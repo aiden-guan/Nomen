@@ -438,3 +438,29 @@ describe("screens in the plan", () => {
     expect(script.beats[0].screen).toBeUndefined();
   });
 });
+
+describe("the brand kit in the product brief", () => {
+  it("puts the brand's own assets first and adds its code facts", async () => {
+    const { withBrandKit } = await import("@/lib/creative/product");
+    const kit = {
+      brand_id: "b",
+      updated_at: "",
+      assets: [
+        { id: "a1", kind: "logo" as const, path: "/kit/logo.svg", source: "repo:public/logo.svg", caption: "blue asterisk wordmark", bytes: 900 },
+        { id: "a2", kind: "font" as const, path: "/kit/inter.woff2", source: "upload", caption: "", bytes: 9000 },
+        { id: "a3", kind: "screenshot" as const, path: "/kit/dash.png", source: "upload", caption: "the tools dashboard", width: 1290, height: 2796, bytes: 400000 },
+      ],
+      repo: { origin: "local:/x", scanned_at: "", name: "monid", description: "", readme: "", colors: [], fonts: [], commands: ["npx monid init"], screens: [{ route: "/tools", summary: "Tool registry", file: "app/tools/page.tsx" }], components: [], ui_strings: ["2900+ tools"] },
+    };
+    const merged = withBrandKit(product, kit);
+    expect(merged.visuals.map((v) => [v.id, v.kind, v.url])).toEqual([
+      ["k1", "photo", "/kit/logo.svg"],
+      ["k2", "screenshot", "/kit/dash.png"],
+      ["s1", "screenshot", "/tmp/s1.png"],
+      ["s2", "screenshot", "/tmp/s2.png"],
+    ]);
+    expect(merged.visuals[0].caption).toBe("the Monid logo: blue asterisk wordmark");
+    expect(merged.code).toEqual({ commands: ["npx monid init"], screens: [{ route: "/tools", summary: "Tool registry" }], ui_strings: ["2900+ tools"] });
+    expect(withBrandKit(product, null)).toBe(product);
+  });
+});
