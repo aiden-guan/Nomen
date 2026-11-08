@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { beatTimes, buildTimeline, groupShots, planProduction, snapSeconds } from "@/lib/creative/plan";
+import { beatTimes, buildTimeline, groupShots, planProduction, snapSeconds, speakSeconds } from "@/lib/creative/plan";
 import { fallbackBrief, toBrief } from "@/lib/creative/product";
 import { cleanReport, hashtags, scoutDigest, scoutSpecs } from "@/lib/creative/scout";
-import { lintScript, normalizeScript, type ScriptContext, targetSeconds } from "@/lib/creative/script";
+import { lintScript, normalizeScript, type ScriptContext, targetSeconds, writeScript } from "@/lib/creative/script";
 import type { CreativeBrief, ProductBrief, ReferenceBreakdown, Script } from "@/lib/creative/types";
 import { compactResearch, phaseCSpecs, platformOfRun, type ResearchPack, type ResearchPlan, roughScore, type Video } from "@/lib/research";
 import { conceptFrom } from "@/lib/strategy";
@@ -141,12 +141,42 @@ describe("script normalizing and linting", () => {
   });
 });
 
+describe("the critic", () => {
+  it("records an unavailable critic honestly instead of inventing a score", async () => {
+    let calls = 0;
+    const naive = {
+      message: async () => {
+        calls++;
+        if (calls === 1) return { stop_reason: "tool_use", content: [{ type: "tool_use", name: "script", input: { beats: goodBeats.map((b) => ({ ...b })) } }] };
+        return { stop_reason: "max_tokens", content: [{ type: "text", text: "{ cut off" }] };
+      },
+    } as unknown as Parameters<typeof writeScript>[0];
+    const script = await writeScript(naive, ctx);
+    expect(calls).toBe(3); // writer, critic, the critic's plain-JSON retry
+    expect(script.review).toMatchObject({ score: 0, rounds: 1 });
+    expect(script.review?.notes).toContain("critic unavailable: no review came back");
+  });
+});
+
 describe("shot planning and the timeline", () => {
   const script: Script = normalizeScript(goodBeats.map((b) => ({ ...b })), ctx);
 
   it("packs beats into video-model shots of 4, 6 or 8 seconds", () => {
     expect(groupShots(script).map((shot) => shot.map((b) => b.n))).toEqual([[1], [2], [3], [4]]);
     expect([3, 4.2, 4.5, 5, 6, 7.9, 8].map(snapSeconds)).toEqual([4, 4, 6, 6, 6, 8, 8]);
+  });
+
+  it("sizes shots by how long the words take to say, so no line gets cut off", () => {
+    const fast = normalizeScript(
+      [
+        { n: 1, job: "hook", seconds: 5, line: "Everybody's giving their AI agents tools right now, but the setup, it's a sign-up and an API key for every single one.", on_screen_text: "", visual: "creator", product_visual: null, direction: "" },
+        { n: 2, job: "reveal", seconds: 2, line: "Give me one minute, and I'll show you all of it.", on_screen_text: "", visual: "creator", product_visual: null, direction: "" },
+      ],
+      ctx,
+    );
+    expect(speakSeconds(fast.beats[0])).toBeCloseTo(22 / 3.4);
+    expect(groupShots(fast).map((shot) => shot.map((b) => b.n))).toEqual([[1], [2]]); // 6.5 s + 3.2 s would not fit one 8 s shot
+    expect(planProduction(fast, brief, product).aroll.map((shot) => shot.seconds)).toEqual([8, 4]);
   });
 
   it("has the creator say every line on camera, with the product cut in over the voice", () => {

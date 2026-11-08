@@ -41,19 +41,25 @@ function motionFor(visual: ProductVisual, beat: ScriptBeat, turn: number): BRoll
   return turn % 2 ? "zoom_out" : "zoom_in";
 }
 
-/** Consecutive beats packed into shots of at most 8 s, never splitting a beat. */
+/** How long a beat really takes on camera: its planned seconds, or longer if its line needs it. */
+export const speakSeconds = (beat: Pick<ScriptBeat, "seconds" | "line">) => Math.max(beat.seconds, beat.line.split(/\s+/).filter(Boolean).length / SPEAK_WPS);
+/** A fast but clear talker. Video models drop the end of a line that is faster than this. */
+const SPEAK_WPS = 3.4;
+
+/** Consecutive beats packed into shots of at most 8 s of speech, never splitting a beat. */
 export function groupShots(script: Script): ScriptBeat[][] {
   const shots: ScriptBeat[][] = [];
   let current: ScriptBeat[] = [];
   let seconds = 0;
   for (const beat of script.beats) {
-    if (current.length && seconds + beat.seconds > MAX_SHOT) {
+    const length = speakSeconds(beat);
+    if (current.length && seconds + length > MAX_SHOT) {
       shots.push(current);
       current = [];
       seconds = 0;
     }
     current.push(beat);
-    seconds += beat.seconds;
+    seconds += length;
   }
   if (current.length) shots.push(current);
   return shots;
@@ -84,7 +90,7 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
     .join(" Then ");
   const holdsProduct = product.kind === "physical" && beats.some((beat) => beat.visual === "creator" && /hold|show|pick up|bottle|box|pack/i.test(beat.direction));
   const productLine = holdsProduct && product.look ? ` ${who} holds the product steadily at chest height, label toward the camera: ${product.look}.` : "";
-  const seconds = snapSeconds(beats.reduce((sum, beat) => sum + beat.seconds, 0));
+  const seconds = snapSeconds(beats.reduce((sum, beat) => sum + speakSeconds(beat), 0));
   return {
     n,
     beats: beats.map((beat) => beat.n),

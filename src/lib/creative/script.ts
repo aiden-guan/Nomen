@@ -186,7 +186,7 @@ function contextBlock(ctx: ScriptContext) {
 export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promise<Script> {
   const reply = await naive.message({
     model: QC_MODEL,
-    max_tokens: 3000,
+    max_tokens: 8000,
     system: writerSystem(),
     messages: [{ role: "user", content: `${contextBlock(ctx)}\n\nWrite the script for "${ctx.brief.title}".` }],
     tools: [SCRIPT_TOOL],
@@ -198,6 +198,11 @@ export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promi
   for (let round = 1; round <= MAX_ROUNDS; round++) {
     const issues = lintScript(script, ctx);
     const review = await critique(naive, ctx, script, issues);
+    if (review.score === null) {
+      // No usable review: keep the draft and say so honestly rather than inventing a score.
+      script.review = { score: 0, notes: [...issues.map((issue) => `lint: ${issue}`), "critic unavailable: no review came back"].slice(0, 10), rounds: round };
+      break;
+    }
     script.review = { score: review.score, notes: [...issues.map((issue) => `lint: ${issue}`), ...review.notes].slice(0, 10), rounds: round };
     if (review.score >= PASS && issues.length === 0) break;
     if (!review.revised.length) break;
@@ -208,26 +213,27 @@ export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promi
   return script;
 }
 
-async function critique(naive: NaiveClient, ctx: ScriptContext, script: Script, issues: string[]) {
-  const reply = await naive.message({
-    model: QC_MODEL,
-    max_tokens: 3000,
-    system: [
-      "You are a short-form creative director who has watched ten thousand TikToks. You check remakes of viral videos before anything is filmed. The goal is a remake so close to the reference that it earns the same retention, adapted to a new product.",
-      "Compare the script to the reference beat by beat. Fail: beats that drift from the reference (different order, timing, jobs or shots), a hook that changed more than it had to, lines rewritten into different words when the reference's wording could have stayed, anything that sounds like an ad instead of the reference's voice, product beats whose visual doesn't match the words, claims or numbers not in the product brief, and any personal-history claim (past use, personal results, reviews) carried over from the reference.",
-      "If the overall score is below 8, write the complete revised script that fixes every problem, following the same rules as the writer (replicate the reference as closely as possible, swap only what must change for this product, keep every claim true to the brief). Call the script_review tool once.",
-    ].join("\n"),
-    messages: [
-      {
-        role: "user",
-        content: `${contextBlock(ctx)}\n\n<script>\n${JSON.stringify(script.beats)}\n</script>\n\nAutomatic checks found: ${issues.length ? issues.join("; ") : "nothing"}.`,
-      },
-    ],
-    tools: [CRITIC_TOOL],
-  });
+async function critique(naive: NaiveClient, ctx: ScriptContext, script: Script, issues: string[]): Promise<{ score: number | null; notes: string[]; revised: Array<Partial<ScriptBeat>> }> {
+  const system = [
+    "You are a short-form creative director who has watched ten thousand TikToks. You check remakes of viral videos before anything is filmed. The goal is a remake so close to the reference that it earns the same retention, adapted to a new product.",
+    "Compare the script to the reference beat by beat. Fail: beats that drift from the reference (different order, timing, jobs or shots), a hook that changed more than it had to, lines rewritten into different words when the reference's wording could have stayed, anything that sounds like an ad instead of the reference's voice, product beats whose visual doesn't match the words, claims or numbers not in the product brief, any personal-history claim (past use, personal results, reviews) carried over from the reference, and lines too long to say in their beat's seconds.",
+    "If the overall score is below 8, write the complete revised script that fixes every problem, following the same rules as the writer (replicate the reference as closely as possible, swap only what must change for this product, keep every claim true to the brief, fit each line in its seconds).",
+  ].join("\n");
+  const content = `${contextBlock(ctx)}\n\n<script>\n${JSON.stringify(script.beats)}\n</script>\n\nAutomatic checks found: ${issues.length ? issues.join("; ") : "nothing"}.`;
+  const ask = (extra: string, tools?: object[]) => naive.message({ model: QC_MODEL, max_tokens: 10000, system: `${system}\n${extra}`, messages: [{ role: "user", content }], tools });
+
+  type Review = { score?: unknown; scores?: unknown; notes?: unknown; revised_beats?: unknown } | null;
+  const reply = await ask("Call the script_review tool once.", [CRITIC_TOOL]);
   const call = reply.content.find((block) => block.type === "tool_use" && block.name === CRITIC_TOOL.name);
-  const raw = (call?.input ?? extractJson(reply.content.map((block) => block.text ?? "").join("\n"))) as { score?: unknown; notes?: unknown; revised_beats?: unknown } | null;
-  const score = Math.max(1, Math.min(10, Math.round(Number(raw?.score) || 0)));
+  let raw = (call?.input ?? extractJson(reply.content.map((block) => block.text ?? "").join("\n"))) as Review;
+  if (!raw || (raw.score === undefined && raw.scores === undefined)) {
+    // A cut-off or fumbled tool call: ask once more for plain JSON.
+    const again = await ask('Answer with only a JSON object: {"score": 1-10, "notes": ["..."], "revised_beats": [ ...the full revised script if score < 8, else empty ]}');
+    raw = extractJson(again.content.map((block) => block.text ?? "").join("\n")) as Review;
+  }
+  const subScores = raw?.scores && typeof raw.scores === "object" ? Object.values(raw.scores as Record<string, unknown>).map(Number).filter((n) => n >= 1 && n <= 10) : [];
+  const direct = Number(raw?.score);
+  const score = direct >= 1 && direct <= 10 ? Math.round(direct) : subScores.length ? Math.round(Math.min(...subScores)) : null;
   const notes = Array.isArray(raw?.notes) ? raw.notes.filter((n): n is string => typeof n === "string").slice(0, 6) : [];
   const revised = Array.isArray(raw?.revised_beats) ? (raw.revised_beats as Array<Partial<ScriptBeat>>) : [];
   return { score, notes, revised };
