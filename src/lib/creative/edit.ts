@@ -436,7 +436,30 @@ export type RenderOptions = {
   workDir?: string;
   /** A TTF/OTF to use for captions and overlays instead of the bundled Poppins ExtraBold. */
   fontPath?: string;
+  /** The picture and sound finish (PICTURE_FINISH, VOICE_CHAIN, room tone, loudness); the `finish` setting, on by default. */
+  finish?: boolean;
 };
+
+// ---------- the finish ----------
+
+/**
+ * The picture finish the top AI UGC tools use, so a render reads as a phone video rather than a
+ * clean model output: a touch of contrast, a little less saturation, light sharpening and fine
+ * moving grain. Never a frame-rate change. It goes under the captions (an app draws those crisp).
+ */
+export const PICTURE_FINISH = "scale=1080:1920:flags=lanczos,eq=contrast=1.03:saturation=0.96,unsharp=5:5:0.25,noise=alls=5:allf=t";
+/** The finished picture's encode: a phone app's bitrate, not a master's. */
+export const FINISHED_ENCODE = ["-crf", "21", "-maxrate", "8M", "-bufsize", "16M"];
+/** The voice finish: the rumble and hiss cut, gently compressed, a hint of room. */
+export const VOICE_CHAIN = "highpass=f=90,lowpass=f=14000,acompressor=threshold=-18dB:ratio=3,aecho=0.9:0.7:15:0.12";
+/** Pink room tone at about -50 dBFS under the voice, so no silence is ever digital silence. */
+export const roomTone = (seconds: number, rate = 48000) => `anoisesrc=color=pink:amplitude=0.0032:sample_rate=${rate}:duration=${num(seconds)}`;
+/** A music bed ducked under the voice (the voice is the side chain). */
+export const DUCK = "sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400";
+/** The bed's level under the voice when finished. */
+export const BED_LEVEL = 0.35;
+/** Loudness for phones: -14 LUFS, true peak under -1.5 dB. */
+export const LOUDNESS = "loudnorm=I=-14:TP=-1.5:LRA=11";
 
 /**
  * Renders a timeline to `outPath`: 1080x1920, 30 fps, H.264 (crf 18, yuv420p) + AAC 48 kHz stereo
@@ -516,13 +539,22 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
   }
 
   // Soundtrack.
+  const sound = options.finish ? "araw" : "aout";
   if (audio) {
     const a = input("-i", audio.path);
-    graph.push(`[${a}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=end=${num(duration)},asetpts=PTS-STARTPTS[aout]`);
+    graph.push(`[${a}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=end=${num(duration)},asetpts=PTS-STARTPTS[${sound}]`);
   } else if (useARollAudio) {
-    graph.push(`[aca]apad,atrim=end=${num(duration)},asetpts=PTS-STARTPTS[aout]`);
+    graph.push(`[aca]apad,atrim=end=${num(duration)},asetpts=PTS-STARTPTS[${sound}]`);
   } else {
-    graph.push(`anullsrc=r=48000:cl=stereo,atrim=end=${num(duration)}[aout]`);
+    graph.push(`anullsrc=r=48000:cl=stereo,atrim=end=${num(duration)}[${sound}]`);
+  }
+  if (options.finish) {
+    // The voice chain, room tone under it, then loudness for phones.
+    graph.push(
+      `[araw]${VOICE_CHAIN}[avoice]`,
+      `${roomTone(duration)},aformat=sample_fmts=fltp:channel_layouts=stereo[aroom]`,
+      `[avoice][aroom]amix=inputs=2:normalize=0:duration=first,${LOUDNESS},aresample=48000,atrim=end=${num(duration)}[aout]`,
+    );
   }
 
   // Inset: keep a copy of the A-roll before any B-roll covers it, for the presenter window.
@@ -626,19 +658,21 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
     // Captions and overlays: an ASS file and the font next to it, referenced by relative names
     // (ffmpeg runs in the work dir) so no path ever needs filtergraph escaping.
     const subtitles = timeline.captions.length > 0 || timeline.overlays.length > 0;
+    // The picture finish goes under the captions: an app draws those crisp over the footage.
+    const finished = options.finish ? `${PICTURE_FINISH},` : "";
     if (subtitles) {
       const metrics = await fontMetrics(fontPath);
       await mkdir(join(work, "fonts"));
       await copyFile(fontPath, join(work, "fonts", basename(fontPath)));
       const ass = toAss(timeline, { width: W, height: H, metrics, splits: splits.map(({ start, end }) => ({ start, end })) });
       await writeFile(join(work, "captions.ass"), ass, "utf8");
-      graph.push(`[${base}]ass=filename=captions.ass:fontsdir=fonts,format=yuv420p[vout]`);
+      graph.push(`[${base}]${finished}ass=filename=captions.ass:fontsdir=fonts,format=yuv420p[vout]`);
     } else {
-      graph.push(`[${base}]format=yuv420p[vout]`);
+      graph.push(`[${base}]${finished}format=yuv420p[vout]`);
     }
 
     args.push("-filter_complex", graph.join(";"), "-map", "[vout]", "-map", "[aout]");
-    args.push("-r", String(fps), "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p");
+    args.push("-r", String(fps), "-c:v", "libx264", "-preset", "medium", ...(options.finish ? FINISHED_ENCODE : ["-crf", "18"]), "-pix_fmt", "yuv420p");
     args.push("-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", out);
     try {
       await exec(bin, args, { cwd: work, maxBuffer: 64 * 1024 * 1024 });

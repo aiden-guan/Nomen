@@ -325,6 +325,11 @@ export type ScriptBeat = {
   screen?: string;
   /** Creator: expression and small action. Product: the motion ("slow scroll down", "push in on the label"). */
   direction: string;
+  /**
+   * How the line is said, as voice tags from the reference's delivery: "[excited]", "[smug]",
+   * "[laughs]". A presenter that voices itself gets them as an emotion arc in words.
+   */
+  emotion?: string;
 };
 
 export type Script = {
@@ -345,6 +350,8 @@ export type ARollShot = {
   line: string;
   frame_prompt: string;
   video_prompt: string;
+  /** The shot's one gentle action: a later shot's first frame is shot 1's still re-posed to it, in the same place. */
+  pose?: string;
 };
 
 /** A real product asset placed on the timeline. */

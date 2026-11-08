@@ -104,6 +104,11 @@ const SCRIPT_TOOL = {
               description:
                 "Creator and split beats: only what the presenter does (expression and one small action), never the layout, cards, captions or screens (the edit adds those). Product beats: the motion, e.g. 'slow scroll down the pricing page'.",
             },
+            emotion: {
+              type: "string",
+              description:
+                "How the line is said, as one voice tag taken from the reference's delivery on this beat: e.g. [excited], [smug], [deadpan], [sarcastic], [curious], [laughs], [sighs], [whispers]. Empty for a silent beat.",
+            },
           },
         },
       },
@@ -307,6 +312,7 @@ export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptCo
       product_visual: visual === "creator" ? null : productVisual,
       direction: clean(beat.direction),
       ...(visual !== "creator" && typeof beat.screen === "string" && beat.screen.trim() ? { screen: beat.screen.trim().slice(0, 600) } : {}),
+      ...(clean(beat.emotion) ? { emotion: clean(beat.emotion).slice(0, 60) } : {}),
     };
   });
   return { beats: out, total_seconds: out.reduce((sum, beat) => sum + beat.seconds, 0), review: null };

@@ -13,7 +13,7 @@ website
        └─ references ─ product analyst ─ site screenshots ─ reach and conversion ranking ─ 6 beat-by-beat breakdowns (reach and convert mix)
             └─ director (Naive agent nomen-director) ─ one brief per video: which video it remakes, its role (reach or convert) and metric
                  └─ script room ─ writer ─ linter ─ critic (x2) ─ per video, in parallel
-                      └─ production ─ presenter shots (Veo) + QC ─ product cutaways ─ voice-over ─ edit
+                      └─ production ─ presenter shots (Kling 3.0) + QC ─ product cutaways ─ voice-over ─ edit
                            └─ review ─ posting (Naive Social) ─ analytics feed the next campaign
 ```
 
@@ -76,13 +76,33 @@ These videos are posted by the brand on its own accounts and labeled AI-generate
   - Each beat's 1440x900 desktop screen is warped into the display, the green is keyed out, and
     the photo goes back on top so its bezel covers the edges.
   - The whole picture drifts and turns slightly, like a hand-held phone.
+- **The finish** (`finish`, on by default; "off" to compare): under the captions, a touch of
+  contrast, a little less saturation, light sharpening and fine moving grain, encoded at crf 21
+  with an 8 Mb/s ceiling; on the sound, a high-pass, low-pass, gentle compression and a hint of
+  room, pink room tone at about -50 dBFS, and loudness at -14 LUFS.
+
+## The presenter
+
+Presenter shots render on Kling 3.0 image-to-video on Monid with its own voice
+(`presenter_engine`: `kling-3.0`, the default; `naive` uses the Naive video model in
+`video_model`). It won a head-to-head against Veo 3.1, HeyGen, Seedance and Wan for realism and
+lip-sync. What made it look real is the prompt recipe in `plan.ts`:
+
+- **The first frame** names the camera propped up at eye level an arm's length away, chest-up,
+  mouth slightly open mid-sentence, a lived-in real place, natural daylight, skin texture and grain.
+  A later shot's frame is shot 1's still re-posed: an image edit that names only the new pose.
+- **The video prompt** says only what happens (the frame carries the face): a real creator
+  talking into the camera with the line's emotion arc (from the script's per-beat `emotion` tags),
+  one gentle action, hands below the frame, no pointing, then the line, then "No subtitles, no
+  on-screen text."
+- Each take renders about a second longer than its line; the edit trims it to the speech.
 
 ## Formats
 
 | Format | On screen | Sound | Render cost |
 | - | - | - | - |
-| `talking_head_broll` | the presenter, cut away to the product | the presenter (Veo native audio) | about $0.40 per second |
-| `split_screen` | the presenter on top, the product below | the presenter | about $0.40 per second |
+| `talking_head_broll` | the presenter, cut away to the product | the presenter (Kling 3.0's own voice) | about $0.17 per second |
+| `split_screen` | the presenter on top, the product below | the presenter | about $0.17 per second |
 | `voiceover_demo` | the product only | text-to-speech | cents |
 | `filmed_screen` | a phone filming a monitor that shows the product | text-to-speech | cents, plus one to three photos |
 | `text_story` | the product only, with large text | text-to-speech | cents |
@@ -91,8 +111,8 @@ These videos are posted by the brand on its own accounts and labeled AI-generate
 
 - **Research:** about $0.10–0.40 on Monid.
 - **Agents:** about $1–2 on Naive for the analysts, director, writers and critics.
-- **Video:** about $0.40 per presenter second, plus QC re-renders (`qc_max_retries`). Faceless
-  formats cost cents.
+- **Video:** about $0.17 per presenter second on Kling 3.0 (1080p with audio; $0.40 on Veo 3.1),
+  plus QC re-renders (`qc_max_retries`). Faceless formats cost cents.
 
 ## Where its work is kept
 

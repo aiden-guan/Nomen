@@ -16,6 +16,8 @@ const EDITABLE: SettingKey[] = [
   "autopilot",
   "planner_model",
   "warmup_minutes",
+  "presenter_engine",
+  "finish",
 ];
 
 let models: { at: number; ids: string[] } | null = null;

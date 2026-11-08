@@ -4,7 +4,7 @@ import type { CreativeBrief, FunnelRole, ProductBrief, ProductionPlan, Reference
 
 // The strategist's contract: the JSON Schema Naive enforces on the session, and the types it fills.
 
-export type Shot = { seconds: number; frame_prompt: string; video_prompt: string; dialogue: string };
+export type Shot = { seconds: number; frame_prompt: string; video_prompt: string; dialogue: string; pose?: string };
 
 export type Concept = {
   title: string;
@@ -283,7 +283,7 @@ export function conceptFrom(brief: CreativeBrief, script: Script, plan: Producti
     hook: [hook?.on_screen_text, hook?.line].filter(Boolean).join(" / "),
     creator: brief.creator,
     setting: brief.setting,
-    shots: plan.aroll.map((shot) => ({ seconds: shot.seconds, frame_prompt: shot.frame_prompt, video_prompt: shot.video_prompt, dialogue: shot.line })),
+    shots: plan.aroll.map((shot) => ({ seconds: shot.seconds, frame_prompt: shot.frame_prompt, video_prompt: shot.video_prompt, dialogue: shot.line, ...(shot.pose !== undefined ? { pose: shot.pose } : {}) })),
     // A physical product's real photos guide the first frame, so the product looks right when the creator holds it.
     reference_images: productPhotos.slice(0, 2),
     caption: brief.caption,
