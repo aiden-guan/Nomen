@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { TroyExperience } from "@/components/troy/TroyExperience";
 import { defaultOptions } from "@/lib/pipeline";
+import { loadSettings } from "@/lib/settings";
 import { estimateUsd } from "@/lib/views";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +18,9 @@ export const metadata: Metadata = {
  * NOMEN_DEMO_ONLY=1 marks a deployment that can't run campaigns (Vercel: no lasting disk, no
  * background worker), so this page sends visitors to the demo there.
  */
-export default function LandingPage() {
+export default async function LandingPage() {
   if (process.env.NOMEN_DEMO_ONLY === "1") redirect("/demo");
+  await loadSettings();
   const options = defaultOptions();
   const estimate = estimateUsd(options);
   const cost = `${options.concepts} videos × ${options.shotsPerConcept} shots × ${options.secondsPerShot}s on ${options.videoModel}${estimate ? `, about $${estimate.toFixed(2)} of video` : ""}`;

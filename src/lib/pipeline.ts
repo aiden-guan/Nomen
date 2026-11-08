@@ -1,4 +1,4 @@
-import { db, logEvent, newId, now, parse, update } from "./db";
+import { logEvent, newId, now, parse, save, store } from "./db";
 import { ApiError } from "./http";
 import { MonidClient, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import { NaiveClient } from "./naive";
@@ -9,7 +9,8 @@ import { getBool, getInt, getSetting } from "./settings";
 import { type Concept, normalizeStrategy, type PastResult, STRATEGY_SCHEMA, type Strategy, strategyMessage } from "./strategy";
 
 // The campaign state machine. The worker calls advanceCampaign() every few seconds; every step is
-// idempotent, so a restart picks up exactly where it stopped.
+// idempotent, so a restart picks up exactly where it stopped. Rows live in the store (src/lib/store):
+// SQLite locally, Convex on serverless hosts, so every read and write is awaited.
 
 export type CampaignStage = "research" | "style" | "strategy" | "production" | "review" | "live";
 export type CampaignStatus = "running" | "review" | "publishing" | "live" | "failed" | "stopped";
@@ -48,10 +49,10 @@ export type CampaignRow = {
 
 type RunRow = { id: string; campaign_id: string; key: string; phase: "A" | "C"; provider: string; endpoint: string; input_json: string; run_id: string | null; status: "pending" | "running" | "done" | "failed"; output_json: string | null; error: string | null; cost_micro: number };
 
-export const getBrand = (id: string) => db().prepare("select * from brands where id = ?").get(id) as BrandRow | undefined;
-export const getCampaign = (id: string) => db().prepare("select * from campaigns where id = ?").get(id) as CampaignRow | undefined;
-export const listCreatives = (campaignId: string) => db().prepare("select * from creatives where campaign_id = ? order by idx, generation").all(campaignId) as CreativeRow[];
-const listRuns = (campaignId: string) => db().prepare("select * from monid_runs where campaign_id = ? order by created_at").all(campaignId) as RunRow[];
+export const getBrand = async (id: string) => (await store().find<BrandRow>("brands", { id }, { limit: 1 }))[0];
+export const getCampaign = async (id: string) => (await store().find<CampaignRow>("campaigns", { id }, { limit: 1 }))[0];
+export const listCreatives = (campaignId: string) => store().find<CreativeRow>("creatives", { campaign_id: campaignId }, { order: [["idx", "asc"], ["generation", "asc"]] });
+const listRuns = (campaignId: string) => store().find<RunRow>("monid_runs", { campaign_id: campaignId }, { order: [["created_at", "asc"]] });
 
 export function defaultOptions(): CampaignOptions {
   return {
@@ -70,25 +71,30 @@ export function normalizeDomain(input: string) {
   return { domain: url.hostname.replace(/^www\./, "").toLowerCase(), url: `${url.protocol}//${url.hostname}` };
 }
 
-export function createBrand(input: string) {
+export async function createBrand(input: string) {
   const { domain, url } = normalizeDomain(input);
-  const existing = db().prepare("select * from brands where domain = ?").get(domain) as BrandRow | undefined;
+  const [existing] = await store().find<BrandRow>("brands", { domain }, { limit: 1 });
   if (existing) return existing.id;
   const id = newId("brd");
   const name = domain.split(".")[0];
-  db().prepare("insert into brands (id, name, domain, url, created_at, updated_at) values (?, ?, ?, ?, ?, ?)").run(id, name[0].toUpperCase() + name.slice(1), domain, url, now(), now());
+  await store().insert("brands", { id, name: name[0].toUpperCase() + name.slice(1), domain, url, created_at: now(), updated_at: now() });
   return id;
 }
 
-export function startCampaign(brandId: string, options: CampaignOptions = defaultOptions()) {
+export async function startCampaign(brandId: string, options: CampaignOptions = defaultOptions()) {
   const id = newId("cmp");
-  db()
-    .prepare(
-      `insert into campaigns (id, brand_id, status, stage, options_json, style_idem, strategy_idem, created_at, updated_at)
-       values (?, ?, 'running', 'research', ?, ?, ?, ?, ?)`,
-    )
-    .run(id, brandId, JSON.stringify(options), `${id}-style`, `${id}-strategy`, now(), now());
-  logEvent({ brandId, campaignId: id, message: `Campaign started: ${options.concepts} videos, ${options.shotsPerConcept} shots each, ${options.videoModel}` });
+  await store().insert("campaigns", {
+    id,
+    brand_id: brandId,
+    status: "running",
+    stage: "research",
+    options_json: JSON.stringify(options),
+    style_idem: `${id}-style`,
+    strategy_idem: `${id}-strategy`,
+    created_at: now(),
+    updated_at: now(),
+  });
+  await logEvent({ brandId, campaignId: id, message: `Campaign started: ${options.concepts} videos, ${options.shotsPerConcept} shots each, ${options.videoModel}` });
   return id;
 }
 
@@ -104,24 +110,24 @@ export function clients() {
 }
 
 export async function advanceCampaign(id: string) {
-  const campaign = getCampaign(id);
+  const campaign = await getCampaign(id);
   if (!campaign || campaign.status !== "running") return;
   try {
     if (campaign.stage === "research") await stepResearch(campaign);
     else if (campaign.stage === "style") await stepStyle(campaign);
     else if (campaign.stage === "strategy") await stepStrategy(campaign);
     else if (campaign.stage === "production") await stepProduction(campaign);
-    if (campaign.attempts) update("campaigns", id, { attempts: 0 });
+    if (campaign.attempts) await save("campaigns", id, { attempts: 0 });
   } catch (error) {
     if (error instanceof ApiError && error.retryable && campaign.attempts < 10) {
-      update("campaigns", id, { attempts: campaign.attempts + 1 });
+      await save("campaigns", id, { attempts: campaign.attempts + 1 });
     } else {
       const message = error instanceof Error ? error.message : String(error);
-      update("campaigns", id, { status: "failed", error: message });
-      logEvent({ brandId: campaign.brand_id, campaignId: id, level: "error", message: `Stopped at ${campaign.stage}: ${message}` });
+      await save("campaigns", id, { status: "failed", error: message });
+      await logEvent({ brandId: campaign.brand_id, campaignId: id, level: "error", message: `Stopped at ${campaign.stage}: ${message}` });
     }
   }
-  recomputeSpend(id);
+  await recomputeSpend(id);
 }
 
 // ---------- research ----------
@@ -129,22 +135,22 @@ export async function advanceCampaign(id: string) {
 async function stepResearch(campaign: CampaignRow) {
   const { monid, naive } = clients();
   if (!monid) throw new Error("Research runs on Monid: add a Monid API key in Settings, then retry.");
-  const brand = getBrand(campaign.brand_id)!;
-  ensureRuns(campaign.id, phaseASpecs(brand.domain));
+  const brand = (await getBrand(campaign.brand_id))!;
+  await ensureRuns(campaign.id, phaseASpecs(brand.domain));
   await progressRuns(campaign, monid);
-  const runs = listRuns(campaign.id);
+  const runs = await listRuns(campaign.id);
   if (runs.some((run) => run.status === "pending" || run.status === "running")) return;
 
   const forCompact = runs.map((run) => ({ key: run.key, status: run.status, output: parse<unknown>(run.output_json, undefined) }));
   if (!campaign.plan_json) {
     const partial = compactResearch(brand.domain, forCompact, null);
-    db().prepare("update brands set name = ?, profile_json = ?, updated_at = ? where id = ?").run(partial.brand.name || brand.name, JSON.stringify(partial.brand), now(), brand.id);
+    await save("brands", brand.id, { name: partial.brand.name || brand.name, profile_json: JSON.stringify(partial.brand) });
     const plan: ResearchPlan = naive
       ? await planResearch(naive, { domain: brand.domain, brand: partial.brand, siteExcerpt: partial.site_excerpt, similar: partial.similar_sites })
       : fallbackPlan(brand.domain, partial.brand, partial.similar_sites);
-    update("campaigns", campaign.id, { plan_json: JSON.stringify(plan) });
-    ensureRuns(campaign.id, phaseCSpecs(plan));
-    logEvent({
+    await save("campaigns", campaign.id, { plan_json: JSON.stringify(plan) });
+    await ensureRuns(campaign.id, phaseCSpecs(plan));
+    await logEvent({
       brandId: brand.id,
       campaignId: campaign.id,
       message: `Research plan: ${plan.category}; competitors ${plan.competitors.map((c) => c.name).join(", ") || "unknown"}; searching ${plan.content_queries.join(", ")}`,
@@ -157,79 +163,78 @@ async function stepResearch(campaign: CampaignRow) {
   const done = runs.filter((run) => run.status === "done").length;
   if (done === 0) throw new Error("Every research source failed. Check the website address and your Monid balance, then retry.");
   const options = parse<CampaignOptions>(campaign.options_json, defaultOptions());
-  update("campaigns", campaign.id, { research_json: JSON.stringify(pack), stage: options.learnStyle && naive ? "style" : "strategy" });
-  logEvent({
+  await save("campaigns", campaign.id, { research_json: JSON.stringify(pack), stage: options.learnStyle && naive ? "style" : "strategy" });
+  await logEvent({
     brandId: brand.id,
     campaignId: campaign.id,
     message: `Research done: ${pack.videos.length} top videos, ${pack.ads.length} live ads, ${pack.reddit.length} Reddit threads, ${pack.seo.keywords.length} keywords (${done}/${runs.length} sources)`,
   });
 }
 
-function ensureRuns(campaignId: string, specs: RunSpec[]) {
-  const insert = db().prepare(
-    `insert into monid_runs (id, campaign_id, key, phase, provider, endpoint, input_json, status, created_at, updated_at)
-     values (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?) on conflict (campaign_id, key) do nothing`,
-  );
-  for (const spec of specs) insert.run(newId("run"), campaignId, spec.key, spec.phase, spec.provider, spec.endpoint, JSON.stringify(spec.input), now(), now());
+async function ensureRuns(campaignId: string, specs: RunSpec[]) {
+  for (const spec of specs) {
+    const row = { id: newId("run"), campaign_id: campaignId, key: spec.key, phase: spec.phase, provider: spec.provider, endpoint: spec.endpoint, input_json: JSON.stringify(spec.input), status: "pending", created_at: now(), updated_at: now() };
+    await store().insert("monid_runs", row, { unique: ["campaign_id", "key"] });
+  }
 }
 
 async function progressRuns(campaign: CampaignRow, monid: MonidClient) {
-  const runs = listRuns(campaign.id).filter((run) => run.status === "pending" || run.status === "running");
+  const runs = (await listRuns(campaign.id)).filter((run) => run.status === "pending" || run.status === "running");
   await Promise.all(
     runs.map(async (run) => {
       try {
         if (run.status === "pending") {
           const result = await monid.run(run.provider, run.endpoint, JSON.parse(run.input_json));
-          if (TERMINAL.has(result.status)) finishRun(campaign, run, result);
-          else update("monid_runs", run.id, { run_id: result.runId, status: "running" });
+          if (TERMINAL.has(result.status)) await finishRun(campaign, run, result);
+          else await save("monid_runs", run.id, { run_id: result.runId, status: "running" });
         } else if (run.run_id) {
           const result = await monid.getRun(run.run_id);
-          if (TERMINAL.has(result.status)) finishRun(campaign, run, result);
+          if (TERMINAL.has(result.status)) await finishRun(campaign, run, result);
         }
       } catch (error) {
         if (error instanceof ApiError && error.retryable) return; // try again on the next tick
-        update("monid_runs", run.id, { status: "failed", error: error instanceof Error ? error.message : String(error) });
+        await save("monid_runs", run.id, { status: "failed", error: error instanceof Error ? error.message : String(error) });
         if (error instanceof ApiError && error.outOfCredits) {
-          logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, level: "warn", message: "Monid balance is too low for some research. Top up at app.monid.ai/wallet." });
+          await logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, level: "warn", message: "Monid balance is too low for some research. Top up at app.monid.ai/wallet." });
         }
       }
     }),
   );
 }
 
-function finishRun(campaign: CampaignRow, run: RunRow, result: Awaited<ReturnType<MonidClient["getRun"]>>) {
+async function finishRun(campaign: CampaignRow, run: RunRow, result: Awaited<ReturnType<MonidClient["getRun"]>>) {
   const ok = result.status === "COMPLETED" && !providerFailed(result);
-  update("monid_runs", run.id, {
+  await save("monid_runs", run.id, {
     run_id: result.runId,
     status: ok ? "done" : "failed",
     output_json: ok ? JSON.stringify(result.output ?? null) : null,
     error: ok ? null : result.status === "BLOCKED" ? "blocked by a Monid wallet or budget control" : `${result.status.toLowerCase()}${providerFailed(result) ? ` (provider HTTP ${result.providerResponse?.httpStatus})` : ""}`,
     cost_micro: runCostMicro(result),
   });
-  if (result.status === "BLOCKED") logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, level: "warn", message: "A Monid run was blocked by a wallet or budget control. Top up at app.monid.ai/wallet." });
+  if (result.status === "BLOCKED") await logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, level: "warn", message: "A Monid run was blocked by a wallet or budget control. Top up at app.monid.ai/wallet." });
 }
 
 // ---------- format study ----------
 
 async function stepStyle(campaign: CampaignRow) {
   const { naive } = clients();
-  const brand = getBrand(campaign.brand_id)!;
-  const toStrategy = (message: string, level: "info" | "warn" = "info") => {
-    update("campaigns", campaign.id, { stage: "strategy" });
-    logEvent({ brandId: brand.id, campaignId: campaign.id, level, message });
+  const brand = (await getBrand(campaign.brand_id))!;
+  const toStrategy = async (message: string, level: "info" | "warn" = "info") => {
+    await save("campaigns", campaign.id, { stage: "strategy" });
+    await logEvent({ brandId: brand.id, campaignId: campaign.id, level, message });
   };
   if (!naive) return toStrategy("Skipped the format study: no Naive key.", "warn");
   const pack = parse<ResearchPack | null>(campaign.research_json, null);
   if (!pack || studyCandidates(pack).length === 0) return toStrategy("No downloadable top videos to study; the strategist works from the research alone.");
-  logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Studying the format of ${studyCandidates(pack).length} top-performing videos frame by frame` });
+  await logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Studying the format of ${studyCandidates(pack).length} top-performing videos frame by frame` });
   try {
     const study = await studyFormat(naive, pack, campaign.id);
     if (!study) return toStrategy("The top videos could not be downloaded for the format study; the strategist works from the research alone.", "warn");
-    update("campaigns", campaign.id, { stage: "strategy", style_json: JSON.stringify({ slug: null, version: null, skill_md: study.markdown, samples: study.urls }) });
-    logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Format study ready: ${study.urls.length} top videos analyzed` });
+    await save("campaigns", campaign.id, { stage: "strategy", style_json: JSON.stringify({ slug: null, version: null, skill_md: study.markdown, samples: study.urls }) });
+    await logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Format study ready: ${study.urls.length} top videos analyzed` });
   } catch (error) {
     if (error instanceof ApiError && error.retryable) throw error;
-    toStrategy(`Skipped the format study: ${error instanceof Error ? error.message : String(error)}`, "warn");
+    await toStrategy(`Skipped the format study: ${error instanceof Error ? error.message : String(error)}`, "warn");
   }
 }
 
@@ -240,7 +245,7 @@ let strategistId: string | null = null;
 async function stepStrategy(campaign: CampaignRow) {
   const { naive } = clients();
   if (!naive) throw new Error("The strategist runs on Naive: add a Naive API key in Settings, then retry.");
-  const brand = getBrand(campaign.brand_id)!;
+  const brand = (await getBrand(campaign.brand_id))!;
   const options = parse<CampaignOptions>(campaign.options_json, defaultOptions());
   const pack = parse<ResearchPack | null>(campaign.research_json, null);
   if (!pack) throw new Error("Research is missing; start a new campaign.");
@@ -255,7 +260,7 @@ async function stepStrategy(campaign: CampaignRow) {
     const session = await naive.createSession(
       {
         agent_id: strategistId,
-        message: strategyMessage(pack, style, options, pastResults(brand.id, campaign.id)),
+        message: strategyMessage(pack, style, options, await pastResults(brand.id, campaign.id)),
         output_schema: STRATEGY_SCHEMA,
         structured_output_required: true,
         budget_micro_usd: 4_000_000,
@@ -263,20 +268,24 @@ async function stepStrategy(campaign: CampaignRow) {
       },
       campaign.strategy_idem ?? `${campaign.id}-strategy`,
     );
-    update("campaigns", campaign.id, { strategy_session_id: session.id });
-    logEvent({ brandId: brand.id, campaignId: campaign.id, message: `The strategist is writing the brand brief and ${options.concepts} concepts` });
+    await save("campaigns", campaign.id, { strategy_session_id: session.id });
+    await logEvent({ brandId: brand.id, campaignId: campaign.id, message: `The strategist is writing the brand brief and ${options.concepts} concepts` });
     return;
   }
 
   const session = await naive.getSession(campaign.strategy_session_id);
-  update("campaigns", campaign.id, { strategy_spend_micro: session.consumed_micro_usd ?? 0 });
+  await save("campaigns", campaign.id, { strategy_spend_micro: session.consumed_micro_usd ?? 0 });
   if (session.status === "queued" || session.status === "running") return;
   if (session.structured_output && (session.status === "idle" || session.status === "completed")) {
     const strategy = normalizeStrategy(session.structured_output, options, pack);
     if (strategy.campaign.concepts.length === 0) throw new Error("The strategist returned no concepts.");
-    update("campaigns", campaign.id, { strategy_json: JSON.stringify(strategy), stage: "production" });
-    strategy.campaign.concepts.forEach((concept, idx) => insertCreative(campaign.id, idx, concept));
-    logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Campaign "${strategy.campaign.name}": ${strategy.campaign.concepts.length} concepts, now producing` });
+    // Videos first, then the stage, so a tick that reads "production" always finds them; and only
+    // once, so a tick that died in between doesn't add a second set.
+    if ((await listCreatives(campaign.id)).length === 0) {
+      for (const [idx, concept] of strategy.campaign.concepts.entries()) await insertCreative(campaign.id, idx, concept);
+    }
+    await save("campaigns", campaign.id, { strategy_json: JSON.stringify(strategy), stage: "production" });
+    await logEvent({ brandId: brand.id, campaignId: campaign.id, message: `Campaign "${strategy.campaign.name}": ${strategy.campaign.concepts.length} concepts, now producing` });
     return;
   }
   if (session.status === "idle" && campaign.strategy_nudges < 2 && session.stop_reason !== "budget_paused") {
@@ -285,22 +294,23 @@ async function stepStrategy(campaign: CampaignRow) {
       "Finish now: return the complete structured output matching the schema, with every concept and every shot filled in.",
       `${campaign.strategy_idem}-nudge${campaign.strategy_nudges + 1}`,
     );
-    update("campaigns", campaign.id, { strategy_nudges: campaign.strategy_nudges + 1 });
+    await save("campaigns", campaign.id, { strategy_nudges: campaign.strategy_nudges + 1 });
     return;
   }
   throw new Error(`The strategist stopped (${[session.status, session.stop_reason, session.stop_code].filter(Boolean).join(", ")}) without a usable plan.`);
 }
 
 /** What this brand's earlier posted videos did, so the next campaign learns from them. */
-function pastResults(brandId: string, currentCampaignId: string): PastResult[] {
-  const rows = db()
-    .prepare(
-      `select c.concept_json, p.platforms_json, p.status, p.analytics_json from posts p
-       join creatives c on c.id = p.creative_id
-       where p.brand_id = ? and c.campaign_id != ? and p.status in ('posted', 'failed')
-       order by p.created_at desc limit 12`,
-    )
-    .all(brandId, currentCampaignId) as Array<{ concept_json: string; platforms_json: string; status: string; analytics_json: string | null }>;
+async function pastResults(brandId: string, currentCampaignId: string): Promise<PastResult[]> {
+  type Post = { creative_id: string; platforms_json: string; status: string; analytics_json: string | null };
+  const posts = await store().find<Post>("posts", { brand_id: brandId, status: { in: ["posted", "failed"] } }, { order: [["created_at", "desc"]] });
+  const creatives = posts.length ? await store().find<{ id: string; campaign_id: string; concept_json: string }>("creatives", { id: { in: [...new Set(posts.map((p) => p.creative_id))] } }) : [];
+  const byId = new Map(creatives.map((c) => [c.id, c]));
+  const rows = posts
+    .map((post) => ({ post, creative: byId.get(post.creative_id) }))
+    .filter((row) => row.creative && row.creative.campaign_id !== currentCampaignId)
+    .slice(0, 12)
+    .map(({ post, creative }) => ({ concept_json: creative!.concept_json, platforms_json: post.platforms_json, status: post.status, analytics_json: post.analytics_json }));
   return rows.map((row) => {
     const concept = parse<Partial<Concept>>(row.concept_json, {});
     return {
@@ -320,29 +330,32 @@ async function stepProduction(campaign: CampaignRow) {
   const { naive, monid } = clients();
   const strategy = parse<Strategy | null>(campaign.strategy_json, null);
   if (!strategy) throw new Error("The campaign has no strategy yet.");
+  // Read once per tick; flipped (and saved) the moment Naive runs out.
+  let naiveOut = Boolean(campaign.naive_out);
   const ctx = {
     campaignId: campaign.id,
     brandId: campaign.brand_id,
     naive,
     monid,
     strategy,
-    naiveOut: () => Boolean(getCampaign(campaign.id)?.naive_out),
-    markNaiveOut: () => {
-      if (getCampaign(campaign.id)?.naive_out) return;
-      update("campaigns", campaign.id, { naive_out: 1 });
-      logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, level: "warn", message: "Naive is out of credits: new renders switch to Kling 3.0 on Monid. Top up Naive to switch back." });
+    naiveOut: () => naiveOut,
+    markNaiveOut: async () => {
+      if (naiveOut) return;
+      naiveOut = true;
+      await save("campaigns", campaign.id, { naive_out: 1 });
+      await logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, level: "warn", message: "Naive is out of credits: new renders switch to Kling 3.0 on Monid. Top up Naive to switch back." });
     },
   };
-  const active = listCreatives(campaign.id).filter((creative) => !creative.rejected);
+  const active = (await listCreatives(campaign.id)).filter((creative) => !creative.rejected);
   await Promise.all(active.filter((c) => c.status === "queued" || c.status === "producing").map((creative) => advanceCreative(ctx, creative)));
-  const now_ = listCreatives(campaign.id).filter((creative) => !creative.rejected);
+  const now_ = (await listCreatives(campaign.id)).filter((creative) => !creative.rejected);
   if (now_.every((creative) => creative.status === "ready" || creative.status === "failed")) {
     const ready = now_.filter((creative) => creative.status === "ready").length;
-    update("campaigns", campaign.id, { stage: "review", status: "review" });
-    logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, message: `${ready} of ${now_.length} videos are ready for review` });
+    await save("campaigns", campaign.id, { stage: "review", status: "review" });
+    await logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, message: `${ready} of ${now_.length} videos are ready for review` });
     if (getBool("autopilot") && ready > 0) {
       const { approveAll, publishCampaign } = await import("./publish");
-      approveAll(campaign.id);
+      await approveAll(campaign.id);
       await publishCampaign(campaign.id, "daily").catch((error: unknown) =>
         logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, level: "warn", message: `Autopilot could not schedule posts: ${error instanceof Error ? error.message : String(error)}` }),
       );
@@ -351,56 +364,56 @@ async function stepProduction(campaign: CampaignRow) {
 }
 
 /** A fresh take on one concept, optionally steered by a note from the reviewer. */
-export function regenerateCreative(creativeId: string, note?: string) {
-  const creative = db().prepare("select * from creatives where id = ?").get(creativeId) as CreativeRow | undefined;
+export async function regenerateCreative(creativeId: string, note?: string) {
+  const [creative] = await store().find<CreativeRow>("creatives", { id: creativeId }, { limit: 1 });
   if (!creative) throw new Error("No such video");
-  const campaign = getCampaign(creative.campaign_id)!;
+  const campaign = (await getCampaign(creative.campaign_id))!;
   const concept = parse<Concept>(creative.concept_json, null as unknown as Concept);
   if (note?.trim()) {
     concept.shots = concept.shots.map((shot) => ({ ...shot, video_prompt: `${shot.video_prompt}\nDirector's note for this take: ${note.trim()}`, frame_prompt: `${shot.frame_prompt}\nDirector's note: ${note.trim()}` }));
   }
-  update("creatives", creative.id, { rejected: 1, approved: 0 });
-  const id = insertCreative(campaign.id, creative.idx, concept, creative.generation + 1);
-  update("campaigns", campaign.id, { stage: "production", status: "running", error: null });
-  logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, message: `Re-rendering "${concept.title}"${note?.trim() ? ` with the note: ${note.trim()}` : ""}` });
+  await save("creatives", creative.id, { rejected: 1, approved: 0 });
+  const id = await insertCreative(campaign.id, creative.idx, concept, creative.generation + 1);
+  await save("campaigns", campaign.id, { stage: "production", status: "running", error: null });
+  await logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, message: `Re-rendering "${concept.title}"${note?.trim() ? ` with the note: ${note.trim()}` : ""}` });
   return id;
 }
 
 /** Stops a campaign where it is. A running strategist session is cancelled so it stops spending. */
 export async function stopCampaign(id: string) {
-  const campaign = getCampaign(id);
+  const campaign = await getCampaign(id);
   if (!campaign) throw new Error("No such campaign");
-  update("campaigns", id, { status: "stopped", error: "Stopped by you" });
+  await save("campaigns", id, { status: "stopped", error: "Stopped by you" });
   const { naive } = clients();
   if (naive && campaign.stage === "strategy" && campaign.strategy_session_id) await naive.cancelSession(campaign.strategy_session_id).catch(() => undefined);
-  logEvent({ brandId: campaign.brand_id, campaignId: id, level: "warn", message: `Stopped at ${campaign.stage}` });
+  await logEvent({ brandId: campaign.brand_id, campaignId: id, level: "warn", message: `Stopped at ${campaign.stage}` });
 }
 
-export function retryCampaign(id: string) {
-  const campaign = getCampaign(id);
+export async function retryCampaign(id: string) {
+  const campaign = await getCampaign(id);
   if (!campaign) throw new Error("No such campaign");
-  if (campaign.stage === "research") db().prepare("update monid_runs set status = 'pending', run_id = null, error = null where campaign_id = ? and status = 'failed'").run(id);
-  if (campaign.stage === "strategy" && campaign.strategy_session_id) update("campaigns", id, { strategy_session_id: null, strategy_idem: `${id}-strategy-${Date.now()}`, strategy_nudges: 0 });
+  if (campaign.stage === "research") await store().update("monid_runs", { campaign_id: id, status: "failed" }, { status: "pending", run_id: null, error: null });
+  if (campaign.stage === "strategy" && campaign.strategy_session_id) await save("campaigns", id, { strategy_session_id: null, strategy_idem: `${id}-strategy-${Date.now()}`, strategy_nudges: 0 });
   if (campaign.stage === "production") {
-    for (const creative of listCreatives(id).filter((c) => c.status === "failed" && !c.rejected)) regenerateCreative(creative.id);
+    for (const creative of (await listCreatives(id)).filter((c) => c.status === "failed" && !c.rejected)) await regenerateCreative(creative.id);
   }
-  update("campaigns", id, { status: "running", error: null, attempts: 0 });
-  logEvent({ brandId: campaign.brand_id, campaignId: id, message: `Retrying from ${campaign.stage}` });
+  await save("campaigns", id, { status: "running", error: null, attempts: 0 });
+  await logEvent({ brandId: campaign.brand_id, campaignId: id, message: `Retrying from ${campaign.stage}` });
 }
 
-export function recomputeSpend(campaignId: string) {
-  const campaign = getCampaign(campaignId);
+export async function recomputeSpend(campaignId: string) {
+  const campaign = await getCampaign(campaignId);
   if (!campaign) return;
-  const research = (db().prepare("select coalesce(sum(cost_micro), 0) total from monid_runs where campaign_id = ?").get(campaignId) as { total: number }).total;
+  const research = (await listRuns(campaignId)).reduce((sum, run) => sum + (run.cost_micro ?? 0), 0);
   let naiveVideo = 0;
   let monidVideo = 0;
-  for (const creative of listCreatives(campaignId)) {
+  for (const creative of await listCreatives(campaignId)) {
     for (const shot of parse<ShotState[]>(creative.shots_json, [])) {
       naiveVideo += shot.naive_cost;
       monidVideo += shot.monid_cost;
     }
   }
-  update("campaigns", campaignId, {
+  await save("campaigns", campaignId, {
     naive_spend_micro: campaign.style_spend_micro + campaign.strategy_spend_micro + naiveVideo,
     monid_spend_micro: research + monidVideo,
   });

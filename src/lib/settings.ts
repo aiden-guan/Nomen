@@ -1,4 +1,5 @@
-import { db } from "./db";
+import { store } from "./store";
+import { sqliteConnection } from "./store/sqlite";
 
 /** Every tunable the app reads, with its default. Secrets come from the environment first. */
 export const DEFAULTS = {
@@ -35,16 +36,36 @@ const ENV: Partial<Record<SettingKey, string>> = {
   mobilerun_base_url: "MOBILERUN_BASE_URL",
 };
 
+// SQLite answers in a microsecond, so it is read on every call, as before. Convex is a network
+// away, so its settings are loaded once per request and per worker tick (loadSettings).
+let cache: Map<string, string> | null = null;
+
+export async function loadSettings() {
+  if (store().kind === "sqlite") return;
+  const rows = await store().find<{ key: string; value: string }>("settings");
+  cache = new Map(rows.map((row) => [row.key, row.value]));
+}
+
+function stored(key: SettingKey): string | undefined {
+  if (store().kind === "sqlite") return (sqliteConnection().prepare("select value from settings where key = ?").get(key) as { value: string } | undefined)?.value;
+  return cache?.get(key);
+}
+
 export function getSetting(key: SettingKey): string {
   const envName = ENV[key];
   const fromEnv = envName ? process.env[envName] : undefined;
   if (fromEnv) return fromEnv;
-  const row = db().prepare("select value from settings where key = ?").get(key) as { value: string } | undefined;
-  return row?.value ?? DEFAULTS[key];
+  return stored(key) ?? DEFAULTS[key];
 }
 
-export function setSetting(key: SettingKey, value: string) {
-  db().prepare("insert into settings (key, value) values (?, ?) on conflict (key) do update set value = excluded.value").run(key, value);
+export async function setSetting(key: SettingKey, value: string) {
+  await store().upsert("settings", ["key"], { key, value });
+  cache?.set(key, value);
+}
+
+export async function deleteSetting(key: SettingKey) {
+  await store().remove("settings", { key });
+  cache?.delete(key);
 }
 
 export const getBool = (key: SettingKey) => getSetting(key) === "true";
@@ -55,7 +76,7 @@ export function secretStatus(key: SettingKey): { set: boolean; source: "env" | "
   const envName = ENV[key];
   const fromEnv = envName ? process.env[envName] : undefined;
   if (fromEnv) return { set: true, source: "env", hint: fromEnv === "proxy-injected" ? "injected by the network proxy" : `…${fromEnv.slice(-4)}` };
-  const row = db().prepare("select value from settings where key = ?").get(key) as { value: string } | undefined;
-  if (row?.value) return { set: true, source: "settings", hint: `…${row.value.slice(-4)}` };
+  const value = stored(key);
+  if (value) return { set: true, source: "settings", hint: `…${value.slice(-4)}` };
   return { set: false, source: "none", hint: "" };
 }

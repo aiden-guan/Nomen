@@ -115,16 +115,14 @@ set, so local development is unchanged.
 | `SITE_PASSWORD` | `src/proxy.ts` sends every page to `/gate` until the browser has the cookie. API calls get a 401. The cookie holds a SHA-256 hash of the password, never the password, and lasts 30 days. Changing the password logs every browser out. |
 | `NOMEN_DEMO_ONLY=1` | For a host that can't run campaigns. `/` forwards to `/demo`. The proxy switches the API off (404), except `/api/status`, which answers "demo build" for the core's header. Nothing on the server opens the database or calls a provider. |
 
-The Vercel project `nomen` (`nomen-phi.vercel.app`) sets both. Its functions have no lasting disk
-and no background worker, and the core keeps campaigns in SQLite, advances them with an in-process
-worker and writes videos to `data/media`, so real campaigns can't run there. The password is set
-in the project's environment variables (type "sensitive"), never in the repo, and each browser
-enters it once. The project isn't linked to Git: deploy a branch with the Vercel CLI, the API or
-Claude's Vercel tools.
+The Vercel project `nomen` (`nomen-phi.vercel.app`) sets both until Convex is connected. The
+password is set in the project's environment variables (type "sensitive"), never in the repo, and
+each browser enters it once. The project isn't linked to Git: deploy a branch with the Vercel CLI,
+the API or Claude's Vercel tools.
 
-To run the real product on `/`, run `npm run build && npm start` on a server with a lasting disk
-for `data/`, the provider keys and `SITE_PASSWORD`, and without `NOMEN_DEMO_ONLY`. `/demo` works
-there too.
+The real product runs on Vercel once Convex holds the data (docs/convex.md); `NOMEN_DEMO_ONLY`
+then stays on for Preview only. It also runs anywhere with a lasting disk (`npm run build && npm
+start`, SQLite in `data/`). `/demo` works in every setup.
 
 ## Under the core's layout
 
@@ -207,8 +205,8 @@ They cover:
 
 ## Not done yet
 
-- **The real product online:** the core needs a server with a lasting disk (see Demo
-  deployments), or a rework onto a hosted database, file storage and scheduled jobs.
+- **The real product online:** ready on Convex (docs/convex.md); waiting for the Convex project and
+  the provider keys on Vercel.
 - **Phones:** the warm-up track (`/api/phones/*`) isn't shown in the camp yet; a soldier scrolling a
   phone would fit the Agora.
 - **Linking:** the brand workspace (`/brands/[id]`, core) doesn't link to the camp yet; the camp

@@ -21,6 +21,9 @@ finished videos, and writes public/demo/<id>/ with an entry in public/demo/index
 those files and deploy: /demo then replays this campaign when its website is typed (and when any
 other website is typed, if it is the newest recording).
 
+A site behind its password (SITE_PASSWORD) needs it in the environment, never on the command
+line: NOMEN_SITE_PASSWORD=… npm run demo:export -- yourbrand.com --from https://your.site
+
 Options
   --from <url>   the running Nomen to read from (default http://localhost:3000)
   --out <dir>    where recordings live (default public/demo)
@@ -59,14 +62,25 @@ function fail(message) {
 }
 const warn = (message) => console.warn(`  ! ${message}`);
 
+// A site behind its password: sign in once and send the cookie with every request to it.
+let cookie = "";
+if (process.env.NOMEN_SITE_PASSWORD) {
+  const response = await fetch(`${from}/api/gate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: process.env.NOMEN_SITE_PASSWORD }) }).catch((error) =>
+    fail(`Couldn't reach ${from} (${error.cause?.code ?? error.message}).`),
+  );
+  if (!response.ok) fail(`${from} didn't accept NOMEN_SITE_PASSWORD.`);
+  cookie = (response.headers.get("set-cookie") ?? "").split(";")[0];
+}
+const onSite = (url) => !/^https?:/.test(url) || url.startsWith(from);
+
 async function api(path) {
   let response;
   try {
-    response = await fetch(from + path);
+    response = await fetch(from + path, { headers: cookie ? { cookie } : {} });
   } catch (error) {
     fail(`Couldn't reach ${from} (${error.cause?.code ?? error.message}). Start Nomen (npm run dev) or pass --from.`);
   }
-  if (response.status === 401) fail(`${from} asks for its site password. Export from an instance without SITE_PASSWORD, such as your local one.`);
+  if (response.status === 401) fail(`${from} asks for its site password: set NOMEN_SITE_PASSWORD in the environment and run again.`);
   if (!response.ok) fail(`${from}${path} answered HTTP ${response.status}.`);
   return response.json();
 }
@@ -99,7 +113,8 @@ const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "im
 const extFor = (type, fallback) => EXT[(type ?? "").split(";")[0].trim()] ?? fallback;
 
 async function download(url, file) {
-  const response = await fetch(/^https?:/.test(url) ? url : from + url);
+  // The cookie goes to this site only; its media may redirect to storage elsewhere.
+  const response = await fetch(/^https?:/.test(url) ? url : from + url, { headers: cookie && onSite(url) ? { cookie } : {} });
   if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
   await pipeline(Readable.fromWeb(response.body), createWriteStream(file));
   return response.headers.get("content-type");

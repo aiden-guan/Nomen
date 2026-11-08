@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { body, handle } from "@/lib/api";
 import { type CampaignOptions, defaultOptions, getBrand, startCampaign } from "@/lib/pipeline";
 import { tick } from "@/lib/worker";
@@ -8,7 +9,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
     const brandId = (await params).id;
-    if (!getBrand(brandId)) return Response.json({ error: "No such brand" }, { status: 404 });
+    if (!(await getBrand(brandId))) return Response.json({ error: "No such brand" }, { status: 404 });
     const overrides = await body<CampaignOptions>(request);
     const defaults = defaultOptions();
     const options: CampaignOptions = {
@@ -18,8 +19,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       videoModel: typeof overrides.videoModel === "string" && overrides.videoModel ? overrides.videoModel : defaults.videoModel,
       learnStyle: typeof overrides.learnStyle === "boolean" ? overrides.learnStyle : defaults.learnStyle,
     };
-    const campaignId = startCampaign(brandId, options);
-    void tick();
+    const campaignId = await startCampaign(brandId, options);
+    after(tick);
     return Response.json({ campaignId }, { status: 201 });
   });
 }

@@ -18,9 +18,11 @@ const statusSaying = (error: string): Status => ({ naive: { ok: false, error }, 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isGate = pathname === "/gate" || pathname === "/api/gate";
+  // The worker's heartbeat comes from Convex, not a browser: the route checks its own secret.
+  const isTick = pathname === "/api/worker/tick";
 
   const password = process.env.SITE_PASSWORD;
-  if (password && !isGate) {
+  if (password && !isGate && !isTick) {
     const cookie = request.cookies.get(GATE_COOKIE)?.value;
     if (!cookie || !safeEqual(cookie, await gateToken(password))) {
       if (pathname === "/api/status") return NextResponse.json(statusSaying("locked"), { status: 401 });

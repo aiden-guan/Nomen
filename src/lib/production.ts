@@ -1,8 +1,8 @@
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { db, logEvent, newId, now, parse, update } from "./db";
+import { logEvent, newId, now, parse, save, store } from "./db";
 import { ApiError } from "./http";
-import { download, extractFrames, ffmpegPath, mediaDir, stitch } from "./media";
+import { extractFrames, ffmpegPath, scratchDir, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import type { NaiveClient } from "./naive";
 import { type Continuity, reviewContinuity, reviewShot, type Verdict } from "./qc";
@@ -11,6 +11,8 @@ import { captionFor, type Concept, type Strategy } from "./strategy";
 
 // Production: every shot gets a product-faithful first frame, a render, and a QC pass; then the
 // shots are cut into one ad. Naive renders first; Monid renders when Naive is out of credits.
+// Renders, frames and the cut are kept in the store's files (data/media locally, Convex storage on
+// serverless hosts), named by key: "crv_…/shot1-r1.mp4", "crv_…/shot1-frame.png", "crv_…/final.mp4".
 
 export type ShotState = {
   n: number;
@@ -26,6 +28,8 @@ export type ShotState = {
   frame_idem: string;
   frame_file_id: string | null;
   frame_url: string | null;
+  /** The stored copy of the first frame (signed provider links expire after seven days). */
+  frame_key?: string | null;
   frame_skipped: boolean;
   /** Shot 1 only: a still from its render, uploaded to Naive, when it had no first frame. */
   identity_file_id?: string | null;
@@ -44,6 +48,7 @@ export type ShotState = {
   monid_run_id: string | null;
   video_file_id: string | null;
   video_url: string | null;
+  /** The stored render's file key (older local rows hold an absolute path, which still works). */
   local_path: string | null;
   qc: Verdict | null;
   naive_cost: number;
@@ -63,6 +68,8 @@ export type CreativeRow = {
   final_url: string | null;
   final_url_expires_at: string | null;
   final_external_url: string | null;
+  /** The stored cut ("crv_…/final.mp4"), once there is one. */
+  final_key?: string | null;
   poster_url: string | null;
   qc_score: number | null;
   continuity_json: string | null;
@@ -80,7 +87,7 @@ export type ProductionContext = {
   naive: NaiveClient | null;
   monid: MonidClient | null;
   naiveOut: () => boolean;
-  markNaiveOut: () => void;
+  markNaiveOut: () => Promise<void>;
   strategy: Strategy;
 };
 
@@ -94,7 +101,7 @@ function backoff(shot: ShotState) {
 }
 const waiting = (shot: ShotState) => Boolean(shot.retry_at && Date.parse(shot.retry_at) > Date.now());
 
-export function insertCreative(campaignId: string, idx: number, concept: Concept, generation = 1) {
+export async function insertCreative(campaignId: string, idx: number, concept: Concept, generation = 1) {
   const id = newId("crv");
   const shots: ShotState[] = concept.shots.map((shot, i) => ({
     n: i + 1,
@@ -123,27 +130,34 @@ export function insertCreative(campaignId: string, idx: number, concept: Concept
     monid_cost: 0,
     error: null,
   }));
-  db()
-    .prepare(
-      `insert into creatives (id, campaign_id, idx, generation, concept_json, shots_json, status, caption, platforms_json, created_at, updated_at)
-       values (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`,
-    )
-    .run(id, campaignId, idx, generation, JSON.stringify(concept), JSON.stringify(shots), captionFor(concept), JSON.stringify(concept.platforms), now(), now());
+  await store().insert("creatives", {
+    id,
+    campaign_id: campaignId,
+    idx,
+    generation,
+    concept_json: JSON.stringify(concept),
+    shots_json: JSON.stringify(shots),
+    status: "queued",
+    caption: captionFor(concept),
+    platforms_json: JSON.stringify(concept.platforms),
+    created_at: now(),
+    updated_at: now(),
+  });
   return id;
 }
 
 export async function advanceCreative(ctx: ProductionContext, creative: CreativeRow) {
   if (creative.status === "ready" || creative.status === "failed") return;
   const concept = parse<Concept | null>(creative.concept_json, null);
-  if (!concept) return update("creatives", creative.id, { status: "failed", error: "concept is unreadable" });
+  if (!concept) return save("creatives", creative.id, { status: "failed", error: "concept is unreadable" });
   const shots = parse<ShotState[]>(creative.shots_json, []);
-  const save = (fields: Record<string, unknown> = {}) =>
-    update("creatives", creative.id, {
+  const persist = (fields: Record<string, unknown> = {}) =>
+    save("creatives", creative.id, {
       shots_json: JSON.stringify(shots),
       cost_micro: shots.reduce((sum, shot) => sum + shot.naive_cost + shot.monid_cost, 0),
       ...fields,
     });
-  if (creative.status === "queued") save({ status: "producing" });
+  if (creative.status === "queued") await persist({ status: "producing" });
 
   await ensureIdentity(ctx, creative.id, shots);
   for (const shot of shots) {
@@ -151,26 +165,26 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     // Later shots take the first shot's look as their identity reference, so wait for it.
     if (shot.n > 1 && !identityReady(ctx, shots[0])) break;
     await makeFrame(ctx, creative.id, concept, shots, shot);
-    save();
+    await persist();
   }
   for (const shot of shots) {
     if (waiting(shot)) continue;
     if (shot.status === "framed") await submitRender(ctx, shot);
     else if (shot.status === "rendering") await pollRender(ctx, creative.id, shot);
     else if (shot.status === "rendered") await checkQuality(ctx, concept, shot);
-    save();
+    await persist();
   }
 
   const failed = shots.find((shot) => shot.status === "failed");
   if (failed) {
-    save({ status: "failed", error: `Shot ${failed.n}: ${failed.error ?? "could not be rendered"}` });
-    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "error", message: `"${concept.title}" failed at shot ${failed.n}: ${failed.error}` });
+    await persist({ status: "failed", error: `Shot ${failed.n}: ${failed.error ?? "could not be rendered"}` });
+    await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "error", message: `"${concept.title}" failed at shot ${failed.n}: ${failed.error}` });
     return;
   }
   if (shots.every((shot) => shot.status === "passed")) {
-    if (!(await checkContinuity(ctx, creative, concept, shots))) return save();
+    if (!(await checkContinuity(ctx, creative, concept, shots))) return persist();
     await finalize(ctx, creative, concept, shots);
-    save();
+    await persist();
   }
 }
 
@@ -188,7 +202,7 @@ async function ensureIdentity(ctx: ProductionContext, creativeId: string, shots:
   const first = shots[0];
   if (identityOf(first) || !first.frame_skipped || !first.local_path || !ctx.naive || ctx.naiveOut()) return;
   try {
-    const [still] = await extractFrames(first.local_path, 1, 1080);
+    const [still] = await extractFrames(await store().files.localPath(first.local_path), 1, 1080);
     first.identity_file_id = await ctx.naive.uploadFile(`${creativeId}-identity.jpg`, "image/jpeg", still);
   } catch (error) {
     if (error instanceof ApiError && error.retryable) return;
@@ -206,12 +220,12 @@ async function checkContinuity(ctx: ProductionContext, creative: CreativeRow, co
   if (previous?.checked || shots.length < 2 || !ctx.naive || ctx.naiveOut() || !(await ffmpegPath())) return true;
   const rounds = (previous?.rounds ?? 0) + 1;
   try {
-    const frames = await Promise.all(shots.map(async (shot) => (await extractFrames(shot.local_path!, 1))[0]));
+    const frames = await Promise.all(shots.map(async (shot) => (await extractFrames(await store().files.localPath(shot.local_path!), 1))[0]));
     const verdict = await reviewContinuity(ctx.naive, { frames, concept });
     const redo = verdict.mismatched.map((n) => shots[n - 1]).filter((shot) => shot && shot.renders < MAX_RENDERS);
     if (verdict.consistent || rounds > 1 || redo.length === 0) {
-      update("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: verdict.consistent, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
-      if (!verdict.consistent) logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" still changes between shots: ${verdict.note}` });
+      await save("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: verdict.consistent, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
+      if (!verdict.consistent) await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" still changes between shots: ${verdict.note}` });
       return true;
     }
     for (const shot of redo) {
@@ -233,12 +247,12 @@ async function checkContinuity(ctx: ProductionContext, creative: CreativeRow, co
         error: null,
       });
     }
-    update("creatives", creative.id, { continuity_json: JSON.stringify({ checked: false, consistent: false, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
-    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}": shot ${verdict.mismatched.join(", ")} shows a different person or place (${verdict.note}); re-rendering from shot 1` });
+    await save("creatives", creative.id, { continuity_json: JSON.stringify({ checked: false, consistent: false, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
+    await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}": shot ${verdict.mismatched.join(", ")} shows a different person or place (${verdict.note}); re-rendering from shot 1` });
     return false;
   } catch (error) {
     if (error instanceof ApiError && error.retryable) return false;
-    update("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: false, mismatched: [], note: `not checked: ${message(error)}`, rounds }) });
+    await save("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: false, mismatched: [], note: `not checked: ${message(error)}`, rounds }) });
     return true;
   }
 }
@@ -266,14 +280,18 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
     shot.naive_cost += result.cost_micro_usd ?? 0;
     shot.frame_file_id = file.id;
     shot.frame_url = (await ctx.naive.fileUrl(file.id)).url;
-    // Keep a local copy for the review page: signed links expire after seven days.
-    await download(shot.frame_url, join(mediaDir(creativeId), `shot${shot.n}-frame.png`)).catch(() => undefined);
+    // Keep a copy for the review page: signed links expire after seven days.
+    const key = `${creativeId}/shot${shot.n}-frame.png`;
+    shot.frame_key = await store()
+      .files.saveUrl(key, shot.frame_url, "image/png")
+      .then(() => key)
+      .catch(() => null);
     shot.status = "framed";
   } catch (error) {
     if (error instanceof ApiError && error.inFlight) {
       return; // the frame is still rendering under this key; ask again next tick
     } else if (error instanceof ApiError && error.outOfCredits) {
-      ctx.markNaiveOut();
+      await ctx.markNaiveOut();
       shot.frame_skipped = true;
       shot.status = "framed";
     } else if (error instanceof ApiError && error.keyConflict) {
@@ -317,7 +335,7 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
       if (error instanceof ApiError && error.inFlight) {
         return;
       } else if (error instanceof ApiError && error.outOfCredits) {
-        ctx.markNaiveOut();
+        await ctx.markNaiveOut();
       } else if (error instanceof ApiError && error.code === "validation_failed" && shot.frame_file_id && !shot.text_only) {
         shot.text_only = true; // this model does not animate a first frame: render from the prompt
         shot.video_idem = `${shot.video_idem}-t2v`;
@@ -352,7 +370,7 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
       { body: firstFrame ? { prompt, media: [{ type: "first_frame", url: shot.frame_url }], resolution, duration, audio: "native" } : { prompt, resolution, aspect_ratio: "9:16", duration, audio: "native" } },
     );
     Object.assign(shot, { monid_run_id: run.runId, job_id: null, provider: "monid", status: "rendering", renders: shot.renders + 1, submit_errors: 0 });
-    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Shot ${shot.n} is rendering on Monid (Kling 3.0) because Naive is unavailable` });
+    await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Shot ${shot.n} is rendering on Monid (Kling 3.0) because Naive is unavailable` });
     if (TERMINAL.has(run.status)) await finishMonid(run, shot);
   } catch (error) {
     if (error instanceof ApiError && error.retryable && shot.submit_errors < MAX_SUBMIT_ERRORS) backoff(shot);
@@ -382,9 +400,9 @@ async function pollRender(ctx: ProductionContext, creativeId: string, shot: Shot
     if (TERMINAL.has(run.status)) await finishMonid(run, shot);
   }
   if (shot.status === "rendered") {
-    const dir = mediaDir(creativeId);
-    await mkdir(dir, { recursive: true });
-    shot.local_path = await download(shot.video_url!, join(dir, `shot${shot.n}-r${shot.renders}.mp4`));
+    const key = `${creativeId}/shot${shot.n}-r${shot.renders}.mp4`;
+    await store().files.saveUrl(key, shot.video_url!, "video/mp4");
+    shot.local_path = key;
   }
 }
 
@@ -407,16 +425,16 @@ async function checkQuality(ctx: ProductionContext, concept: Concept, shot: Shot
     return;
   }
   try {
-    const frames = await extractFrames(shot.local_path!, 4);
+    const frames = await extractFrames(await store().files.localPath(shot.local_path!), 4);
     const verdict = await reviewShot(ctx.naive!, { frames, brand: ctx.strategy.brand, concept, shot: concept.shots[shot.n - 1], shotNumber: shot.n, prompt: shot.prompt });
     shot.qc = verdict;
     shot.qc_rounds++;
     const retries = getInt("qc_max_retries");
     if (verdict.pass || shot.qc_rounds > retries || !verdict.fix_prompt || shot.renders >= MAX_RENDERS) {
       shot.status = "passed";
-      if (!verdict.pass) logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" shot ${shot.n} scored ${verdict.score}/10 after its re-render: ${verdict.issues[0] ?? "see QC notes"}` });
+      if (!verdict.pass) await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" shot ${shot.n} scored ${verdict.score}/10 after its re-render: ${verdict.issues[0] ?? "see QC notes"}` });
     } else {
-      logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `QC sent "${concept.title}" shot ${shot.n} back (${verdict.score}/10): ${verdict.issues[0] ?? "quality"}` });
+      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `QC sent "${concept.title}" shot ${shot.n} back (${verdict.score}/10): ${verdict.issues[0] ?? "quality"}` });
       shot.prompt = verdict.fix_prompt;
       shot.video_idem = `${shot.video_idem.replace(/-qc\d+$/, "")}-qc${shot.qc_rounds}`;
       Object.assign(shot, { job_id: null, monid_run_id: null, video_file_id: null, video_url: null });
@@ -440,29 +458,39 @@ async function checkQuality(ctx: ProductionContext, concept: Concept, shot: Shot
       shot.qc_errors = (shot.qc_errors ?? 0) + 1; // a busy or fumbling model: check again next tick
       return;
     }
-    if (error instanceof ApiError && error.outOfCredits) ctx.markNaiveOut();
+    if (error instanceof ApiError && error.outOfCredits) await ctx.markNaiveOut();
     shot.status = "passed"; // QC is a gate for quality, not a reason to lose a finished render
     shot.error = `quality check skipped: ${message(error)}`;
   }
 }
 
 async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: Concept, shots: ShotState[]) {
-  const dir = mediaDir(creative.id);
-  await mkdir(dir, { recursive: true });
-  const finalPath = join(dir, "final.mp4");
+  const files = store().files;
+  const work = join(scratchDir(), `cut-${creative.id}`);
+  await mkdir(work, { recursive: true });
+  const finalPath = join(work, "final.mp4");
+  const finalKey = `${creative.id}/final.mp4`;
   const scores = shots.map((shot) => shot.qc?.score).filter((score): score is number => typeof score === "number");
-  const fields: Record<string, unknown> = { qc_score: scores.length ? Math.min(...scores) : null, poster_url: shots[0].frame_url ? `/api/media/${creative.id}/shot1-frame.png` : null, error: null };
+  const fields: Record<string, unknown> = { qc_score: scores.length ? Math.min(...scores) : null, poster_url: shots[0].frame_key || shots[0].frame_url ? `/api/media/${creative.id}/shot1-frame.png` : null, error: null };
 
-  if (await ffmpegPath()) {
-    // Every ad, one shot or several, comes out as 1080x1920 at 30 fps with clean AAC audio.
-    await stitch(shots.map((shot) => shot.local_path!), finalPath);
-  } else if (shots.length === 1) {
-    await copyFile(shots[0].local_path!, finalPath);
-    fields.final_file_id = shots[0].video_file_id;
-    fields.final_url = shots[0].video_url;
-  } else {
-    update("creatives", creative.id, { status: "failed", error: "ffmpeg is needed to cut shots together; install it or run npm install" });
-    return;
+  try {
+    const sources = await Promise.all(shots.map((shot) => files.localPath(shot.local_path!)));
+    if (await ffmpegPath()) {
+      // Every ad, one shot or several, comes out as 1080x1920 at 30 fps with clean AAC audio.
+      await stitch(sources, finalPath);
+    } else if (shots.length === 1) {
+      await copyFile(sources[0], finalPath);
+      fields.final_file_id = shots[0].video_file_id;
+      fields.final_url = shots[0].video_url;
+    } else {
+      await save("creatives", creative.id, { status: "failed", error: "ffmpeg is needed to cut shots together; install it or run npm install" });
+      return;
+    }
+    await files.putFile(finalKey, finalPath, "video/mp4");
+    fields.final_key = finalKey;
+  } catch (error) {
+    await rm(work, { recursive: true, force: true });
+    throw error;
   }
   if (shots.length === 1 && shots[0].provider === "monid") fields.final_external_url = shots[0].video_url;
   if (!fields.final_file_id && ctx.naive) {
@@ -471,11 +499,12 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
       const link = await ctx.naive.fileUrl(fileId);
       Object.assign(fields, { final_file_id: fileId, final_url: link.url, final_url_expires_at: link.expires_at });
     } catch (error) {
-      logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" is ready but could not be uploaded to Naive for posting: ${message(error)}` });
+      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" is ready but could not be uploaded to Naive for posting: ${message(error)}` });
     }
   }
-  update("creatives", creative.id, { ...fields, status: "ready" });
-  logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}" is ready${scores.length ? ` (QC ${Math.min(...scores)}/10)` : ""}` });
+  await rm(work, { recursive: true, force: true });
+  await save("creatives", creative.id, { ...fields, status: "ready" });
+  await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}" is ready${scores.length ? ` (QC ${Math.min(...scores)}/10)` : ""}` });
 }
 
 function monidVideoEnabled(ctx: ProductionContext) {

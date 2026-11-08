@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
     const id = (await params).id;
-    if (!getBrand(id)) return Response.json({ error: "No such brand" }, { status: 404 });
+    if (!(await getBrand(id))) return Response.json({ error: "No such brand" }, { status: 404 });
     try {
       return Response.json({ accounts: await connectedAccounts(id) });
     } catch (error) {
@@ -20,7 +20,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
     const id = (await params).id;
-    if (!getBrand(id)) return Response.json({ error: "No such brand" }, { status: 404 });
+    if (!(await getBrand(id))) return Response.json({ error: "No such brand" }, { status: 404 });
     const { returnTo } = await body<{ returnTo: string }>(request);
     const valid = typeof returnTo === "string" && /^https?:\/\//.test(returnTo) ? returnTo : undefined;
     return Response.json({ url: await connectLink(id, valid) });

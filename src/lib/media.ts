@@ -1,13 +1,17 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 
-/** Finished videos are kept here so review never depends on a provider's link still being valid. */
-export const mediaDir = (creativeId: string) => join(process.cwd(), "data", "media", creativeId);
+/**
+ * Scratch space for downloads, frames and cuts: the OS temp folder, the only writable place on
+ * serverless hosts. Kept files go through the store's files (src/lib/store), not here.
+ */
+export const scratchDir = () => join(tmpdir(), "nomen-work");
 
 let ffmpeg: string | null | undefined;
 
