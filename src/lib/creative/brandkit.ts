@@ -15,7 +15,7 @@ import { lstat, mkdir, mkdtemp, open, readdir, readFile, realpath, rename, rm, s
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, posix, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { db, logEvent, now } from "../db";
+import { logEvent, now, store } from "../db";
 import { ffmpegPath, probe } from "../media";
 import type { NaiveClient } from "../naive";
 import { QC_MODEL } from "../qc";
@@ -332,10 +332,18 @@ export function brandKitView(brandId: string) {
 }
 
 /** 404s unless the brand exists. */
-export function requireBrand(brandId: string): { id: string; name: string } {
-  const row = BRAND_ID.test(brandId) ? (db().prepare("select id, name from brands where id = ?").get(brandId) as { id: string; name: string } | undefined) : undefined;
+export async function requireBrand(brandId: string): Promise<{ id: string; name: string }> {
+  const [row] = BRAND_ID.test(brandId) ? await store().find<{ id: string; name: string }>("brands", { id: brandId }, { limit: 1 }) : [];
   if (!row) throw new BrandKitError(404, "Brand not found.");
-  return row;
+  return { id: row.id, name: row.name };
+}
+
+/**
+ * Kits are folders on this machine's disk (data/brandkits). A serverless host has no lasting disk,
+ * so there they can be read (empty) but not changed yet: see docs/convex.md.
+ */
+export function requireKitDisk() {
+  if (store().kind !== "sqlite") throw new BrandKitError(501, "Brand kits aren't available on this deployment yet: they are kept on the server's disk, which a serverless host doesn't have. Run Nomen locally to import one.");
 }
 
 /**
@@ -457,7 +465,7 @@ export async function addUploadedFiles(brandId: string, files: Array<{ name: str
     }
     if (added.length) {
       await writeStored(stored);
-      logEvent({ brandId, message: `Brand kit: added ${added.length} file${added.length === 1 ? "" : "s"}` });
+      await logEvent({ brandId, message: `Brand kit: added ${added.length} file${added.length === 1 ? "" : "s"}` }).catch(() => undefined);
     }
     return { kit: publicKit(stored), added, skipped };
   });
@@ -1714,7 +1722,7 @@ export async function scanRepo(brandId: string, source: string): Promise<BrandKi
         return publicKit(stored);
       });
       const fromRepo = kit.assets.filter((a) => a.source.startsWith("repo:")).length;
-      logEvent({ brandId, message: `Brand kit: scanned ${scan.origin} (${fromRepo} assets, ${scan.colors.length} colors, ${scan.screens.length} screens${walked.truncated ? "; stopped at the file limit" : ""})` });
+      await logEvent({ brandId, message: `Brand kit: scanned ${scan.origin} (${fromRepo} assets, ${scan.colors.length} colors, ${scan.screens.length} screens${walked.truncated ? "; stopped at the file limit" : ""})` }).catch(() => undefined);
       return kit;
     } finally {
       await clone?.cleanup();
@@ -1883,9 +1891,9 @@ export function startCaptioning(brandId: string, client: () => CaptionClient) {
         state.again = false;
         try {
           const result = await captionAssets(client(), brandId);
-          if (result.errors.length) logEvent({ brandId, level: "warn", message: `Brand kit: couldn't describe some images (${result.errors[0].slice(0, 200)})` });
+          if (result.errors.length) await logEvent({ brandId, level: "warn", message: `Brand kit: couldn't describe some images (${result.errors[0].slice(0, 200)})` }).catch(() => undefined);
         } catch (error) {
-          logEvent({ brandId, level: "warn", message: `Brand kit: couldn't describe images (${(error instanceof Error ? error.message : String(error)).slice(0, 200)})` });
+          await logEvent({ brandId, level: "warn", message: `Brand kit: couldn't describe images (${(error instanceof Error ? error.message : String(error)).slice(0, 200)})` }).catch(() => undefined);
         }
       } while (state.again);
     } finally {

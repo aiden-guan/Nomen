@@ -1,15 +1,23 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
-import { join } from "node:path";
 import { Readable } from "node:stream";
-import { mediaDir } from "@/lib/media";
+import { store } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-/** Serves a finished video from local storage, with Range support so the player can seek. */
+/**
+ * Serves a stored video or frame. From local storage it streams the file with Range support so the
+ * player can seek; from Convex storage it redirects to the file's storage URL.
+ */
 export async function GET(request: Request, { params }: { params: Promise<{ creativeId: string; name: string }> }) {
   const { creativeId, name } = await params;
   if (!/^crv_[a-z0-9]+$/.test(creativeId) || !/^((final|shot\d+-r\d+)\.mp4|shot\d+-frame\.png)$/.test(name)) return new Response("Not found", { status: 404 });
-  const path = join(mediaDir(creativeId), name);
+  const key = `${creativeId}/${name}`;
+  const files = store().files;
+  if (store().kind !== "sqlite") {
+    const url = await files.url(key);
+    return url ? new Response(null, { status: 302, headers: { location: url, "cache-control": "private, max-age=300" } }) : new Response("Not found", { status: 404 });
+  }
+  const path = await files.localPath(key);
   if (!existsSync(path)) return new Response("Not found", { status: 404 });
   const size = statSync(path).size;
   const range = request.headers.get("range")?.match(/bytes=(\d*)-(\d*)/);

@@ -1,6 +1,6 @@
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { download, extractFrames, ffmpegPath, mediaDir } from "./media";
+import { download, extractFrames, ffmpegPath, scratchDir } from "./media";
 import type { NaiveClient } from "./naive";
 import { QC_MODEL } from "./qc";
 import type { ResearchPack, Video } from "./research";
@@ -24,7 +24,7 @@ export function studyCandidates(pack: ResearchPack): Video[] {
 export async function studyFormat(naive: NaiveClient, pack: ResearchPack, campaignId: string): Promise<{ markdown: string; urls: string[] } | null> {
   const candidates = studyCandidates(pack);
   if (candidates.length === 0 || !(await ffmpegPath())) return null;
-  const dir = join(mediaDir(`study-${campaignId}`));
+  const dir = join(scratchDir(), `study-${campaignId}`);
   await mkdir(dir, { recursive: true });
   const studied: Array<{ video: Video; frames: Buffer[] }> = [];
   try {

@@ -1,7 +1,7 @@
 // POST   /api/brands/:id/brandkit/repo { source }   reads a public GitHub/GitLab repo or a local folder
 //                                                  (never runs its code; can take a minute or two) -> the kit
 // DELETE /api/brands/:id/brandkit/repo              forgets the scan and the assets it copied in -> the kit
-import { BrandKitError, brandKitView, forgetRepo, requireBrand, scanRepo } from "@/lib/creative/brandkit";
+import { BrandKitError, brandKitView, forgetRepo, requireBrand, requireKitDisk, scanRepo } from "@/lib/creative/brandkit";
 import { captionInBackground, respond } from "../respond";
 
 export const runtime = "nodejs";
@@ -13,7 +13,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(request: Request, { params }: Params) {
   return respond(async () => {
     const { id } = await params;
-    requireBrand(id);
+    await requireBrand(id);
+    requireKitDisk();
     let body: unknown;
     try {
       body = await request.json();
@@ -31,7 +32,8 @@ export async function POST(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   return respond(async () => {
     const { id } = await params;
-    requireBrand(id);
+    await requireBrand(id);
+    requireKitDisk();
     await forgetRepo(id);
     return brandKitView(id);
   });

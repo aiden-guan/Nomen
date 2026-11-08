@@ -19,6 +19,11 @@ export type ProductVisual = {
   kind: "photo" | "screenshot" | "video";
   /** A URL Nomen can download (https) or a local path under data/media once captured. */
   url: string;
+  /**
+   * The store's file key of a captured copy ("visuals-cmp_…/site-pricing.png"). On a serverless host
+   * the local path is gone on the next tick; production fetches the file again by this key.
+   */
+  key?: string;
   /** What is visible, in a few words: "pricing page, three plans", "the bottle on a white background". */
   caption: string;
   /** Where it came from: "site:/pricing", "brand profile", "capture:mobile". */

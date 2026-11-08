@@ -1,7 +1,6 @@
 import { body, handle } from "@/lib/api";
-import { db } from "@/lib/db";
 import { NaiveClient } from "@/lib/naive";
-import { DEFAULTS, getSetting, SECRET_KEYS, secretStatus, type SettingKey, setSetting } from "@/lib/settings";
+import { DEFAULTS, deleteSetting, getSetting, SECRET_KEYS, secretStatus, type SettingKey, setSetting } from "@/lib/settings";
 
 export const runtime = "nodejs";
 
@@ -50,10 +49,10 @@ export async function POST(request: Request) {
       const settingKey = key as SettingKey;
       const value = String(raw ?? "").trim();
       if (SECRET_KEYS.includes(settingKey)) {
-        if (value === "") db().prepare("delete from settings where key = ?").run(settingKey);
-        else setSetting(settingKey, value);
+        if (value === "") await deleteSetting(settingKey);
+        else await setSetting(settingKey, value);
       } else if (EDITABLE.includes(settingKey)) {
-        setSetting(settingKey, value);
+        await setSetting(settingKey, value);
       }
     }
     return Response.json({ ok: true });

@@ -12,3 +12,6 @@
   `NODE_USE_ENV_PROXY=1 NAIVE_API_KEY=proxy-injected`.
 - Working on video quality? Read `samples/monid/REVIEW.md` first and look at the `*-frames.jpg`
   contact sheets (you cannot play the MP4s): they show the current output and its known defects.
+- Core storage goes through `src/lib/store` (SQLite locally, Convex on Vercel): use `store()`, `save` and
+  `logEvent` from `src/lib/db.ts`, and await them. `db()` and the synchronous `update` are for the phones
+  track's SQLite tables only. Details: docs/convex.md.

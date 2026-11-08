@@ -2,7 +2,7 @@
 // POST   /api/brands/:id/brandkit               multipart/form-data, one or more `files` entries (a folder
 //                                               upload's relative path is the file name) -> the kit + `added`, `skipped`
 // DELETE /api/brands/:id/brandkit?asset=<id>    removes one asset -> the kit
-import { BrandKitError, MAX_ASSETS, addUploadedFiles, brandKitView, removeAsset, requireBrand, tooBigReason, MAX_FILE_BYTES, type SkippedFile } from "@/lib/creative/brandkit";
+import { BrandKitError, MAX_ASSETS, addUploadedFiles, brandKitView, removeAsset, requireBrand, requireKitDisk, tooBigReason, MAX_FILE_BYTES, type SkippedFile } from "@/lib/creative/brandkit";
 import { captionInBackground, respond } from "./respond";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, { params }: Params) {
   return respond(async () => {
     const { id } = await params;
-    requireBrand(id);
+    await requireBrand(id);
     return brandKitView(id);
   });
 }
@@ -21,7 +21,8 @@ export async function GET(_request: Request, { params }: Params) {
 export async function POST(request: Request, { params }: Params) {
   return respond(async () => {
     const { id } = await params;
-    requireBrand(id);
+    await requireBrand(id);
+    requireKitDisk();
     let form: FormData;
     try {
       form = await request.formData();
@@ -47,7 +48,8 @@ export async function POST(request: Request, { params }: Params) {
 export async function DELETE(request: Request, { params }: Params) {
   return respond(async () => {
     const { id } = await params;
-    requireBrand(id);
+    await requireBrand(id);
+    requireKitDisk();
     const asset = new URL(request.url).searchParams.get("asset") ?? "";
     await removeAsset(id, asset);
     return brandKitView(id);

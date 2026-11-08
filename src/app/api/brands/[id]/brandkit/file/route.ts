@@ -12,7 +12,7 @@ const notFound = () => Response.json({ error: "Not found." }, { status: 404 });
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    requireBrand(id);
+    await requireBrand(id);
   } catch (error) {
     if (error instanceof BrandKitError) return notFound();
     throw error;

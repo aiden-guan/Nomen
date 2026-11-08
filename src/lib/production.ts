@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { basename, extname, join } from "node:path";
 import { promisify } from "node:util";
-import { db, logEvent, newId, now, parse, update } from "./db";
+import { logEvent, newId, now, parse, save, store } from "./db";
 import { ApiError } from "./http";
 import { chunkCaptions } from "./creative/captions";
 import { renderTimeline } from "./creative/edit";
@@ -11,7 +11,7 @@ import { buildTimeline, type RenderedAssets, screenVisualId } from "./creative/p
 import { buildScreens } from "./creative/screens";
 import { trimSilence } from "./creative/trim";
 import type { BrandKit, ProductBrief } from "./creative/types";
-import { download, extractFrames, ffmpegPath, mediaDir, probe, stitch } from "./media";
+import { download, extractFrames, ffmpegPath, probe, scratchDir, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import type { NaiveClient } from "./naive";
 import { type Continuity, reviewContinuity, reviewFrame, reviewShot, type Verdict } from "./qc";
@@ -20,6 +20,12 @@ import { captionFor, type Concept, type Strategy } from "./strategy";
 
 // Production: every shot gets a product-faithful first frame, a render, and a QC pass; then the
 // shots are cut into one ad. Naive renders first; Monid renders when Naive is out of credits.
+//
+// What must outlive a tick is kept in the store's files (data/media locally, Convex storage on
+// serverless hosts), named by key: renders "crv_…/shot1-r1.mp4", frames "crv_…/shot1-frame.png", the
+// screens and their manifest "crv_…/screens/…", the voice-over "crv_…/voiceover.wav", the cut
+// "crv_…/final.mp4" and its poster. Everything else (trims, downloads, the edit's intermediates)
+// lives in a scratch folder for one tick.
 
 export type ShotState = {
   n: number;
@@ -35,6 +41,8 @@ export type ShotState = {
   frame_idem: string;
   frame_file_id: string | null;
   frame_url: string | null;
+  /** The stored copy of the first frame (signed provider links expire after seven days). */
+  frame_key?: string | null;
   frame_skipped: boolean;
   /** Shot 1 only: a still from its render, uploaded to Naive, when it had no first frame. */
   identity_file_id?: string | null;
@@ -59,6 +67,7 @@ export type ShotState = {
   monid_run_id: string | null;
   video_file_id: string | null;
   video_url: string | null;
+  /** The stored render's file key (older local rows hold an absolute path, which still works). */
   local_path: string | null;
   qc: Verdict | null;
   naive_cost: number;
@@ -78,6 +87,8 @@ export type CreativeRow = {
   final_url: string | null;
   final_url_expires_at: string | null;
   final_external_url: string | null;
+  /** The stored cut ("crv_…/final.mp4"), once there is one. */
+  final_key?: string | null;
   poster_url: string | null;
   qc_score: number | null;
   continuity_json: string | null;
@@ -95,7 +106,7 @@ export type ProductionContext = {
   naive: NaiveClient | null;
   monid: MonidClient | null;
   naiveOut: () => boolean;
-  markNaiveOut: () => void;
+  markNaiveOut: () => Promise<void>;
   strategy: Strategy;
   /** The product analyst's brief, with the visuals the edit cuts to. */
   product?: ProductBrief;
@@ -103,17 +114,39 @@ export type ProductionContext = {
   kit?: BrandKit | null;
 };
 
+/** A creative's kept file, by name: "crv_…/shot1-frame.png". */
+const fileKey = (creativeId: string, name: string) => `${creativeId}/${name}`;
+/** A creative's scratch folder for one tick: downloads, trims and the edit's intermediates. */
+const workDir = (creativeId: string) => join(scratchDir(), `cut-${creativeId}`);
+
 type ScreenManifest = {
-  clips: Array<{ id: string; kind: "video" | "image"; path: string }>;
+  /** `key` is the clip's file in the store; rows from before the store hold an absolute `path`. */
+  clips: Array<{ id: string; kind: "video" | "image"; key?: string; path?: string }>;
   failures: Array<{ id: string; error: string }>;
   /** Busy-model failures so far per screen: retried on later ticks, up to SCREEN_TRIES. */
   attempts?: Record<string, number>;
 };
 const SCREEN_TRIES = 3;
-const screenManifest = (creativeId: string) => join(mediaDir(creativeId), "screens", "manifest.json");
-async function readScreenManifest(creativeId: string): Promise<ScreenManifest> {
-  const raw = JSON.parse(await readFile(screenManifest(creativeId), "utf8").catch(() => "{}")) as Partial<ScreenManifest>;
+const screenManifest = (creativeId: string) => fileKey(creativeId, "screens/manifest.json");
+/** The screens built so far for this video, or null before the first build. */
+async function readScreenManifest(creativeId: string): Promise<ScreenManifest | null> {
+  const files = store().files;
+  const key = screenManifest(creativeId);
+  if (!(await files.exists(key))) return null;
+  const raw = JSON.parse(await readFile(await files.localPath(key), "utf8").catch(() => "{}")) as Partial<ScreenManifest>;
   return { clips: Array.isArray(raw.clips) ? raw.clips : [], failures: Array.isArray(raw.failures) ? raw.failures : [], attempts: raw.attempts ?? {} };
+}
+async function writeScreenManifest(creativeId: string, manifest: ScreenManifest) {
+  const dir = workDir(creativeId);
+  await mkdir(dir, { recursive: true });
+  const path = join(dir, "screens-manifest.json");
+  await writeFile(path, JSON.stringify(manifest));
+  await store().files.putFile(screenManifest(creativeId), path, "application/json");
+}
+/** A local copy of a manifest clip, or null when it is gone. */
+async function clipPath(clip: ScreenManifest["clips"][number]): Promise<string | null> {
+  const path = clip.key ? await store().files.localPath(clip.key).catch(() => null) : (clip.path ?? null);
+  return path && existsSync(path) ? path : null;
 }
 
 const MAX_RENDERS = 3;
@@ -144,7 +177,7 @@ function backoff(shot: ShotState) {
 }
 const waiting = (shot: ShotState) => Boolean(shot.retry_at && Date.parse(shot.retry_at) > Date.now());
 
-export function insertCreative(campaignId: string, idx: number, concept: Concept, generation = 1) {
+export async function insertCreative(campaignId: string, idx: number, concept: Concept, generation = 1) {
   const id = newId("crv");
   const shots: ShotState[] = concept.shots.map((shot, i) => ({
     n: i + 1,
@@ -173,27 +206,34 @@ export function insertCreative(campaignId: string, idx: number, concept: Concept
     monid_cost: 0,
     error: null,
   }));
-  db()
-    .prepare(
-      `insert into creatives (id, campaign_id, idx, generation, concept_json, shots_json, status, caption, platforms_json, created_at, updated_at)
-       values (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`,
-    )
-    .run(id, campaignId, idx, generation, JSON.stringify(concept), JSON.stringify(shots), captionFor(concept), JSON.stringify(concept.platforms), now(), now());
+  await store().insert("creatives", {
+    id,
+    campaign_id: campaignId,
+    idx,
+    generation,
+    concept_json: JSON.stringify(concept),
+    shots_json: JSON.stringify(shots),
+    status: "queued",
+    caption: captionFor(concept),
+    platforms_json: JSON.stringify(concept.platforms),
+    created_at: now(),
+    updated_at: now(),
+  });
   return id;
 }
 
 export async function advanceCreative(ctx: ProductionContext, creative: CreativeRow) {
   if (creative.status === "ready" || creative.status === "failed") return;
   const concept = parse<Concept | null>(creative.concept_json, null);
-  if (!concept) return update("creatives", creative.id, { status: "failed", error: "concept is unreadable" });
+  if (!concept) return save("creatives", creative.id, { status: "failed", error: "concept is unreadable" });
   const shots = parse<ShotState[]>(creative.shots_json, []);
-  const save = (fields: Record<string, unknown> = {}) =>
-    update("creatives", creative.id, {
+  const persist = (fields: Record<string, unknown> = {}) =>
+    save("creatives", creative.id, {
       shots_json: JSON.stringify(shots),
       cost_micro: shots.reduce((sum, shot) => sum + shot.naive_cost + shot.monid_cost, 0),
       ...fields,
     });
-  if (creative.status === "queued") save({ status: "producing" });
+  if (creative.status === "queued") await persist({ status: "producing" });
 
   await ensureIdentity(ctx, creative.id, shots);
   for (const shot of shots) {
@@ -204,7 +244,7 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     // makeFrame moves the shot on; read its status fresh rather than as the loop narrowed it.
     const status = (): ShotState["status"] => shot.status;
     if (status() === "framed") await gateFrame(ctx, creative.id, concept, shot);
-    save();
+    await persist();
     // Shot 1's frame was sent back: later shots must wait for the new one to copy.
     if (shot.n === 1 && status() === "pending") break;
   }
@@ -214,7 +254,7 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     if (shot.status === "framed") await submitRender(ctx, shot);
     else if (shot.status === "rendering") await pollRender(ctx, creative.id, shot);
     else if (shot.status === "rendered") await checkQuality(ctx, concept, shot);
-    save();
+    await persist();
   }
 
   // Product screens build while the presenter renders on the video model, so the edit rarely waits.
@@ -222,15 +262,15 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
 
   const failed = shots.find((shot) => shot.status === "failed");
   if (failed) {
-    save({ status: "failed", error: `Shot ${failed.n}: ${failed.error ?? "could not be rendered"}` });
-    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "error", message: `"${concept.title}" failed at shot ${failed.n}: ${failed.error}` });
+    await persist({ status: "failed", error: `Shot ${failed.n}: ${failed.error ?? "could not be rendered"}` });
+    await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "error", message: `"${concept.title}" failed at shot ${failed.n}: ${failed.error}` });
     return;
   }
   if (shots.every((shot) => shot.status === "passed")) {
-    if (screensPending) return save();
-    if (!(await checkContinuity(ctx, creative, concept, shots))) return save();
+    if (screensPending) return persist();
+    if (!(await checkContinuity(ctx, creative, concept, shots))) return persist();
     await finalize(ctx, creative, concept, shots);
-    save();
+    await persist();
   }
 }
 
@@ -249,7 +289,7 @@ async function ensureIdentity(ctx: ProductionContext, creativeId: string, shots:
   if (!first) return; // a faceless video renders no A-roll
   if (identityOf(first) || !first.frame_skipped || !first.local_path || !ctx.naive || ctx.naiveOut()) return;
   try {
-    const [still] = await extractFrames(first.local_path, 1, 1080);
+    const [still] = await extractFrames(await store().files.localPath(first.local_path), 1, 1080);
     first.identity_file_id = await ctx.naive.uploadFile(`${creativeId}-identity.jpg`, "image/jpeg", still);
   } catch (error) {
     if (error instanceof ApiError && error.retryable) return;
@@ -267,12 +307,12 @@ async function checkContinuity(ctx: ProductionContext, creative: CreativeRow, co
   if (previous?.checked || shots.length < 2 || !ctx.naive || ctx.naiveOut() || !(await ffmpegPath())) return true;
   const rounds = (previous?.rounds ?? 0) + 1;
   try {
-    const frames = await Promise.all(shots.map(async (shot) => (await extractFrames(shot.local_path!, 1))[0]));
+    const frames = await Promise.all(shots.map(async (shot) => (await extractFrames(await store().files.localPath(shot.local_path!), 1))[0]));
     const verdict = await reviewContinuity(ctx.naive, { frames, concept });
     const redo = verdict.mismatched.map((n) => shots[n - 1]).filter((shot) => shot && shot.renders < MAX_RENDERS);
     if (verdict.consistent || rounds > 1 || redo.length === 0) {
-      update("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: verdict.consistent, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
-      if (!verdict.consistent) logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" still changes between shots: ${verdict.note}` });
+      await save("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: verdict.consistent, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
+      if (!verdict.consistent) await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" still changes between shots: ${verdict.note}` });
       return true;
     }
     for (const shot of redo) {
@@ -294,12 +334,12 @@ async function checkContinuity(ctx: ProductionContext, creative: CreativeRow, co
         error: null,
       });
     }
-    update("creatives", creative.id, { continuity_json: JSON.stringify({ checked: false, consistent: false, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
-    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}": shot ${verdict.mismatched.join(", ")} shows a different person or place (${verdict.note}); re-rendering from shot 1` });
+    await save("creatives", creative.id, { continuity_json: JSON.stringify({ checked: false, consistent: false, mismatched: verdict.mismatched, note: verdict.note, rounds }) });
+    await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}": shot ${verdict.mismatched.join(", ")} shows a different person or place (${verdict.note}); re-rendering from shot 1` });
     return false;
   } catch (error) {
     if (error instanceof ApiError && error.retryable) return false;
-    update("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: false, mismatched: [], note: `not checked: ${message(error)}`, rounds }) });
+    await save("creatives", creative.id, { continuity_json: JSON.stringify({ checked: true, consistent: false, mismatched: [], note: `not checked: ${message(error)}`, rounds }) });
     return true;
   }
 }
@@ -329,15 +369,19 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
     shot.frame_file_id = file.id;
     shot.frame_inflight_since = null;
     shot.frame_url = (await ctx.naive.fileUrl(file.id)).url;
-    // Keep a local copy for the review page: signed links expire after seven days.
-    await download(shot.frame_url, join(mediaDir(creativeId), `shot${shot.n}-frame.png`)).catch(() => undefined);
+    // Keep a copy for the review page and the first-frame gate: signed links expire after seven days.
+    const key = fileKey(creativeId, `shot${shot.n}-frame.png`);
+    shot.frame_key = await store()
+      .files.saveUrl(key, shot.frame_url, "image/png")
+      .then(() => key)
+      .catch(() => null);
     shot.status = "framed";
   } catch (error) {
     if (error instanceof ApiError && error.inFlight) {
       onFrameInFlight(shot); // usually still rendering under this key: ask again next tick
       return;
     } else if (error instanceof ApiError && error.outOfCredits) {
-      ctx.markNaiveOut();
+      await ctx.markNaiveOut();
       shot.frame_skipped = true;
       shot.status = "framed";
     } else if (error instanceof ApiError && error.keyConflict) {
@@ -365,10 +409,9 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
 async function gateFrame(ctx: ProductionContext, creativeId: string, concept: Concept, shot: ShotState) {
   shot.frame_gated = true;
   if (shot.frame_skipped || !ctx.naive || ctx.naiveOut() || (shot.frame_checks ?? 0) >= FRAME_CHECKS) return;
-  const dir = mediaDir(creativeId);
-  const image = await frameJpeg(join(dir, `shot${shot.n}-frame.png`));
+  const image = await frameJpeg(await storedFrame(creativeId, shot.n));
   if (!image) return;
-  const identity = shot.n > 1 ? await frameJpeg(join(dir, "shot1-frame.png")) : null;
+  const identity = shot.n > 1 ? await frameJpeg(await storedFrame(creativeId, 1)) : null;
   let verdict: { pass: boolean; issues: string[] };
   try {
     verdict = await reviewFrame(ctx.naive, { image, identity, creator: concept.creator, setting: concept.setting, prompt: shot.frame_prompt });
@@ -387,13 +430,24 @@ async function gateFrame(ctx: ProductionContext, creativeId: string, concept: Co
     frame_gated: false,
     status: "pending",
   } satisfies Partial<ShotState>);
-  logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}": remaking shot ${shot.n}'s first frame before rendering it (${verdict.issues.join("; ").slice(0, 300)})` });
+  await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}": remaking shot ${shot.n}'s first frame before rendering it (${verdict.issues.join("; ").slice(0, 300)})` });
+}
+
+/** A local copy of a shot's stored first frame, or null when there is none. */
+async function storedFrame(creativeId: string, n: number): Promise<string | null> {
+  const files = store().files;
+  const key = fileKey(creativeId, `shot${n}-frame.png`);
+  try {
+    return (await files.exists(key)) ? await files.localPath(key) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** A frame as a JPEG small enough for the vision model, or null when it is not on disk. */
-async function frameJpeg(path: string): Promise<Buffer | null> {
+async function frameJpeg(path: string | null): Promise<Buffer | null> {
   const bin = await ffmpegPath();
-  if (!bin || !existsSync(path)) return null;
+  if (!bin || !path || !existsSync(path)) return null;
   const out = `${path}.check.jpg`;
   try {
     await execAsync(bin, ["-hide_banner", "-loglevel", "error", "-y", "-i", path, "-frames:v", "1", "-vf", "scale=540:-2", "-q:v", "4", out]);
@@ -445,7 +499,7 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
       if (error instanceof ApiError && error.inFlight) {
         return;
       } else if (error instanceof ApiError && error.outOfCredits) {
-        ctx.markNaiveOut();
+        await ctx.markNaiveOut();
       } else if (error instanceof ApiError && error.code === "validation_failed" && shot.frame_file_id && !shot.text_only) {
         shot.text_only = true; // this model does not animate a first frame: render from the prompt
         shot.video_idem = `${shot.video_idem}-t2v`;
@@ -480,7 +534,7 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
       { body: firstFrame ? { prompt, media: [{ type: "first_frame", url: shot.frame_url }], resolution, duration, audio: "native" } : { prompt, resolution, aspect_ratio: "9:16", duration, audio: "native" } },
     );
     Object.assign(shot, { monid_run_id: run.runId, job_id: null, provider: "monid", status: "rendering", renders: shot.renders + 1, submit_errors: 0 });
-    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Shot ${shot.n} is rendering on Monid (Kling 3.0) because Naive is unavailable` });
+    await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Shot ${shot.n} is rendering on Monid (Kling 3.0) because Naive is unavailable` });
     if (TERMINAL.has(run.status)) await finishMonid(run, shot);
   } catch (error) {
     if (error instanceof ApiError && error.retryable && shot.submit_errors < MAX_SUBMIT_ERRORS) backoff(shot);
@@ -510,9 +564,9 @@ async function pollRender(ctx: ProductionContext, creativeId: string, shot: Shot
     if (TERMINAL.has(run.status)) await finishMonid(run, shot);
   }
   if (shot.status === "rendered") {
-    const dir = mediaDir(creativeId);
-    await mkdir(dir, { recursive: true });
-    shot.local_path = await download(shot.video_url!, join(dir, `shot${shot.n}-r${shot.renders}.mp4`));
+    const key = fileKey(creativeId, `shot${shot.n}-r${shot.renders}.mp4`);
+    await store().files.saveUrl(key, shot.video_url!, "video/mp4");
+    shot.local_path = key;
   }
 }
 
@@ -535,16 +589,16 @@ async function checkQuality(ctx: ProductionContext, concept: Concept, shot: Shot
     return;
   }
   try {
-    const frames = await extractFrames(shot.local_path!, 4);
+    const frames = await extractFrames(await store().files.localPath(shot.local_path!), 4);
     const verdict = await reviewShot(ctx.naive!, { frames, brand: ctx.strategy.brand, concept, shot: concept.shots[shot.n - 1], shotNumber: shot.n, prompt: shot.prompt });
     shot.qc = verdict;
     shot.qc_rounds++;
     const retries = getInt("qc_max_retries");
     if (verdict.pass || shot.qc_rounds > retries || !verdict.fix_prompt || shot.renders >= MAX_RENDERS) {
       shot.status = "passed";
-      if (!verdict.pass) logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" shot ${shot.n} scored ${verdict.score}/10 after its re-render: ${verdict.issues[0] ?? "see QC notes"}` });
+      if (!verdict.pass) await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" shot ${shot.n} scored ${verdict.score}/10 after its re-render: ${verdict.issues[0] ?? "see QC notes"}` });
     } else {
-      logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `QC sent "${concept.title}" shot ${shot.n} back (${verdict.score}/10): ${verdict.issues[0] ?? "quality"}` });
+      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `QC sent "${concept.title}" shot ${shot.n} back (${verdict.score}/10): ${verdict.issues[0] ?? "quality"}` });
       shot.prompt = verdict.fix_prompt;
       shot.video_idem = `${shot.video_idem.replace(/-qc\d+$/, "")}-qc${shot.qc_rounds}`;
       Object.assign(shot, { job_id: null, monid_run_id: null, video_file_id: null, video_url: null });
@@ -571,18 +625,29 @@ async function checkQuality(ctx: ProductionContext, concept: Concept, shot: Shot
       shot.qc_errors = (shot.qc_errors ?? 0) + 1; // a busy or fumbling model: check again next tick
       return;
     }
-    if (error instanceof ApiError && error.outOfCredits) ctx.markNaiveOut();
+    if (error instanceof ApiError && error.outOfCredits) await ctx.markNaiveOut();
     shot.status = "passed"; // QC is a gate for quality, not a reason to lose a finished render
     shot.error = `quality check skipped: ${message(error)}`;
   }
 }
 
 async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: Concept, shots: ShotState[]) {
-  const dir = mediaDir(creative.id);
+  const files = store().files;
+  // The cut is made in scratch space, then kept under its key; the scratch folder goes either way.
+  const dir = workDir(creative.id);
   await mkdir(dir, { recursive: true });
+  try {
+    await cutFinal(ctx, creative, concept, shots, dir, files);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+async function cutFinal(ctx: ProductionContext, creative: CreativeRow, concept: Concept, shots: ShotState[], dir: string, files: ReturnType<typeof store>["files"]) {
   const finalPath = join(dir, "final.mp4");
+  const finalKey = fileKey(creative.id, "final.mp4");
   const scores = shots.map((shot) => shot.qc?.score).filter((score): score is number => typeof score === "number");
-  const fields: Record<string, unknown> = { qc_score: scores.length ? Math.min(...scores) : null, poster_url: shots[0]?.frame_url ? `/api/media/${creative.id}/shot1-frame.png` : null, error: null };
+  const fields: Record<string, unknown> = { qc_score: scores.length ? Math.min(...scores) : null, poster_url: shots[0]?.frame_key || shots[0]?.frame_url ? `/api/media/${creative.id}/shot1-frame.png` : null, error: null };
 
   let edited = false;
   if (concept.script && concept.plan) {
@@ -590,41 +655,48 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
     try {
       await editFinal(ctx, creative.id, concept, shots, finalPath);
       edited = true;
-      if (!fields.poster_url && (await savePoster(finalPath, join(dir, "shot0-frame.png")))) fields.poster_url = `/api/media/${creative.id}/shot0-frame.png`;
+      const poster = join(dir, "shot0-frame.png");
+      if (!fields.poster_url && (await savePoster(finalPath, poster))) {
+        await files.putFile(fileKey(creative.id, "shot0-frame.png"), poster, "image/png");
+        fields.poster_url = `/api/media/${creative.id}/shot0-frame.png`;
+      }
     } catch (error) {
       if (error instanceof ApiError && error.retryable) return; // the voice-over is still coming: next tick
-      logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}": the edit failed (${message(error)}); ${shots.length ? "falling back to a plain cut" : "no footage to fall back on"}` });
+      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}": the edit failed (${message(error)}); ${shots.length ? "falling back to a plain cut" : "no footage to fall back on"}` });
       if (!shots.length) {
-        update("creatives", creative.id, { status: "failed", error: `edit failed: ${message(error)}` });
+        await save("creatives", creative.id, { status: "failed", error: `edit failed: ${message(error)}` });
         return;
       }
     }
   }
   if (!edited) {
+    const sources = await Promise.all(shots.map((shot) => files.localPath(shot.local_path!)));
     if (await ffmpegPath()) {
       // Every ad, one shot or several, comes out as 1080x1920 at 30 fps with clean AAC audio.
-      await stitch(shots.map((shot) => shot.local_path!), finalPath);
+      await stitch(sources, finalPath);
     } else if (shots.length === 1) {
-      await copyFile(shots[0].local_path!, finalPath);
+      await copyFile(sources[0], finalPath);
       fields.final_file_id = shots[0].video_file_id;
       fields.final_url = shots[0].video_url;
     } else {
-      update("creatives", creative.id, { status: "failed", error: "ffmpeg is needed to cut shots together; install it or run npm install" });
+      await save("creatives", creative.id, { status: "failed", error: "ffmpeg is needed to cut shots together; install it or run npm install" });
       return;
     }
     if (shots.length === 1 && shots[0].provider === "monid") fields.final_external_url = shots[0].video_url;
   }
+  await files.putFile(finalKey, finalPath, "video/mp4");
+  fields.final_key = finalKey;
   if (!fields.final_file_id && ctx.naive) {
     try {
       const fileId = await ctx.naive.uploadFile(`${slug(concept.title)}.mp4`, "video/mp4", await readFile(finalPath));
       const link = await ctx.naive.fileUrl(fileId);
       Object.assign(fields, { final_file_id: fileId, final_url: link.url, final_url_expires_at: link.expires_at });
     } catch (error) {
-      logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" is ready but could not be uploaded to Naive for posting: ${message(error)}` });
+      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" is ready but could not be uploaded to Naive for posting: ${message(error)}` });
     }
   }
-  update("creatives", creative.id, { ...fields, status: "ready" });
-  logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}" is ready${scores.length ? ` (QC ${Math.min(...scores)}/10)` : ""}` });
+  await save("creatives", creative.id, { ...fields, status: "ready" });
+  await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}" is ready${scores.length ? ` (QC ${Math.min(...scores)}/10)` : ""}` });
 }
 
 /**
@@ -635,23 +707,34 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
  */
 async function ensureScreens(ctx: ProductionContext, creativeId: string, concept: Concept): Promise<boolean> {
   // Only the screens the manifest has no answer for yet, so a re-planned video builds just its new ones.
-  const done: ScreenManifest = existsSync(screenManifest(creativeId)) ? await readScreenManifest(creativeId) : { clips: [], failures: [], attempts: {} };
+  const done: ScreenManifest = (await readScreenManifest(creativeId)) ?? { clips: [], failures: [], attempts: {} };
   const known = new Set([...done.clips, ...done.failures].map((entry) => entry.id));
   const requests = (concept.plan?.screens ?? []).filter((request) => !known.has(request.id));
   if (!requests.length || !ctx.product || !ctx.naive || ctx.naiveOut()) return false;
-  const workDir = join(mediaDir(creativeId), "screens");
+  // Built in scratch space; the finished clips are kept under "crv_…/screens/<name>".
+  const workDir = join(scratchDir(), `screens-${creativeId}`);
   await mkdir(workDir, { recursive: true });
   try {
-    const result = await buildScreens(ctx.naive, requests, { product: ctx.product, kit: ctx.kit ?? null, style: concept.reference?.format }, { workDir });
+    // Headless Chrome renders the screens. Where there is none (a serverless host), buildScreens
+    // fails and every beat falls back to its real visual, as for any screen that can't be built.
+    const product = await withLocalVisuals(ctx.product);
+    const result = await buildScreens(ctx.naive, requests, { product, kit: ctx.kit ?? null, style: concept.reference?.format }, { workDir });
     const attempts = { ...done.attempts };
     const later = result.failures.filter((f) => f.retryable && (attempts[f.id] = (attempts[f.id] ?? 0) + 1) < SCREEN_TRIES);
+    const kept = await Promise.all(
+      result.clips.map(async ({ id, kind, path }) => {
+        const key = fileKey(creativeId, `screens/${basename(path)}`);
+        await store().files.putFile(key, path, kind === "video" ? "video/mp4" : "image/png");
+        return { id, kind, key };
+      }),
+    );
     const manifest: ScreenManifest = {
-      clips: [...done.clips, ...result.clips.map(({ id, kind, path }) => ({ id, kind, path }))],
+      clips: [...done.clips, ...kept],
       failures: [...done.failures, ...result.failures.filter((f) => !later.includes(f)).map(({ id, error }) => ({ id, error }))],
       attempts,
     };
-    await writeFile(screenManifest(creativeId), JSON.stringify(manifest));
-    logEvent({
+    await writeScreenManifest(creativeId, manifest);
+    await logEvent({
       brandId: ctx.brandId,
       campaignId: ctx.campaignId,
       level: result.failures.length ? "warn" : "info",
@@ -660,41 +743,69 @@ async function ensureScreens(ctx: ProductionContext, creativeId: string, concept
     return later.length > 0;
   } catch (error) {
     if (error instanceof ApiError && error.retryable) return true; // try again next tick
-    await writeFile(screenManifest(creativeId), JSON.stringify({ clips: done.clips, failures: [...done.failures, ...requests.map((r) => ({ id: r.id, error: message(error) }))] } satisfies ScreenManifest));
-    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}": product screens could not be built (${message(error)}); using the real visuals instead` });
+    await writeScreenManifest(creativeId, { clips: done.clips, failures: [...done.failures, ...requests.map((r) => ({ id: r.id, error: message(error) }))] });
+    await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}": product screens could not be built (${message(error)}); using the real visuals instead` });
     return false;
+  } finally {
+    await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   }
+}
+
+/**
+ * The product with every captured visual on this machine's disk. A screenshot kept by an earlier
+ * tick is fetched again by its key when its local copy is gone (a serverless host).
+ */
+async function withLocalVisuals(product: ProductBrief): Promise<ProductBrief> {
+  const files = store().files;
+  const visuals = await Promise.all(
+    product.visuals.map(async (visual) => {
+      if (!visual.key || /^https?:/.test(visual.url) || existsSync(visual.url)) return visual;
+      return { ...visual, url: await files.localPath(visual.key).catch(() => visual.url) };
+    }),
+  );
+  return { ...product, visuals };
 }
 
 /** Builds the edit timeline from the rendered A-roll (or a voice-over) and the product visuals, and renders it. */
 async function editFinal(ctx: ProductionContext, creativeId: string, concept: Concept, shots: ShotState[], finalPath: string) {
   const script = concept.script!;
   const plan = concept.plan!;
-  const dir = mediaDir(creativeId);
+  const files = store().files;
+  const dir = workDir(creativeId);
   // Cut the dead air a 4/6/8 s render leaves around the line, so the edit is as tight as the reference.
   const aroll = await Promise.all(
-    shots.map((shot) =>
-      trimSilence(shot.local_path!, join(dir, `shot${shot.n}-tight.mp4`)).catch(async () => ({ path: shot.local_path!, duration: (await probe(shot.local_path!)).duration })),
-    ),
+    shots.map(async (shot) => {
+      const source = await files.localPath(shot.local_path!);
+      return trimSilence(source, join(dir, `shot${shot.n}-tight.mp4`)).catch(async () => ({ path: source, duration: (await probe(source)).duration }));
+    }),
   );
 
   let voiceover: RenderedAssets["voiceover"] = null;
   if (!plan.aroll.length && plan.voiceover) {
-    const path = join(dir, "voiceover.wav");
-    if (!existsSync(path)) {
+    // Kept between ticks: speech costs money, and a busy provider means trying again next tick.
+    const key = fileKey(creativeId, "voiceover.wav");
+    if (!(await files.exists(key))) {
       if (!ctx.naive || ctx.naiveOut()) throw new Error("the voice-over needs Naive");
       const target = script.beats.reduce((sum, beat) => sum + beat.seconds, 0);
       const speed = voiceSpeed(plan.voiceover.text, target);
-      const raw = join(dir, "voiceover-raw.wav");
-      if (!existsSync(raw)) await speakTo(ctx.naive, plan.voiceover, speed, `${creativeId}-voiceover-${speed}`, raw);
-      await paceVoice(raw, target, path);
+      const rawKey = fileKey(creativeId, "voiceover-raw.wav");
+      if (!(await files.exists(rawKey))) {
+        const raw = join(dir, "voiceover-raw.wav");
+        await speakTo(ctx.naive, plan.voiceover, speed, `${creativeId}-voiceover-${speed}`, raw);
+        await files.putFile(rawKey, raw, "audio/wav");
+      }
+      const paced = join(dir, "voiceover.wav");
+      await paceVoice(await files.localPath(rawKey), target, paced);
+      await files.putFile(key, paced, "audio/wav");
     }
+    const path = await files.localPath(key);
     voiceover = { path, duration: (await probe(path)).duration };
   }
 
   const visuals: RenderedAssets["visuals"] = new Map();
   const wanted = new Set([...plan.broll.map((clip) => clip.visual_id), ...script.beats.map((beat) => beat.product_visual).filter((id): id is string => Boolean(id))]);
-  for (const visual of ctx.product?.visuals ?? []) {
+  const product = ctx.product ? await withLocalVisuals(ctx.product) : undefined;
+  for (const visual of product?.visuals ?? []) {
     if (!wanted.has(visual.id)) continue;
     try {
       let path = visual.url;
@@ -708,9 +819,10 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
     }
   }
 
-  if (existsSync(screenManifest(creativeId))) {
-    const manifest = JSON.parse(await readFile(screenManifest(creativeId), "utf8")) as ScreenManifest;
-    for (const clip of manifest.clips) if (existsSync(clip.path)) visuals.set(screenVisualId(clip.id), { path: clip.path, kind: clip.kind });
+  const manifest = await readScreenManifest(creativeId);
+  for (const clip of manifest?.clips ?? []) {
+    const path = await clipPath(clip);
+    if (path) visuals.set(screenVisualId(clip.id), { path, kind: clip.kind });
   }
 
   const timeline = buildTimeline(script, plan, { aroll, voiceover, visuals }, (segments) => chunkCaptions(segments, 3));

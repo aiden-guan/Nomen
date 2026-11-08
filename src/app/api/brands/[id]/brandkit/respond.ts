@@ -1,11 +1,13 @@
 // Shared plumbing for the /api/brands/[id]/brandkit routes (not a route itself).
 import { BrandKitError, startCaptioning } from "@/lib/creative/brandkit";
 import { NaiveClient } from "@/lib/naive";
-import { secretStatus } from "@/lib/settings";
+import { loadSettings, secretStatus } from "@/lib/settings";
 
 /** Runs a route body and answers JSON: the result, or `{ error }` with a status the panel can show. */
 export async function respond(body: () => Promise<unknown>) {
   try {
+    // Settings (the Naive key for captions) come from the store; on Convex they load per request.
+    await loadSettings();
     return Response.json(await body(), { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof BrandKitError) return Response.json({ error: error.message }, { status: error.status });
