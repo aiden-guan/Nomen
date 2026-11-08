@@ -85,6 +85,20 @@ describe("the brainrot clock", () => {
     expect(cut.fx.some((f) => f.fx === "flash" && f.start === 0)).toBe(true);
   });
 
+  it("shows the funnel's rows from their shots to the end card, and keeps its stamps below them", () => {
+    const base = input("anthem", fake);
+    const cut = buildCut({ ...base, script: script("funnel", { funnel: [{ shot: 2, value: "2,900+", label: "tools" }, { shot: 3, value: "0", label: "sign-ups" }] }) });
+    const rows = cut.texts.filter((t) => t.kind === "row") as Array<{ start: number; end: number; index: number; count: number; value: string }>;
+    expect(rows.map((r) => [r.index, r.count, r.value])).toEqual([[0, 2, "2,900+"], [1, 2, "0"]]);
+    expect(rows[0].start).toBeCloseTo(cut.starts[1] + 0.25, 3);
+    expect(rows[0].end).toBeCloseTo(cut.starts[2] + 2.5, 3);
+    const stamp = cut.texts.find((t) => t.kind === "stamp") as { y?: number };
+    expect(stamp.y).toBe(0.6);
+    const ass = brainrotAss(cut);
+    expect(ass).toContain("2,900+");
+    expect(ass).toMatch(/\\p1.*\\fscx0\\t\(0,260,\\fscx100\)/);
+  });
+
   it("turns the melodrama's music at its turn shot, with a record scratch", () => {
     const cut = buildCut(input("melodrama", fake));
     const music = cut.sounds.filter((s) => s.bus === "music");

@@ -124,6 +124,19 @@ export const SFX_PROMPTS: Record<BrainrotSfx, { text: string; seconds: number }>
   aura_up: { text: "Anime power-up aura whoosh with a rising shimmering synth", seconds: 1.6 },
   six_seven: { text: "SIX SEVEN!", seconds: 1.2 },
 };
+/** Naive's speech models, tried in order when Monid can't read a line, and how long each may take. */
+export const NAIVE_SPEECH = ["openai/gpt-audio", "openai/gpt-audio-mini", "tts/auto"] as const;
+export const SPEECH_TIMEOUT_MS = 60_000;
+
+/** A promise that gives up after `ms` (the call itself may still finish in the background). */
+export function within<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new ApiError("naive", 504, "timeout", `${label} took longer than ${Math.round(ms / 1000)} s`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** The voice that shouts the 6-7 chant (an intense, yelling voice on the account). */
 export const CHANT_VOICE = "g4ucswVjPpazgbDDe327";
 
@@ -140,8 +153,10 @@ export async function tighten(input: string, out: string, tempo = 1) {
   const bin = await ffmpegPath();
   if (!bin) return input;
   const quiet = "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.05";
+  // Pauses inside the line are cut to 0.3 s: some voices read every full stop as a long beat.
+  const pauses = "silenceremove=stop_periods=-1:stop_duration=0.3:stop_threshold=-42dB";
   const faster = Math.abs(tempo - 1) > 0.01 ? `,atempo=${Math.min(2, Math.max(0.5, tempo)).toFixed(3)}` : "";
-  await exec(bin, ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", input, "-af", `${quiet},areverse,${quiet},areverse${faster}`, "-ar", "44100", "-ac", "1", out]);
+  await exec(bin, ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", input, "-af", `${quiet},areverse,${quiet},areverse,${pauses}${faster}`, "-ar", "44100", "-ac", "1", out]);
   return out;
 }
 
@@ -287,9 +302,23 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
     await fetchTo((await naive.fileUrl(made.file.id)).url, path);
     return path;
   };
+  // Naive's speech, model by model: a request that hangs is left after a minute for the next model
+  // rather than retried for half an hour (two lines of the first funnel take hung that way).
+  const naiveSpeech = async (text: string, name: string, voice: string) => {
+    let last: unknown = null;
+    for (const [i, model] of NAIVE_SPEECH.entries()) {
+      try {
+        const made = await within(deps.naive.speak({ text, model, ...(model.startsWith("openai/") ? { voice } : {}) }, `${input.idem}-${name}-m${i}`), SPEECH_TIMEOUT_MS, `${model} speech`);
+        return await naiveAudio(made, name);
+      } catch (error) {
+        if (error instanceof ApiError && error.outOfCredits) throw error;
+        last = error;
+      }
+    }
+    throw last instanceof Error ? last : new Error(`no speech model could read ${name}`);
+  };
   const speech = async (text: string, name: string, voice: { eleven: string; tags: string; naive: string; settings?: Record<string, number> }) =>
-    (await eleven("/text-to-speech", { text: `${voice.tags} ${text}`.trim(), voice_id: voice.eleven, model_id: "eleven_v4", voice_settings: voice.settings ?? VOICE_SETTINGS }, name)) ??
-    naiveAudio(await naive.speak({ text, model: "openai/gpt-audio", voice: voice.naive }, `${input.idem}-${name}`), name);
+    (await eleven("/text-to-speech", { text: `${voice.tags} ${text}`.trim(), voice_id: voice.eleven, model_id: "eleven_v4", voice_settings: voice.settings ?? VOICE_SETTINGS }, name)) ?? naiveSpeech(text, name, voice.naive);
   const music = async (prompt: string, seconds: number, name: string) =>
     (await eleven("/v1/music", { prompt: `${prompt}. Instrumental, no vocals.`, music_length_ms: Math.round(seconds * 1000), model_id: "music_v1", force_instrumental: true }, name)) ??
     naiveAudio(await naive.generateMusic({ prompt: `${prompt}. Instrumental, no vocals.`, length_seconds: Math.round(seconds), instrumental: true }, `${input.idem}-${name}`), name);
@@ -314,7 +343,7 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
     manifest.voice[id] = { key: await keep(`voice-${id}${tight.endsWith(".wav") ? ".wav" : ".mp3"}`, tight, tight.endsWith(".wav") ? "audio/wav" : "audio/mpeg"), seconds };
     await persist();
   });
-  say(`voice: ${lines.length} lines (${recipe.voice.name})`);
+  say(`voice: ${lines.length} lines (${monidOut ? `Naive's ${recipe.voice.naive}, Monid was out` : recipe.voice.name})`);
 
   const voiceOf = async (id: string) => {
     const v = manifest.voice[id];

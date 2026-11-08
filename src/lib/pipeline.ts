@@ -6,7 +6,7 @@ import { MonidClient, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import { NaiveClient } from "./naive";
 import { advanceCreative, type CreativeRow, insertCreative, type ShotState } from "./production";
 import { scratchDir } from "./media";
-import { brainrotConcept, pickBit, siteOf, writeBrainrot } from "./creative/brainrot";
+import { brainrotConcept, pickBit, riffOf, siteOf, writeBrainrot } from "./creative/brainrot";
 import { captureSiteVisuals } from "./creative/capture";
 import { planProduction } from "./creative/plan";
 import { getBrandKit } from "./creative/brandkit";
@@ -520,8 +520,11 @@ async function scriptRoom(campaign: CampaignRow, naive: NaiveClient, product: Pr
   const site = pending.some((brief) => brief.format === "brainrot") ? siteOf((await store().find<{ url: string }>("brands", { id: campaign.brand_id }, { limit: 1 }))[0]?.url) || product.name : "";
   const results = await Promise.allSettled(
     pending.map(async (brief) => {
-      // Brainrot ads are written from the product and Nomen's own viral brainrot formats, not the reference.
-      if (brief.format === "brainrot") return brainrotConcept(brief, await writeBrainrot(naive, { product, site, bit: pickBit(brief, product.name), brief }));
+      // Brainrot ads riff on the director's reference in one of Nomen's brainrot formats.
+      if (brief.format === "brainrot") {
+        const riff = breakdowns.find((b) => b.id === brief.reference_id);
+        return brainrotConcept(brief, await writeBrainrot(naive, { product, site, bit: pickBit(brief, product.name), brief, riff: riff ? riffOf(riff) : null }));
+      }
       const reference = breakdowns.find((b) => b.id === brief.reference_id) ?? breakdowns[0];
       const script = await writeScript(naive, { product, brief, reference: reference ?? emptyReference(), targetSeconds: reference ? targetSeconds(reference, brief.format) : 18 });
       const plan = planProduction(script, brief, product, reference?.delivery ?? "", reference?.beats ?? []);

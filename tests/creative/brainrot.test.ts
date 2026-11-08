@@ -17,6 +17,7 @@ import {
   normalizeBrainrot,
   pickBit,
   planBrainrot,
+  riffOf,
   siteOf,
   videoSeconds,
   writeBrainrot,
@@ -157,6 +158,41 @@ describe("the brainrot writer's guard rails", () => {
     expect(pickBit({ title: "x", angle: "fruit drama", hook_plan: "" })).toBe("melodrama");
     expect(pickBit({ title: "x", angle: "aura farming edit", hook_plan: "" })).toBe("aura");
     expect(["anthem", "melodrama", "aura"]).toContain(pickBit(null, "Mobilerun"));
+  });
+});
+
+describe("the funnel bit, riffing on a researched video", () => {
+  const riff = { url: "https://www.tiktok.com/@phamhacks/video/7678518337311116557", author: "phamhacks", title: "people be so greedy smh", views: 2276109, likes: 201565, shares: 11334, saves: 20276, followers: 5088, outlier: 447, seconds: 55, posted: "2026-08-27", transcript: "I emailed over five million people asking them for just $1." };
+  const fctx = { product: { ...product, aha: "monid.discover() returns 12 candidates ranked by fit and price" }, site: "monid.ai", bit: "funnel" as const, riff };
+  const shots = [1, 2, 3, 4, 5].map((n) => ({ cast: ["a"], frame: n === 1 ? "Mo crashes a rocket cart through a box wall" : "Mo in the lower half, white wall above", motion: "talks", words: n === 5 ? "Monid. What should my agent do next?" : "bro it found every tool", keyword: "", stamp: "", sfx: [], fx: [], seconds: 3 }));
+
+  it("keeps the diagram's rows in shot order, and credits the researched video", () => {
+    const script = normalizeBrainrot(raw({ shots, funnel: [{ shot: 3, value: "12", label: "ranked by fit and price" }, { shot: 2, value: "2,900+", label: "tools it could call" }, { shot: 9, value: "7", label: "nope" }, { shot: 4, value: "0", label: "sign-ups" }] }), fctx);
+    expect(script.funnel?.map((r) => r.value)).toEqual(["2,900+", "12", "0"]);
+    expect(script.reference?.url).toBe(riff.url);
+    expect(lintBrainrot(script, fctx)).toEqual([]);
+    const concept = brainrotConcept({ title: "x", reference_id: "", format: "brainrot", angle: "", audience: "", hook_plan: "", keep: [], change: [], visuals: [], creator: "", setting: "", platforms: [], caption: "", hashtags: [], cta: "", why: "" }, script);
+    expect(concept.inspired_by).toEqual([riff.url]);
+    expect(concept.reference?.author).toBe("phamhacks");
+  });
+
+  it("flags invented numbers on the diagram, other companies, and lines too long to render cheaply", () => {
+    const script = normalizeBrainrot(raw({ shots, funnel: [{ shot: 2, value: "5,331,184", label: "emails sent" }] }), fctx);
+    script.shots[1].words = "I said compare openai and anthropic and it looked at two thousand nine hundred tools bro";
+    const issues = lintBrainrot(script, fctx).join(" | ");
+    expect(issues).toContain("5331184");
+    expect(issues).toContain("other companies named: openai, anthropic");
+    expect(issues).toContain("shot 2 says 16 words: at most 12");
+    expect(issues).toContain("the funnel needs 3 to 6 rows");
+  });
+
+  it("turns a campaign reference's breakdown into a riff", () => {
+    const r = riffOf({ url: "u", author: "a", views: 10, followers: 2, outlier: 5, duration: 20.4, format: "talking head", transcript: "hi", hook: { line: "the hook", on_screen_text: "", visual: "", mechanic: "" } });
+    expect(r).toMatchObject({ url: "u", title: "the hook", seconds: 20, transcript: "hi", format: "talking head" });
+  });
+
+  it("picks the funnel from the brief", () => {
+    expect(pickBit({ title: "x", angle: "an agent experiment with a results funnel", hook_plan: "" })).toBe("funnel");
   });
 });
 

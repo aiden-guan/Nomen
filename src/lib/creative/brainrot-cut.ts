@@ -13,7 +13,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { type BrainrotFx, type BrainrotScript, type BrainrotSfx, RECIPES } from "./brainrot";
-import { assTime, balanceLines, escapeAssText, type FontMetrics, textWidth } from "./captions";
+import { assTime, balanceLines, escapeAssText, type FontMetrics, roundedRect, textWidth } from "./captions";
 import { DEFAULT_FONT, editFfmpeg, fontMetrics } from "./edit";
 
 const exec = promisify(execFile);
@@ -30,7 +30,9 @@ export type CutText =
   | { kind: "word"; start: number; end: number; text: string }
   | { kind: "lyric"; start: number; end: number; text: string; keyword: string; color: number }
   | { kind: "line"; start: number; end: number; text: string }
-  | { kind: "stamp"; start: number; end: number; text: string; color: number; tilt: number }
+  | { kind: "stamp"; start: number; end: number; text: string; color: number; tilt: number; y?: number }
+  /** The funnel bit's diagram: row `index` of `count`, shown from its shot to the end card. */
+  | { kind: "row"; start: number; end: number; index: number; count: number; value: string; label: string }
   | { kind: "end"; start: number; end: number; text: string; sub: string };
 
 export type CutSound = { path: string; at: number; gain: number; bus: "voice" | "music" | "sfx"; seconds?: number; fadeOut?: number };
@@ -62,6 +64,11 @@ export type CutInput = {
   sfx: Partial<Record<BrainrotSfx, string>>;
   site: string;
 };
+
+/** The funnel diagram's layout at 1080x1920: where it starts (a fraction of the height), row size, bar lengths, colours. */
+// A compact, opaque card at the very top (the hook is gone by the time the first row lands): the
+// video model frames the creator bigger than asked, and a see-through card over a face read as a glitch.
+export const FUNNEL = { top: 0.035, row: 88, gap: 10, left: 50, minBar: 90, step: 44, colors: [0xf2a7e6, 0x9a9aa0, 0xc7db6a, 0x7fd8ea, 0xb89af0, 0xf7b267] } as const;
 
 /** The accent colours karaoke keywords and stamps cycle through (0xRRGGBB). */
 export const ACCENTS = [0xffe600, 0x00e5ff, 0xff4fd8, 0x39ff14, 0xff8a00];
@@ -159,7 +166,8 @@ export function buildCut(input: CutInput): BrainrotCut {
       else for (const w of spreadWords(shot.words, said.start, said.seconds, 3)) texts.push({ kind: "line", ...w });
     }
     const hit = stampAt(start, seconds);
-    if (shot.stamp) texts.push({ kind: "stamp", start: hit, end: round(Math.min(end, hit + 1.4)), text: shot.stamp, color: stampColor(shot.stamp, i), tilt: i % 2 ? 7 : -7 });
+    // The funnel fills the top half, so its stamps land lower, over the creator.
+    if (shot.stamp) texts.push({ kind: "stamp", start: hit, end: round(Math.min(end, hit + 1.4)), text: shot.stamp, color: stampColor(shot.stamp, i), tilt: i % 2 ? 7 : -7, ...(script.bit === "funnel" ? { y: 0.6 } : {}) });
     // The first effect lands on the cut, the rest on the stamp; "6-7" gets its chant.
     shot.sfx.forEach((name, k) => sfx(name, k === 0 ? start : hit, name === "airhorn" ? 0.6 : name === "six_seven" ? 0.85 : 0.9));
     if (/6\s*-\s*7|six\s+seven/i.test(`${shot.stamp} ${shot.words}`) && !shot.sfx.includes("six_seven") && !voice) sfx("six_seven", hit, 0.8);
@@ -173,6 +181,14 @@ export function buildCut(input: CutInput): BrainrotCut {
       else fx.push({ start, end, fx: kind });
     }
     if (shot.sfx.some((name) => name === "bass_drop" || name === "airhorn" || name === "explosion") || shot.fx.includes("deep_fry")) boosts.push({ start: hit, end: round(Math.min(end, hit + 1.2)) });
+  });
+
+  // The funnel: each row from its shot (a beat after the cut) to the end card, a ding as it lands.
+  const rows = script.bit === "funnel" ? (script.funnel ?? []) : [];
+  rows.forEach((row, index) => {
+    const at = round((starts[row.shot - 1] ?? 0) + 0.25);
+    texts.push({ kind: "row", start: at, end: picture, index, count: rows.length, value: row.value, label: row.label });
+    sfx("ding", at, 0.55);
   });
 
   // The stunt opener always hits hard: a flash on frame one and a shake under the hook.
@@ -269,7 +285,7 @@ export function brainrotAss(cut: Pick<BrainrotCut, "texts">, metrics?: FontMetri
   };
 
   for (const t of cut.texts) {
-    const words = t.text.split(/\s+/).filter(Boolean);
+    const words = "text" in t ? t.text.split(/\s+/).filter(Boolean) : [];
     if (t.kind === "hook") block(words, { em: 66, max: 960, lines: 3, y: H * 0.1, layer: 6, start: t.start, end: t.end, tags: `\\shad5\\4c${black}\\fscx85\\fscy85\\t(0,120,\\fscx100\\fscy100)`, outline: 9, anchor: "top" });
     else if (t.kind === "lyric") {
       const key = norm(t.keyword);
@@ -278,7 +294,23 @@ export function brainrotAss(cut: Pick<BrainrotCut, "texts">, metrics?: FontMetri
     else if (t.kind === "line") block(t.text.toUpperCase().split(/\s+/), { em: 72, max: 960, lines: 2, y: H * 0.74, layer: 5, start: t.start, end: t.end, tags: "\\fscx115\\fscy115\\t(0,80,\\fscx100\\fscy100)", outline: 7, anchor: "center" });
     else if (t.kind === "stamp") {
       const em = Math.min(140, Math.floor((140 * 980) / Math.max(1, measure(t.text, 140))));
-      add(7, t.start, t.end, `\\an5\\pos(${W / 2},${Math.round(H * 0.37)})\\fs${fs(em)}\\bord11\\c${assColor(t.color)}\\3c${black}\\frz${t.tilt}\\fscx240\\fscy240\\t(0,110,\\fscx100\\fscy100)\\t(110,700,\\frz${Math.round(t.tilt * 0.4)})`, escapeAssText(t.text, "space"));
+      add(7, t.start, t.end, `\\an5\\pos(${W / 2},${Math.round(H * (t.y ?? 0.37))})\\fs${fs(em)}\\bord11\\c${assColor(t.color)}\\3c${black}\\frz${t.tilt}\\fscx240\\fscy240\\t(0,110,\\fscx100\\fscy100)\\t(110,700,\\frz${Math.round(t.tilt * 0.4)})`, escapeAssText(t.text, "space"));
+    } else if (t.kind === "row") {
+      // The reference's look: pastel bars on a white panel, a big black number and a grey label beside each.
+      const top = H * FUNNEL.top;
+      const y = Math.round(top + t.index * (FUNNEL.row + FUNNEL.gap));
+      // The card grows with the rows: as tall as the rows shown so far, until the next one lands.
+      const next = cut.texts.find((o) => o.kind === "row" && o.index === t.index + 1);
+      const panelH = Math.round((t.index + 1) * (FUNNEL.row + FUNNEL.gap) + 22);
+      add(2, t.start, next ? next.start : t.end, `\\an7\\pos(30,${Math.round(top - 16)})\\p1\\bord0\\shad3\\4c${black}\\1c${white}${t.index === 0 ? "\\fad(150,0)" : ""}`, roundedRect(W - 60, panelH, 30));
+      const width = Math.round(FUNNEL.minBar + (t.count - 1 - t.index) * FUNNEL.step);
+      const color = FUNNEL.colors[t.index % FUNNEL.colors.length];
+      add(3, t.start, t.end, `\\an7\\pos(${FUNNEL.left},${y})\\p1\\bord0\\shad0\\1c${assColor(color)}\\fscx0\\t(0,260,\\fscx100)`, roundedRect(width, FUNNEL.row, 18));
+      const x = FUNNEL.left + width + 26;
+      const room = W - 50 - x;
+      const fit = (text: string, em: number) => Math.max(26, Math.min(em, Math.floor((em * room) / Math.max(1, measure(text, em)))));
+      add(4, t.start + 0.15, t.end, `\\an4\\pos(${x},${Math.round(y + FUNNEL.row * 0.34)})\\fs${fs(fit(t.value, 66))}\\bord0\\shad0\\c${black}\\fad(120,0)`, escapeAssText(t.value, "space"));
+      if (t.label) add(4, t.start + 0.2, t.end, `\\an4\\pos(${x},${Math.round(y + FUNNEL.row * 0.8)})\\fs${fs(fit(t.label, 38))}\\bord0\\shad0\\c${assColor(0x55555a)}\\fad(120,0)`, escapeAssText(t.label, "space"));
     } else if (t.kind === "end") {
       const em = Math.min(128, Math.floor((128 * 960) / Math.max(1, measure(t.text, 128))));
       add(8, t.start, t.end, `\\an5\\pos(${W / 2},${Math.round(H * 0.76)})\\fs${fs(em)}\\bord12\\shad5\\4c${black}\\c${white}\\fscx180\\fscy180\\t(0,120,\\fscx100\\fscy100)`, escapeAssText(t.text, "space"));

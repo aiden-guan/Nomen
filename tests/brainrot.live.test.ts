@@ -6,11 +6,12 @@ import { promisify } from "node:util";
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 
-import { type BrainrotBit, type BrainrotScript, estimateBrainrot, lintBrainrot, RECIPES, writeBrainrot } from "@/lib/creative/brainrot";
+import { type BrainrotBit, type BrainrotScript, estimateBrainrot, lintBrainrot, RECIPES, type Riff, writeBrainrot } from "@/lib/creative/brainrot";
 import { makeBrainrot, OverBudget } from "@/lib/creative/brainrot-make";
 import { patient } from "@/lib/creative/remake";
 import { editFfmpeg } from "@/lib/creative/edit";
 import type { ProductBrief } from "@/lib/creative/types";
+import type { Video } from "@/lib/research";
 import { MonidClient } from "@/lib/monid";
 import { NaiveClient } from "@/lib/naive";
 import type { Files } from "@/lib/store/types";
@@ -35,13 +36,22 @@ const mode = process.env.NOMEN_BRAINROT_LIVE;
 const live = mode === "1" || mode === "dry" || mode === "script" || mode === "probe";
 const exec = promisify(execFile);
 
-type Case = { name: string; campaign: string; site: string; bit: BrainrotBit; maxUsd: number };
+/** `riff`: a video from the campaign's own research (its TikTok link) that the bit riffs on. */
+type Case = { name: string; campaign: string; site: string; bit: BrainrotBit; maxUsd: number; riff?: string };
 
 const CASES: Case[] = [
   { name: "monid", campaign: "cmp_f98819d8b08f46a7a422", site: "monid.ai", bit: "anthem", maxUsd: 3.6 },
   { name: "naive", campaign: "cmp_70daa9e79a4b42008d74", site: "usenaive.ai", bit: "melodrama", maxUsd: 3.6 },
   { name: "mobilerun", campaign: "cmp_8258fde751824aeba97f", site: "mobilerun.ai", bit: "aura", maxUsd: 3.6 },
+  // A competitor's meme ad from the Monid campaign's research (Composio's agent-experiment funnel).
+  { name: "monid-research", campaign: "cmp_f98819d8b08f46a7a422", site: "monid.ai", bit: "funnel", maxUsd: 2.9, riff: "https://www.tiktok.com/@phamhacks/video/7678518337311116557" },
 ];
+
+/** A TikTok video's post date, from its id (the top 32 bits are the unix time). */
+const postedOn = (url: string) => {
+  const id = url.match(/video\/(\d+)/)?.[1];
+  return id ? new Date(Number(BigInt(id) >> 32n) * 1000).toISOString().slice(0, 10) : "";
+};
 
 /** The store's files in a folder of their own, so a live run never touches the app's media. */
 function folderFiles(root: string): Files {
@@ -77,7 +87,7 @@ describe.skipIf(!live)("brainrot ads (live, paid)", () => {
 
       // Read-only: the campaign's product brief, and its captured screenshots by path.
       const db = new Database(join(data, "nomen.db"), { readonly: true, fileMustExist: true });
-      const row = db.prepare("select style_json from campaigns where id = ?").get(c.campaign) as { style_json: string } | undefined;
+      const row = db.prepare("select style_json, research_json from campaigns where id = ?").get(c.campaign) as { style_json: string; research_json: string | null } | undefined;
       db.close();
       expect(row, `${c.campaign} is not in ${data}/nomen.db`).toBeTruthy();
       const style = JSON.parse(row!.style_json) as { product: ProductBrief };
@@ -102,13 +112,48 @@ describe.skipIf(!live)("brainrot ads (live, paid)", () => {
       const naive = patient(new NaiveClient(), [10, 20, 30, 45, 60, 60, 60, 60, 60, 60].map((s) => s * 1000));
       const monid = new MonidClient();
 
+      // The researched video to riff on, with its words (transcribed once on Naive, cached in riff.json).
+      let riff: Riff | null = null;
+      if (c.riff) {
+        const riffPath = join(out, "riff.json");
+        if (existsSync(riffPath)) riff = JSON.parse(await readFile(riffPath, "utf8")) as Riff;
+        else {
+          const videos = (JSON.parse(row!.research_json ?? "{}") as { videos?: Video[] }).videos ?? [];
+          const video = videos.find((v) => v.url === c.riff);
+          expect(video, `${c.riff} is not in ${c.campaign}'s research`).toBeTruthy();
+          const v = video!;
+          let transcript = "";
+          if (v.media_url) {
+            const job = await naive.transcribe({ url: v.media_url }, `brainrot-riff-${c.riff.match(/\d+$/)?.[0]}`).catch(() => null);
+            transcript = job?.result?.text ?? "";
+          }
+          riff = {
+            url: v.url,
+            author: v.author,
+            title: v.caption.replace(/#\S+/g, "").replace(/\s+/g, " ").trim(),
+            views: v.views,
+            likes: v.likes,
+            shares: v.shares,
+            saves: v.saves,
+            followers: v.followers ?? 0,
+            outlier: Math.round(v.views / Math.max(v.followers ?? 0, 1000)),
+            seconds: Math.round(v.duration ?? 0),
+            posted: postedOn(v.url),
+            caption: v.caption,
+            transcript,
+          };
+          await writeFile(riffPath, JSON.stringify(riff, null, 1));
+        }
+        log(`riffing on ${riff.url} (${riff.views} views, ${riff.outlier}x): ${riff.title}${riff.transcript ? ` | transcript ${riff.transcript.length} chars` : ""}`);
+      }
+
       // The bit (cached: edit script.json to change it).
       const scriptPath = join(out, "script.json");
       let script: BrainrotScript;
       if (existsSync(scriptPath)) script = JSON.parse(await readFile(scriptPath, "utf8")) as BrainrotScript;
       else {
         log(`writing the ${RECIPES[c.bit].name}`);
-        script = await writeBrainrot(naive, { product, site: c.site, bit: c.bit });
+        script = await writeBrainrot(naive, { product, site: c.site, bit: c.bit, riff });
         await writeFile(scriptPath, JSON.stringify(script, null, 1));
       }
       log(`"${script.title}" hook: ${script.hook} | critic ${script.review?.score ?? "?"}/10 ${(script.review?.notes ?? []).join(" / ")}`);
@@ -151,7 +196,7 @@ describe.skipIf(!live)("brainrot ads (live, paid)", () => {
         copyFileSync(result.path, final);
         const cols = Math.ceil(result.duration);
         await exec(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-i", final, "-vf", `fps=1,scale=240:-2,tile=${Math.min(cols, 12)}x${Math.ceil(cols / 12)}`, "-frames:v", "1", sheet]);
-        console.log(JSON.stringify({ video: final, frames: sheet, seconds: result.duration, reference: RECIPES[c.bit].reference, ...summary }, null, 1));
+        console.log(JSON.stringify({ video: final, frames: sheet, seconds: result.duration, reference: script.reference ?? RECIPES[c.bit].reference, ...summary }, null, 1));
         expect(existsSync(final)).toBe(true);
       } catch (error) {
         if (error instanceof OverBudget) log(`stopped by the cost guard: ${error.message}`);

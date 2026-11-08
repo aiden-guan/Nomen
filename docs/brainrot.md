@@ -19,6 +19,15 @@ original's characters, people or footage.
 | `melodrama` | An AI food-character soap opera. A sad hero whose pain is the product's problem, a rich rival, tears in the rain ("it's over"), then the product and a hard music turn to phonk ("we're so back"). One huge word on screen at a time. | [@mommyyame1, "p: 1 #fruitdrama"](https://www.tiktok.com/@mommyyame1/video/7649489303176809741): 81.1M views, 345x its followers |
 | `aura` | An aura-farming / mogging phonk edit. Our character does nothing, nonchalantly, in slow motion, while the product does the work behind it. Stamps like "+1000 AURA" and "MOGGED", and bass-boosted drops. | [@yboatkid, "best aura farmer so far"](https://www.tiktok.com/@yboatkid/video/7521629317063822648): 98.9M views, 1,113x its followers (the format only; never the original kid or his boat race) |
 
+| `funnel` | An agent-experiment POV, the meme-ad format a competitor (Composio) pays creators for. The mascot reacts to camera in the bottom half while a funnel of what the agent did fills the top half, one row per beat ("2,900+ tools it looked at", "0 sign-ups"). Each row gets an indignant comment, the product comes in mid-way, and it ends on "what should my agent do next?" | [@phamhacks, "people be so greedy smh"](https://www.tiktok.com/@phamhacks/video/7678518337311116557): 2.28M views, 447x its followers. It is in the Monid campaign's own competitor research. |
+
+**Riffing on the research.** A bit can riff on one video from the campaign's own research. In a
+campaign, that is the reference the director picked for the brainrot brief; in the live test, it is
+a link from the campaign's `research_json`, transcribed once on Naive. The writer gets that video's
+numbers, caption and words, keeps its structure, and remakes it in the bit's style with the
+product's facts. The video then credits the riffed video as its reference (`inspired_by`), so the
+camp shows the research behind it.
+
 Every bit opens on an outrageous stunt as bait, then cuts hard into the bit: a cart drifting
 through a fireball, a jet ski off a ramp, a car through glass into a rooftop pool. It never opens
 on anything that reads as suicide, self-harm or a fall to death; the critic sends those back.
@@ -67,8 +76,11 @@ resumes without paying twice. The cut is `crv_…/final.mp4`.
   and no other brands.
 - **Topics:** nothing sexual, no jokes about abuse or trafficking, nothing about minors, no slurs
   or hate, no drugs, weapons or gore.
-- **Facts:** every product fact comes from the brief. Meme numbers ("6-7", "+1000 AURA") are the
-  only numbers that don't need to.
+- **Facts:** every product fact comes from the brief. Meme numbers ("6-7", "+1000 AURA") and 0 or 1
+  are the only numbers that don't need to.
+- **Other companies:** briefs and references name them (Monid's aha compares two AI labs, and the
+  funnel reference is Composio's sponsored meme). They are never named in the ad: the linter flags
+  them.
 - **6-7:** one bit, once or twice at most. It is never the whole joke.
 
 The linter checks the names, topics and numbers in the script, and both vision checks look for

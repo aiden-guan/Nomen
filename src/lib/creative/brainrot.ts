@@ -12,6 +12,11 @@
 //              over"), the product, the comeback ("we're so back"), one word on screen at a time
 //   aura       an aura-farming / mogging phonk edit: our character does nothing, nonchalantly, in
 //              slow motion while the product does the work; "+1000 AURA", "MOGGED"
+//   funnel     an agent-experiment POV: the mascot reacts to camera in the bottom half while a funnel
+//              of what the agent did fills the top, one row a beat (a competitor's meme-ad format)
+//
+// A bit can also riff on one video from the campaign's own research (`riff`): the writer gets its
+// numbers and words and keeps its structure, and the video credits it as its reference.
 //
 //   writeBrainrot (writer, linter, critic) ─► BrainrotScript ─► planBrainrot (stills, Kling prompts)
 //   ─► brainrot-make.ts (voice, music, SFX, renders, QC, the cut) ─► brainrot-cut.ts (ffmpeg)
@@ -26,10 +31,10 @@ import type { NaiveClient } from "../naive";
 import { QC_MODEL } from "../qc";
 import { extractJson } from "../research";
 import type { Concept } from "../strategy";
-import type { CreativeBrief, ProductBrief } from "./types";
+import type { CreativeBrief, ProductBrief, ReferenceBreakdown } from "./types";
 
-export type BrainrotBit = "anthem" | "melodrama" | "aura";
-export const BITS: BrainrotBit[] = ["anthem", "melodrama", "aura"];
+export type BrainrotBit = "anthem" | "melodrama" | "aura" | "funnel";
+export const BITS: BrainrotBit[] = ["anthem", "melodrama", "aura", "funnel"];
 
 /** Sound effects the cut can drop on a shot: made once with ElevenLabs and kept for every video. */
 export const SFX = ["vine_boom", "bass_drop", "airhorn", "record_scratch", "whoosh", "ding", "crowd_ohh", "sad_violin", "cash", "explosion", "aura_up", "six_seven"] as const;
@@ -68,8 +73,15 @@ export type BrainrotShot = {
   seconds: number;
 };
 
+/** One row of the funnel bit's diagram, shown from its shot on: "2,900+" / "tools it could call". */
+export type FunnelRow = { shot: number; value: string; label: string };
+
 export type BrainrotScript = {
   bit: BrainrotBit;
+  /** The funnel bit's diagram, one row revealed per shot. */
+  funnel?: FunnelRow[];
+  /** The researched video this one riffs on (else the recipe's own reference). */
+  reference?: BitReference;
   title: string;
   /** The meme setup on screen for the first seconds ("POV: ..."). */
   hook: string;
@@ -216,7 +228,37 @@ export const RECIPES: Record<BrainrotBit, BitRecipe> = {
       "One shot is a mog: the old way (a sweaty, panicking version) next to the hero doing nothing, stamp 'MOGGED'.",
     ],
   },
+  funnel: {
+    bit: "funnel",
+    name: "Agent-experiment funnel",
+    reference: {
+      url: "https://www.tiktok.com/@phamhacks/video/7678518337311116557",
+      author: "phamhacks",
+      title: "people be so greedy smh",
+      views: 2_276_109,
+      likes: 201_565,
+      shares: 11_334,
+      saves: 20_276,
+      followers: 5_088,
+      outlier: 447,
+      seconds: 54,
+      posted: "2026-08-27",
+    },
+    format:
+      "An agent-experiment POV, the format a competitor (Composio) pays creators for: 'POV: you made your AI agent do something absurd', then the creator reacts to camera in the bottom half while a funnel diagram of what the agent did fills the top half, one row per beat ('5,331,184 emails', '3,093,752 left on delivered'), each number a joke with an indignant comment, the product named mid-way as how it was done, and a 'tell me what it should do next' ending.",
+    shots: { min: 5, max: 6 },
+    look: "Bright glossy 3D render, a plain seamless white studio wall: the character sits in the lower half of the frame, the whole top half is empty white wall, vertical 9:16.",
+    movement: "The character talks straight to the camera, animated and expressive, mouth or beak moving as if speaking, small hand gestures; the camera holds still.",
+    voice: { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam (energetic social-media creator)", tags: "[excited]", tempo: 1.1, naive: "verse" },
+    silentSeconds: 2.2,
+    rules: [
+      "The creator is the product's mascot, an original non-human character, talking to the camera in the lower half of the frame with plain white wall above (except shot 1, the stunt).",
+      "funnel: 4 to 6 rows, each shown from its shot (from shot 2 on): a big value and a short label, a step of what the agent did with the product ('2,900+' / 'tools it could call', '12' / 'candidates ranked by price', '0' / 'sign-ups'). Every number comes from the product brief; 0 and 1 are fine.",
+      "words: what the creator says over each shot, 5 to 11 casual words (20 to 26 seconds in all), disbelieving and a bit unhinged, reading the funnel out with a comment on each row; name the product mid-way as how the agent did it, and end by asking what the agent should do next.",
+    ],
+  },
 };
+
 
 /** The bit for a brief: named in its angle or hook plan, else one picked from the product's name. */
 export function pickBit(brief: Pick<CreativeBrief, "angle" | "hook_plan" | "title"> | null, productName = ""): BrainrotBit {
@@ -224,6 +266,7 @@ export function pickBit(brief: Pick<CreativeBrief, "angle" | "hook_plan" | "titl
   if (/anthem|song|italian|creature/.test(text)) return "anthem";
   if (/melodrama|drama|soap|story|fruit/.test(text)) return "melodrama";
   if (/aura|mog|sigma|phonk|edit/.test(text)) return "aura";
+  if (/funnel|experiment|sankey|results|pov/.test(text)) return "funnel";
   const sum = [...productName].reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   return BITS[sum % BITS.length];
 }
@@ -373,6 +416,12 @@ export const bannedNamesIn = (text: string) => NAME_PATTERNS.filter((p) => p.re.
 /** Off-limits topics in a text. */
 export const bannedTopicsIn = (text: string) => TOPIC_PATTERNS.filter((p) => p.re.test(text)).map((p) => p.topic);
 
+/** Other companies the briefs and the references name (an aha, a competitor's sponsored meme): never in the ad. */
+export const BANNED_BRANDS = ["openai", "chatgpt", "gpt", "anthropic", "claude", "gemini", "google", "microsoft", "apple", "meta", "amazon", "composio", "zapier", "duolingo", "tiktok", "youtube", "instagram"] as const;
+const BRAND_PATTERNS = BANNED_BRANDS.map((brand) => ({ brand, re: wordPattern(brand) }));
+/** Other companies named in a text. */
+export const brandsIn = (text: string) => BRAND_PATTERNS.filter((p) => p.re.test(text)).map((p) => p.brand);
+
 // ---------- the script tool ----------
 
 const str = { type: "string" };
@@ -419,6 +468,15 @@ const SCRIPT_TOOL = {
       },
       narrator: { ...str, description: "Who speaks and how, in a few words." },
       shots: { type: "array", items: SHOT_SCHEMA },
+      funnel: {
+        type: "array",
+        description: "funnel bit only: the diagram's rows, each shown from its shot on. Else [].",
+        items: {
+          type: "object",
+          required: ["shot", "value", "label"],
+          properties: { shot: { type: "integer" }, value: { ...str, description: "The big number, from the brief ('2,900+', '$0.0013', '0')." }, label: { ...str, description: "What it counts, 2 to 5 words." } },
+        },
+      },
       end: {
         type: "object",
         required: ["line", "text"],
@@ -430,8 +488,13 @@ const SCRIPT_TOOL = {
   },
 };
 
+/** A video from the campaign's own research that the bit riffs on: its numbers, and its words when known. */
+export type Riff = BitReference & { caption?: string; transcript?: string; format?: string };
+
 export type BrainrotContext = {
   product: ProductBrief;
+  /** A researched video to riff on: the writer keeps its structure, and the video credits it. */
+  riff?: Riff | null;
   /** The brand's site as people type it ("monid.ai"). */
   site: string;
   bit: BrainrotBit;
@@ -475,7 +538,9 @@ function contextBlock(ctx: BrainrotContext) {
     `<product_brief>\n${JSON.stringify(product)}\n</product_brief>`,
     `<site>${ctx.site}</site>`,
     ctx.brief ? `<creative_brief>\n${JSON.stringify({ title: ctx.brief.title, angle: ctx.brief.angle, audience: ctx.brief.audience, cta: ctx.brief.cta, hook_plan: ctx.brief.hook_plan })}\n</creative_brief>` : "",
-    `<reference>\n${JSON.stringify(recipe.reference)}\n</reference>`,
+    ctx.riff
+      ? `<riff>\nThis video riffs on a video from the campaign's own research. Keep its structure, beat for beat (its premise, how it reveals its results, its comments, where the product comes in, how it ends), remade in this bit's brainrot style with this product's real facts; never its people, its claims about itself or its brand.\n${JSON.stringify(ctx.riff)}\n</riff>`
+      : `<reference>\n${JSON.stringify(recipe.reference)}\n</reference>`,
     `Bit: ${recipe.bit}. Image look for every frame: ${recipe.look}`,
   ]
     .filter(Boolean)
@@ -523,8 +588,15 @@ export function normalizeBrainrot(raw: Record<string, unknown> | null, ctx: Brai
   let endText = clean(end.text, 80);
   if (!endText.toLowerCase().includes(ctx.site.toLowerCase())) endText = [ctx.site, endText].filter(Boolean).join(" ").slice(0, 80);
   const turn = Math.round(Number(music.turn) || 0);
+  const funnel = (Array.isArray(raw?.funnel) ? (raw.funnel as Array<Record<string, unknown>>) : [])
+    .map((row) => ({ shot: Math.round(Number(row?.shot) || 0), value: clean(row?.value, 18), label: clean(row?.label, 40) }))
+    .filter((row) => row.value && row.shot >= 1 && row.shot <= shots.length)
+    .sort((a, b) => a.shot - b.shot)
+    .slice(0, 6);
   return {
     bit: ctx.bit,
+    ...(ctx.bit === "funnel" ? { funnel } : {}),
+    ...(ctx.riff ? { reference: { url: ctx.riff.url, author: ctx.riff.author, title: ctx.riff.title, views: ctx.riff.views, likes: ctx.riff.likes, shares: ctx.riff.shares, saves: ctx.riff.saves, followers: ctx.riff.followers, outlier: ctx.riff.outlier, seconds: ctx.riff.seconds, posted: ctx.riff.posted } } : {}),
     title: clean(raw?.title, 120) || `${ctx.product.name} brainrot`,
     hook: clean(raw?.hook, 90),
     characters,
@@ -563,9 +635,12 @@ const MEME_NUMBERS = /\b6\s*-\s*7\b|\b67\b|[+-]?\s*\d[\d,.]*\s*(?:k\s*)?aura\b|\
 /** Numbers the script states that the product brief does not. */
 export function inventedNumbers(script: BrainrotScript, product: ProductBrief): string[] {
   const known = JSON.stringify({ ...product, visuals: undefined }).replace(/,(?=\d{3}\b)/g, "");
-  const said = [script.hook, script.caption, script.end.line, script.end.text, ...script.shots.flatMap((s) => [s.words, s.stamp])].join(" ").replace(MEME_NUMBERS, " ");
+  const said = [script.hook, script.caption, script.end.line, script.end.text, ...script.shots.flatMap((s) => [s.words, s.stamp]), ...(script.funnel ?? []).flatMap((row) => [row.value, row.label])]
+    .join(" ")
+    .replace(MEME_NUMBERS, " ");
   const numbers = said.match(/\$?\d[\d,]*(?:\.\d+)?\+?%?/g) ?? [];
-  return [...new Set(numbers.map((n) => n.replace(/[$,+%]/g, "")).filter((n) => n && n !== "6" && n !== "7" && !new RegExp(`(^|[^\\d.])${n.replace(".", "\\.")}([^\\d]|$)`).test(known)))];
+  // 0 and 1 are not claims ("0 sign-ups", "1 balance"), and 6 and 7 are the meme.
+  return [...new Set(numbers.map((n) => n.replace(/[$,+%]/g, "")).filter((n) => n && !["0", "1", "6", "7"].includes(n) && !new RegExp(`(^|[^\\d.])${n.replace(".", "\\.")}([^\\d]|$)`).test(known)))];
 }
 
 /** What an outrageous opener looks like in words: a stunt or an action beat. */
@@ -583,6 +658,9 @@ export function lintBrainrot(script: BrainrotScript, ctx: Pick<BrainrotContext, 
   if (names.length) issues.push(`real people or other people's characters named: ${names.join(", ")}`);
   const topics = bannedTopicsIn(all);
   if (topics.length) issues.push(`off-limits words: ${topics.join(", ")}`);
+  // What is said and shown (not the frames, where "no logos" is fine) must not name other companies.
+  const brands = brandsIn([script.hook, script.caption, script.end.line, script.end.text, ...script.shots.flatMap((s) => [s.words, s.stamp]), ...(script.funnel ?? []).map((r) => r.label)].join("\n"));
+  if (brands.length) issues.push(`other companies named: ${brands.join(", ")}`);
   const numbers = inventedNumbers(script, ctx.product);
   if (numbers.length) issues.push(`numbers not in the product brief: ${numbers.join(", ")}`);
   if (script.shots.length < recipe.shots.min) issues.push(`only ${script.shots.length} shots; the ${recipe.name} needs ${recipe.shots.min} to ${recipe.shots.max}`);
@@ -599,12 +677,14 @@ export function lintBrainrot(script: BrainrotScript, ctx: Pick<BrainrotContext, 
   for (const shot of script.shots) {
     if (!shot.frame) issues.push(`shot ${shot.n} has no frame`);
     const words = shot.words.split(/\s+/).filter(Boolean).length;
-    if (words > 22) issues.push(`shot ${shot.n} says ${words} words: at most about 16`);
+    const most = script.bit === "funnel" ? 12 : 18;
+    if (words > most) issues.push(`shot ${shot.n} says ${words} words: at most ${most} (every second is rendered)`);
     if (shot.stamp.split(/\s+/).filter(Boolean).length > 4) issues.push(`shot ${shot.n}'s stamp is too long`);
     if (/\b(text|words?|letters?|sign|caption|logo|written)\b/i.test(shot.frame) && !/\b(no|without)\s+(text|words?|letters?|signs?|captions?|logos?)\b/i.test(shot.frame)) issues.push(`shot ${shot.n}'s frame asks for text in the picture; the edit adds every word`);
   }
   if (script.bit === "anthem" && script.shots.some((s) => !s.words)) issues.push("every anthem shot needs its lyric line");
   if (script.bit === "melodrama" && !script.music.turn) issues.push("the melodrama needs music.turn: the shot where the product turns it around");
+  if (script.bit === "funnel" && (script.funnel?.length ?? 0) < 3) issues.push("the funnel needs 3 to 6 rows, one per shot from shot 2");
   if (script.hook.split(/\s+/).filter(Boolean).length > 12) issues.push("the hook is too long for the screen");
   return issues;
 }
@@ -641,7 +721,7 @@ export async function writeBrainrot(naive: Pick<NaiveClient, "message">, ctx: Br
     const left = lintBrainrot(revised, ctx);
     // The critic's rewrite is kept unless it breaks a hard rule (people, characters, topics, numbers,
     // the product at the end) or breaks more rules than the draft did.
-    const hard = (list: string[]) => list.filter((issue) => /people|characters|off-limits|numbers|not named/.test(issue)).length;
+    const hard = (list: string[]) => list.filter((issue) => /people|characters|off-limits|companies|numbers|not named/.test(issue)).length;
     const better = left.length <= issues.length || ((review.score ?? 0) < PASS && hard(left) === 0);
     if (revised.shots.length >= recipe.shots.min && better) {
       revised.review = { score: Math.max(review.score ?? 0, PASS), notes: [...left.map((issue) => `lint: ${issue}`), ...review.notes].slice(0, 10), rounds: 2 };
@@ -809,6 +889,25 @@ export function estimateBrainrot(script: BrainrotScript, options: { model?: stri
 
 // ---------- in a campaign ----------
 
+/** A campaign reference's breakdown as something to riff on. */
+export function riffOf(breakdown: Pick<ReferenceBreakdown, "url" | "author" | "views" | "followers" | "outlier" | "duration" | "format" | "transcript" | "hook">): Riff {
+  return {
+    url: breakdown.url,
+    author: breakdown.author,
+    title: breakdown.hook.line || breakdown.hook.on_screen_text || breakdown.format,
+    views: breakdown.views,
+    likes: 0,
+    shares: 0,
+    saves: 0,
+    followers: breakdown.followers ?? 0,
+    outlier: Math.round(breakdown.outlier ?? 0),
+    seconds: Math.round(breakdown.duration),
+    posted: "",
+    format: breakdown.format,
+    transcript: breakdown.transcript,
+  };
+}
+
 /** "https://www.monid.ai/x" → "monid.ai". */
 export function siteOf(url: string | null | undefined): string {
   if (!url) return "";
@@ -822,7 +921,7 @@ export function siteOf(url: string | null | undefined): string {
 /** The campaign's concept for a brainrot video: a reach video, held until a person clears it. */
 export function brainrotConcept(brief: CreativeBrief, script: BrainrotScript): Concept {
   const recipe = RECIPES[script.bit];
-  const ref = recipe.reference;
+  const ref = script.reference ?? recipe.reference;
   return {
     title: brief.title || script.title,
     format: "brainrot",

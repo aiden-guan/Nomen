@@ -98,6 +98,46 @@ It is all over bass-boosted phonk with a gravelly deadpan voice. The end card re
 - The product (a phone actually doing a task) never shows on screen.
 - The end card holds about 5 s on one static robot.
 
+### monid.ai again: a riff on the campaign's own research
+
+This is the one for the demo: a video built on a reference from the Monid campaign's own research
+(`research_json` of `cmp_f98819d8b08f46a7a422`). It was found by the competitor search for
+Composio.
+
+**Built on** [@phamhacks, "people be so greedy smh"](https://www.tiktok.com/@phamhacks/video/7678518337311116557):
+2,276,109 views, 201,565 likes, 11,334 shares and 20,276 saves on an account with 5,088 followers
+(447x). It is 55 s and was posted 2026-08-27. It is a paid Composio post (#composiopartner).
+- **The original:** a creator emails five million people asking for $1, and a funnel diagram of the
+  results fills the top of the screen while he complains about the "greedy" replies.
+- **What we took:** its structure and its words (transcribed on Naive for $0.003), never its
+  person or its claims.
+- **What we left out:** its mass-email premise, which would read as spam on a sponsor's account.
+
+**The video** is called "i let my agent cook with one balance (it got greedy)", 30.6 s, built on the
+new `funnel` bit:
+- Moni, a glossy black blob like Monid's logo, rides a rocket chair through confetti ("POV: you
+  told your agent to go crazy", AURA FARMING).
+- Moni reads out its agent's results card one row at a time, with a stamp on each line: 2,900+
+  tools it looked at, 12 candidates ranked by fit and price, 0 sign-ups, $0.0013 charged for one
+  call, $1 free credit to start.
+- It names Monid mid-way ("One skill file. Zero sign-ups.") and ends on "What should my agent do
+  next?" and the monid.ai card.
+
+**Cost:** $2.49, with the final check at 7/10, safe. Two script drafts and the transcription
+added about $0.30.
+
+**Edited by hand:**
+- The writer's lines ran too long for the budget, so I cut each to 11 words or fewer.
+- They also named two AI labs from Monid's own brief, which I took out.
+
+The linter now catches both, and the notes in `script.json` say so.
+
+**Weak spots:**
+- The video model framed Moni bigger than asked. The card is now at the very top and grows with
+  its rows, so it no longer covers the face.
+- The voice is Naive's gpt-audio (Monid's wallet was empty), not ElevenLabs.
+- The 3-word captions read as fragments in stills.
+
 ## What it cost
 
 | | Pictures and clips (Naive) | Voice, music, effects (Monid) | Total |
@@ -108,7 +148,9 @@ It is all over bass-boosted phonk with a gravelly deadpan voice. The end card re
 | Price probe (one 4 s clip, three pictures, first take of Mobilerun) | $0.37 | $0.01 | $0.38 |
 | TikTok scrape (16 searches) | | $0.02 | $0.02 |
 | Scripts (writer and critic, four of them) | about $0.50 | | about $0.50 |
-| **All of it** | **about $8.61** | **$0.37** | **about $8.98** |
+| monid.ai research riff (6 clips of 4 s, re-cut twice) | $2.49 | $0.00 | $2.49 |
+| Its two script drafts and the reference transcription | about $0.30 | | about $0.30 |
+| **All of it** | **about $11.40** | **$0.37** | **about $11.77** |
 
 - **Clips:** Veo 3.1 Lite on Naive costs $0.08 a second: $0.32 for 4 s.
 - **Pictures:** $0.016-0.032 each.
