@@ -187,7 +187,17 @@ export function emotionArc(tags: string[]): string {
  * creator talking into a propped-up phone, one gentle action, hands down, the body mostly still,
  * nothing about the person's looks (the first frame carries the face), ending on the no-text line.
  */
-export function creatorDirection(input: { who: "She" | "He" | "They"; arc: string; action?: string; line?: string; listening?: boolean; green?: boolean; voice?: string }): string {
+export function creatorDirection(input: {
+  who: "She" | "He" | "They";
+  arc: string;
+  action?: string;
+  line?: string;
+  listening?: boolean;
+  green?: boolean;
+  voice?: string;
+  /** Understated acting: Kling plays big emotions (and "eyebrow raises") as mugging. */
+  calm?: boolean;
+}): string {
   const { who } = input;
   const s = (verb: string) => (who === "They" ? verb : `${verb}s`);
   const possessive = who === "She" ? "Her" : who === "He" ? "His" : "Their";
@@ -196,7 +206,9 @@ export function creatorDirection(input: { who: "She" | "He" | "They"; arc: strin
       ? `${who} ${s("listen")} and ${s("react")} like a real creator watching a clip: a small nod, a raised eyebrow, a half-smile, mouth closed, not speaking.`
       : `${who} ${s("talk")} straight into the camera like a real TikTok creator: ${input.arc}.`,
     input.action ? `One gentle action: ${input.action.replace(/\.$/, "")}.` : "",
-    `Natural micro-expressions, eyebrow raises, small head tilts, natural blinking, eye contact with the lens${input.listening ? "." : ", mouth movements that match every word."}`,
+    input.calm
+      ? `Calm, understated expressions: small natural mouth movements, relaxed eyes on the lens, natural blinking, at most a small nod; no mugging, no pouting, no wide eyes${input.listening ? "." : ", mouth movements that match every word."}`
+      : `Natural micro-expressions, eyebrow raises, small head tilts, natural blinking, eye contact with the lens${input.listening ? "." : ", mouth movements that match every word."}`,
     "Hands relaxed and mostly below the frame, the body mostly still; no pointing, no thumbs-up, no head turns past a slight angle.",
     `Real phone-camera look: natural daylight, slight sensor noise, no studio lighting, no music.${input.green ? " The background stays one flat chroma-key green." : ""}`,
     // A persona's voice, described the same way in every take, so the takes sound like one person.
@@ -217,9 +229,15 @@ export const FRAME_LOOK =
 
 /** The camera holds still, as a phone propped up on a desk does. */
 const CAMERA_STILL = "The camera is propped up and stays still apart from a very slight natural shake; never an arm's-length selfie, no arm reaching toward the lens.";
+/** A persona's own still sets the framing (often her phone selfie): the take keeps it. */
+const CAMERA_AS_STILL = "The camera keeps the first frame's framing and stays steady, with only a slight natural sway; nothing moves toward the lens.";
 
-/** One presenter shot: the frame and video prompts for a creator saying `beats`' lines (the recipe above). */
-export function presenterShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product: ProductBrief, delivery: string, personaVoice?: string): ARollShot {
+/**
+ * One presenter shot: the frame and video prompts for a creator saying `beats`' lines (the recipe
+ * above). `persona`: the take starts from a persona's own still, so it keeps that still's framing,
+ * plays it calm and describes her voice the same way every time.
+ */
+export function presenterShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product: ProductBrief, delivery: string, persona?: { voice?: string }): ARollShot {
   const who = pronoun(brief.creator);
   const line = beats.map((beat) => beat.line).filter(Boolean).join(" ");
   const directions = beats
@@ -262,10 +280,10 @@ export function presenterShot(n: number, beats: ScriptBeat[], brief: CreativeBri
     video_prompt: [
       "A single full-frame shot of the presenter only: no split screen, no inset, no on-screen graphics or cards.",
       productLine.trim(),
-      CAMERA_STILL,
+      persona ? CAMERA_AS_STILL : CAMERA_STILL,
       SAFE,
       // Last, as in the head-to-head: the direction, then the line, then the no-text line.
-      creatorDirection({ who, arc, action, line, listening: !line, ...(personaVoice ? { voice: personaVoice } : {}) }),
+      creatorDirection({ who, arc, action, line, listening: !line, ...(persona ? { calm: true, ...(persona.voice ? { voice: persona.voice } : {}) } : {}) }),
     ]
       .filter(Boolean)
       .join(" "),

@@ -70,6 +70,26 @@ const CLAIM_JOBS: BeatJob[] = ["demo", "proof", "reveal"];
 
 const words = (line: string) => line.toLowerCase().replace(/[^\p{L}\p{N}'$%]+/gu, " ").trim().split(/\s+/).filter(Boolean);
 
+/**
+ * Kling plays big emotions as mugging (wide eyes, pouts, a whisper as a pout): the persona's takes
+ * get the calm version of each voice tag.
+ */
+const CALM: Record<string, string> = {
+  excited: "upbeat",
+  hyped: "upbeat",
+  whispers: "low and confiding",
+  whisper: "low and confiding",
+  hushed: "low and confiding",
+  conspiratorial: "low and confiding",
+  laughs: "a small smile",
+  laugh: "a small smile",
+  shocked: "mildly surprised",
+  surprised: "mildly surprised",
+  smug: "quietly pleased",
+  dramatic: "matter-of-fact",
+};
+export const calmTag = (tag: string) => tag.replace(/[\p{L}-]+/gu, (word) => CALM[word.toLowerCase()] ?? word);
+
 /** A take's render length: the line at the take pace plus a little room, in whole seconds (Kling bills what is asked). */
 export const takeSeconds = (line: string) => Math.min(MAX_TAKE, Math.max(MIN_TAKE, Math.ceil(words(line).length / TAKE_WPS + TAKE_PAD)));
 
@@ -114,7 +134,14 @@ export function planOrganic(script: Script, brief: CreativeBrief, product: Produ
   const shotBrief: CreativeBrief = { ...brief, format: "talking_head_broll", ...(persona ? { creator: persona.look, setting: persona.place } : {}) };
   const base = planProduction(script, shotBrief, product, delivery);
   const aroll = groupTakes(script).map((beats, i) => {
-    const shot = presenterShot(i + 1, beats, shotBrief, product, delivery, persona?.voice);
+    const shot = presenterShot(
+      i + 1,
+      persona ? beats.map((beat) => (beat.emotion ? { ...beat, emotion: calmTag(beat.emotion) } : beat)) : beats,
+      shotBrief,
+      product,
+      delivery,
+      persona ? { voice: persona.voice } : undefined,
+    );
     return {
       ...shot,
       seconds: Math.round((words(shot.line).length / TAKE_WPS) * 10) / 10,
@@ -153,7 +180,7 @@ function writerSystem() {
     "- convert: judged on sign-ups. Keep the formula's proof, and end on the brief's cta as one clear step, said the way a creator would say it.",
     "- reach: judged on views and shares. The ending stays soft (follow, comment, share), with no hard sell.",
     "",
-    "Give every beat one voice tag in `emotion` for how it is said: [hushed], [excited], [deadpan], [matter-of-fact], [warm], [laughs].",
+    "Give every beat one voice tag in `emotion` for how it is said, kept calm (the video model overacts big emotions): [relaxed], [matter-of-fact], [dry], [warm], [curious], [low and confiding].",
     "",
     "Call the script tool once with every beat.",
   ].join("\n");

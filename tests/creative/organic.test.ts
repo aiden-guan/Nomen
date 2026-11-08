@@ -332,6 +332,21 @@ describe("the organic plan shape", () => {
     expect(plan.punch_in).toBe(PUNCH_IN);
   });
 
+  it("plays the persona calm and keeps her still's own framing", () => {
+    const plan = planOrganic(goodScript(), brief, product, still);
+    const hook = plan.aroll[0].video_prompt;
+    // Her stills are phone selfies: the prompt keeps that framing instead of asking for a propped-up camera.
+    expect(hook).toContain("keeps the first frame's framing");
+    expect(hook).not.toMatch(/propped up|never an arm's-length selfie/);
+    // Kling plays big emotions as mugging: the arc is calmed and the face kept understated.
+    expect(hook).toContain("Calm, understated expressions");
+    expect(hook).not.toMatch(/eyebrow raises|whisper/);
+    expect(hook).toContain("low and confiding");
+    // A remake's presenter is unchanged.
+    const remake = planProduction(goodScript(), { ...brief, mode: undefined, creator: "a woman in her twenties" }, product);
+    expect(remake.aroll[0].video_prompt).toContain("propped up");
+  });
+
   it("sizes a take to its words at a fast natural pace, between Kling's shortest and ten seconds", () => {
     expect(takeSeconds("Okay, I almost didn't post this one.")).toBe(3); // 7 words: about 2 s of speech
     expect(takeSeconds("one two")).toBe(3);
