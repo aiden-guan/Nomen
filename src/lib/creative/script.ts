@@ -187,12 +187,23 @@ function writerSystem() {
   ].join("\n");
 }
 
+/**
+ * What a remake's writer and critic see of the creative brief: the pitch (angle, call to action,
+ * audience, role) and the presenter. The reference is the plan, so an older concept's hook plan,
+ * keep/change lists and shots would only fight it: on the Jordan remake the critic called an old
+ * concept's hook "the approved hook" and rewrote the reference's own opening line and title.
+ */
+export function remakeBrief(brief: CreativeBrief) {
+  const { format, role, metric, angle, audience, cta, creator, platforms } = brief;
+  return { format, role, metric, angle, audience, cta, creator, platforms };
+}
+
 function contextBlock(ctx: ScriptContext) {
   const { product, brief, reference } = ctx;
   return [
     `<product_brief>\n${JSON.stringify({ ...product, visuals: undefined })}\n</product_brief>`,
     `<visuals>\n${JSON.stringify(product.visuals.map((v) => ({ id: v.id, kind: v.kind, caption: v.caption, tall_page: isTall(v) || undefined })))}\n</visuals>`,
-    `<creative_brief>\n${JSON.stringify(brief)}\n</creative_brief>`,
+    `<creative_brief>\n${JSON.stringify(brief.format === "remake" ? remakeBrief(brief) : brief)}\n</creative_brief>`,
     `<reference>\n${JSON.stringify({
       url: reference.url,
       stats: { views: reference.views, followers: reference.followers, views_per_follower: reference.outlier },
@@ -245,6 +256,7 @@ function remakeBudgets(reference: ReferenceBreakdown) {
     "- Every later beat that is not about the reference's own product, method or story (hype, setup, reactions, teasers, a series line such as \"part sixty-seven\") keeps the reference's exact words too.",
     "- The beats about their product, method or story (their tutorial steps, their results, their numbers, \"Everyone is reposting them\") become this product's pitch: keep each beat's job, rhythm, length and energy, and write the words so the whole script is one coherent, true piece. Each line follows from the one before and makes sense to a viewer who never saw the reference. The creative brief's angle and cta say what the pitch is.",
     "- The last beat ends on a complete thought, its payoff or a clear call to action, even where the reference's beat runs on.",
+    "- Every claim stays true to the product brief. The one exception is obvious, unquantified hyperbole that the creative brief's angle asks for (a bait payoff such as \"it prints money while you sleep\"): never a specific number, result or guarantee that isn't in the product brief.",
     "- Write every line the way it is said aloud: numbers in words (\"about a tenth of a cent\", \"three dollars\"), a site as \"monid dot ai\", never a file name, a path or a symbol. On-screen text can show them exactly.",
     "- emotion: the reference's delivery on that beat as one voice tag ([excited], [smug], [deadpan], [sarcastic], [curious], [laughs], [sighs], [whispers]); the presenter says the line with it.",
     "- on_screen_text: the reference beat's on-screen text word for word, with its line shape and series numbering (\"Part 67\" stays \"Part 67\"), changed only where it names their product or method; empty where the reference has none.",
@@ -290,7 +302,7 @@ async function critique(naive: NaiveClient, ctx: ScriptContext, script: Script, 
     // Dylan's call after a word-for-word remake ended on "Nobody is signing up for them" out of context.
     "Then read the script as a viewer who never saw the reference: fail any line that does not follow from the one before, any phrase carried over from the reference that is not true for this product, and an ending that stops mid-thought instead of on a payoff or a clear call to action.",
     ...(ctx.brief.format === "remake"
-      ? ["This is a one-to-one remake: the hook and every line that is not about the reference's own product, method or story keep the reference's exact words (product facts swapped in the hook). The lines about their product, method or story are rewritten into this product's pitch, keeping each beat's job, rhythm, length and tone: rewording those is right here, not drift. A hook or a generic line (hype, setup, reaction, teaser) that strays from the reference's words still fails, and so does a spoken line with a file name, a path, a symbol or digits in it."]
+      ? ["This is a one-to-one remake: the hook and every line that is not about the reference's own product, method or story keep the reference's exact words (product facts swapped in the hook). The lines about their product, method or story are rewritten into this product's pitch, keeping each beat's job, rhythm, length and tone: rewording those is right here, not drift. A hook or a generic line (hype, setup, reaction, teaser) that strays from the reference's words still fails, and so does a spoken line with a file name, a path, a symbol or digits in it. Obvious, unquantified hyperbole that the creative brief's angle asks for (a bait payoff such as \"it prints money while you sleep\") is allowed; a specific number, result or guarantee that isn't in the product brief still fails."]
       : []),
     "Also judge the video's job (the role at the end of the brief). A convert video that drops the reference's problem, proof or offer beats, or ends without one clear call to action, fails: it will get views and no sign-ups. A reach video with a hard sell the reference does not have fails too.",
     `If the overall score is below 8, write the complete revised script that fixes every problem, following the same rules as the writer (${ctx.brief.format === "remake" ? "the hook word for word except the product facts, every later line coherent and true for this product" : "replicate the reference as closely as possible, swap only what must change for this product"}, keep every claim true to the brief, fit each line in its seconds).`,

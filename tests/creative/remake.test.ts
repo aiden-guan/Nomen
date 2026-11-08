@@ -26,7 +26,7 @@ import {
   wordCaptions,
 } from "@/lib/creative/remake";
 import { screenSize, writerSystem } from "@/lib/creative/screens";
-import { beatWordBudget, lintRemake, lintScript, normalizeScript, type ScriptContext, targetSeconds } from "@/lib/creative/script";
+import { beatWordBudget, lintRemake, lintScript, normalizeScript, remakeBrief, type ScriptContext, targetSeconds } from "@/lib/creative/script";
 import type { CreativeBrief, ProductBrief, ReferenceBeat, ReferenceBreakdown } from "@/lib/creative/types";
 import { ApiError } from "@/lib/http";
 import { isInternal, postingHold } from "@/lib/publish";
@@ -358,6 +358,14 @@ describe("the script and publishing for remakes", () => {
     expect(rewrittenHook).toContainEqual(expect.stringMatching(/^the hook rewrites the reference's words/));
     const series = lintRemake({ beats: [{ ...script.beats[0], on_screen_text: "Unethical ways to ship apps" }], total_seconds: 3, review: null }, { beats: [{ ...beats[0], on_screen_text: "Unethical ways to make money Part 67" }] });
     expect(series).toContain('beat 1\'s on-screen text loses the series line "Part 67"');
+  });
+
+  it("shows a remake's writer only the pitch from the brief, not an older concept's hook plan", () => {
+    const view = remakeBrief({ ...brief, hook_plan: "Guys, check this out. This one actually runs a company for you.", keep: ["the energy"], change: ["drop Part 67"], angle: "bait", cta: "link in bio" });
+    expect(view).toMatchObject({ format: brief.format, angle: "bait", cta: "link in bio" });
+    expect(Object.keys(view)).not.toContain("hook_plan");
+    expect(Object.keys(view)).not.toContain("keep");
+    expect(Object.keys(view)).not.toContain("change");
   });
 
   it("plans nothing for the standard production path", () => {
