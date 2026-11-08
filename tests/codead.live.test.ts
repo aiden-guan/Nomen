@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 
-import { makeCodeAd } from "@/lib/codeads/job";
+import { makeCodeAd, prepareAd } from "@/lib/codeads/job";
 import { contactSheet, renderStills, runQc } from "@/lib/codeads/render";
 import { writeCodeAd } from "@/lib/codeads/story";
 import type { CodeAdStory } from "@/lib/codeads/types";
@@ -25,6 +25,7 @@ import type { Files } from "@/lib/store/types";
 //   NOMEN_CODEAD_LIVE=make   …  narrates (ElevenLabs on Monid, cents; NOMEN_CODEAD_VOICE=scratch for the free macOS voice),
 //                               mixes, renders, checks the frames (Naive vision, cents) → <out>/final.mp4 + frames.jpg
 //   NOMEN_CODEAD_LIVE=all    …  both
+//   NOMEN_CODEAD_LIVE=page   …  only the page's folder (narration, story.json, cues.json) in <out>/work, for stills
 //   NOMEN_CODEAD_LIVE=stills NOMEN_CODEAD_DIR=<an ad folder with story.json>   stills + a sheet, free
 //
 // Inputs: NOMEN_CODEAD_CAMPAIGN (default the Naïve campaign), NOMEN_CODEAD_REFERENCE (a breakdown id in it),
@@ -95,7 +96,7 @@ async function patient<T>(work: () => Promise<T>, log: (message: string) => void
 
 const site = (brand: { domain: string; url: string }) => (brand.domain || brand.url).replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
 
-describe.skipIf(!["story", "make", "all"].includes(mode))("code ad for a real campaign (live)", () => {
+describe.skipIf(!["story", "make", "all", "page"].includes(mode))("code ad for a real campaign (live)", () => {
   it("writes and makes the ad", async () => {
     const input = campaignInputs();
     const tag = process.env.NOMEN_CODEAD_TAG ?? "v1";
@@ -128,7 +129,7 @@ describe.skipIf(!["story", "make", "all"].includes(mode))("code ad for a real ca
     let story: CodeAdStory;
     const storyPath = join(out, "story.json");
     if (process.env.NOMEN_CODEAD_STORY) story = JSON.parse(await readFile(process.env.NOMEN_CODEAD_STORY, "utf8")) as CodeAdStory;
-    else if (mode === "make" && existsSync(storyPath)) story = JSON.parse(await readFile(storyPath, "utf8")) as CodeAdStory;
+    else if ((mode === "make" || mode === "page") && existsSync(storyPath)) story = JSON.parse(await readFile(storyPath, "utf8")) as CodeAdStory;
     else {
       expect(naive, "NAIVE_API_KEY is needed to write the story").toBeTruthy();
       const written = await patient(() => writeCodeAd(naive!, { product: input.product, brief, reference: input.reference, targetSeconds: target, site: site(input.brand) }), log);
@@ -143,7 +144,7 @@ describe.skipIf(!["story", "make", "all"].includes(mode))("code ad for a real ca
     const chrome = findChrome();
     expect(chrome, "install Google Chrome or set CHROME_PATH").toBeTruthy();
     const voice = process.env.NOMEN_CODEAD_VOICE === "scratch" || !process.env.MONID_API_KEY ? "scratch" : "eleven";
-    const made = await makeCodeAd({
+    const adInput: Parameters<typeof makeCodeAd>[0] = {
       prefix: "codead",
       story,
       product: input.product,
@@ -158,7 +159,13 @@ describe.skipIf(!["story", "make", "all"].includes(mode))("code ad for a real ca
       naive,
       fps: Number(process.env.NOMEN_CODEAD_FPS) || 60,
       log,
-    });
+    };
+    if (mode === "page") {
+      const page = await prepareAd(adInput);
+      log(`page ready: ${join(out, "work")} (${page.story.duration.toFixed(1)} s); stills: NOMEN_CODEAD_LIVE=stills NOMEN_CODEAD_DIR=${join(out, "work")}`);
+      return;
+    }
+    const made = await makeCodeAd(adInput);
     await copyFile(made.path, join(out, "final.mp4"));
     await copyFile(made.sheet, join(out, "frames.jpg"));
     await writeFile(join(out, "made.json"), JSON.stringify({ duration: made.duration, spend_usd: made.spendMicro / 1e6, qc: made.qc, notes: made.notes, reference: { id: input.reference.id, url: input.reference.url, author: input.reference.author, views: input.reference.views, followers: input.reference.followers } }, null, 1));

@@ -197,7 +197,9 @@ describe("the page's story.json", () => {
     expect(page.beats.end.t1).toBe(9);
     expect(page.words[0]).toMatchObject({ w: "You", t0: 0.06 });
     expect(page.words.find((w) => w.w === "Naïve")).toBeTruthy();
-    expect(page.callouts.find((c) => c.text === "RUBBER DUCKS")).toMatchObject({ style: "stamp", t0: 2.6 + 3 * 0.22 - 0.04 });
+    // callouts sit in the lower third (the wall screen has the top)
+    expect(page.callouts.find((c) => c.text === "RUBBER DUCKS")).toMatchObject({ style: "stamp", t0: 2.6 + 3 * 0.22 - 0.04, y: 0.63 });
+    expect(page.callouts.every((c) => (c.y ?? 0) > 0.55)).toBe(true);
     expect(notes).toEqual(expect.arrayContaining([expect.stringMatching(/"X" dropped/)]));
     const fix = page.codead.beats.find((b) => b.id === "fix")!;
     expect(fix).toMatchObject({ gag: "deliver", hit: 4.7 + 3 * 0.21, labels: ["AGENT"], screen: { kind: "logo" } });

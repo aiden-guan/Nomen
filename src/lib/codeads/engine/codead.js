@@ -45,11 +45,11 @@ const SCREEN = [D.screen.x, D.screen.y, D.screen.z];
 const FRAMES = {
   face: (yaw = 0.12) => aim(HEAD, { frac: 0.38, d: 2.3, fov: 34, yaw, pitch: 0.05 }),
   gary: (yaw = 0) => aim(HEAD, { frac: 0.39, d: 3.9, fov: 40, yaw, pitch: 0.1 }),
-  home: (yaw = 0) => aim(HEAD, { frac: 0.4, d: 5.2, fov: 40, yaw, pitch: 0.1 }),
-  screen: (yaw = 0) => aim(SCREEN, { frac: 0.33, d: 4.6, fov: 40, yaw, pitch: 0.03 }),
+  home: (yaw = 0) => aim(HEAD, { frac: 0.42, d: 5.3, fov: 40, yaw, pitch: 0.1 }),
+  screen: (yaw = 0) => aim(SCREEN, { frac: 0.27, d: 4.6, fov: 40, yaw, pitch: 0.03 }),
   desk: (yaw = -0.22) => aim(HEAD, { frac: 0.36, d: 3.7, fov: 40, yaw, pitch: 0.16, dx: -0.18 }),
   wide: (yaw = 0) => aim([0.1, 1.0, -1.5], { frac: 0.42, d: 6.4, fov: 42, yaw, pitch: 0.16 }),
-  floor: (yaw = 0) => aim([0.5, 0.95, -1.4], { frac: 0.42, d: 5.0, fov: 42, yaw, pitch: 0.16 }),
+  floor: (yaw = 0) => aim([0.45, 1.0, -1.45], { frac: 0.42, d: 5.6, fov: 42, yaw, pitch: 0.14 }),
   high: (yaw = 0) => aim([0, 0.8, -1.2], { frac: 0.45, d: 6.6, fov: 42, yaw, pitch: 0.34 }),
 };
 
@@ -75,7 +75,7 @@ export async function build(studio, story) {
   // ---------------------------------------------------------------- props, one set per gag that needs them
   // agents: the brand's robots (deliver brings the first one, team adds one per label). Each roams its own orbit.
   const agents = [];
-  const ORBIT = { cx: 0.05, cz: -0.3, rx: 1.25, rz: 0.32, w: 0.75 };
+  const ORBIT = { cx: 0.05, cz: -0.42, rx: 1.35, rz: 0.2, w: 0.7 };
   const orbitAt = (k, t) => { const a = ORBIT.w * t + k * 1.9 + 0.4; return { x: ORBIT.cx + ORBIT.rx * Math.cos(a), z: ORBIT.cz + ORBIT.rz * Math.sin(a), rotY: Math.atan2(-ORBIT.rz * Math.cos(a), -ORBIT.rx * Math.sin(a)) }; };
   const addAgent = (label, tIn, opts = {}) => {
     if (agents.length >= 6) return null;
@@ -125,24 +125,28 @@ export async function build(studio, story) {
   for (const b of beats) {
     flip = -flip;
     const y = 0.12 * flip, at = b.i === 0 ? 0 : b.t0;
-    const add = (t, f, extra = {}) => frames.push({ t: Math.max(0, t), ...f, ...extra });
+    // every framing holds until its gag has landed (ED Studio's `until`: a gag must finish in frame)
+    const add = (t, f, extra = {}) => frames.push({ t: Math.max(0, t), until: Math.min(b.t1, b.hit + 0.75), ...f, ...extra });
     switch (b.gag) {
-      case 'hack': add(at, b.i === 0 ? FRAMES.home(y) : FRAMES.gary(y)); if (b.s1 - b.s0 > 2.4 && b.hit - at > 1.3) add(b.hit, FRAMES.screen(y * 0.5), { keep: true }); break;
-      case 'explode': add(at, FRAMES.gary(y)); add(b.hit + 0.05, FRAMES.home(-y * 0.6), { keep: true }); kicks.push([b.hit, 1.1, 0.55]); break;
+      // a beat whose screen carries the point shows the whole screen above Gary (the callouts sit in the lower third)
+      case 'hack': add(at, b.i === 0 ? FRAMES.home(0) : FRAMES.home(y)); break;
+      case 'explode': add(at, FRAMES.home(y)); kicks.push([b.hit, 1.1, 0.55]); break;
       case 'bury': add(at, FRAMES.home(y)); kicks.push([b.hit + 0.08, 0.85, 0.5]); break;
-      case 'zap': add(at, FRAMES.face(0.18 * flip)); kicks.push([b.hit, 0.6, 0.4]); break;
+      case 'zap': add(at, FRAMES.gary(0.16 * flip)); kicks.push([b.hit, 0.6, 0.4]); break;
       case 'money': add(at, FRAMES.home(y)); kicks.push([b.hit, 0.4, 0.35]); break;
       case 'deliver': add(at, FRAMES.floor(0.1)); kicks.push([b.hit, 0.95, 0.5]); break;
       case 'team': add(at, FRAMES.high(y)); break;
-      case 'approve': add(at, FRAMES.gary(-0.16)); kicks.push([b.hit, 0.6, 0.35]); break;
+      case 'approve': add(at, FRAMES.home(-0.12)); kicks.push([b.hit, 0.6, 0.35]); break;
       case 'show': add(at, FRAMES.screen(y * 0.4), { keep: true }); break;
       case 'celebrate': add(at, FRAMES.wide(y)); kicks.push([b.hit, 0.35, 0.4]); break;
-      default: add(at, FRAMES.gary(y));
+      default: add(at, b.screen && ['terminal', 'chat', 'dashboard', 'image'].includes(b.screen.kind) ? FRAMES.home(y) : FRAMES.gary(y));
     }
   }
   // the ending holds on the whole office: the screen (logo + url), Gary, his robots
   const last = beats[beats.length - 1];
-  frames.push({ t: Math.max(last.s1 + 0.2, END - 1.6), ...FRAMES.home(0), stop: true });
+  const endT = Math.max(last.s1 + 0.2, END - 1.6);
+  if (endT - (frames.length ? frames[frames.length - 1].t : 0) >= 1.6) frames.push({ t: endT, ...FRAMES.home(0), stop: true });
+  else if (frames.length) frames[frames.length - 1].stop = true;
   // drop framings closer than ~1.2 s to the next one (the rail would only whip between them)
   frames.sort((a, b) => a.t - b.t);
   const F = frames.filter((f, i) => i === frames.length - 1 || f.stop || frames[i + 1].t - f.t >= 1.15 || f.keep);
@@ -154,22 +158,25 @@ export async function build(studio, story) {
   for (const b of beats) {
     const h = b.hit;
     if (b.gag === 'explode') {
-      fx.burst('glow', h, { pos: LAP, n: 4, speed: [0, 0.2], size: [1.2, 1.8] });
-      fx.burst('spark', h, { pos: LAP, n: 60, dir: [0, 1, 0.4], spread: 1.3, speed: [2.5, 6] });
-      fx.burst('rock', h, { pos: LAP, n: 26, dir: [0, 1, 0.5], spread: 0.9, speed: [2.5, 5], floor: 0.0, color: 0x3a3a3a });
-      fx.stream('smoke', h, h + 2.2, { pos: [LAP[0], LAP[1] + 0.1, LAP[2]], rate: 16, dir: [0, 1, 0.15], spread: 0.4, speed: [0.4, 1.1], box: [0.3, 0.1, 0.2] });
+      fx.burst('glow', h, { pos: LAP, n: 2, speed: [0, 0.1], size: [0.45, 0.7] });
+      fx.burst('spark', h, { pos: LAP, n: 50, dir: [0, 1, 0.3], spread: 1.3, speed: [2.0, 4.5] });
+      fx.burst('rock', h, { pos: LAP, n: 16, dir: [0, 1, 0.1], spread: 1.1, speed: [1.6, 3.2], floor: D.deskTop, size: [0.025, 0.06], color: 0x2e2e2e });
+      // smoke rises behind the laptop, off to the side of Gary's face
+      fx.stream('smoke', h + 0.05, h + 1.5, { pos: [LAP[0] + 0.25, LAP[1] + 0.05, LAP[2] + 0.1], rate: 7, dir: [0.35, 1, 0.1], spread: 0.3, speed: [0.5, 1.0], box: [0.15, 0.05, 0.1], size: [0.18, 0.32] });
     }
-    if (b.gag === 'bury') { fx.burst('dust', h + 0.1, { pos: [G.x, 0.7, G.z + 0.2], n: 26, dir: [0, 1, 0.3], spread: 1.4, speed: [0.6, 1.6], box: [1.2, 0.3, 0.4] }); }
+    if (b.gag === 'bury') { fx.burst('dust', h + 0.1, { pos: [G.x, 0.75, G.z], n: 12, dir: [0, 1, 0], spread: 1.4, speed: [0.5, 1.2], box: [1.0, 0.2, 0.3], size: [0.2, 0.42] }); }
     if (b.gag === 'zap') {
       fx.burst('spark', h, { pos: [strip.position.x - 0.05, D.deskTop + 0.08, strip.position.z], n: 40, dir: [0, 1, 0.2], spread: 1.2, speed: [1.5, 4] });
       fx.burst('glow', h, { pos: [strip.position.x - 0.05, D.deskTop + 0.1, strip.position.z], n: 2, speed: [0, 0.1], size: [0.7, 0.9] });
-      fx.stream('smoke', h + 0.2, h + 1.4, { pos: [G.x, HEAD_Y + 0.25, G.z], rate: 6, dir: [0, 1, 0], spread: 0.3, speed: [0.3, 0.7], size: [0.15, 0.3] });
+      fx.stream('smoke', h + 0.2, h + 0.9, { pos: [G.x, HEAD_Y + 0.3, G.z], rate: 5, dir: [0, 1, 0], spread: 0.3, speed: [0.25, 0.5], size: [0.08, 0.16], life: [0.6, 0.9] });
     }
-    if (b.gag === 'money') fx.stream('bill', h, h + Math.min(1.3, Math.max(0.6, b.t1 - h - 1.6)), { pos: [SCREEN[0], SCREEN[1] - 0.1, SCREEN[2] + 0.25], rate: 34, dir: [0, 0.35, 1], spread: 0.75, speed: [2.2, 4.2], box: [1.4, 0.6, 0.05], life: [1.5, 2.1] });
+    // the money pours for the whole line, from just after its first word to a beat past the hit
+    if (b.gag === 'money') fx.stream('bill', Math.min(h, b.s0 + 0.3), Math.max(h + 0.6, Math.min(h + 0.9, b.t1 - 1.2)), { pos: [SCREEN[0], SCREEN[1] - 0.1, SCREEN[2] + 0.25], rate: 24, dir: [0, 0.7, 0.7], spread: 1.0, speed: [2.2, 4.0], box: [1.5, 0.6, 0.05], life: [1.4, 2.0] });
     if (b.gag === 'deliver') { fx.burst('dust', h, { pos: [D.crate[0], 0.05, D.crate[1]], n: 12, dir: [0, 1, 0], spread: 1.45, speed: [0.8, 1.8], box: [0.9, 0.05, 0.9], size: [0.22, 0.45] }); fx.burst('confetti', h + 0.55, { pos: [D.crate[0], 0.9, D.crate[1]], n: 70, dir: [0, 1, 0.2], spread: 0.6, speed: [2.5, 4.5] }); }
     if (b.gag === 'team') agents.filter((a) => !a.fromCrate && a.tIn >= b.t0 - 0.5 && a.tIn < b.t1).forEach((a) => { const p = orbitAt(a.k, a.tIn); fx.burst('confetti', a.tIn, { pos: [p.x, 0.3, p.z], n: 16, dir: [0, 1, 0], spread: 0.7, speed: [1.5, 3] }); });
     if (b.gag === 'approve') fx.burst('glow', h, { pos: [D.button[0], D.deskTop + 0.2, D.button[1]], n: 2, speed: [0, 0.1], size: [0.5, 0.7] });
-    if (b.gag === 'celebrate') for (const s of [-1, 1]) fx.burst('confetti', h + (s > 0 ? 0.12 : 0), { pos: [s * 0.8, 0.8, -0.8], n: 110, dir: [-s * 0.3, 1, 0.3], spread: 0.55, speed: [3.5, 6] });
+    // confetti from both sides of the desk, kept low: the wall screen (logo, url) stays readable
+    if (b.gag === 'celebrate') for (const s of [-1, 1]) fx.burst('confetti', h + (s > 0 ? 0.12 : 0), { pos: [s * 1.05, 0.5, -0.9], n: 80, dir: [-s * 0.5, 1, 0.4], spread: 0.5, speed: [2.4, 3.6] });
   }
 
   // ---------------------------------------------------------------- the wall screen
@@ -220,7 +227,7 @@ export async function build(studio, story) {
         else { p.hairUp = Math.max(0, 1 - (h - 0.55) / 2.5); p.eyes = 'spiral'; p.mouth = 'wavy'; p.armR = { x: 0.1, z: 0.3, el: 0.4 }; }
         break;
       case 'money':
-        if (h > -0.3) { const j = Math.abs(Math.sin(t * 11)); p.y = 0.05 * j; p.eyes = 'wide'; p.mouth = 'scream'; p.brows = 1; p.armL = { x: -2.4 + 0.3 * Math.sin(t * 13), z: 0.35, el: 0.3 }; p.armR = { x: -2.4 - 0.3 * Math.sin(t * 13), z: 0.35, el: 0.3 }; p.head = { x: -0.35, y: 0.15 * Math.sin(t * 5), z: 0 }; }
+        if (t > Math.min(b.hit, b.s0 + 0.3) - 0.2) { const j = Math.abs(Math.sin(t * 11)); p.y = 0.05 * j; p.eyes = 'wide'; p.mouth = 'scream'; p.brows = 1; p.armL = { x: -2.4 + 0.3 * Math.sin(t * 13), z: 0.35, el: 0.3 }; p.armR = { x: -2.4 - 0.3 * Math.sin(t * 13), z: 0.35, el: 0.3 }; p.head = { x: -0.35, y: 0.15 * Math.sin(t * 5), z: 0 }; }
         break;
       case 'deliver': {
         const look = clamp(u01(t, b.hit - 0.6, b.hit - 0.3));
@@ -269,7 +276,8 @@ export async function build(studio, story) {
       crate.g.position.y = drop(t, t0, 3.4, 0.42);
       const [sx, sy] = squash(t, b.hit, 0.25); crate.body.scale.set(sx, sy, sx);
       const a = t - (b.hit + 0.5);
-      if (a > 0) { crate.lid.position.set(-0.9 * Math.min(a, 0.7), crate.S * 0.86 + 2.4 * a - 6 * a * a, 0.6 * Math.min(a, 0.7)); crate.lid.rotation.set(a * 5, 0, a * 3); if (crate.lid.position.y < 0.05) { crate.lid.position.y = 0.05; crate.lid.rotation.set(PI * 0.5, 0, 0.6); } }
+      // the lid flies off to the side and lands flat on the floor
+      if (a > 0) { const k = Math.min(a, 0.62); crate.lid.position.set(0.75 * k, crate.S * 0.86 + 2.6 * k - 6.6 * k * k, 0.55 * k); crate.lid.rotation.set(k * 5.07, 0, k * 2); if (a >= 0.62 || crate.lid.position.y < 0.05) { crate.lid.position.set(0.47, 0.05, 0.34); crate.lid.rotation.set(0, 0.5, 0); } }
       else { crate.lid.position.set(0, crate.S * 0.86, 0); crate.lid.rotation.set(0, 0, 0); }
     }
     // agents: pop in (or climb out of the crate), then roam their orbits for the rest of the ad
@@ -284,7 +292,7 @@ export async function build(studio, story) {
       }
       const hop = celebrate ? Math.abs(Math.sin((t - celebrate.hit) * 9 + r.k)) * 0.12 : 0;
       if (celebrate) rotY += (t - celebrate.hit) * 7;
-      r.ag.set({ x, z, y, rotY, t: t + r.k * 0.7, hat: r.hat || 0, scale: 0.9 * s, hop });
+      r.ag.set({ x, z, y, rotY, t: t + r.k * 0.7, hat: r.hat || 0, scale: 0.75 * s, hop });
     }
     // piles: boxes rain onto Gary on the hit, then get knocked off to the floor at the next beat
     for (const P of piles) for (const q of P.boxes) {

@@ -36,8 +36,8 @@ export function makeAgent({ body = 0x2b2e33, eye = 0x8ef0ff, label = '', sign = 
   const hat = new THREE.Group(); g.add(hat); hat.position.set(-Rr * 0.1, 0.13, 0);
   mk(new THREE.CylinderGeometry(0.15, 0.18, 0.08, 18), mat(0xffc21a, 0.35), hat, 0, 0.045, 0); mk(new THREE.CylinderGeometry(0.19, 0.19, 0.012, 18), mat(0xffc21a, 0.35), hat, 0.03, 0.006, 0);
   const mast = new THREE.Group(); g.add(mast); mast.position.set(-Rr * 0.55, 0.12, 0);
-  mk(new THREE.CylinderGeometry(0.008, 0.008, 0.5, 6), mat(0x999999), mast, 0, 0.25, 0);
-  const plate = mk(new THREE.PlaneGeometry(0.32, 0.1), new THREE.MeshStandardMaterial({ map: signTex(label || 'AGENT', sign), side: THREE.DoubleSide, roughness: 0.6 }), mast, 0, 0.5, 0);
+  mk(new THREE.CylinderGeometry(0.008, 0.008, 0.4, 6), mat(0x999999), mast, 0, 0.2, 0);
+  const plate = mk(new THREE.PlaneGeometry(0.34, 0.106), new THREE.MeshStandardMaterial({ map: signTex(label || 'AGENT', sign), side: THREE.DoubleSide, roughness: 0.6 }), mast, 0, 0.42, 0);
   plate.castShadow = false;
   mast.visible = Boolean(label);
   for (const m of [shell]) m.castShadow = true;

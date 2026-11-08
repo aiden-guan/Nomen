@@ -41,6 +41,15 @@ one narrated line, one gag landing on one word, one picture on the office's wall
 Wall screens: `terminal`, `chat`, `image` (a real product visual by id), `logo`, `error`, `dashboard`.
 Callouts: `term` (yellow, the feature's real name), `label`, `money`, `stamp`, `sfx`.
 
+**The frame.** The wall screen holds the top third, Gary's face sits at about 40 %, the one spoken word at 52 % (on his
+chin, as in ED Studio's face shots) and the callouts in the lower third over the desk (ED Studio stacks them above the
+faces; here that is where the screen is). A beat whose screen carries the point is framed to show the whole screen;
+each framing holds until its gag has landed. The frame check found these rules: in the first Naïve render the
+callouts covered the screen and close framings cropped it (QC 5/10).
+
+**Pace.** Adam on eleven_v3 reads about 2.1 words a second; the narration is sped up (pitch kept) by at most 1.3x to
+fit the target, so the writer budgets 2.75 words a second: about 75 words for 27 seconds.
+
 **The concept comes from a viral reference in any niche.** The writer gets the reference's breakdown (hook, beats, why
 it works) and keeps its premise, hook mechanic and escalation, never its words: an "AI given one instruction: make money"
 video becomes "You give an AI agent your credit card and one instruction: make money", then the product is the fix.

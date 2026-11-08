@@ -17,6 +17,13 @@ export function display(token: string) {
 /** The page's look (ED Studio 026's build look: neutral tone mapping, light bloom and grain). */
 export const LOOK = { exposure: 1.1, bloom: 0.12, fill: 0.45, toneMapping: "neutral", vignette: 0.14, grain: 0.012, warm: 0.3, saturation: 1.08, lift: 0.01 };
 
+/**
+ * Where the callouts sit, as a fraction of the frame height. ED Studio's build reels stack them above the faces (its
+ * dioramas have sky up there); a code ad's top third is the wall screen, so they go to the lower third, over the desk
+ * and the floor, below the one-word caption (52 %).
+ */
+export const BANDS = { term: 0.69, money: 0.735, label: 0.775, stamp: 0.63, sfx: 0.62 } as const;
+
 export type StoryJson = {
   mode: "build";
   duration: number;
@@ -26,7 +33,7 @@ export type StoryJson = {
   beats: Record<string, { t0: number; t1: number; s0: number; s1: number; i: number; w: Array<[string, number, number]> }>;
   order: string[];
   words: Array<{ w: string; t0: number; t1: number }>;
-  callouts: Array<{ text: string; style: string; t0: number; t1: number; pos?: [number, number] }>;
+  callouts: Array<{ text: string; style: string; t0: number; t1: number; y?: number; pos?: [number, number] }>;
   codead: {
     brand: CodeAdBrand;
     nameplate: string;
@@ -77,7 +84,7 @@ export function layoutStory(story: CodeAdStory, voiced: Voiced, brand: CodeAdBra
       }
       e = Math.min(e, t1 + 0.1, dur);
       if (e - a < 0.6) e = Math.min(dur, a + 0.6);
-      callouts.push({ text: c.text, style: c.style, t0: r3(a), t1: r3(e), ...(c.style === "sfx" ? { pos: [0.5, 0.36] as [number, number] } : {}) });
+      callouts.push({ text: c.text, style: c.style, t0: r3(a), t1: r3(e), ...(c.style === "sfx" ? { pos: [0.5, BANDS.sfx] as [number, number] } : { y: BANDS[c.style] }) });
     }
     const hitWord = vb.words.find((w) => norm(w.w) === norm(sb.hit));
     if (!hitWord) notes.push(`beat "${vb.id}": the gag's word "${sb.hit}" is not in the line; it lands mid-line`);

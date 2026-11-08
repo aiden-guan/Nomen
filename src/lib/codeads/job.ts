@@ -169,7 +169,7 @@ export async function reviewCodeAd(naive: Pick<NaiveClient, "message">, input: {
     `This is a frame sheet (left to right, top to bottom, at ${input.times.map((t) => `${t.toFixed(1)} s`).join(", ")}) from a 3D cartoon ad for ${input.brand}, made in code: a narrator, Gary (a big-headed cartoon developer in a yellow hard hat) in a 3D office with a wall screen, one spoken word at a time in the middle of the frame, coloured callouts.`,
     `The story, beat by beat: ${JSON.stringify(input.story.beats.map((b) => ({ say: b.say, gag: b.gag, screen: b.screen, callouts: b.callouts.map((c) => c.text) })))}`,
     "Fail it for: broken rendering (black or blank frames, objects through Gary or the desk, things floating), text a viewer cannot read (the caption or a callout over Gary's face, cut off, illegible wall screen when it matters), the product's name or logo wrong or missing, a frame where nothing shows what the line says, anything off-brand or crude.",
-    "Do not fail it for its cartoon style, the robots or the jokes: they are the format. Call the qc_verdict tool once.",
+    "By design: the callouts sit in the lower third, over the desk; banknotes, boxes or confetti may cover Gary for a moment during their gag. Do not fail it for its cartoon style, the robots or the jokes: they are the format. Call the qc_verdict tool once.",
   ].join("\n");
   const content = [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: input.sheet.toString("base64") } }, { type: "text", text: rubric }];
   const reply = await naive.message({ model: QC_MODEL, max_tokens: 1500, messages: [{ role: "user", content }], tools: [VERDICT_TOOL] });
@@ -202,18 +202,24 @@ export type MakeCodeAdInput = {
 
 export type MadeCodeAd = { key: string; posterKey: string; sheetKey: string; path: string; sheet: string; duration: number; spendMicro: number; qc: Verdict | null; notes: string[]; story: StoryJson };
 
+/** The ad's folder, ready to render: the brand's files, the narration (voice.wav), story.json and cues.json. */
+export async function prepareAd(input: MakeCodeAdInput): Promise<{ story: StoryJson; notes: string[]; spendMicro: number }> {
+  const { dir, files, prefix } = input;
+  await mkdir(dir, { recursive: true });
+  const brand = await brandFor({ name: input.brandName, site: input.site, kit: input.kit, product: input.product, dir, logoPath: input.logoPath });
+  const images = await visualFiles(input.story, input.product, dir, files);
+  const voice = await narrate(input.story.beats, { narrator: input.narrator, files, prefix, dir, targetSeconds: input.targetSeconds, log: input.log });
+  const { story, notes } = layoutStory(input.story, voice.voiced, brand, images, { fps: input.fps ?? 60, motionBlur: input.blur ?? 2 });
+  await writeFile(join(dir, "story.json"), JSON.stringify(story));
+  await writeFile(join(dir, "cues.json"), JSON.stringify(buildCues(story, input.brandName)));
+  return { story, notes, spendMicro: voice.spendMicro };
+}
+
 /** Makes the whole ad and keeps it: "<prefix>/final.mp4", its poster and its frame sheet. */
 export async function makeCodeAd(input: MakeCodeAdInput): Promise<MadeCodeAd> {
   const { dir, files, prefix } = input;
   const log = input.log ?? (() => undefined);
-  await mkdir(dir, { recursive: true });
-  const brand = await brandFor({ name: input.brandName, site: input.site, kit: input.kit, product: input.product, dir, logoPath: input.logoPath });
-  const images = await visualFiles(input.story, input.product, dir, files);
-
-  const voice = await narrate(input.story.beats, { narrator: input.narrator, files, prefix, dir, targetSeconds: input.targetSeconds, log });
-  const { story, notes } = layoutStory(input.story, voice.voiced, brand, images, { fps: input.fps ?? 60, motionBlur: input.blur ?? 2 });
-  await writeFile(join(dir, "story.json"), JSON.stringify(story));
-  await writeFile(join(dir, "cues.json"), JSON.stringify(buildCues(story, input.brandName)));
+  const { story, notes, spendMicro } = await prepareAd(input);
   const synthLog = await synthesize(dir);
   const dropouts = synthLog.match(/music dropouts: ([^\n]*)/)?.[1];
   if (dropouts && !/none/.test(dropouts)) notes.push(`music dropouts: ${dropouts}`);
@@ -248,7 +254,7 @@ export async function makeCodeAd(input: MakeCodeAdInput): Promise<MadeCodeAd> {
   await files.putFile(posterKey, poster, "image/png");
   await files.putFile(sheetKey, sheet, "image/jpeg");
   const duration = (await probe(final)).duration;
-  return { key, posterKey, sheetKey, path: final, sheet, duration, spendMicro: voice.spendMicro, qc, notes, story };
+  return { key, posterKey, sheetKey, path: final, sheet, duration, spendMicro, qc, notes, story };
 }
 
 // ---------- the production hook ----------

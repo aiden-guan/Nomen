@@ -12,8 +12,8 @@ import type { BeatJob, CreativeBrief, ProductBrief, ReferenceBreakdown, Script, 
 import { norm, untag } from "./layout";
 import { CALLOUT_STYLES, type CalloutStyle, type CodeAdBeat, type CodeAdStory, GAGS, type Gag, SCREEN_KINDS, type ScreenKind } from "./types";
 
-/** Words per second the narrator reads at (ED Studio's build reels run ~3.1-3.3 after the tempo stretch). */
-export const WPS = 3.2;
+/** Words per second the narrator comes out at: Adam on eleven_v3 reads ~2.1/s, sped up at most 1.3x (the Naïve sample: 85 words ran 29.5 s). */
+export const WPS = 2.75;
 const PASS = 8;
 
 export type CodeAdContext = { product: ProductBrief; brief: CreativeBrief; reference: ReferenceBreakdown; targetSeconds: number; site?: string };
