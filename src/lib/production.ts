@@ -41,6 +41,8 @@ export type ShotState = {
   duration?: number;
   /** The product covers this take for its whole length (organic takes): rendered at 720p, not reviewed for looks. */
   covered?: boolean;
+  /** The take must start from its first frame (a persona's still): never rendered from text alone. */
+  frame_required?: boolean;
   status: "pending" | "framed" | "rendering" | "rendered" | "passed" | "failed";
   provider: "naive" | "monid" | null;
   renders: number;
@@ -226,6 +228,8 @@ export async function insertCreative(campaignId: string, idx: number, concept: C
     seconds: shot.seconds,
     ...(shot.duration !== undefined ? { duration: shot.duration } : {}),
     ...(shot.covered ? { covered: true } : {}),
+    // A persona's takes all start from her still: never rendered from text alone.
+    ...(concept.persona ? { frame_required: true } : {}),
     status: "pending",
     provider: null,
     renders: 0,
@@ -584,6 +588,12 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
       } else if (error instanceof ApiError && error.outOfCredits) {
         await ctx.markNaiveOut();
       } else if (error instanceof ApiError && error.code === "validation_failed" && shot.frame_file_id && !shot.text_only) {
+        if (shot.frame_required) {
+          // A persona's take from text alone would be someone else's face: fail it instead.
+          shot.status = "failed";
+          shot.error = `the video model refused a render from the persona's still: ${message(error)}`;
+          return;
+        }
         shot.text_only = true; // this model does not animate a first frame: render from the prompt
         shot.video_idem = `${shot.video_idem}-t2v`;
         return;

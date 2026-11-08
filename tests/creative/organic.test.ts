@@ -583,6 +583,46 @@ describe("organic videos in production", () => {
     expect(videos.map((v) => v.seconds)).toEqual(plan.aroll.map((shot) => shot.duration));
     expect(videos.every((v) => v.image_urls?.[0] === "fil_bedroom")).toBe(true);
   });
+
+  it("never renders a persona's take without her still: a refused request fails the take instead of changing her face", async () => {
+    const { setSetting, deleteSetting } = await import("@/lib/settings");
+    const { ApiError } = await import("@/lib/http");
+    const brandId = await createBrand("organic-refused.example");
+    const campaignId = await startCampaign(brandId, { concepts: 1, shotsPerConcept: 2, secondsPerShot: 4, videoModel: "kwaivgi/kling-v3.0-pro", learnStyle: false });
+    const script = goodScript();
+    const plan = planOrganic(script, brief, product, personaFor(persona, "bedroom"));
+    const { conceptFrom } = await import("@/lib/strategy");
+    await insertCreative(campaignId, 0, conceptFrom(brief, script, plan, undefined, product, { formula: insider, persona: personaFor(persona, "bedroom") }));
+    const asked: Array<{ image_urls?: string[] }> = [];
+    const naive = {
+      generateImage: async () => {
+        throw new Error("no frames for a persona");
+      },
+      fileUrl: async (fileId: string) => ({ url: `https://files.invalid/${fileId}.png`, expires_at: "" }),
+      generateVideo: async (input: { image_urls?: string[] }) => {
+        asked.push(input);
+        throw new ApiError("naive", 400, "validation_failed", "this model does not take that length");
+      },
+      message: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: '{"pass": true, "issues": []}' }] }),
+    };
+    const ctx = { campaignId, brandId, naive, monid: null, naiveOut: () => false, markNaiveOut: async () => undefined, strategy: { brand: {} } } as unknown as ProductionContext;
+    await setSetting("presenter_engine", "naive");
+    await setSetting("video_model", "kwaivgi/kling-v3.0-pro");
+    try {
+      for (let tick = 0; tick < 3; tick++) {
+        const [row] = await listCreatives(campaignId);
+        await advanceCreative(ctx, row);
+      }
+    } finally {
+      await deleteSetting("presenter_engine");
+      await deleteSetting("video_model");
+    }
+    // Every request carried her still; none went out as text alone.
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.every((input) => input.image_urls?.[0] === "fil_bedroom")).toBe(true);
+    const [row] = await listCreatives(campaignId);
+    expect(row.status).toBe("failed");
+  });
 });
 
 const ffmpeg = await editFfmpeg();
