@@ -1745,11 +1745,13 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     ass.push("texts.ass");
   }
   // Word captions only where the reference has them (a voice-over ad's only words may be its graphics').
-  // A chunk stays inside its own line, and none shows while a label already says that line.
+  // A chunk stays inside its own line, and none shows while a label already says that line. A
+  // faceless video of short lines (one label per shot, read out) shows each line whole.
+  const perChunk = byLine && span.beats.every((b) => tokens(b.line).length <= 6) ? 99 : layout.captions.words;
   const captions =
     layout.captions.present === false
       ? []
-      : wordCaptions(captionWords, layout.captions.words, end, span.beats.slice(1).map((b) => b.start)).filter((c) => !texts.some((t) => t.spoken && c.start >= t.overlay.start - 0.05 && c.start < t.overlay.end));
+      : wordCaptions(captionWords, perChunk, end, span.beats.slice(1).map((b) => b.start)).filter((c) => !texts.some((t) => t.spoken && c.start >= t.overlay.start - 0.05 && c.start < t.overlay.end));
   if (captions.length) {
     const metrics = await fontMetrics(DEFAULT_FONT);
     await writeFile(join(cut, "captions.ass"), toAss({ captions, overlays: [] }, { width: OUT.width, height: OUT.height, metrics, caption: captionStyle(layout.captions) }), "utf8");
