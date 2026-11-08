@@ -67,6 +67,22 @@ export function groupShots(script: Script): ScriptBeat[][] {
 
 export const snapSeconds = (seconds: number) => SHOT_LENGTHS.find((length) => length >= seconds - 0.25) ?? MAX_SHOT;
 
+/**
+ * Only what the presenter does. Scripts often describe the whole edit in a direction ("top half: tool
+ * cards; karaoke caption at the split"); a video model given that draws garbled captions and fake
+ * UI. The edit adds every card, caption and screen afterwards, so those sentences are dropped.
+ */
+export function presenterOnly(text: string) {
+  const EDIT = /\b(cards?|captions?|subtitles?|karaoke|text|labels?|split|inset|top half|bottom half|top:|bottom:|overlay|logo|timer|bar|checklist|homepage|website|screen|ui|graphics?|ring|highlight\w*|command|cursor|scroll\w*|zoom\w*|pan|b-roll|cutaway|visual|wpm|words per minute)\b/i;
+  return text
+    .split(/(?<=[.!?])\s+|;\s*/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence && !EDIT.test(sentence))
+    .join(" ")
+    .replace(/\.\./g, ".")
+    .trim();
+}
+
 function pronoun(creator: string) {
   if (/\b(woman|girl|she|her|female|lady)\b/i.test(creator)) return "She";
   if (/\b(man|guy|he|his|male|boy)\b/i.test(creator)) return "He";
@@ -85,9 +101,10 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
   const line = beats.map((beat) => beat.line).filter(Boolean).join(" ");
   const directions = beats
     .filter((beat) => beat.visual !== "product")
-    .map((beat) => beat.direction)
+    .map((beat) => presenterOnly(beat.direction))
     .filter(Boolean)
     .join(" Then ");
+  const voice = presenterOnly(delivery);
   const holdsProduct = product.kind === "physical" && beats.some((beat) => beat.visual === "creator" && /hold|show|pick up|bottle|box|pack/i.test(beat.direction));
   const productLine = holdsProduct && product.look ? ` ${who} holds the product steadily at chest height, label toward the camera: ${product.look}.` : "";
   const seconds = snapSeconds(beats.reduce((sum, beat) => sum + speakSeconds(beat), 0));
@@ -98,8 +115,8 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
     line,
     frame_prompt: [
       "Vertical 9:16 photo taken on a phone propped up at eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed.",
-      `${brief.creator}.`,
-      `${brief.setting}.`,
+      `${presenterOnly(brief.creator)}.`,
+      `${presenterOnly(brief.setting)}.`,
       productLine.trim(),
       "Natural phone-camera exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. No readable text, no screens facing the camera, no logos.",
     ]
@@ -108,10 +125,11 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
     video_prompt: [
       "Vertical 9:16 smartphone video, UGC style.",
       CAMERA,
-      `${brief.creator}, in ${brief.setting}.`,
+      `${presenterOnly(brief.creator).replace(/\.$/, "")}, in ${presenterOnly(brief.setting).replace(/\.$/, "")}.`,
+      "A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind.",
       directions ? `${directions}.` : "",
       productLine.trim(),
-      line ? `${who} says, in a natural, conversational voice${delivery ? ` with this delivery: ${delivery}` : ""}: "${line}"` : `${who} reacts silently.`,
+      line ? `${who} says, in a natural, conversational voice${voice ? ` with this delivery: ${voice}` : ""}: "${line}"` : `${who} reacts silently.`,
       "The voice is the same in every shot of this video: same person, same pitch, same energy.",
       "Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends.",
       CALM,

@@ -94,7 +94,11 @@ const SCRIPT_TOOL = {
             on_screen_text: { type: "string", description: "Large text on screen (the hook, a label), max 8 words, or empty. Not a caption of the line." },
             visual: { type: "string", enum: ["creator", "product", "split"] },
             product_visual: { type: ["string", "null"], description: "A visual id from the list for product and split beats; null for creator beats." },
-            direction: { type: "string", description: "Creator beats: expression and one small action. Product beats: the motion, e.g. 'slow scroll down the pricing page'." },
+            direction: {
+              type: "string",
+              description:
+                "Creator and split beats: only what the presenter does (expression and one small action), never the layout, cards, captions or screens (the edit adds those). Product beats: the motion, e.g. 'slow scroll down the pricing page'.",
+            },
           },
         },
       },

@@ -361,3 +361,16 @@ describe("the product brief", () => {
     expect(fallbackBrief(pack).kind).toBe("software");
   });
 });
+
+describe("presenter-only prompts", () => {
+  it("drops edit directions a video model would draw as garbled text", async () => {
+    const { presenterOnly } = await import("@/lib/creative/plan");
+    expect(
+      presenterOnly(
+        "Top half: row of dark tool cards sliding sideways. Bottom half: bearded presenter looking straight at camera, small calm nod. Karaoke caption at the split line.",
+      ),
+    ).toBe("");
+    expect(presenterOnly("Relaxed, confident look. Presenter in the bottom inset, small nod.")).toBe("Relaxed, confident look.");
+    expect(presenterOnly("Very fast, confident and plain-spoken. Each sentence cues a new card change.")).toBe("Very fast, confident and plain-spoken.");
+  });
+});
