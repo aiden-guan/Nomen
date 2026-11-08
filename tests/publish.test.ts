@@ -343,6 +343,18 @@ describe("postStats", () => {
     expect(postStats({ analytics_json: JSON.stringify(analytics), result_json: null })).toEqual({ url: null, views: 500, likes: 9 });
   });
 
+  it("takes the latest snapshot of each network's running totals, the way bundle.social keeps them", () => {
+    // Naive's social provider stores one snapshot of lifetime totals per refresh (about daily).
+    const snap = (profilePostId: string, createdAt: string, views: number, likes: number) => ({ id: `${profilePostId}-${createdAt}`, profilePostId, impressions: views * 2, impressionsUnique: views, views, viewsUnique: views, likes, dislikes: 0, comments: 1, shares: 0, saves: 0, raw: { like_count: likes }, forced: false, createdAt });
+    const analytics = {
+      data: {
+        tiktok: { post: { id: "p1", status: "POSTED" }, items: [snap("pp_tt", "2026-11-08T17:00:00Z", 100, 5), snap("pp_tt", "2026-11-09T17:00:00Z", 340, 12)] },
+        youtube: { post: { id: "p1", status: "POSTED" }, items: [snap("pp_yt", "2026-11-09T17:00:00Z", 60, 2), snap("pp_yt", "2026-11-08T17:00:00Z", 20, 1)] },
+      },
+    };
+    expect(postStats({ analytics_json: JSON.stringify(analytics), result_json: null })).toEqual({ url: null, views: 400, likes: 14, comments: 2, shares: 0, saves: 0 });
+  });
+
   it("falls back to the post's own metrics and link", () => {
     const post = { id: "spo_1", status: "posted", url: "https://youtu.be/x", metrics: { views: 12, likes: 1, comments: 0 } };
     expect(postStats({ analytics_json: null, result_json: JSON.stringify(post) })).toEqual({ url: "https://youtu.be/x", views: 12, likes: 1, comments: 0 });

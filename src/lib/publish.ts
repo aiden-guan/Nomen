@@ -334,7 +334,7 @@ export function postStats(post: Pick<PostRow, "analytics_json" | "result_json">)
 }
 
 function collectStats(node: unknown): PostStats {
-  if (Array.isArray(node)) return node.map(collectStats).reduce(addStats, {});
+  if (Array.isArray(node)) return collectList(node);
   if (!node || typeof node !== "object") return {};
   const here: PostStats = {};
   let below: PostStats = {};
@@ -348,6 +348,32 @@ function collectStats(node: unknown): PostStats {
     if (value && typeof value === "object") below = addStats(below, collectStats(value));
   }
   return { ...below, ...here };
+}
+
+const TIME_KEYS = ["createdAt", "created_at", "updatedAt", "updated_at", "measuredAt", "measured_at", "date", "timestamp"];
+const SERIES_KEYS = ["profilePostId", "profile_post_id", "socialAccountId", "social_account_id", "accountId", "account_id", "platform", "platformType", "network"];
+
+/**
+ * A list of entries. Snapshots of running totals, each stamped with its time (Naive's provider,
+ * bundle.social, keeps one per refresh), count once: the latest of each series (one per network
+ * or account). Entries without a time, like one per network, add up.
+ */
+function collectList(items: unknown[]): PostStats {
+  const latest = new Map<string, { at: number; item: unknown }>();
+  let sum: PostStats = {};
+  for (const item of items) {
+    const record = item && typeof item === "object" && !Array.isArray(item) ? (item as Record<string, unknown>) : null;
+    const at = record ? TIME_KEYS.map((key) => (typeof record[key] === "string" ? Date.parse(record[key] as string) : NaN)).find((t) => Number.isFinite(t)) : undefined;
+    if (at === undefined) {
+      sum = addStats(sum, collectStats(item));
+      continue;
+    }
+    const series = SERIES_KEYS.map((key) => record![key]).find((value) => typeof value === "string" && value) ?? "#series";
+    const seen = latest.get(String(series));
+    if (!seen || at > seen.at) latest.set(String(series), { at, item });
+  }
+  for (const { item } of latest.values()) sum = addStats(sum, collectStats(item));
+  return sum;
 }
 
 /** 12, "12", or { count: 12 } (some networks wrap their numbers). */
