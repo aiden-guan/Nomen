@@ -9,9 +9,10 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: { "/api/**/*": ["./node_modules/ffmpeg-static/ffmpeg", "./assets/fonts/**"] },
   // Paths built at run time (join(dir, `${id}.mp4`) and the like) make the tracer match every file
   // with that name pattern in the repo, so each API function picked up the demo videos (public/demo),
-  // samples/ and tests/ and passed Vercel's 250 MB function limit. No server code reads those from
-  // disk (public/ is served by the CDN), so keep them out of every function.
-  outputFileTracingExcludes: { "**": ["./public/**", "./samples/**", "./tests/**"] },
+  // samples/ and tests/ and passed Vercel's 250 MB function limit; video/ holds the demo video and
+  // its film. No server code reads those from disk (public/ is served by the CDN), so keep them out
+  // of every function.
+  outputFileTracingExcludes: { "**": ["./public/**", "./samples/**", "./tests/**", "./video/**"] },
   // Inlined at build time so src/instrumentation.ts can drop the worker import on Vercel, where the
   // worker never starts (src/lib/worker.ts). Next doesn't apply the excludes above to the
   // instrumentation trace, and Vercel ships that trace with the proxy function.
