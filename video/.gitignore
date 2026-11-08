@@ -1,0 +1,6 @@
+node_modules/
+out/
+# The filmed plate and its log, the demo videos' sound: made by scripts/film-demo.cjs, too large to keep.
+public/plate.mp4
+public/plate.json
+public/sound/

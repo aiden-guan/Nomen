@@ -1,0 +1,20 @@
+{
+  "name": "nomen-demo-video",
+  "private": true,
+  "description": "The edited demo video: the filmed walk-through (scripts/film-demo.cjs) with captions and the videos' sound, in Remotion.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Demo out/nomen-demo.mp4 --codec h264 --crf 16 --audio-bitrate 192k"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.538",
+    "@remotion/fonts": "^4.0.538",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.538"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}

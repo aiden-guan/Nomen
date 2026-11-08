@@ -164,6 +164,14 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
   );
   useEffect(() => () => paceScene(1), [paceScene]);
   const tour = useTour({ enabled: demo, arrived, player, apply: applyStep, pace: paceScene });
+  // Filming the demo video (?record=1): the tour drives the camera, the captions are added in the
+  // edit, so the tour's card, the dispatches and the replay controls stay off screen.
+  const [filming] = useState(() => recording());
+  useEffect(() => {
+    if (!filming) return;
+    // For the recorder: which step is on screen.
+    document.documentElement.dataset.tourStep = tour.step?.key ?? "";
+  }, [filming, tour.step]);
   // The soldier the tour's step rides along with (the camera comes in closer for him).
   const closeUp = Boolean(tour.on && agentId && tour.step?.agent === agentId);
   const presenter = useMemo(() => (tour.on ? { ...player, next: tour.next, back: tour.back, restart: tour.restart } : player), [tour.on, tour.next, tour.back, tour.restart, player]);
@@ -765,7 +773,7 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
         </div>
       )}
 
-      {arrived && view && <Dispatches events={view.events} wide={wide} />}
+      {arrived && view && !filming && <Dispatches events={view.events} wide={wide} />}
 
       {arrived && review && selected !== "theatre" && !screening && <ReviewBeacon engine={engine} ready={review.ready} approved={review.approved} onOpen={() => openStation("theatre")} />}
 
@@ -828,7 +836,7 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
         <Screening videos={finishedVideos} references={campaign?.references ?? []} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} arrows={!tour.on} />
       )}
 
-      {arrived && demo && tour.on && <TourCard tour={tour} wide={wide} screening={Boolean(screening)} clear={panel && wide && !screening ? 440 : 0} onBottom={setTourBottom} playing={player.playing} onPause={player.toggle} />}
+      {arrived && demo && tour.on && !filming && <TourCard tour={tour} wide={wide} screening={Boolean(screening)} clear={panel && wide && !screening ? 440 : 0} onBottom={setTourBottom} playing={player.playing} onPause={player.toggle} />}
 
       {demo && player.notice && (
         <p role="status" className={`${styles.boxSoft} ${styles.enter} absolute left-1/2 top-[76px] z-30 -translate-x-1/2 px-3 py-1.5 text-[13px]`}>
@@ -916,7 +924,7 @@ function TopBar({
         </div>
       )}
 
-      {demo && <DemoControls player={demo} />}
+      {demo && !recording() && <DemoControls player={demo} />}
       {/* The demo's tour card takes this stretch of the bar and walks the steps itself. */}
       {campaign && !demo && (
         <nav aria-label="Campaign progress" className="pointer-events-auto ml-auto hidden items-center gap-1 lg:flex">

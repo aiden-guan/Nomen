@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CreativeView, ReferenceView } from "../api";
 import styles from "../troy.module.css";
 import type { CampActions } from "./Camp";
 import { money, platformName, referenceVerb } from "./format";
 import { InternalBadge, RemakeOf, RoleBadge } from "./References";
 import { crispIfTiny } from "./StationPanel";
+import { recording } from "./useTour";
 
 /**
  * The screening room: one finished video at full height over the camp, with its hook and caption
@@ -36,6 +37,8 @@ export function Screening({
   /** ← and → step between the videos (the demo's tour takes those keys while it runs). */
   arrows?: boolean;
 }) {
+  // Filming the demo video (?record=1): the video plays without the browser's controls over it.
+  const [filming] = useState(() => recording());
   const index = Math.max(0, videos.findIndex((v) => v.id === id));
   const creative = videos[index];
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -85,7 +88,7 @@ export function Screening({
       <div data-screening-box className={`${styles.box} ${styles.enter} flex max-h-full min-h-0 overflow-hidden ${wide ? "flex-row" : "w-full max-w-[460px] flex-col"}`}>
         <div className={`relative shrink-0 bg-[#120c08] ${wide ? "" : "mx-auto"}`} style={{ height, aspectRatio: "9 / 16" }}>
           {creative.videoUrl ? (
-            <video ref={videoRef} key={creative.id} src={creative.videoUrl} poster={creative.posterUrl ?? undefined} controls autoPlay playsInline className="size-full bg-black object-contain outline-none" />
+            <video ref={videoRef} key={creative.id} src={creative.videoUrl} poster={creative.posterUrl ?? undefined} controls={!filming} autoPlay playsInline className="size-full bg-black object-contain outline-none" />
           ) : creative.posterUrl ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
