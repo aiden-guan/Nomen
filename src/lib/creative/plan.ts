@@ -127,6 +127,21 @@ export function presenterOnly(text: string) {
     .trim();
 }
 
+/**
+ * The presenter's or the setting's description, for a prompt. Unlike directions, these are mostly
+ * look ("plain black hoodie with no logo"), so only the clauses that are edit directions go, and
+ * "no logo"-style wording is dropped from its clause instead of taking the whole outfit with it.
+ */
+export function lookOnly(text: string) {
+  const EDIT = /\b(cards?|captions?|subtitles?|karaoke|labels?|split|inset|top half|bottom half|overlay|timer|checklist|homepage|website|screens?|screenshots?|ui|graphics?|cursor|b-roll|cutaway|visual|wpm|words per minute)\b/i;
+  return text
+    .replace(/,?\s*\b(with\s+)?(no|without)\s+(visible\s+)?(logos?|text|branding|print|graphics?)\b/gi, "")
+    .split(/(?<=[.!?])\s+|[;,]\s*/)
+    .map((clause) => clause.trim().replace(/[.!?]+$/, ""))
+    .filter((clause) => clause && !EDIT.test(clause))
+    .join(", ");
+}
+
 function pronoun(creator: string) {
   if (/\b(woman|girl|she|her|female|lady)\b/i.test(creator)) return "She";
   if (/\b(man|guy|he|his|male|boy)\b/i.test(creator)) return "He";
@@ -158,18 +173,20 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
     seconds,
     line,
     frame_prompt: [
-      "Vertical 9:16 candid photo from a camera propped up at eye level, about an arm and a half away (the camera and any phone interface are not visible). Chest-up, face centered, looking into the lens, mouth closed, relaxed.",
-      `${presenterOnly(brief.creator)}.`,
-      `${presenterOnly(brief.setting)}.`,
+      // Name the look and say nothing about phones or apps: image models draw what a prompt names,
+      // even after "no".
+      "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed.",
+      `${lookOnly(brief.creator)}.`,
+      `${lookOnly(brief.setting)}.`,
       productLine.trim(),
-      "Natural phone-camera exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. No readable text, captions, cards, graphics or status bar, no screens facing the camera, no logos.",
+      "Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
     ]
       .filter(Boolean)
       .join(" "),
     video_prompt: [
       "Vertical 9:16 smartphone video, UGC style.",
       CAMERA,
-      `${presenterOnly(brief.creator).replace(/\.$/, "")}, in ${presenterOnly(brief.setting).replace(/\.$/, "")}.`,
+      `${lookOnly(brief.creator)}, in ${lookOnly(brief.setting)}.`,
       "A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind.",
       directions ? `${directions}.` : "",
       productLine.trim(),

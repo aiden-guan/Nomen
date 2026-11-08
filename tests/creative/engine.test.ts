@@ -561,3 +561,13 @@ describe("a frame request stuck in flight", () => {
     expect(shot.frame_idem).toBe("crv-shot1-frame-fix1-r2");
   });
 });
+
+describe("the presenter's look in prompts", () => {
+  it("keeps the outfit when the description says 'with no logo'", async () => {
+    const { lookOnly } = await import("@/lib/creative/plan");
+    expect(lookOnly("Man, 20s, dark tousled hair, plain black hoodie with no logo, playful self-aware smug energy, animated hands, quick delivery. Not a copy of the original presenter.")).toBe(
+      "Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter",
+    );
+    expect(lookOnly("Bright kitchen, morning light; app screenshots float behind her.")).toBe("Bright kitchen, morning light");
+  });
+});
