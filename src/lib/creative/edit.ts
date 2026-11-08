@@ -3,6 +3,7 @@
 //   A-roll clips ─ cover-fit, concat ──────────────┐ (the base track; black when there is no A-roll)
 //   split segments ─ A-roll top half over the base ─┤
 //   B-roll images/videos ─ motion, overlaid in time ┤
+//   filmed segments ─ screens warped into a photo ──┤ (a phone filming a monitor, see filmedChains)
 //   captions + overlays ─ ASS file, burned by libass ┴─► H.264 + AAC, +faststart
 //
 // The soundtrack (A-roll audio, or `timeline.audio`) runs untouched under every cutaway, so a
@@ -24,7 +25,8 @@ import { promisify } from "node:util";
 
 import { probe } from "../media";
 import { parseFontMetrics, toAss, type FontMetrics } from "./captions";
-import type { BRollClip, EditTimeline } from "./types";
+import { expandQuad, framePlate, quadEdges } from "./plate";
+import type { BRollClip, EditTimeline, FilmedPlate, Quad } from "./types";
 
 const exec = promisify(execFile);
 
@@ -110,7 +112,7 @@ export function fontMetrics(path = DEFAULT_FONT): Promise<FontMetrics> {
 // ---------- planning ----------
 
 type Motion = BRollClip["motion"];
-type Visual = { start: number; end: number; split: boolean; inset?: boolean; path: string; kind: "image" | "video"; motion: Motion };
+type Visual = { start: number; end: number; split: boolean; inset?: boolean; filmed?: FilmedPlate; path: string; kind: "image" | "video"; motion: Motion };
 
 /** The presenter window in inset segments: a rounded portrait window centred low, under the captions. */
 export const INSET = { width: 380, height: 500, radius: 40, centerY: 0.775 } as const;
@@ -128,7 +130,16 @@ function planVisuals(timeline: EditTimeline, duration: number, hasARoll: boolean
     const start = snap(Math.max(0, segment.start));
     const end = snap(Math.min(duration, segment.end));
     if (!(end > start)) continue;
-    visuals.push({ start, end, split: segment.layer === "split" && hasARoll, inset: segment.layer === "inset" && hasARoll, ...segment.broll });
+    const filmed = segment.layer === "filmed" && segment.plate ? segment.plate : undefined;
+    visuals.push({
+      start,
+      end,
+      split: segment.layer === "split" && hasARoll,
+      inset: segment.layer === "inset" && hasARoll,
+      ...segment.broll,
+      // The picture on a monitor holds still; the filmed camera supplies the motion.
+      ...(filmed ? { filmed, motion: "none" as const } : {}),
+    });
   }
   visuals.sort((a, b) => a.start - b.start);
   if (!hasARoll && visuals.length) {
@@ -142,6 +153,17 @@ function planVisuals(timeline: EditTimeline, duration: number, hasARoll: boolean
     });
   }
   return visuals;
+}
+
+/**
+ * Whether a visual is shown whole over a blurred copy of itself instead of cover-cropped. Full
+ * frame, only a wide image that would lose too much width (see minVisible). On a filmed monitor,
+ * anything far from the screen's shape (a phone screenshot, a banner), the way a person would put
+ * it on a desktop.
+ */
+function fitsWhole(v: Visual, aspect: number, target: number) {
+  if (v.filmed) return Math.min(aspect / target, target / aspect) < 0.8;
+  return aspect > target && target / aspect < minVisible(v.split);
 }
 
 /** Linear progress 0 -> 1 over a segment of `frames` frames, for `perspective` (`on` counts from 1). */
@@ -220,7 +242,7 @@ function imageChain(
 
   const cw = even(ow * (motion === "none" ? 1 : SUPERSAMPLE));
   const ch = even(oh * (motion === "none" ? 1 : SUPERSAMPLE));
-  const fit = aspect > target && target / aspect < minVisible(v.split);
+  const fit = fitsWhole(v, aspect, target);
   let zoom = ZOOM;
   if (fit) {
     // A wide image (a desktop screenshot, a banner) would lose most of its width to a cover crop:
@@ -229,7 +251,7 @@ function imageChain(
     chains.push(
       `[${id}f]split[${id}g][${id}h]`,
       `[${id}g]scale=${cw}:${ch}:force_original_aspect_ratio=increase,crop=${cw}:${ch},gblur=sigma=${Math.round(cw / 14)}:steps=2,eq=brightness=-0.12:saturation=1.1[${id}bg]`,
-      `[${id}h]scale=${cw}:-2:flags=lanczos[${id}fg]`,
+      `[${id}h]${aspect > target ? `scale=${cw}:-2` : `scale=-2:${ch}`}:flags=lanczos[${id}fg]`,
       `[${id}bg][${id}fg]overlay=(W-w)/2:(H-h)/2[${id}c]`,
     );
     if (motion === "pan_left" || motion === "pan_right") motion = "zoom_in";
@@ -279,15 +301,132 @@ function videoChain(
   const target = ow / oh;
   const head = `[${input}]setpts=PTS-STARTPTS,fps=${fps},tpad=stop_mode=clone:stop_duration=${num(frames / fps + 1)}`;
   const tail = `format=yuv420p,setsar=1,trim=end_frame=${frames},setpts=PTS-STARTPTS+${startFrame}[${out}]`;
-  if (aspect > target && target / aspect < minVisible(v.split)) {
+  if (fitsWhole(v, aspect, target)) {
     return [
       `${head},split[${id}g][${id}h]`,
       `[${id}g]scale=${ow}:${oh}:force_original_aspect_ratio=increase,crop=${ow}:${oh},boxblur=24:2,eq=brightness=-0.08[${id}bg]`,
-      `[${id}h]scale=${ow}:-2[${id}fg]`,
+      `[${id}h]${aspect > target ? `scale=${ow}:-2` : `scale=-2:${oh}`}[${id}fg]`,
       `[${id}bg][${id}fg]overlay=(W-w)/2:(H-h)/2,${tail}`,
     ];
   }
   return [`${head},scale=${ow}:${oh}:force_original_aspect_ratio=increase:flags=lanczos,crop=${ow}:${oh},${tail}`];
+}
+
+// ---------- filmed: a phone filming a monitor ----------
+
+/** The screen a filmed monitor shows, before it is warped into the photo (SCREEN_SIZES.desktop). */
+export const FILMED_SCREEN = { width: 1440, height: 900 } as const;
+/**
+ * The key, in output pixels. Inside the display by more than INNER the photo is always cut away
+ * (so a glare spot the image model drew cannot cover the screen); in a BAND around its edge, green
+ * pixels are cut away by how green they are (more than KEY.lo over red and blue starts to show
+ * through, KEY.hi is gone), and the bezel there loses its green spill. Outside the band the photo
+ * is kept whole: a green thing elsewhere in the room stays.
+ */
+const KEY = { inner: 4, band: 14, lo: 25, hi: 70 };
+
+/**
+ * The phone's hand-held drift, in output pixels and radians: a few slow sines with unrelated
+ * periods (so it never visibly loops) plus a faint fast tremor, a hint of rotation and a slow
+ * breathing zoom. The base zoom leaves room for all of it inside the frame.
+ */
+const HANDHELD = {
+  zoom: 1.06,
+  breathe: { amp: 0.012, period: 8.9, phase: 0.3 },
+  x: [
+    [9, 6.3, 0.4],
+    [4, 2.9, 1.7],
+    [1, 0.83, 0],
+  ],
+  y: [
+    [7, 5.1, 2.2],
+    [3, 2.3, 0.9],
+    [0.8, 0.71, 0.5],
+  ],
+  turn: [
+    [0.0045, 7.7, 1.1],
+    [0.0015, 3.1, 0],
+  ],
+} as const;
+
+const waves = (parts: ReadonlyArray<readonly [number, number, number]>, t: string) =>
+  `(${parts.map(([amp, period, phase]) => `${amp}*sin(${num((2 * Math.PI) / period)}*${t}+${phase})`).join("+")})`;
+
+/** perspective options for the hand-held camera on a W x H frame: the viewport drifts, turns and breathes per frame. */
+function handheld(): string {
+  const t = `((on-1)/${fps})`;
+  const dx = waves(HANDHELD.x, t);
+  const dy = waves(HANDHELD.y, t);
+  const turn = waves(HANDHELD.turn, t);
+  const { amp, period, phase } = HANDHELD.breathe;
+  const z = `(${HANDHELD.zoom}+${amp}*sin(${num((2 * Math.PI) / period)}*${t}+${phase}))`;
+  // Source corners: the centre plus the half-size viewport turned by `turn`. Order: TL, TR, BL, BR.
+  const corner = (sx: number, sy: number) => {
+    const u = `(${sx}*W/2/${z})`;
+    const v = `(${sy}*H/2/${z})`;
+    return [`W/2+${dx}+${u}*cos(${turn})-${v}*sin(${turn})`, `H/2+${dy}+${u}*sin(${turn})+${v}*cos(${turn})`];
+  };
+  const points = [corner(-1, -1), corner(1, -1), corner(-1, 1), corner(1, 1)];
+  return [...points.flatMap(([x, y], i) => [`x${i}='${x}'`, `y${i}='${y}'`]), "interpolation=cubic", "eval=frame"].join(":");
+}
+
+/** geq options keying the display out of the framed photo (gbrap, output pixels): see KEY. */
+function plateKey(quad: Quad): string {
+  const d = quadEdges(quad).map(({ a, b, c }) => `(${num(a)}*X+${num(b)}*Y+${num(c)})`);
+  const inside = `min(min(${d[0]},${d[1]}),min(${d[2]},${d[3]}))`;
+  const green = "(g(X,Y)-max(r(X,Y),b(X,Y)))";
+  const neutral = "max(r(X,Y),b(X,Y))";
+  const near = `gt(${inside},-${KEY.band})`;
+  const alpha = `255*(1-clip((${inside}-${KEY.inner - 2})/2,0,1))*if(${near},clip((${KEY.hi}-${green})/${KEY.hi - KEY.lo},0,1),1)`;
+  // Spill: near the display, green is pulled down to the other channels; elsewhere only a green
+  // cast the display threw on the desk is softened.
+  const g = `if(${near},min(g(X,Y),${neutral}),min(g(X,Y),${neutral}+14))`;
+  return `r='r(X,Y)':g='${g}':b='b(X,Y)':a='${alpha}'`;
+}
+
+/** A faint diagonal sheen of light across the glass, as alpha over white (gbrap, screen pixels). */
+function sheen(): string {
+  const band = "exp(-pow((0.75*X/W+0.45*Y/H-0.42)/0.16,2))";
+  return `r='255':g='255':b='255':a='255*(0.055*${band}+0.03*(1-Y/H))'`;
+}
+
+/**
+ * One plate's filmed composite for the whole video, ending in `out` (W x H, frames from 0):
+ *
+ *   screens (in time, FILMED_SCREEN) ─ scaled to the display's box, a touch flatter, a sheen
+ *     └─ perspective (sense=destination) into the display's corners, padded to the frame
+ *          └─ the photo, framed and keyed (geq, once), laid on top: its bezel covers the edges
+ *               └─ perspective per frame: the hand-held drift
+ *
+ * `screen` is the label of the cut-together screen stream; `plate` the photo's input label.
+ */
+function filmedChains(o: { plate: string; size: ImageInfo; quad: Quad; screen: string; frames: number; id: string; out: string }): string[] {
+  const W = OUTPUT.width;
+  const H = OUTPUT.height;
+  const { crop, quad } = framePlate(o.size, o.quad, OUTPUT);
+  // The warp reaches 1.5 px past the display so no seam shows under a soft bezel edge. Its box
+  // starts on even pixels so pad does not move it in 4:2:0.
+  const warp = expandQuad(quad, 1.5);
+  const floorEven = (x: number) => 2 * Math.floor(x / 2);
+  const x0 = Math.max(0, floorEven(Math.min(...warp.map((p) => p.x))));
+  const y0 = Math.max(0, floorEven(Math.min(...warp.map((p) => p.y))));
+  const bw = Math.min(W - x0, even(Math.ceil(Math.max(...warp.map((p) => p.x))) - x0 + 2));
+  const bh = Math.min(H - y0, even(Math.ceil(Math.max(...warp.map((p) => p.y))) - y0 + 2));
+  const [tl, tr, br, bl] = warp.map((p) => ({ x: num(p.x - x0), y: num(p.y - y0) }));
+  const into = `x0=${tl.x}:y0=${tl.y}:x1=${tr.x}:y1=${tr.y}:x2=${bl.x}:y2=${bl.y}:x3=${br.x}:y3=${br.y}:sense=destination:interpolation=cubic`;
+  const hold = `loop=loop=${o.frames - 1}:size=1:start=0,settb=1/${fps},setpts=N`;
+  const id = o.id;
+  return [
+    // The screen as a phone sees it: a little less contrast and saturation, darker corners, a sheen.
+    `[${o.screen}]scale=${bw}:${bh}:flags=lanczos,eq=contrast=0.94:brightness=0.012:saturation=0.96,vignette=angle=0.3,format=yuv420p[${id}s]`,
+    `color=c=white:s=${bw}x${bh}:r=${fps}:d=1,format=gbrap,trim=end_frame=1,geq=${sheen()},format=yuva420p,${hold}[${id}sh]`,
+    `[${id}s][${id}sh]overlay=0:0[${id}sl]`,
+    `[${id}sl]perspective=${into},pad=${W}:${H}:${x0}:${y0}:black[${id}w]`,
+    // The photo, framed and keyed once, then held for every frame.
+    `[${o.plate}]trim=end_frame=1,crop=${crop.width}:${crop.height}:${crop.x}:${crop.y},scale=${W}:${H}:flags=lanczos,format=gbrap,geq=${plateKey(quad)},format=yuva420p,${hold}[${id}p]`,
+    `[${id}w][${id}p]overlay=0:0[${id}c]`,
+    `[${id}c]perspective=${handheld()},format=yuv420p,setsar=1[${o.out}]`,
+  ];
 }
 
 // ---------- render ----------
@@ -314,6 +453,10 @@ export type RenderOptions = {
  *   on an image that is not tall enough to scroll falls back to `zoom_in`.
  * - B-roll videos are cover-fit and hold their last frame when shorter than their segment; their
  *   `motion` is ignored and their own audio is never used.
+ * - `filmed` segments look like a phone filming a monitor: every filmed visual on the same plate
+ *   is cut together on one desktop screen (FILMED_SCREEN, shown whole if far from its shape),
+ *   warped into the plate's display, covered by the keyed photo, and the whole picture drifts like
+ *   a hand-held phone. Their `motion` is ignored.
  */
 export async function renderTimeline(timeline: EditTimeline, outPath: string, options: RenderOptions = {}): Promise<string> {
   const bin = await editFfmpeg();
@@ -322,7 +465,7 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
   const out = resolve(outPath);
   const fontPath = resolve(options.fontPath ?? DEFAULT_FONT);
   const files = [...timeline.aroll.map((c) => c.path), ...(timeline.audio ? [timeline.audio.path] : []), fontPath];
-  for (const segment of timeline.segments) if (segment.layer !== "aroll" && segment.broll) files.push(segment.broll.path);
+  for (const segment of timeline.segments) if (segment.layer !== "aroll" && segment.broll) files.push(segment.broll.path, ...(segment.layer === "filmed" && segment.plate ? [segment.plate.path] : []));
   for (const file of files) if (!existsSync(resolve(file))) throw new Error(`edit: missing file ${file}`);
 
   const W = OUTPUT.width;
@@ -399,8 +542,48 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
     base = "base1";
   }
 
+  // Filmed: per plate, its visuals are cut together on one desktop screen, the screen is filmed,
+  // and that picture covers the frame while any of them is on.
+  const plates = new Map<string, { plate: FilmedPlate; members: number[] }>();
+  visuals.forEach((v, k) => {
+    if (!v.filmed) return;
+    const key = resolve(v.filmed.path);
+    const entry = plates.get(key) ?? { plate: v.filmed, members: [] };
+    entry.members.push(k);
+    plates.set(key, entry);
+  });
+  let f = 0;
+  for (const [path, { plate, members }] of plates) {
+    const id = `f${f++}`;
+    const { width: sw, height: sh } = FILMED_SCREEN;
+    graph.push(`color=c=black:s=${sw}x${sh}:r=${fps}:d=${num(duration + 1)},format=yuv420p,setsar=1,trim=end_frame=${frames},setpts=PTS-STARTPTS[${id}m0]`);
+    let screen = `${id}m0`;
+    members.forEach((k, j) => {
+      const v = visuals[k];
+      const n = Math.max(1, Math.round((v.end - v.start) * fps));
+      const startFrame = Math.round(v.start * fps);
+      const vid = `${id}v${j}`;
+      if (v.kind === "video") {
+        const i = input("-t", num(v.end - v.start + 1), "-i", resolve(v.path));
+        graph.push(...videoChain(`${i}:v`, `${vid}o`, v, infos[k], sw, sh, n, startFrame, vid));
+      } else {
+        const i = input("-i", resolve(v.path));
+        graph.push(...imageChain(`${i}:v`, `${vid}o`, v, infos[k], sw, sh, n, startFrame, vid));
+      }
+      const enable = `between(t,${num(v.start - 0.5 / fps)},${num(v.end - 0.5 / fps)})`;
+      graph.push(`[${screen}][${vid}o]overlay=0:0:eof_action=pass:enable='${enable}'[${id}m${j + 1}]`);
+      screen = `${id}m${j + 1}`;
+    });
+    const p = input("-i", path);
+    graph.push(...filmedChains({ plate: `${p}:v`, size: await probe(path), quad: plate.quad, screen, frames, id, out: `${id}out` }));
+    const enable = members.map((k) => `between(t,${num(visuals[k].start - 0.5 / fps)},${num(visuals[k].end - 0.5 / fps)})`).join("+");
+    graph.push(`[${base}][${id}out]overlay=0:0:eof_action=pass:enable='${enable}'[${id}base]`);
+    base = `${id}base`;
+  }
+
   // B-roll: each visual becomes a stream that starts at its segment and is overlaid while it lasts.
   visuals.forEach((v, k) => {
+    if (v.filmed) return;
     const ow = W;
     const oh = v.split ? half : H;
     const n = Math.max(1, Math.round((v.end - v.start) * fps));

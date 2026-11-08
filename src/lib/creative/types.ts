@@ -138,7 +138,9 @@ export type VideoFormat =
   /** No voice: the product on screen with large on-screen text. */
   | "text_story"
   /** Product graphics full screen, the presenter in a small rounded window (the dev-tutorial look). */
-  | "presenter_inset";
+  | "presenter_inset"
+  /** No face: a phone filming a computer monitor while a voice walks through the product (the screen-walkthrough look). */
+  | "filmed_screen";
 
 /** The creative director's brief for one video: which viral video it remakes and what changes for this product. */
 export type CreativeBrief = {
@@ -221,7 +223,7 @@ export type ProductionPlan = {
   format: VideoFormat;
   aroll: ARollShot[];
   broll: BRollClip[];
-  /** voiceover_demo: the line read by text-to-speech instead of a rendered creator. */
+  /** Formats without a creator: the line read by text-to-speech instead of a rendered creator. */
   voiceover: { text: string; voice: string } | null;
   /** Screens the screen builder renders before the edit; their clips are B-roll visual ids `screen:<id>`. */
   screens?: ScreenRequest[];
@@ -239,8 +241,10 @@ export type EditTimeline = {
   segments: Array<{
     start: number;
     end: number;
-    layer: "aroll" | "broll" | "split" | "inset";
+    layer: "aroll" | "broll" | "split" | "inset" | "filmed";
     broll?: { path: string; kind: "image" | "video"; motion: BRollClip["motion"] };
+    /** filmed: the photo of a monitor the visual is composited into, and where its screen is. */
+    plate?: FilmedPlate;
   }>;
   /** Spoken-word captions, 1-4 words each. */
   captions: Array<{ start: number; end: number; text: string }>;
@@ -249,6 +253,18 @@ export type EditTimeline = {
   /** Total length; defaults to the soundtrack's length. */
   duration?: number;
 };
+
+/** A point in image pixels (x right, y down). */
+export type Point = { x: number; y: number };
+
+/** A screen's four corners in image pixels, clockwise from the top left: TL, TR, BR, BL. */
+export type Quad = [Point, Point, Point, Point];
+
+/**
+ * filmed_screen's backdrop: one photo of a desktop monitor taken with a phone, its display solid
+ * green, and the display's corners in that photo. The edit warps each screen into the quad.
+ */
+export type FilmedPlate = { path: string; quad: Quad };
 
 // ---------- the brand kit (assets the brand gives us) ----------
 
@@ -312,8 +328,8 @@ export type ScreenRequest = {
   seconds: number;
   /** How the reference's matching beat looked, from its breakdown, so the screen copies its style. */
   reference_visual: string;
-  /** Full screen (1080x1920) or the half a split layout gives it (1080x960). */
-  size: "full" | "half";
+  /** Full screen (1080x1920), the half a split layout gives it (1080x960), or a desktop monitor (1440x900) that filmed_screen films with a phone. */
+  size: "full" | "half" | "desktop";
 };
 
 /** A rendered screen: a short clip (or a still when it does not move) ready for the edit. */

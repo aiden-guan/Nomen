@@ -45,6 +45,9 @@ voice, footage or music.
   - `presenter_inset`: product graphics full screen with the presenter in a small rounded window.
     This is the look of most viral dev-tool tutorials.
   - `voiceover_demo`: no face. The product is on screen with a voice-over and captions.
+  - `filmed_screen`: no face. It looks like a phone filming a computer monitor while a voice
+    walks through it. Use it when the reference is a filmed screen or a screen-recorded
+    walkthrough.
   - `text_story`: no face. The product is on screen with large text.
 - **hook_plan**: the reference's hook, with exactly which words change for this product.
 - **keep**: everything that stays, concretely. For example: "hook 'POV: you just found…' word for
@@ -57,7 +60,9 @@ voice, footage or music.
   - creator: an AI presenter of the same kind as the reference's: age range, look, wardrobe and
     energy. Never a copy of the real person's face or identity.
   - setting: the same kind of place, time of day and light.
-  - Leave both empty for faceless formats.
+  - `filmed_screen` leaves creator empty and uses setting for the desk and room around the
+    monitor, as the reference shows them.
+  - Leave both empty for the other faceless formats.
 - **What never carries over**: the reference's claims about itself. Its personal results, prices,
   reviews and "I've used it for months" become true facts from the product brief that play the
   same role.

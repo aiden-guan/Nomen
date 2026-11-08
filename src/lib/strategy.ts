@@ -46,7 +46,7 @@ export type Strategy = {
   };
 };
 
-export const FORMATS: VideoFormat[] = ["talking_head_broll", "split_screen", "presenter_inset", "voiceover_demo", "text_story"];
+export const FORMATS: VideoFormat[] = ["talking_head_broll", "split_screen", "presenter_inset", "voiceover_demo", "filmed_screen", "text_story"];
 
 export const PLATFORMS = ["tiktok", "instagram", "youtube", "x", "facebook", "linkedin", "threads"] as const;
 
@@ -96,15 +96,15 @@ export const STRATEGY_SCHEMA = {
             properties: {
               title: str,
               reference_id: { type: "string", description: "The id of the reference video this one remakes (from <references>)." },
-              format: { type: "string", enum: ["talking_head_broll", "split_screen", "presenter_inset", "voiceover_demo", "text_story"] },
+              format: { type: "string", enum: [...FORMATS] },
               angle: str,
               audience: str,
               hook_plan: { type: "string", description: "The reference's hook mechanic restated for this product: what is said, shown and written in the first 2-3 seconds." },
               keep: strs,
               change: strs,
               visuals: { type: "array", items: str, description: "Product visual ids (from <visuals>) to show, most important first." },
-              creator: { type: "string", description: "Formats with a face: one specific, ordinary-looking person (age range, look, hair, wardrobe, energy). Empty for voiceover_demo and text_story." },
-              setting: { type: "string", description: "One real place with time of day and light. Empty for formats without a face." },
+              creator: { type: "string", description: "Formats with a face: one specific, ordinary-looking person (age range, look, hair, wardrobe, energy). Empty for voiceover_demo, filmed_screen and text_story." },
+              setting: { type: "string", description: "One real place with time of day and light. filmed_screen: the desk and room around the monitor, as in the reference. Empty for the other formats without a face." },
               platforms: { type: "array", items: { type: "string", enum: [...PLATFORMS] } },
               caption: str,
               hashtags: strs,
@@ -171,8 +171,8 @@ export function strategyMessage(
     `The product brief (the only source of claims):\n<product>\n${JSON.stringify({ ...product, visuals: undefined })}\n</product>`,
     product.visuals.length
       ? `Real product visuals that can be on screen (refer to them by id):\n<visuals>\n${JSON.stringify(product.visuals.map(({ id, kind, caption, source }) => ({ id, kind, caption, source })))}\n</visuals>`
-      : "There are no product visuals for this brand: choose formats where the creator carries the video (talking_head_broll with creator beats only).",
-    `Formats: talking_head_broll (a creator talks to camera; the edit cuts to the product while they keep talking), split_screen (creator on top, product underneath), presenter_inset (product graphics full screen with the presenter in a small rounded window, the look of most viral dev-tool tutorials), voiceover_demo (no face: product on screen, a voice-over and captions), text_story (no face: product on screen with large text). Match the reference's format where you can. Videos with a face cost about $0.40 per second to render; faceless formats cost almost nothing, so use them when the reference is faceless or the product is software that shows well on screen.`,
+      : "There are no product visuals for this brand: choose formats where the creator carries the video (talking_head_broll with creator beats only), or filmed_screen, whose screens are built from the product brief.",
+    `Formats: talking_head_broll (a creator talks to camera; the edit cuts to the product while they keep talking), split_screen (creator on top, product underneath), presenter_inset (product graphics full screen with the presenter in a small rounded window, the look of most viral dev-tool tutorials), voiceover_demo (no face: product on screen, a voice-over and captions), filmed_screen (no face: looks like a phone filming a computer monitor while a voice walks through it; use it when the reference is a filmed screen or screen-recorded walkthrough), text_story (no face: product on screen with large text). Match the reference's format where you can. Videos with a face cost about $0.40 per second to render; faceless formats cost almost nothing, so use them when the reference is faceless or the product is software that shows well on screen.`,
     `Research for the brand brief and the search plan (collected today from public sources):\n<research>\n${JSON.stringify(research)}\n</research>`,
     ...(past.length
       ? [`How this brand's earlier Nomen videos performed on its own accounts (repeat what worked, drop what did not, do not reuse the same hooks):\n<past_results>\n${JSON.stringify(past)}\n</past_results>`]

@@ -22,6 +22,7 @@ import {
   safeAreas,
   sanitizeHtml,
   screenPrompt,
+  writerSystem,
 } from "@/lib/creative/screens";
 import { editFfmpeg } from "@/lib/creative/edit";
 import type { BrandKit, ProductBrief, ScreenRequest } from "@/lib/creative/types";
@@ -173,6 +174,18 @@ describe("the writer's answer", () => {
       [1575, 1920],
     ]);
   });
+
+  it("briefs a desktop screen as a real app on a filmed monitor, with no TikTok bands", () => {
+    const desktop = request({ size: "desktop" });
+    expect(safeAreas("desktop")).toMatchObject({ width: 1440, height: 900, rightRail: null });
+    const system = writerSystem(desktop);
+    expect(system).toContain("Exactly 1440x900 CSS pixels (a desktop monitor's display, filmed by a phone)");
+    expect(system).toContain("Nothing under 36 px");
+    expect(system).toMatch(/real screen on a real computer/);
+    expect(system).not.toMatch(/TikTok's like\/comment\/share buttons|designed motion graphic/);
+    expect(writerSystem(request())).toMatch(/TikTok's like\/comment\/share buttons/);
+    expect(screenPrompt(desktop, { product, kit })).toContain('"width": 1440');
+  });
 });
 
 describe("keyframes", () => {
@@ -320,6 +333,19 @@ describe.skipIf(!canRender)("renderScreen (headless Chrome)", () => {
     const info = await probe(clip.path);
     expect([info.width, info.height]).toEqual([1080, 960]);
     expect(info.duration).toBeCloseTo(1.5, 1);
+  }, 120_000);
+
+  it("renders a desktop screen at 1440x900 that holds still where nothing changes (no push-in)", async () => {
+    const clip = await renderScreen(await typingHtml(), [{ t: 0, label: "empty" }, { t: 1.3, label: "typed" }, { t: 2, label: "connected" }], request({ id: "desk", size: "desktop" }), { workDir: work, allow: [KIT, FONTS_DIR] });
+    const info = await probe(clip.path);
+    expect([info.width, info.height]).toEqual([1440, 900]);
+    // The logo never changes: with no push-in it is the same pixels early and late.
+    const logo = async (at: number) => {
+      const { stdout } = await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-ss", String(at), "-i", clip.path, "-frames:v", "1", "-vf", "crop=96:96:64:220,format=gray", "-f", "rawvideo", "pipe:1"], { encoding: "buffer" });
+      return stdout as unknown as Buffer;
+    };
+    expect(meanDiff(await logo(0.2), await logo(1.9))).toBeLessThan(1);
+    expect(meanDiff(await grey(clip.path, 0.25), await grey(clip.path, 1.9))).toBeGreaterThan(1); // the typing still shows
   }, 120_000);
 
   it("returns a still when nothing moves, and nothing outside the allowed roots reaches the page", async () => {

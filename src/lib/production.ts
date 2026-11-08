@@ -8,9 +8,10 @@ import { ApiError } from "./http";
 import { chunkCaptions } from "./creative/captions";
 import { renderTimeline } from "./creative/edit";
 import { buildTimeline, type RenderedAssets, screenVisualId } from "./creative/plan";
+import { makePlate, newPlateRecord, type PlateRecord } from "./creative/plate";
 import { buildScreens } from "./creative/screens";
 import { trimSilence } from "./creative/trim";
-import type { BrandKit, ProductBrief } from "./creative/types";
+import type { BrandKit, FilmedPlate, ProductBrief } from "./creative/types";
 import { download, extractFrames, ffmpegPath, mediaDir, probe, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import type { NaiveClient } from "./naive";
@@ -116,6 +117,18 @@ async function readScreenManifest(creativeId: string): Promise<ScreenManifest> {
   return { clips: Array.isArray(raw.clips) ? raw.clips : [], failures: Array.isArray(raw.failures) ? raw.failures : [], attempts: raw.attempts ?? {} };
 }
 
+/** filmed_screen's monitor photo and how making it went (creative/plate.ts). */
+const platePath = (creativeId: string) => join(mediaDir(creativeId), "plate.json");
+async function readPlate(creativeId: string): Promise<PlateRecord | null> {
+  try {
+    return JSON.parse(await readFile(platePath(creativeId), "utf8")) as PlateRecord;
+  } catch {
+    return null;
+  }
+}
+/** Provider hiccups waited out while making a plate before the video gives up on it. */
+const PLATE_ERRORS = 8;
+
 const MAX_RENDERS = 3;
 /** A frame request still "in flight" after this long was most likely cut off (a server restart). */
 const FRAME_INFLIGHT_MS = 10 * 60_000;
@@ -187,10 +200,12 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
   const concept = parse<Concept | null>(creative.concept_json, null);
   if (!concept) return update("creatives", creative.id, { status: "failed", error: "concept is unreadable" });
   const shots = parse<ShotState[]>(creative.shots_json, []);
+  // Spend outside the shots: filmed_screen's monitor photos.
+  let otherCost = concept.plan?.format === "filmed_screen" ? ((await readPlate(creative.id))?.cost_micro ?? 0) : 0;
   const save = (fields: Record<string, unknown> = {}) =>
     update("creatives", creative.id, {
       shots_json: JSON.stringify(shots),
-      cost_micro: shots.reduce((sum, shot) => sum + shot.naive_cost + shot.monid_cost, 0),
+      cost_micro: shots.reduce((sum, shot) => sum + shot.naive_cost + shot.monid_cost, 0) + otherCost,
       ...fields,
     });
   if (creative.status === "queued") save({ status: "producing" });
@@ -217,8 +232,10 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     save();
   }
 
-  // Product screens build while the presenter renders on the video model, so the edit rarely waits.
-  const screensPending = await ensureScreens(ctx, creative.id, concept);
+  // Product screens (and a filmed screen's monitor photo) build while the presenter renders on the
+  // video model, so the edit rarely waits.
+  const [screensPending, plate] = await Promise.all([ensureScreens(ctx, creative.id, concept), ensurePlate(ctx, creative.id, concept)]);
+  otherCost = plate.cost_micro;
 
   const failed = shots.find((shot) => shot.status === "failed");
   if (failed) {
@@ -227,7 +244,7 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     return;
   }
   if (shots.every((shot) => shot.status === "passed")) {
-    if (screensPending) return save();
+    if (screensPending || plate.pending) return save();
     if (!(await checkContinuity(ctx, creative, concept, shots))) return save();
     await finalize(ctx, creative, concept, shots);
     save();
@@ -666,6 +683,69 @@ async function ensureScreens(ctx: ProductionContext, creativeId: string, concept
   }
 }
 
+/**
+ * filmed_screen's monitor photo, made once alongside the screens and recorded in plate.json.
+ * Returns whether it is still coming (so the edit waits) and what it has cost. Provider trouble is
+ * waited out like a shot's (15 s, 30 s, 1 min... apart); a video whose photos never show a clean
+ * screen, or that runs out of patience or credits, is cut with its screens full frame instead.
+ */
+async function ensurePlate(ctx: ProductionContext, creativeId: string, concept: Concept): Promise<{ pending: boolean; cost_micro: number }> {
+  if (concept.plan?.format !== "filmed_screen") return { pending: false, cost_micro: 0 };
+  const record = (await readPlate(creativeId)) ?? newPlateRecord();
+  const done = { pending: false, cost_micro: record.cost_micro };
+  if (record.status !== "pending") return done;
+  // Without Naive the edit cannot voice the video either; if it still can, it shows the screens full frame.
+  if (!ctx.naive || ctx.naiveOut()) return done;
+  if (record.retry_at && Date.parse(record.retry_at) > Date.now()) return { pending: true, cost_micro: record.cost_micro };
+  const dir = mediaDir(creativeId);
+  await mkdir(dir, { recursive: true });
+  try {
+    record.retry_at = null;
+    await makePlate(ctx.naive, record, { dir, key: creativeId, setting: concept.setting });
+    record.inflight_since = null;
+  } catch (error) {
+    if (onPlateError(record, error)) ctx.markNaiveOut();
+  }
+  await writeFile(platePath(creativeId), JSON.stringify(record));
+  // makePlate moves the record on; read its status fresh rather than as the check above narrowed it.
+  const status = (): PlateRecord["status"] => record.status;
+  if (status() === "ready") {
+    const rejected = record.notes.length ? ` (after rejecting ${record.notes.join("; ").slice(0, 300)})` : "";
+    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}": the monitor photo for the filmed screens is ready${rejected}` });
+  } else if (status() === "fallback") {
+    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}": no usable monitor photo (${(record.reason ?? "").slice(0, 400)}); showing the screens full frame instead` });
+  }
+  return { pending: status() === "pending", cost_micro: record.cost_micro };
+}
+
+/**
+ * What provider trouble does to a plate in the making. A request still in flight is waited for,
+ * and asked anew under the next key after FRAME_INFLIGHT_MS; a reused key moves to the next one;
+ * busy or failing providers are waited out with growing pauses, PLATE_ERRORS times; anything
+ * else, or no credits, gives up on the plate. Returns true when Naive is out of credits.
+ */
+export function onPlateError(record: PlateRecord, error: unknown, now = Date.now()): boolean {
+  if (error instanceof ApiError && error.inFlight) {
+    record.inflight_since ??= new Date(now).toISOString();
+    if (now - Date.parse(record.inflight_since) >= FRAME_INFLIGHT_MS) {
+      record.tries++;
+      record.notes.push(`image ${record.tries}: never came back`);
+      record.inflight_since = null;
+    }
+  } else if (error instanceof ApiError && error.outOfCredits) {
+    Object.assign(record, { status: "fallback", reason: "Naive is out of credits" });
+    return true;
+  } else if (error instanceof ApiError && error.keyConflict) {
+    record.tries++; // the key was used for another prompt: the next try gets a fresh one
+  } else if (error instanceof ApiError && error.retryable && record.errors < PLATE_ERRORS) {
+    record.retry_at = new Date(now + Math.min(300, 15 * 2 ** record.errors) * 1000).toISOString();
+    record.errors++;
+  } else {
+    Object.assign(record, { status: "fallback", reason: message(error) });
+  }
+  return false;
+}
+
 /** Builds the edit timeline from the rendered A-roll (or a voice-over) and the product visuals, and renders it. */
 async function editFinal(ctx: ProductionContext, creativeId: string, concept: Concept, shots: ShotState[], finalPath: string) {
   const script = concept.script!;
@@ -713,7 +793,14 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
     for (const clip of manifest.clips) if (existsSync(clip.path)) visuals.set(screenVisualId(clip.id), { path: clip.path, kind: clip.kind });
   }
 
-  const timeline = buildTimeline(script, plan, { aroll, voiceover, visuals }, (segments) => chunkCaptions(segments, 3));
+  // filmed_screen: the monitor photo the screens are filmed on (none: they fill the frame instead).
+  let plate: FilmedPlate | null = null;
+  if (plan.format === "filmed_screen") {
+    const record = await readPlate(creativeId);
+    if (record?.status === "ready" && record.plate && existsSync(record.plate.path)) plate = { path: record.plate.path, quad: record.plate.quad };
+  }
+
+  const timeline = buildTimeline(script, plan, { aroll, voiceover, visuals, plate }, (segments) => chunkCaptions(segments, 3));
   await renderTimeline(timeline, finalPath, { workDir: join(dir, "edit") });
 }
 
