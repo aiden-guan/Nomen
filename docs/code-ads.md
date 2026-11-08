@@ -65,6 +65,7 @@ props to attach.
 | `stage` | a launch keynote: a demo table, a giant LED wall, light pillars, a headset mic, an audience that cheers on `celebrate` | launches, "introducing" |
 | `gym` | a weight room: he curls a dumbbell with one hand and types with the other; a TV on the mirror wall | "it runs while you train" |
 | `rooftop` | a rooftop pool at golden hour: a cocktail table, a drink, an outdoor screen, shades on his head | "it runs while you're at the pool" |
+| `podcast` | a podcast studio: he sits at a round table in headphones at a boom mic, the brand's name in neon, a TV behind | the clip format, hot takes, "here's how I do it" |
 | `versus` | two floors cut open: the chud's basement (pizza boxes, cans, a bare bulb, an error monitor) under Chad's penthouse | the old way against the product |
 
 In a versus ad the rival plays the old way's problems (`hack`, `bury`, `explode`, `zap`, `money`), and the lead plays

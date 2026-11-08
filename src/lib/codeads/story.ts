@@ -41,6 +41,7 @@ const SCENE_MENU: Record<Scene, string> = {
   stage: "a launch keynote: he presents on a black stage at a demo table, a giant LED wall behind him (the big screen), spotlights, an audience in the dark that cheers on celebrate. For launches, 'introducing', demos, big announcements.",
   gym: "a weight room: he curls a dumbbell with one hand and types with the other, a TV on the mirror wall. For 'it runs while you train', time back, agents that work without you.",
   rooftop: "a rooftop pool at golden hour: a cocktail table with the laptop and a drink, an outdoor screen, the skyline. For 'the company runs while you are at the pool', freedom, passive income.",
+  podcast: "a podcast studio: he sits at a round table in headphones and talks into a boom mic, foam on the walls, the brand's name in neon, a TV behind him. The clip format: a hot take, 'here's what nobody tells you', a founder explaining how he does it.",
   versus: "two floors cut open: downstairs the rival, the old way (an obese, sweaty slob in a stained tee with the old way's name on it, a grimy basement, a monitor full of errors); upstairs the lead with the product (a bright penthouse, the brand's screen). For before/after, 'stop doing it the old way', the product against the do-it-yourself alternative.",
 };
 

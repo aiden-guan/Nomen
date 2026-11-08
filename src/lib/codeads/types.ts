@@ -64,10 +64,11 @@ export type Hero = (typeof HEROES)[number];
 
 /**
  * Where it happens (engine/sets/): office (a standing desk under a wall screen), stage (a launch keynote, a giant LED
- * wall and an audience), gym (he curls a dumbbell while he types), rooftop (a rooftop pool at golden hour), versus (two
- * floors: the rival, the old way, in a grimy basement under the lead's penthouse).
+ * wall and an audience), gym (he curls a dumbbell while he types), rooftop (a rooftop pool at golden hour), podcast (a
+ * podcast studio, the clip format), versus (two floors: the rival, the old way, in a grimy basement under the lead's
+ * penthouse).
  */
-export const SCENES = ["office", "stage", "gym", "rooftop", "versus"] as const;
+export const SCENES = ["office", "stage", "gym", "rooftop", "podcast", "versus"] as const;
 export type Scene = (typeof SCENES)[number];
 
 export type CodeAdStory = {

@@ -7,11 +7,13 @@
 //   stage    a launch keynote: a giant LED wall, spotlights, an audience
 //   gym      a weight room: he curls a dumbbell while he types
 //   rooftop  a rooftop pool at golden hour
+//   podcast  a podcast studio: he talks into a boom mic in headphones, the brand's name in neon
 //   versus   two floors: the rival's basement under the lead's penthouse
 import { buildDevOffice } from './devoffice.js';
 import { buildVersus } from './versus.js';
 import { buildStage } from './stage.js';
 import { buildGym } from './gym.js';
 import { buildRooftop } from './rooftop.js';
+import { buildPodcast } from './podcast.js';
 
-export const SETS = { office: buildDevOffice, stage: buildStage, gym: buildGym, rooftop: buildRooftop, versus: buildVersus };
+export const SETS = { office: buildDevOffice, stage: buildStage, gym: buildGym, rooftop: buildRooftop, podcast: buildPodcast, versus: buildVersus };
