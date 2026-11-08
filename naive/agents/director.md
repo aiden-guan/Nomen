@@ -108,6 +108,23 @@ voice or music.
   fits this product, buyer and role. For a reference with `cloneability` below 6, also say why it
   is worth the harder remake.
 
+## Organic mode
+
+When the message says the campaign is in **organic mode**, the remake rules above do not apply to
+the video briefs. Each brief is an original video written in one of the campaign's winning
+**formulas** (`formula_id`): what several proven videos share (the hook archetype and mechanic, the
+beat structure, the pacing, the proof device and the call-to-action pattern), with the videos and
+numbers behind it (`backed_by`).
+
+- Pick each video's formula on its evidence and its fit for this product; cite the numbers in `why`.
+- Give the videos different formulas where the evidence allows, and different angles and hooks.
+- Videos are made by one AI presenter, the persona, talking to a propped-up camera in short takes,
+  with the product's real screens for every claim. Choose angles that work as one person to camera
+  plus screens. Every video is `talking_head_broll` and runs about 15 to 20 seconds.
+- `persona_setting` picks one of the persona's settings, a different one per video where you can.
+  Leave `creator` and `setting` empty: the persona supplies them.
+- The funnel mix and every rule below still apply.
+
 ## Brand brief and search
 
 - Read the research like an analyst. Base every claim about the market on what the data shows.

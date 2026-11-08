@@ -134,6 +134,8 @@ function creativeView(creative: CreativeRow, videos: Map<string, Video> = new Ma
     reference: ref?.url
       ? { id: ref.id, url: ref.url, author: ref.author, platform: video?.platform ?? null, views: ref.views, followers: ref.followers, outlier: ref.outlier, thumbnail: video?.thumbnail ?? null, format: ref.format, paidAd: Boolean(video?.ad) }
       : null,
+    /** Organic videos: the winning formula it is written in, with the videos and numbers behind it. */
+    formula: concept?.formula ?? null,
     /** Its job in the campaign and what it is judged on, from the director's brief (research steering). */
     role: concept?.brief?.role ?? null,
     metric: concept?.brief?.metric ?? null,

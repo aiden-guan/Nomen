@@ -107,6 +107,19 @@ export function CreativeCard({ creative, onChange }: { creative: CreativeView; o
               {concept.reference.outlier ? `, ${concept.reference.outlier.toFixed(1)}x followers` : ""})
             </p>
           )}
+          {concept?.formula && (
+            <p className="mt-1 text-xs text-zinc-500">
+              Original, built on the formula <span className="text-violet-300">{concept.formula.name}</span> ({concept.formula.summary}):{" "}
+              {concept.formula.references.map((ref, i) => (
+                <span key={ref.id}>
+                  {i ? ", " : ""}
+                  <a href={ref.url} target="_blank" rel="noreferrer" className="text-violet-300 hover:underline">
+                    @{ref.author}
+                  </a>
+                </span>
+              ))}
+            </p>
+          )}
         </div>
 
         {concept?.script && (

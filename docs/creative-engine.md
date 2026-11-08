@@ -59,6 +59,47 @@ kind replaces the original person.
 
 These videos are posted by the brand on its own accounts and labeled AI-generated.
 
+## Organic mode
+
+The other bet next to the remakes: **original** videos built from the winning *formulas* the
+research finds across many references, written for what AI video does well. Set `creative_mode` to
+`organic` (default `remake`); a campaign keeps the mode it started with (`options_json.mode`), and
+the remakes are untouched.
+
+```
+breakdowns ─ formula analyst ─ 3-5 formulas (each backed by references and their numbers)
+  └─ director (organic message + schema) ─ one brief per video: a formula, an angle, a role, a persona setting
+       └─ organic script room ─ writer ─ linter ─ critic
+            └─ organic plan ─ one Kling take per sentence from the persona's still ─ screens ─ jump-cut edit
+```
+
+- **Formulas** (`src/lib/creative/formulas.ts`): one Claude Sonnet call reads the breakdowns and
+  names 3-5 reusable patterns: hook archetype and mechanic, beat structure (job, share of the
+  runtime, presenter or product on screen), pacing, proof device, call-to-action pattern, what an AI
+  presenter carries well and what never to copy. It cites reference ids; code keeps only known ids,
+  attaches their real numbers (views, views per follower, conversion score and signals) as
+  `evidence.summary`, and ranks by evidence. An unusable answer falls back to one formula per
+  selling structure. Kept in the campaign's `style_json.formulas`.
+- **Director** (`organicStrategyMessage`, `ORGANIC_STRATEGY_SCHEMA`): every brief names a
+  `formula_id` and a `persona_setting` instead of a `reference_id`, keeps the funnel mix, and is
+  always `talking_head_broll`, about 15-20 s.
+- **Persona** (`persona` setting, JSON): one presenter kept across videos, `{ name, look, voice,
+  stills: [{ setting, file_id, place }] }` where `file_id` is a Naive file. Every take of a video
+  starts from the same still, so her face never changes and no frame is generated; the same `voice`
+  sentence goes into every take's prompt.
+- **Writer, linter, critic** (`src/lib/creative/organic.ts`, the shared loop in `script.ts`): an
+  original script in the formula, in the product brief's facts, with no ad copy. Shaped for AI
+  rendering: one sentence (6-18 words) per beat, so one take per beat; the presenter on camera for
+  the hook and emotional beats; every claim (demo, proof, reveal) on a product screen; product
+  screens on 25-60% of the runtime. The linter also fails six words copied in a row from a backing
+  video, and the backing videos' handles.
+- **Plan** (`planOrganic`): one Kling take per spoken beat, rendered for `ceil(words / 3.2 + 0.7)`
+  seconds (3-10; Kling bills whole seconds and stretches a line to fill its take). A take the
+  product covers for its whole length is `covered`: rendered at 720p ($0.126/s instead of $0.168/s)
+  and not reviewed for looks, since only its voice is used. QC never rebuilds a persona's frame.
+- **Edit**: a jump cut between takes, alternating the full frame and a 12% punch-in
+  (`EditTimeline.aroll[].zoom`, cropped above centre to keep the face), captions per take.
+
 ## The edit
 
 - **Captions:** Poppins ExtraBold, white with a heavy outline, popping in two or three words at a
