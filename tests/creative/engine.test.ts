@@ -499,3 +499,26 @@ describe("the voice-over pace", () => {
     expect(voiceSpeed("", 10)).toBe(1);
   });
 });
+
+describe("pacing a long voice-over", () => {
+  it("stretches a voice that runs long to the script's length, by at most 1.3x", async () => {
+    const { paceVoice } = await import("@/lib/production");
+    const { ffmpegPath, probe } = await import("@/lib/media");
+    const bin = await ffmpegPath();
+    if (!bin) return;
+    const { execFile } = await import("node:child_process");
+    const { mkdtemp, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = await mkdtemp(join(tmpdir(), "nomen-pace-"));
+    const raw = join(dir, "raw.wav");
+    await new Promise((done, fail) => execFile(bin, ["-y", "-f", "lavfi", "-i", "sine=f=300:d=10", raw], (error) => (error ? fail(error) : done(null))));
+    await paceVoice(raw, 8, join(dir, "paced.wav"));
+    expect((await probe(join(dir, "paced.wav"))).duration).toBeCloseTo(8, 0);
+    await paceVoice(raw, 5, join(dir, "capped.wav"));
+    expect((await probe(join(dir, "capped.wav"))).duration).toBeCloseTo(10 / 1.3, 0);
+    await paceVoice(raw, 9.8, join(dir, "kept.wav"));
+    expect((await probe(join(dir, "kept.wav"))).duration).toBeCloseTo(10, 0);
+    await rm(dir, { recursive: true, force: true });
+  }, 30_000);
+});

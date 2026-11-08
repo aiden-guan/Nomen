@@ -97,11 +97,17 @@ export type ProductionContext = {
   kit?: BrandKit | null;
 };
 
-type ScreenManifest = { clips: Array<{ id: string; kind: "video" | "image"; path: string }>; failures: Array<{ id: string; error: string }> };
+type ScreenManifest = {
+  clips: Array<{ id: string; kind: "video" | "image"; path: string }>;
+  failures: Array<{ id: string; error: string }>;
+  /** Busy-model failures so far per screen: retried on later ticks, up to SCREEN_TRIES. */
+  attempts?: Record<string, number>;
+};
+const SCREEN_TRIES = 3;
 const screenManifest = (creativeId: string) => join(mediaDir(creativeId), "screens", "manifest.json");
 async function readScreenManifest(creativeId: string): Promise<ScreenManifest> {
   const raw = JSON.parse(await readFile(screenManifest(creativeId), "utf8").catch(() => "{}")) as Partial<ScreenManifest>;
-  return { clips: Array.isArray(raw.clips) ? raw.clips : [], failures: Array.isArray(raw.failures) ? raw.failures : [] };
+  return { clips: Array.isArray(raw.clips) ? raw.clips : [], failures: Array.isArray(raw.failures) ? raw.failures : [], attempts: raw.attempts ?? {} };
 }
 
 const MAX_RENDERS = 3;
@@ -195,8 +201,8 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     save();
   }
 
-  // Product screens build while the presenter renders on the video model, so the edit never waits.
-  await ensureScreens(ctx, creative.id, concept);
+  // Product screens build while the presenter renders on the video model, so the edit rarely waits.
+  const screensPending = await ensureScreens(ctx, creative.id, concept);
 
   const failed = shots.find((shot) => shot.status === "failed");
   if (failed) {
@@ -205,6 +211,7 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     return;
   }
   if (shots.every((shot) => shot.status === "passed")) {
+    if (screensPending) return save();
     if (!(await checkContinuity(ctx, creative, concept, shots))) return save();
     await finalize(ctx, creative, concept, shots);
     save();
@@ -540,33 +547,40 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
 
 /**
  * The screen builder's clips for this video (terminal, step cards, results, in the brand's look),
- * built once and recorded in a manifest. A screen that fails falls back to the beat's real visual.
+ * built once and recorded in a manifest. A screen that fails falls back to the beat's real visual;
+ * one that failed only because the model was busy is tried again on a later tick. Returns true while
+ * screens are still to come, so the edit waits for them.
  */
-async function ensureScreens(ctx: ProductionContext, creativeId: string, concept: Concept) {
+async function ensureScreens(ctx: ProductionContext, creativeId: string, concept: Concept): Promise<boolean> {
   // Only the screens the manifest has no answer for yet, so a re-planned video builds just its new ones.
-  const done = existsSync(screenManifest(creativeId)) ? await readScreenManifest(creativeId) : { clips: [], failures: [] };
+  const done: ScreenManifest = existsSync(screenManifest(creativeId)) ? await readScreenManifest(creativeId) : { clips: [], failures: [], attempts: {} };
   const known = new Set([...done.clips, ...done.failures].map((entry) => entry.id));
   const requests = (concept.plan?.screens ?? []).filter((request) => !known.has(request.id));
-  if (!requests.length || !ctx.product || !ctx.naive || ctx.naiveOut()) return;
+  if (!requests.length || !ctx.product || !ctx.naive || ctx.naiveOut()) return false;
   const workDir = join(mediaDir(creativeId), "screens");
   await mkdir(workDir, { recursive: true });
   try {
     const result = await buildScreens(ctx.naive, requests, { product: ctx.product, kit: ctx.kit ?? null, style: concept.reference?.format }, { workDir });
+    const attempts = { ...done.attempts };
+    const later = result.failures.filter((f) => f.retryable && (attempts[f.id] = (attempts[f.id] ?? 0) + 1) < SCREEN_TRIES);
     const manifest: ScreenManifest = {
       clips: [...done.clips, ...result.clips.map(({ id, kind, path }) => ({ id, kind, path }))],
-      failures: [...done.failures, ...result.failures],
+      failures: [...done.failures, ...result.failures.filter((f) => !later.includes(f)).map(({ id, error }) => ({ id, error }))],
+      attempts,
     };
     await writeFile(screenManifest(creativeId), JSON.stringify(manifest));
     logEvent({
       brandId: ctx.brandId,
       campaignId: ctx.campaignId,
       level: result.failures.length ? "warn" : "info",
-      message: `"${concept.title}": built ${result.clips.length} of ${requests.length} product screens${result.failures.length ? ` (${result.failures.map((f) => f.error).join("; ").slice(0, 300)})` : ""}`,
+      message: `"${concept.title}": built ${result.clips.length} of ${requests.length} product screens${result.failures.length ? ` (${result.failures.map((f) => f.error).join("; ").slice(0, 300)})` : ""}${later.length ? `; trying ${later.length} again` : ""}`,
     });
+    return later.length > 0;
   } catch (error) {
-    if (error instanceof ApiError && error.retryable) return; // try again next tick
+    if (error instanceof ApiError && error.retryable) return true; // try again next tick
     await writeFile(screenManifest(creativeId), JSON.stringify({ clips: done.clips, failures: [...done.failures, ...requests.map((r) => ({ id: r.id, error: message(error) }))] } satisfies ScreenManifest));
     logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}": product screens could not be built (${message(error)}); using the real visuals instead` });
+    return false;
   }
 }
 
@@ -587,8 +601,11 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
     const path = join(dir, "voiceover.wav");
     if (!existsSync(path)) {
       if (!ctx.naive || ctx.naiveOut()) throw new Error("the voice-over needs Naive");
-      const speed = voiceSpeed(plan.voiceover.text, script.beats.reduce((sum, beat) => sum + beat.seconds, 0));
-      await speakTo(ctx.naive, plan.voiceover, speed, `${creativeId}-voiceover-${speed}`, path);
+      const target = script.beats.reduce((sum, beat) => sum + beat.seconds, 0);
+      const speed = voiceSpeed(plan.voiceover.text, target);
+      const raw = join(dir, "voiceover-raw.wav");
+      if (!existsSync(raw)) await speakTo(ctx.naive, plan.voiceover, speed, `${creativeId}-voiceover-${speed}`, raw);
+      await paceVoice(raw, target, path);
     }
     voiceover = { path, duration: (await probe(path)).duration };
   }
@@ -630,6 +647,18 @@ export function voiceSpeed(text: string, seconds: number): number {
   const words = text.split(/\s+/).filter(Boolean).length;
   if (!words || seconds <= 0) return 1;
   return Math.round(Math.min(1.5, Math.max(1, words / seconds / TTS_WPS)) * 100) / 100;
+}
+
+/**
+ * The speech API treats speed as a hint, so the voice can still run long. Time-stretch it (pitch
+ * kept) to the script's length when it is more than 6% over, by at most 1.3x.
+ */
+export async function paceVoice(raw: string, target: number, out: string) {
+  const bin = await ffmpegPath();
+  const { duration } = await probe(raw);
+  const factor = target > 0 ? Math.min(1.3, duration / target) : 1;
+  if (!bin || factor < 1.06) return copyFile(raw, out);
+  await execAsync(bin, ["-hide_banner", "-loglevel", "error", "-y", "-i", raw, "-af", `atempo=${factor.toFixed(3)}`, out]);
 }
 
 async function speakTo(naive: NonNullable<ProductionContext["naive"]>, voiceover: { text: string; voice: string }, speed: number, idempotencyKey: string, path: string) {

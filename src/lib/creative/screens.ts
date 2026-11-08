@@ -1422,8 +1422,8 @@ export async function buildScreens(
   requests: ScreenRequest[],
   ctx: Omit<ScreenContext, "previous">,
   options: BuildScreensOptions,
-): Promise<{ clips: ScreenClip[]; failures: Array<{ id: string; error: string }>; reports: ScreenReport[] }> {
-  const results: Array<{ clip?: ScreenClip; error?: string; report?: ScreenReport }> = requests.map(() => ({}));
+): Promise<{ clips: ScreenClip[]; failures: Array<{ id: string; error: string; retryable?: boolean }>; reports: ScreenReport[] }> {
+  const results: Array<{ clip?: ScreenClip; error?: string; retryable?: boolean; report?: ScreenReport }> = requests.map(() => ({}));
   const chrome = options.render?.chromePath ?? findChrome();
   // Without Chrome or ffmpeg nothing can render: fail every screen now rather than pay for writes.
   const missing = !chrome || !isExecutable(chrome) ? chromeMissing().message : !(await ffmpegBin()) ? "No ffmpeg found: install ffmpeg or the ffmpeg-static package, or set FFMPEG_PATH." : "";
@@ -1438,18 +1438,19 @@ export async function buildScreens(
       try {
         results[i] = await buildOne(naive, requests[i], ctx, { ...options, render: { ...options.render, chromePath: chrome } }, allow);
       } catch (error) {
-        results[i] = { error: error instanceof Error ? error.message : String(error) };
+        // A busy or rate-limited model is worth another try later; a bad screen is not.
+        results[i] = { error: error instanceof Error ? error.message : String(error), retryable: error instanceof ApiError && error.retryable };
       }
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(options.concurrency ?? 3, requests.length)) }, worker));
 
   const clips: ScreenClip[] = [];
-  const failures: Array<{ id: string; error: string }> = [];
+  const failures: Array<{ id: string; error: string; retryable?: boolean }> = [];
   const reports: ScreenReport[] = [];
   results.forEach((r, i) => {
     if (r.clip) clips.push(r.clip);
-    if (r.error) failures.push({ id: requests[i].id, error: r.error });
+    if (r.error) failures.push({ id: requests[i].id, error: r.error, ...(r.retryable ? { retryable: true } : {}) });
     if (r.report) reports.push(r.report);
   });
   return { clips, failures, reports };
