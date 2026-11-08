@@ -1506,11 +1506,11 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   notes.push(...(manifest.audio.notes ?? []).filter((n) => !notes.includes(n)));
   // Faceless: nobody re-performs the footage, so each line is said inside its own beat's shot.
   const byLine = !people;
-  const ourWords = byLine ? timeOurLines(reference.words, lines.map((l, i) => ({ text: l.line, start: span.beats[i].start, end: span.beats[i].end }))) : timeOurWords(reference.words, scriptLines.join(" "));
+  const ourWords = byLine ? timeOurLines(reference.words, lines.map((l, i) => ({ text: l.line, start: span.beats[i].start, end: span.beats[i].end, ref: span.beats[i].line }))) : timeOurWords(reference.words, scriptLines.join(" "));
   const voiceInput = {
     reference: input.referencePath,
     end,
-    lines: lines.map((l, i) => ({ text: l.line, emotion: l.emotion, start: span.beats[i].start, end: span.beats[i].end })),
+    lines: lines.map((l, i) => ({ text: l.line, emotion: l.emotion, start: span.beats[i].start, end: span.beats[i].end, ref: span.beats[i].line })),
     host: input.host.persona.voice.id,
     others: cohost ? segments.filter((s) => s.kind === "stitch").map((s) => ({ start: s.start, end: s.end, voiceId: cohost.persona.voice.id })) : [],
     mode: voiceMode(input.voice, input.host.persona.gender, genderOf(layout.presenter)),

@@ -9,7 +9,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { editFfmpeg } from "@/lib/creative/edit";
 import { burnedInText, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, wordCaptions } from "@/lib/creative/remake";
 import { readScreenCorners } from "@/lib/creative/clone";
-import { fitSegments, PHONE_EQ, soundArgs, timeOurLines, timeOurWords, wordsFromSegments } from "@/lib/creative/dub";
+import { beatsOfWords, fitSegments, freshVoiceArgs, PHONE_EQ, soundArgs, timeOurLines, timeOurWords, wordsFromSegments } from "@/lib/creative/dub";
 import { referenceFrameNote } from "@/lib/creative/screens";
 import { shotReadTimes, trackerPython, trackScreen, trackSpecJson } from "@/lib/creative/track";
 import type { Quad, ReferenceBeat } from "@/lib/creative/types";
@@ -146,6 +146,59 @@ describe("faceless remakes: each line is said inside its own shot", () => {
       expect(seg.at).toBeGreaterThanOrEqual(lines[i].start - 0.1);
       expect(seg.at).toBeLessThan(lines[i].end);
     });
+  });
+});
+
+describe("faceless remakes: lining a transcript up with the beats", () => {
+  // The breakdown says beat 2 is "Claude Phone." (4.3-6.4) and beat 3 starts "Good news." at 6.4,
+  // but the transcript times "Good news." at 5.4-6.1, inside beat 2's window.
+  const ref = [
+    { text: "Claude", start: 4.3, end: 4.72 },
+    { text: "Phone.", start: 4.72, end: 5.08 },
+    { text: "Good", start: 5.4, end: 5.74 },
+    { text: "news.", start: 5.74, end: 6.08 },
+    { text: "The", start: 6.42, end: 6.63 },
+    { text: "release", start: 10.9, end: 11.3 },
+  ];
+  const lines = [
+    { text: "", start: 0, end: 4.3, ref: "" },
+    { text: "Mobilerun.", start: 4.3, end: 6.4, ref: "Claude Phone." },
+    { text: "Good news. The suite passed.", start: 6.4, end: 10.6, ref: "Good news. The full test suite passed." },
+    { text: "The release is ready.", start: 10.6, end: 16.7, ref: "The release is ready." },
+  ];
+
+  it("puts each transcribed word in the beat whose words it is, whatever its time", () => {
+    expect(beatsOfWords(ref, lines)).toEqual([1, 1, 2, 2, 2, 3]);
+    // Without the beats' words, by time: "Good news." falls into beat 2's window.
+    expect(beatsOfWords(ref, lines.map(({ ref: _, ...l }) => l))).toEqual([1, 1, 1, 1, 2, 3]);
+  });
+
+  it("places a word the read's transcript spells differently between its neighbours", () => {
+    // Our script says "Mobilerun."; the read's transcript heard "Mobile run."
+    const read = [
+      { text: "Mobile", start: 0.08, end: 0.47 },
+      { text: "run.", start: 0.47, end: 0.7 },
+      { text: "Good", start: 1.24, end: 1.52 },
+      { text: "news.", start: 1.52, end: 1.8 },
+      { text: "The", start: 2.1, end: 2.3 },
+      { text: "suite", start: 2.3, end: 2.7 },
+      { text: "passed.", start: 2.7, end: 3.2 },
+      { text: "The", start: 3.6, end: 3.8 },
+      { text: "release", start: 3.8, end: 4.2 },
+      { text: "is", start: 4.2, end: 4.35 },
+      { text: "ready.", start: 4.35, end: 4.8 },
+    ];
+    const ours = lines.map((l) => l.text).join(" ").trim();
+    const segments = fitSegments(ref, ours, read, lines)!;
+    // "Mobilerun." is in the voice, read from the transcript's "Mobile run." and laid where "Claude Phone." was.
+    expect(segments[0].from).toBeLessThanOrEqual(0.08);
+    expect(segments[0].to).toBeLessThan(1.24);
+    expect(segments[0].at).toBeCloseTo(4.25, 1);
+  });
+
+  it("caps every padded audio output at its length (ffmpeg 6 can pad forever)", () => {
+    expect(freshVoiceArgs({ reads: [{ path: "r.wav", segments: [{ from: 0, to: 1, at: 0, tempo: 1 }] }], duration: 16.7, out: "v.wav" }).join(" ")).toContain("-t 16.7");
+    expect(soundArgs({ voices: [], bed: null, duration: 9, finish: false, out: "o.wav" }).join(" ")).toContain("-t 9");
   });
 });
 
