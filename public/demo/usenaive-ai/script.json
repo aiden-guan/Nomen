@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recorded": true,
-  "recordedAt": "2026-11-08T10:16:48.530Z",
+  "recordedAt": "2026-11-08T10:46:47.520Z",
   "brand": {
     "name": "Naïve",
     "domain": "usenaive.ai",
@@ -45,7 +45,7 @@
     }
   },
   "options": {
-    "concepts": 3,
+    "concepts": 4,
     "shotsPerConcept": 2,
     "secondsPerShot": 8,
     "videoModel": "google/veo-3.1",
@@ -627,21 +627,11 @@
       "name": "Deploy a Company",
       "briefs": [
         {
-          "title": "A short-form channel in three steps",
-          "format": "code ad (3D animation)",
+          "title": "Template + Deploy = a team running your channel",
+          "format": "organic talking head",
           "reference_id": "ref_1a08c64bf9",
-          "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
-          "hook_plan": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
-          "audience": "",
-          "role": "reach",
-          "metric": null
-        },
-        {
-          "title": "Gary the Potato Deploys a Company",
-          "format": "brainrot meme",
-          "reference_id": "ref_b647769fbc",
-          "angle": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
-          "hook_plan": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+          "angle": "The research's strongest formula is a numbered-steps tutorial: 2 videos with 2M views at 99-212x their accounts' followers, saved up to 5.2x as often as the pool. Naïve's setup is already a short numbered path (pick, deploy, watch), so an original on that formula, filmed with an AI creator.",
+          "hook_plan": "The research's strongest formula is a numbered-steps tutorial: 2 videos with 2M views at 99-212x their accounts' followers, saved up to 5.2x as often as the pool. Naïve's setup is already a short numbered path (pick, deploy, watch), so an original on that formula, filmed with an AI creator.",
           "audience": "",
           "role": "reach",
           "metric": null
@@ -655,9 +645,29 @@
           "audience": "",
           "role": "reach",
           "metric": null
+        },
+        {
+          "title": "Two founders, one instruction: make money",
+          "format": "code ad (3D animation)",
+          "reference_id": "ref_c0ed3cecfe",
+          "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made versus animation of @mplentg's \"make money\" dare (644K views on 1.8K followers, 364x): one founder's DIY agents crash, the other's Naïve team runs.",
+          "hook_plan": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made versus animation of @mplentg's \"make money\" dare (644K views on 1.8K followers, 364x): one founder's DIY agents crash, the other's Naïve team runs.",
+          "audience": "",
+          "role": "reach",
+          "metric": null
+        },
+        {
+          "title": "Gary the Potato Deploys a Company",
+          "format": "brainrot meme",
+          "reference_id": "ref_b647769fbc",
+          "angle": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+          "hook_plan": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+          "audience": "",
+          "role": "reach",
+          "metric": null
         }
       ],
-      "objective": "Get Naïve seen by solo founders and creators with a reach video, then drive sign-ups with a tutorial-style convert video, each with its own tracked link, by testing 3 formats the research backs: code ad (3D animation), brainrot meme, one-to-one clone (faceless).",
+      "objective": "Get Naïve seen by solo founders and creators with a reach video, then drive sign-ups with a tutorial-style convert video, each with its own tracked link, by testing 4 formats the research backs: organic talking head, one-to-one clone (faceless), code ad (3D animation), brainrot meme.",
       "posting_plan": {
         "notes": "Label every video AI-generated. Judge reach on views and shares, convert on link clicks and sign-ups per tracked link. Do not state earnings or results; Naïve's site lists no proof numbers. Some templates are Preview only; deploy only Deploy-status ones (Short Form v1 is deployable).",
         "cadence": "One video per day for a week, alternating reach and convert, each with its own tracked link. Re-test the winner with a new hook line after 7 days.",
@@ -668,10 +678,10 @@
       },
       "concepts": [
         {
-          "title": "A short-form channel in three steps",
-          "format": "code ad (3D animation)",
-          "hook": "Short Form template plus agents equals a video channel.",
-          "caption": "Deploy the Short Form template at usenaive.ai.",
+          "title": "Template + Deploy = a team running your channel",
+          "format": "organic talking head",
+          "hook": "Template + Deploy = an AI team running your channel",
+          "caption": "4 steps, no terminal: open Studio, pick a template, deploy, watch the first session. Link in bio.",
           "platforms": [
             "tiktok",
             "instagram",
@@ -680,7 +690,7 @@
           "inspired_by": [
             "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512"
           ],
-          "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
+          "why": "The research's strongest formula is a numbered-steps tutorial: 2 videos with 2M views at 99-212x their accounts' followers, saved up to 5.2x as often as the pool. Naïve's setup is already a short numbered path (pick, deploy, watch), so an original on that formula, filmed with an AI creator.",
           "reference": {
             "id": "ref_1a08c64bf9",
             "url": "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512",
@@ -688,49 +698,15 @@
             "views": 1308860,
             "followers": 6161,
             "outlier": 212.4,
-            "format": "code ad (3D animation)"
+            "format": "organic talking head"
           },
           "brief": {
-            "format": "code ad (3D animation)",
+            "format": "organic talking head",
             "role": "reach",
-            "title": "A short-form channel in three steps"
+            "title": "Template + Deploy = a team running your channel"
           },
           "script": {
-            "total_seconds": 22,
-            "beats": [],
-            "review": null
-          }
-        },
-        {
-          "title": "Gary the Potato Deploys a Company",
-          "format": "brainrot meme",
-          "hook": "POV: you can't afford a team",
-          "caption": "Gary the potato deploys a company. usenaive.ai",
-          "platforms": [
-            "tiktok",
-            "instagram",
-            "youtube"
-          ],
-          "inspired_by": [
-            "https://www.tiktok.com/@mommyyame1/video/7649489303176809741"
-          ],
-          "why": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
-          "reference": {
-            "id": "ref_b647769fbc",
-            "url": "https://www.tiktok.com/@mommyyame1/video/7649489303176809741",
-            "author": "mommyyame1",
-            "views": 81058835,
-            "followers": 234764,
-            "outlier": 345.3,
-            "format": "brainrot meme"
-          },
-          "brief": {
-            "format": "brainrot meme",
-            "role": "reach",
-            "title": "Gary the Potato Deploys a Company"
-          },
-          "script": {
-            "total_seconds": 37.4,
+            "total_seconds": 20.1,
             "beats": [],
             "review": null
           }
@@ -769,6 +745,74 @@
             "review": null
           },
           "internal": true
+        },
+        {
+          "title": "Two founders, one instruction: make money",
+          "format": "code ad (3D animation)",
+          "hook": "Two founders. One instruction: make money.",
+          "caption": "Same goal, two founders. DIY agents on a card crash; a Naïve team runs with budgets, and spending waits for your yes. Pick a company template at usenaive.ai.",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@mplentg/video/7667230797337873685"
+          ],
+          "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made versus animation of @mplentg's \"make money\" dare (644K views on 1.8K followers, 364x): one founder's DIY agents crash, the other's Naïve team runs.",
+          "reference": {
+            "id": "ref_c0ed3cecfe",
+            "url": "https://www.tiktok.com/@mplentg/video/7667230797337873685",
+            "author": "mplentg",
+            "views": 643977,
+            "followers": 1770,
+            "outlier": 363.8,
+            "format": "code ad (3D animation)"
+          },
+          "brief": {
+            "format": "code ad (3D animation)",
+            "role": "reach",
+            "title": "Two founders, one instruction: make money"
+          },
+          "script": {
+            "total_seconds": 25.1,
+            "beats": [],
+            "review": null
+          }
+        },
+        {
+          "title": "Gary the Potato Deploys a Company",
+          "format": "brainrot meme",
+          "hook": "POV: you can't afford a team",
+          "caption": "Gary the potato deploys a company. usenaive.ai",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@mommyyame1/video/7649489303176809741"
+          ],
+          "why": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+          "reference": {
+            "id": "ref_b647769fbc",
+            "url": "https://www.tiktok.com/@mommyyame1/video/7649489303176809741",
+            "author": "mommyyame1",
+            "views": 81058835,
+            "followers": 234764,
+            "outlier": 345.3,
+            "format": "brainrot meme"
+          },
+          "brief": {
+            "format": "brainrot meme",
+            "role": "reach",
+            "title": "Gary the Potato Deploys a Company"
+          },
+          "script": {
+            "total_seconds": 37.4,
+            "beats": [],
+            "review": null
+          }
         }
       ],
       "script_rounds": 1
@@ -830,12 +874,12 @@
   },
   "creatives": [
     {
-      "idx": 3,
+      "idx": 0,
       "concept": {
-        "title": "A short-form channel in three steps",
-        "format": "code ad (3D animation)",
-        "hook": "Short Form template plus agents equals a video channel.",
-        "caption": "Deploy the Short Form template at usenaive.ai.",
+        "title": "Template + Deploy = a team running your channel",
+        "format": "organic talking head",
+        "hook": "Template + Deploy = an AI team running your channel",
+        "caption": "4 steps, no terminal: open Studio, pick a template, deploy, watch the first session. Link in bio.",
         "platforms": [
           "tiktok",
           "instagram",
@@ -844,7 +888,7 @@
         "inspired_by": [
           "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512"
         ],
-        "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
+        "why": "The research's strongest formula is a numbered-steps tutorial: 2 videos with 2M views at 99-212x their accounts' followers, saved up to 5.2x as often as the pool. Naïve's setup is already a short numbered path (pick, deploy, watch), so an original on that formula, filmed with an AI creator.",
         "reference": {
           "id": "ref_1a08c64bf9",
           "url": "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512",
@@ -852,26 +896,26 @@
           "views": 1308860,
           "followers": 6161,
           "outlier": 212.4,
-          "format": "code ad (3D animation)"
+          "format": "organic talking head"
         },
         "brief": {
-          "format": "code ad (3D animation)",
+          "format": "organic talking head",
           "role": "reach"
         },
         "script": {
-          "total_seconds": 22,
+          "total_seconds": 20.1,
           "beats": [],
           "review": null
         }
       },
-      "caption": "Deploy the Short Form template at usenaive.ai.",
+      "caption": "4 steps, no terminal: open Studio, pick a template, deploy, watch the first session. Link in bio.",
       "platforms": [
         "tiktok",
         "instagram",
         "youtube"
       ],
       "qcScore": null,
-      "cost": 0.19,
+      "cost": 3.82,
       "generation": 1,
       "shots": [],
       "video": "1.mp4",
@@ -879,56 +923,7 @@
       "analytics": null
     },
     {
-      "idx": 4,
-      "concept": {
-        "title": "Gary the Potato Deploys a Company",
-        "format": "brainrot meme",
-        "hook": "POV: you can't afford a team",
-        "caption": "Gary the potato deploys a company. usenaive.ai",
-        "platforms": [
-          "tiktok",
-          "instagram",
-          "youtube"
-        ],
-        "inspired_by": [
-          "https://www.tiktok.com/@mommyyame1/video/7649489303176809741"
-        ],
-        "why": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
-        "reference": {
-          "id": "ref_b647769fbc",
-          "url": "https://www.tiktok.com/@mommyyame1/video/7649489303176809741",
-          "author": "mommyyame1",
-          "views": 81058835,
-          "followers": 234764,
-          "outlier": 345.3,
-          "format": "brainrot meme"
-        },
-        "brief": {
-          "format": "brainrot meme",
-          "role": "reach"
-        },
-        "script": {
-          "total_seconds": 37.4,
-          "beats": [],
-          "review": null
-        }
-      },
-      "caption": "Gary the potato deploys a company. usenaive.ai",
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "youtube"
-      ],
-      "qcScore": null,
-      "cost": 3.27,
-      "generation": 1,
-      "shots": [],
-      "video": "2.mp4",
-      "poster": "2.png",
-      "analytics": null
-    },
-    {
-      "idx": 5,
+      "idx": 1,
       "concept": {
         "title": "I told Naïve I'm exhausted",
         "format": "one-to-one clone (faceless)",
@@ -973,8 +968,106 @@
       "cost": 0.22,
       "generation": 1,
       "shots": [],
+      "video": "2.mp4",
+      "poster": "2.png",
+      "analytics": null
+    },
+    {
+      "idx": 2,
+      "concept": {
+        "title": "Two founders, one instruction: make money",
+        "format": "code ad (3D animation)",
+        "hook": "Two founders. One instruction: make money.",
+        "caption": "Same goal, two founders. DIY agents on a card crash; a Naïve team runs with budgets, and spending waits for your yes. Pick a company template at usenaive.ai.",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@mplentg/video/7667230797337873685"
+        ],
+        "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made versus animation of @mplentg's \"make money\" dare (644K views on 1.8K followers, 364x): one founder's DIY agents crash, the other's Naïve team runs.",
+        "reference": {
+          "id": "ref_c0ed3cecfe",
+          "url": "https://www.tiktok.com/@mplentg/video/7667230797337873685",
+          "author": "mplentg",
+          "views": 643977,
+          "followers": 1770,
+          "outlier": 363.8,
+          "format": "code ad (3D animation)"
+        },
+        "brief": {
+          "format": "code ad (3D animation)",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 25.1,
+          "beats": [],
+          "review": null
+        }
+      },
+      "caption": "Same goal, two founders. DIY agents on a card crash; a Naïve team runs with budgets, and spending waits for your yes. Pick a company template at usenaive.ai.",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0,
+      "generation": 1,
+      "shots": [],
       "video": "3.mp4",
       "poster": "3.png",
+      "analytics": null
+    },
+    {
+      "idx": 3,
+      "concept": {
+        "title": "Gary the Potato Deploys a Company",
+        "format": "brainrot meme",
+        "hook": "POV: you can't afford a team",
+        "caption": "Gary the potato deploys a company. usenaive.ai",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@mommyyame1/video/7649489303176809741"
+        ],
+        "why": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+        "reference": {
+          "id": "ref_b647769fbc",
+          "url": "https://www.tiktok.com/@mommyyame1/video/7649489303176809741",
+          "author": "mommyyame1",
+          "views": 81058835,
+          "followers": 234764,
+          "outlier": 345.3,
+          "format": "brainrot meme"
+        },
+        "brief": {
+          "format": "brainrot meme",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 37.4,
+          "beats": [],
+          "review": null
+        }
+      },
+      "caption": "Gary the potato deploys a company. usenaive.ai",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 3.27,
+      "generation": 1,
+      "shots": [],
+      "video": "4.mp4",
+      "poster": "4.png",
       "analytics": null
     }
   ],
@@ -982,7 +1075,7 @@
     {
       "s": 0,
       "level": "info",
-      "message": "Campaign started: 3 videos, 2 shots each, google/veo-3.1"
+      "message": "Campaign started: 4 videos, 2 shots each, google/veo-3.1"
     },
     {
       "s": 21.9,
@@ -1037,22 +1130,12 @@
     {
       "s": 341.8,
       "level": "info",
-      "message": "The creative director is choosing which reference videos to transplant for 3 videos"
+      "message": "The creative director is choosing which reference videos to transplant for 4 videos"
     },
     {
       "s": 342.3,
       "level": "info",
-      "message": "The creative director chose 3 videos, each on what the research found: \"A short-form channel in three steps\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves)); \"Gary the Potato Deploys a Company\" (brainrot meme: Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers)); \"I told Naïve I'm exhausted\" (one-to-one clone (faceless): One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption)"
-    },
-    {
-      "s": 17387.4,
-      "level": "info",
-      "message": "\"A short-form channel in three steps\": made as a code ad (3D animation) from @zachhh.mp4's video in the research (1.3M views on 6K followers)"
-    },
-    {
-      "s": 17388.4,
-      "level": "info",
-      "message": "\"A short-form channel in three steps\" is ready"
+      "message": "The creative director chose 4 videos, each on what the research found: \"Template + Deploy = a team running your channel\" (organic talking head: The research's strongest formula is a numbered-steps tutorial: 2 videos with 2M views at 99-212x their accounts' followers, saved up to 5.2x as often as the pool); \"I told Naïve I'm exhausted\" (one-to-one clone (faceless): One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption); \"Two founders, one instruction: make money\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made versus animation of @mplentg's \"make money\" dare (644K views on 1.8K followers, 364x): one founder's DIY agents crash, the other's Naïve team runs); \"Gary the Potato Deploys a Company\" (brainrot meme: Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers))"
     },
     {
       "s": 18347.4,
@@ -1073,6 +1156,26 @@
       "s": 19488.4,
       "level": "info",
       "message": "\"I told Naïve I'm exhausted\" is ready"
+    },
+    {
+      "s": 21167.4,
+      "level": "info",
+      "message": "\"Template + Deploy = a team running your channel\": made as a organic talking head from @zachhh.mp4's video in the research (1.3M views on 6K followers)"
+    },
+    {
+      "s": 21168.4,
+      "level": "info",
+      "message": "\"Template + Deploy = a team running your channel\" is ready"
+    },
+    {
+      "s": 21347.4,
+      "level": "info",
+      "message": "\"Two founders, one instruction: make money\": made as a code ad (3D animation) from @mplentg's video in the research (644K views on 2K followers)"
+    },
+    {
+      "s": 21348.4,
+      "level": "info",
+      "message": "\"Two founders, one instruction: make money\" is ready"
     }
   ],
   "spend": {

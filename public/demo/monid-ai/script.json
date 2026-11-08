@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recorded": true,
-  "recordedAt": "2026-11-08T10:35:30.148Z",
+  "recordedAt": "2026-11-08T10:46:47.149Z",
   "brand": {
     "name": "Monid",
     "domain": "monid.ai",
@@ -40,7 +40,7 @@
     }
   },
   "options": {
-    "concepts": 3,
+    "concepts": 4,
     "shotsPerConcept": 2,
     "secondsPerShot": 8,
     "videoModel": "google/veo-3.1",
@@ -540,6 +540,26 @@
           "metric": null
         },
         {
+          "title": "Wait, what? Your agent can use tools it never signed up for",
+          "format": "organic talking head",
+          "reference_id": "ref_b2013465b6",
+          "angle": "The research's strongest formula is a hidden-trick quick click path: 2 videos with 2.9M views at 168x and 1814x their accounts' followers, saved up to 5.2x as often as the pool. Monid's setup really is a short click path (paste one line, discover, run, one balance), so an original on that formula, filmed with an AI creator.",
+          "hook_plan": "The research's strongest formula is a hidden-trick quick click path: 2 videos with 2.9M views at 168x and 1814x their accounts' followers, saved up to 5.2x as often as the pool. Monid's setup really is a short click path (paste one line, discover, run, one balance), so an original on that formula, filmed with an AI creator.",
+          "audience": "",
+          "role": "reach",
+          "metric": null
+        },
+        {
+          "title": "Mid-curl, your agent sets up its own tools",
+          "format": "code ad (3D animation)",
+          "reference_id": "ref_35182f2b9b",
+          "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @ai.with.ni's \"the setup nobody shows\" gap hook (1.2M views on 12K followers, 105x), set between sets at the gym.",
+          "hook_plan": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @ai.with.ni's \"the setup nobody shows\" gap hook (1.2M views on 12K followers, 105x), set between sets at the gym.",
+          "audience": "",
+          "role": "reach",
+          "metric": null
+        },
+        {
           "title": "i let my agent cook with one balance (it got greedy)",
           "format": "brainrot meme",
           "reference_id": "ref_c64c533a71",
@@ -548,19 +568,9 @@
           "audience": "",
           "role": "reach",
           "metric": null
-        },
-        {
-          "title": "A sign-up for every API, or one balance",
-          "format": "code ad (3D animation)",
-          "reference_id": "ref_da97474993",
-          "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
-          "hook_plan": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
-          "audience": "",
-          "role": "reach",
-          "metric": null
         }
       ],
-      "objective": "Get developers building agents to try the one-line setup (`set up https://monid.ai/SKILL.md`) and claim the $1 free credit, by testing 3 formats the research backs: one-to-one remake, brainrot meme, code ad (3D animation).",
+      "objective": "Get developers building agents to try the one-line setup (`set up https://monid.ai/SKILL.md`) and claim the $1 free credit, by testing 4 formats the research backs: one-to-one remake, organic talking head, code ad (3D animation), brainrot meme.",
       "posting_plan": {
         "notes": "Label every video AI-generated. Use only site facts: 2900+ tools, 97+ providers, $0.0013 example call, $1 free credit. Pin a comment with the one-line setup. Reply to 'ready' comments with the next step. Answer spend-control questions plainly: pay per call from one balance, no subscriptions.",
         "cadence": "Post 3-4 times a week across the two formats: the walkthrough and the explainer, then iterate on whichever earns more saves and comments.",
@@ -1523,6 +1533,74 @@
           }
         },
         {
+          "title": "Wait, what? Your agent can use tools it never signed up for",
+          "format": "organic talking head",
+          "hook": "Wait, what? Your agent can use thousands of tools, no sign-ups.",
+          "caption": "Wait, what? Your agent can use thousands of tools without signing up for any of them. One line, one balance, pay per call. Save this for your next agent. $1 free credit at monid.ai",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@hannahlearnsstuff/video/7702124151561063710"
+          ],
+          "why": "The research's strongest formula is a hidden-trick quick click path: 2 videos with 2.9M views at 168x and 1814x their accounts' followers, saved up to 5.2x as often as the pool. Monid's setup really is a short click path (paste one line, discover, run, one balance), so an original on that formula, filmed with an AI creator.",
+          "reference": {
+            "id": "ref_b2013465b6",
+            "url": "https://www.tiktok.com/@hannahlearnsstuff/video/7702124151561063710",
+            "author": "hannahlearnsstuff",
+            "views": 1903312,
+            "followers": 1049,
+            "outlier": 1814.4,
+            "format": "organic talking head"
+          },
+          "brief": {
+            "format": "organic talking head",
+            "role": "reach",
+            "title": "Wait, what? Your agent can use tools it never signed up for"
+          },
+          "script": {
+            "total_seconds": 20.7,
+            "beats": [],
+            "review": null
+          }
+        },
+        {
+          "title": "Mid-curl, your agent sets up its own tools",
+          "format": "code ad (3D animation)",
+          "hook": "Your agent can set up its own tools. Mid-curl.",
+          "caption": "Your agent can set up its own tools: paste one line, then it discovers, runs and pays from one balance. No sign-ups. Start free at monid.ai with a dollar of credit.",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@ai.with.ni/video/7609623318043380999"
+          ],
+          "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @ai.with.ni's \"the setup nobody shows\" gap hook (1.2M views on 12K followers, 105x), set between sets at the gym.",
+          "reference": {
+            "id": "ref_35182f2b9b",
+            "url": "https://www.tiktok.com/@ai.with.ni/video/7609623318043380999",
+            "author": "ai.with.ni",
+            "views": 1225093,
+            "followers": 11720,
+            "outlier": 104.5,
+            "format": "code ad (3D animation)"
+          },
+          "brief": {
+            "format": "code ad (3D animation)",
+            "role": "reach",
+            "title": "Mid-curl, your agent sets up its own tools"
+          },
+          "script": {
+            "total_seconds": 24.7,
+            "beats": [],
+            "review": null
+          }
+        },
+        {
           "title": "i let my agent cook with one balance (it got greedy)",
           "format": "brainrot meme",
           "hook": "POV: you told your agent to go crazy",
@@ -1554,46 +1632,6 @@
             "total_seconds": 30.6,
             "beats": [],
             "review": null
-          }
-        },
-        {
-          "title": "A sign-up for every API, or one balance",
-          "format": "code ad (3D animation)",
-          "hook": "Every API your agent needs is another sign-up, another key.",
-          "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
-          "platforms": [
-            "tiktok",
-            "instagram",
-            "youtube"
-          ],
-          "inspired_by": [
-            "https://www.tiktok.com/@cluelyextras/video/7544005050146770189"
-          ],
-          "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
-          "reference": {
-            "id": "ref_da97474993",
-            "url": "https://www.tiktok.com/@cluelyextras/video/7544005050146770189",
-            "author": "cluelyextras",
-            "views": 628239,
-            "followers": 2969,
-            "outlier": 211.6,
-            "format": "code ad (3D animation)"
-          },
-          "brief": {
-            "format": "code ad (3D animation)",
-            "role": "reach",
-            "title": "A sign-up for every API, or one balance"
-          },
-          "script": {
-            "total_seconds": 26.7,
-            "beats": [],
-            "review": null
-          },
-          "previous": {
-            "title": "A sign-up per API vs one balance",
-            "format": "code ad (3D animation)",
-            "hook": "Every API your agent needs is another sign-up, another key.",
-            "note": "the first version, before this remake"
           }
         }
       ],
@@ -1652,7 +1690,7 @@
   },
   "creatives": [
     {
-      "idx": 1,
+      "idx": 0,
       "concept": {
         "title": "We gave an agent $3 and one skill file",
         "format": "one-to-one remake",
@@ -2638,6 +2676,104 @@
       "analytics": null
     },
     {
+      "idx": 1,
+      "concept": {
+        "title": "Wait, what? Your agent can use tools it never signed up for",
+        "format": "organic talking head",
+        "hook": "Wait, what? Your agent can use thousands of tools, no sign-ups.",
+        "caption": "Wait, what? Your agent can use thousands of tools without signing up for any of them. One line, one balance, pay per call. Save this for your next agent. $1 free credit at monid.ai",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@hannahlearnsstuff/video/7702124151561063710"
+        ],
+        "why": "The research's strongest formula is a hidden-trick quick click path: 2 videos with 2.9M views at 168x and 1814x their accounts' followers, saved up to 5.2x as often as the pool. Monid's setup really is a short click path (paste one line, discover, run, one balance), so an original on that formula, filmed with an AI creator.",
+        "reference": {
+          "id": "ref_b2013465b6",
+          "url": "https://www.tiktok.com/@hannahlearnsstuff/video/7702124151561063710",
+          "author": "hannahlearnsstuff",
+          "views": 1903312,
+          "followers": 1049,
+          "outlier": 1814.4,
+          "format": "organic talking head"
+        },
+        "brief": {
+          "format": "organic talking head",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 20.7,
+          "beats": [],
+          "review": null
+        }
+      },
+      "caption": "Wait, what? Your agent can use thousands of tools without signing up for any of them. One line, one balance, pay per call. Save this for your next agent. $1 free credit at monid.ai",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 4.2,
+      "generation": 1,
+      "shots": [],
+      "video": "2.mp4",
+      "poster": "2.png",
+      "analytics": null
+    },
+    {
+      "idx": 2,
+      "concept": {
+        "title": "Mid-curl, your agent sets up its own tools",
+        "format": "code ad (3D animation)",
+        "hook": "Your agent can set up its own tools. Mid-curl.",
+        "caption": "Your agent can set up its own tools: paste one line, then it discovers, runs and pays from one balance. No sign-ups. Start free at monid.ai with a dollar of credit.",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@ai.with.ni/video/7609623318043380999"
+        ],
+        "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @ai.with.ni's \"the setup nobody shows\" gap hook (1.2M views on 12K followers, 105x), set between sets at the gym.",
+        "reference": {
+          "id": "ref_35182f2b9b",
+          "url": "https://www.tiktok.com/@ai.with.ni/video/7609623318043380999",
+          "author": "ai.with.ni",
+          "views": 1225093,
+          "followers": 11720,
+          "outlier": 104.5,
+          "format": "code ad (3D animation)"
+        },
+        "brief": {
+          "format": "code ad (3D animation)",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 24.7,
+          "beats": [],
+          "review": null
+        }
+      },
+      "caption": "Your agent can set up its own tools: paste one line, then it discovers, runs and pays from one balance. No sign-ups. Start free at monid.ai with a dollar of credit.",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0,
+      "generation": 1,
+      "shots": [],
+      "video": "3.mp4",
+      "poster": "3.png",
+      "analytics": null
+    },
+    {
       "idx": 3,
       "concept": {
         "title": "i let my agent cook with one balance (it got greedy)",
@@ -2682,63 +2818,8 @@
       "cost": 2.49,
       "generation": 1,
       "shots": [],
-      "video": "2.mp4",
-      "poster": "2.png",
-      "analytics": null
-    },
-    {
-      "idx": 4,
-      "concept": {
-        "title": "A sign-up for every API, or one balance",
-        "format": "code ad (3D animation)",
-        "hook": "Every API your agent needs is another sign-up, another key.",
-        "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
-        "platforms": [
-          "tiktok",
-          "instagram",
-          "youtube"
-        ],
-        "inspired_by": [
-          "https://www.tiktok.com/@cluelyextras/video/7544005050146770189"
-        ],
-        "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
-        "reference": {
-          "id": "ref_da97474993",
-          "url": "https://www.tiktok.com/@cluelyextras/video/7544005050146770189",
-          "author": "cluelyextras",
-          "views": 628239,
-          "followers": 2969,
-          "outlier": 211.6,
-          "format": "code ad (3D animation)"
-        },
-        "brief": {
-          "format": "code ad (3D animation)",
-          "role": "reach"
-        },
-        "script": {
-          "total_seconds": 26.7,
-          "beats": [],
-          "review": null
-        },
-        "previous": {
-          "title": "A sign-up per API vs one balance",
-          "format": "code ad (3D animation)",
-          "hook": "Every API your agent needs is another sign-up, another key.",
-          "note": "the first version, before this remake"
-        }
-      },
-      "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "youtube"
-      ],
-      "qcScore": null,
-      "cost": 0.22,
-      "generation": 2,
-      "shots": [],
-      "video": "3.mp4",
-      "poster": "3.png",
+      "video": "4.mp4",
+      "poster": "4.png",
       "analytics": null
     }
   ],
@@ -2746,7 +2827,7 @@
     {
       "s": 0,
       "level": "info",
-      "message": "Campaign started: 3 videos, 2 shots each, google/veo-3.1"
+      "message": "Campaign started: 4 videos, 2 shots each, google/veo-3.1"
     },
     {
       "s": 26.9,
@@ -2801,7 +2882,7 @@
     {
       "s": 242.2,
       "level": "info",
-      "message": "The creative director is choosing which reference videos to transplant for 3 videos"
+      "message": "The creative director is choosing which reference videos to transplant for 4 videos"
     },
     {
       "s": 306.5,
@@ -2811,7 +2892,7 @@
     {
       "s": 307,
       "level": "info",
-      "message": "The creative director chose 3 videos, each on what the research found: \"We gave an agent $3 and one skill file\" (one-to-one remake: The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s); \"i let my agent cook with one balance (it got greedy)\" (brainrot meme: Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers)); \"A sign-up for every API, or one balance\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance)"
+      "message": "The creative director chose 4 videos, each on what the research found: \"We gave an agent $3 and one skill file\" (one-to-one remake: The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s); \"Wait, what? Your agent can use tools it never signed up for\" (organic talking head: The research's strongest formula is a hidden-trick quick click path: 2 videos with 2.9M views at 168x and 1814x their accounts' followers, saved up to 5.2x as often as the pool); \"Mid-curl, your agent sets up its own tools\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @ai.with.ni's \"the setup nobody shows\" gap hook (1.2M views on 12K followers, 105x), set between sets at the gym); \"i let my agent cook with one balance (it got greedy)\" (brainrot meme: Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers))"
     },
     {
       "s": 380,
@@ -2869,14 +2950,24 @@
       "message": "\"i let my agent cook with one balance (it got greedy)\" is ready"
     },
     {
-      "s": 27186.5,
+      "s": 27426.5,
       "level": "info",
-      "message": "\"A sign-up for every API, or one balance\": made as a code ad (3D animation) from @cluelyextras's video in the research (628K views on 3K followers)"
+      "message": "\"Wait, what? Your agent can use tools it never signed up for\": made as a organic talking head from @hannahlearnsstuff's video in the research (1.9M views on 1K followers)"
     },
     {
-      "s": 27187.5,
+      "s": 27427.5,
       "level": "info",
-      "message": "\"A sign-up for every API, or one balance\" is ready"
+      "message": "\"Wait, what? Your agent can use tools it never signed up for\" is ready"
+    },
+    {
+      "s": 27486.5,
+      "level": "info",
+      "message": "\"Mid-curl, your agent sets up its own tools\": made as a code ad (3D animation) from @ai.with.ni's video in the research (1.2M views on 12K followers)"
+    },
+    {
+      "s": 27487.5,
+      "level": "info",
+      "message": "\"Mid-curl, your agent sets up its own tools\" is ready"
     }
   ],
   "spend": {
