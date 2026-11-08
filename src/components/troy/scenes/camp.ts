@@ -155,8 +155,8 @@ export type CampEvents = {
 
 /** What the soldiers call out at the big moments. */
 export const LINES = {
-  /** The first soldier out of the horse, leading the column into the camp. */
-  rollOut: "Men of Achaea, out of the horse! Let's roll out!",
+  /** The first soldier out of the horse, leading the column into the camp: the brand's men. */
+  rollOut: (brand: string | null) => `Men of ${brand?.trim() || "Achaea"}, out of the horse! Let's roll out!`,
 };
 
 export class CampScene {
@@ -184,6 +184,8 @@ export class CampScene {
   /** The column is marching in from the horse: the first plan queues everyone instead of placing them. */
   private entering = false;
   private brandId: string | null = null;
+  /** The brand the column fights for, named in the first soldier's call out of the horse. */
+  brandName: string | null = null;
   private recruited = 0;
   /** The leader has called the column out of the horse (once per camp). */
   private calledOut = false;
@@ -315,6 +317,7 @@ export class CampScene {
     this.recruited = 0;
     this.calledOut = false;
     this.brandId = null;
+    this.brandName = null;
   }
 
   show(visible: boolean) {
@@ -653,7 +656,7 @@ export class CampScene {
     // The first one out leads the column, and says so.
     if (!this.calledOut && this.entering) {
       this.calledOut = true;
-      this.say(agent.plan.id, LINES.rollOut, 3.6);
+      this.say(agent.plan.id, LINES.rollOut(this.brandName), 3.6);
     }
     const route = travel("horse", agent.plan.station, agent.lane);
     const steps: Step[] = [...out.slice(1), ...route, ...this.approach(agent.plan)];

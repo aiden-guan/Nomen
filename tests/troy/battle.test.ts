@@ -158,3 +158,14 @@ describe("the battle from the campaign", () => {
     expect(derive(view({ status: "live", creatives: [creative(0, true)] as never, posts: [post(0, "failed")] as never })).agents.find((a) => a.id === "hoplite:0:0")?.task).toMatch(/^Held back/);
   });
 });
+
+describe("illustrative numbers", () => {
+  it("says when the posts' numbers are a demo replay's illustrative ones", () => {
+    const real = deriveBattle(view({ status: "live", creatives: [creative(0, true)] as never, posts: [post(0, "posted", { views: 500, likes: 20 })] as never }));
+    expect(real.illustrative).toBe(false);
+    const shown = deriveBattle(view({ status: "live", creatives: [creative(0, true)] as never, posts: [post(0, "posted", { views: 500, likes: 20, illustrative: true })] as never }));
+    expect(shown.illustrative).toBe(true);
+    // The marker isn't a number: it is never counted as views or likes.
+    expect(shown.companies[0]).toMatchObject({ views: 500, likes: 20 });
+  });
+});

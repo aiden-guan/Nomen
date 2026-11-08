@@ -46,7 +46,7 @@ export type CampActions = {
 
 type Bubble = { id: number; station: StationId; text: string; level: string };
 
-export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string; arrived: boolean; engine: RefObject<Engine | null>; home?: string }) {
+export function Camp({ brandId, arrived, engine, home = "/", site = null }: { brandId: string; arrived: boolean; engine: RefObject<Engine | null>; home?: string; site?: string | null }) {
   const demo = brandId === DEMO_ID;
   const [liveView, setLiveView] = useState<BrandView | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   // The brand's autopilot, for the top bar's button and its drawer (none in the demo).
   const autopilot = useAutopilot(demo ? null : brandId);
   // The demo replays a campaign on a clock (./demo.ts) instead of reading the API.
-  const player = useDemo(demo, arrived);
+  const player = useDemo(demo, arrived, site);
   // The presenter's tour of the replay (camp/tour.ts): each step opens what it is about.
   const [tourCamera, setTourCamera] = useState<"world" | null>(null);
   const [tourFocus, setTourFocus] = useState<string | null>(null);
@@ -167,6 +167,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   useEffect(() => {
     const e = engine.current;
     if (!e || !view) return;
+    e.camp.brandName = view.brand.name;
     e.camp.apply(plan);
   }, [engine, view, plan]);
 
@@ -220,7 +221,10 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const shown = selected ?? focused ?? current;
   // A station's panel, a soldier's card or a drawer (brand kit, autopilot) holds the right side.
   const panel = Boolean(selected || agentId || drawer);
-  const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: panel && wide ? 440 : 0 }), [panel, wide]);
+  // The tour's card sits at the top on wide screens: the camera frames the camp below it.
+  const [tourBottom, setTourBottom] = useState(0);
+  const tourTop = wide && tourBottom > 0 ? Math.ceil((tourBottom + 12) / 24) * 24 : 0;
+  const insets = useMemo(() => ({ top: Math.max(wide ? 84 : 64, tourTop), bottom: wide ? 76 : 176, right: panel && wide ? 440 : 0 }), [panel, wide, tourTop]);
   // Picking a station closes the drawer.
   useEffect(() => {
     if (selected) setDrawer(null);
@@ -754,7 +758,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         <Screening videos={finishedVideos} references={campaign?.references ?? []} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} arrows={!tour.on} />
       )}
 
-      {arrived && demo && tour.on && <TourCard tour={tour} wide={wide} right={panel && wide && !screening ? 440 : 0} screening={Boolean(screening)} scoreboard={wide && battling && !panel} />}
+      {arrived && demo && tour.on && <TourCard tour={tour} wide={wide} screening={Boolean(screening)} onBottom={setTourBottom} />}
 
       {demo && player.notice && (
         <p role="status" className={`${styles.boxSoft} ${styles.enter} absolute left-1/2 top-[76px] z-30 -translate-x-1/2 px-3 py-1.5 text-[13px]`}>
@@ -818,6 +822,7 @@ function TopBar({
   const current = Math.max(0, STATIONS.findIndex((s) => s.id === activeStation(campaign)));
   return (
     <header
+      data-topbar
       className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 px-4 pb-6 pt-4 sm:gap-5 sm:px-6 ${visible ? styles.fadeIn : "opacity-0"}`}
       style={{ background: "linear-gradient(var(--page) 62%, rgba(246, 244, 239, 0))" }}
     >
@@ -906,7 +911,7 @@ function TopBar({
 function DemoControls({ player }: { player: DemoPlayer }) {
   const label = player.script?.recorded ? "Replay" : "Demo";
   return (
-    <div role="group" aria-label="Demo controls" className="pointer-events-auto flex shrink-0 items-center gap-[3px]">
+    <div role="group" aria-label="Demo controls" data-demo-controls className="pointer-events-auto flex shrink-0 items-center gap-[3px]">
       <span
         className={`${styles.pixel} flex h-[26px] items-center whitespace-nowrap bg-[var(--teal)] px-2 text-[12px] text-[var(--paper)]`}
         title={player.script?.recorded ? "A recorded campaign, replayed. Nothing is spent." : "A made-up campaign. Nothing is spent."}
@@ -1255,7 +1260,8 @@ function Scoreboard({ battle, category, onOpen }: { battle: BattlePlan; category
   return (
     <button type="button" onClick={onOpen} className={`${styles.box} ${styles.rise} absolute bottom-4 left-1/2 z-10 w-[min(560px,calc(100vw-420px))] -translate-x-1/2 px-4 py-2.5 text-left`}>
       <span className="flex items-center gap-2">
-        <span className={`${styles.pixel} text-[13px] font-semibold uppercase tracking-wide`}>The battle</span>
+        <span className={`${styles.pixel} shrink-0 whitespace-nowrap text-[13px] font-semibold uppercase tracking-wide`}>The battle</span>
+        {battle.illustrative && <span className={`${styles.pixel} shrink-0 bg-[var(--sand)] px-1 text-[11px] leading-[15px]`}>Illustrative</span>}
         <span className="text-[12px] text-[var(--ink-soft)]">
           {score?.ratio
             ? `${standing(score.ratio)} the top videos${category ? ` in ${category}` : ""}`
@@ -1275,7 +1281,11 @@ function Scoreboard({ battle, category, onOpen }: { battle: BattlePlan; category
         </span>
         <span className={`${styles.pixel} w-[110px] shrink-0 text-right text-[var(--crimson)]`}>Top videos {battle.benchmark ? pct(battle.benchmark.engagement) : "–"}</span>
       </span>
-      <span className="mt-1 block text-[10px] text-[var(--ink-faint)]">Likes per view of your posted videos against the median of the top videos the scouts found.</span>
+      <span className="mt-1 block text-[10px] text-[var(--ink-faint)]">
+        {battle.illustrative
+          ? "Illustrative numbers: this replay's videos weren't posted. A live campaign scores its real likes per view against the top videos the scouts found."
+          : "Likes per view of your posted videos against the median of the top videos the scouts found."}
+      </span>
     </button>
   );
 }

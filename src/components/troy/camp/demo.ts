@@ -145,6 +145,32 @@ export function marks(script: DemoScript) {
 
 const ordered = (script: DemoScript) => script.creatives.slice().sort((a, b) => a.idx - b.idx);
 
+// A recording's videos weren't posted, so they have no numbers of their own, and the battle only
+// fights once posts have numbers. The replay gives them illustrative ones instead: each video's likes
+// per view set against the recording's benchmark (the category's top videos), so the attacks end
+// differently (two ahead, one level, one behind). They are marked `illustrative: true`, and the
+// scoreboard, the agora, the soldiers' cards and the tour say so. Real numbers always win.
+
+/** Illustrative likes per view against the benchmark, by the video's place in the campaign. */
+export const ILLUSTRATIVE_RATIOS = [1.32, 1.04, 1.24, 0.78];
+/** Illustrative views, by the video's place in the campaign. */
+const ILLUSTRATIVE_VIEWS = [38_400, 21_700, 64_900, 12_300];
+
+/** Whether the replay shows illustrative numbers: a benchmark to set them against, and no real ones. */
+export function illustrativeNumbers(script: DemoScript) {
+  const bench = script.research?.benchmark;
+  return Boolean(bench && bench.views > 0 && bench.likes > 0) && script.creatives.every((c) => !c.analytics);
+}
+
+function illustrativeAnalytics(script: DemoScript, idx: number): Record<string, number> | null {
+  const bench = script.research?.benchmark;
+  if (!bench || !illustrativeNumbers(script)) return null;
+  const k = Math.max(0, ordered(script).findIndex((c) => c.idx === idx));
+  const views = ILLUSTRATIVE_VIEWS[k % ILLUSTRATIVE_VIEWS.length];
+  const likes = Math.round(views * (bench.likes / bench.views) * ILLUSTRATIVE_RATIOS[k % ILLUSTRATIVE_RATIOS.length]);
+  return { views, likes };
+}
+
 /** Stand-ins for the running ads the scouts found, each with its advertiser where the recording knows it. */
 function rivalAds(research: NonNullable<DemoScript["research"]>) {
   const known = (research.rivalAds ?? []).flatMap((r) => Array.from({ length: r.ads }, () => ({ advertiser: r.name })));
@@ -337,7 +363,7 @@ export function replay(script: DemoScript, state: DemoState): BrandView {
         });
 
   // Posting: queued when you send them, then out (now) or on the calendar (one a day).
-  const posts: Array<{ id: string; creativeId: string; platforms: string[]; scheduledAt: string | null; status: string; error: null; analytics: Record<string, number> | null }> = [];
+  const posts: Array<{ id: string; creativeId: string; platforms: string[]; scheduledAt: string | null; status: string; error: null; analytics: Record<string, number | boolean> | null }> = [];
   const live: Array<{ at: number; message: string }> = [];
   const pub = state.publish;
   if (pub && t >= pub.at) {
@@ -348,15 +374,17 @@ export function replay(script: DemoScript, state: DemoState): BrandView {
       const platforms = c.platforms.length ? c.platforms : ["tiktok"];
       let status: string;
       let scheduledAt: string | null = null;
-      let analytics: Record<string, number> | null = null;
+      let analytics: Record<string, number | boolean> | null = null;
       if (pub.mode === "now") {
         const sent = pub.at + 1 + j * 1.2;
         const out = pub.at + 4 + j * 1.5;
         status = t < sent ? "pending" : t < out ? "processing" : "posted";
         if (t >= sent) live.push({ at: sent, message: `Post submitted: ${platforms.join(", ")}` });
-        if (status === "posted" && c.analytics) {
+        const numbers = c.analytics ?? illustrativeAnalytics(script, c.idx);
+        if (status === "posted" && numbers) {
           const grown = between(out, out + 12, t);
-          analytics = Object.fromEntries(Object.entries(c.analytics).map(([name, value]) => [name, Math.round(value * grown)]));
+          analytics = Object.fromEntries(Object.entries(numbers).map(([name, value]) => [name, Math.round(value * grown)]));
+          if (!c.analytics) analytics.illustrative = true;
         }
       } else {
         const sent = pub.at + 1.5 + j * 0.8;

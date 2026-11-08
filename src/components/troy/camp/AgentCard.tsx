@@ -229,6 +229,7 @@ function Dossier({ agent, info, view, plan }: { agent: AgentPlan; info: AgentInf
                 {company.views !== null && (
                   <p className="mt-1.5 text-[11px] text-[var(--ink-faint)]">
                     {company.views.toLocaleString()} views · {(company.likes ?? 0).toLocaleString()} likes
+                    {battle.illustrative ? " (illustrative)" : ""}
                   </p>
                 )}
               </div>

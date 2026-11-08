@@ -5,6 +5,8 @@ import {
   type DemoScript,
   type DemoState,
   freshState,
+  ILLUSTRATIVE_RATIOS,
+  illustrativeNumbers,
   isScript,
   jump,
   limit,
@@ -265,5 +267,35 @@ describe("loading a recording", () => {
     expect(await loadDemoScript("acme.example")).toBe(SAMPLE);
     serve({ "/demo/index.json": { scripts: [{ id: "../etc", domain: "acme.example" }] } });
     expect(await loadDemoScript("acme.example")).toBe(SAMPLE);
+  });
+});
+
+describe("illustrative numbers", () => {
+  // A recording's videos weren't posted: no numbers of their own, so the replay gives them some.
+  const unposted: DemoScript = { ...SAMPLE, recorded: true, creatives: SAMPLE.creatives.map((c) => ({ ...c, analytics: null })) };
+
+  /** Approves and posts every video at the review, then runs the clock to the end. */
+  function posted(script: DemoScript) {
+    const review = at(timeline(script).review);
+    return play(script, publish(script, approveAll(script, review), "now"), 40);
+  }
+
+  it("gives a recording without numbers illustrative ones against its benchmark, and marks them", () => {
+    expect(illustrativeNumbers(unposted)).toBe(true);
+    const battle = derive(replay(unposted, posted(unposted))).battle;
+    expect(battle.illustrative).toBe(true);
+    const order = unposted.creatives.slice().sort((a, b) => a.idx - b.idx);
+    battle.companies.forEach((company) => {
+      const k = order.findIndex((c) => c.idx === company.idx);
+      expect(company.ratio).toBeCloseTo(ILLUSTRATIVE_RATIOS[k % ILLUSTRATIVE_RATIOS.length], 2);
+    });
+  });
+
+  it("keeps real numbers, and makes none up without a benchmark", () => {
+    expect(illustrativeNumbers(SAMPLE)).toBe(false);
+    expect(derive(replay(SAMPLE, posted(SAMPLE))).battle.illustrative).toBe(false);
+    const noBenchmark: DemoScript = { ...unposted, research: unposted.research && { ...unposted.research, benchmark: null } };
+    expect(illustrativeNumbers(noBenchmark)).toBe(false);
+    expect(replay(noBenchmark, posted(noBenchmark)).campaign!.posts.every((p) => p.analytics === null)).toBe(true);
   });
 });

@@ -26,6 +26,8 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
   const [site, setSite] = useState("");
+  /** The website the demo replays, as typed at the horse (the camp mounts before the address says it). */
+  const [demoSite, setDemoSite] = useState<string | null>(null);
   const [shakeKey, setShakeKey] = useState(0);
   const [brands, setBrands] = useState<BrandListItem[] | null>(null);
   const [arrived, setArrived] = useState(initialView === "camp");
@@ -160,6 +162,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
         const result = demoOnly ? await new Promise<{ brandId: string }>((resolve) => setTimeout(() => resolve({ brandId: DEMO_ID }), 700)) : await startCampaign(site);
         clearInterval(knocking);
         setBrandId(result.brandId);
+        setDemoSite(result.brandId === DEMO_ID ? checked.domain : null);
         setPhase("opening");
         // The demo camp replays the recording for this website, if one is installed.
         const href = result.brandId === DEMO_ID ? `/camp/${DEMO_ID}?site=${encodeURIComponent(checked.domain)}` : `/camp/${encodeURIComponent(result.brandId)}`;
@@ -257,7 +260,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
       )}
 
       {/* The camp mounts as the doors open, so its agents are ready to march out when the plank lands. */}
-      {engineReady && brandId && (view === "camp" || phase === "opening" || phase === "marching") && <Camp brandId={brandId} arrived={arrived} engine={engine} home={home} />}
+      {engineReady && brandId && (view === "camp" || phase === "opening" || phase === "marching") && <Camp brandId={brandId} arrived={arrived} engine={engine} home={home} site={demoSite} />}
 
       <p className="sr-only" aria-live="polite">
         {phase === "opening" ? "The gates are opening. Your agents are on their way." : ""}

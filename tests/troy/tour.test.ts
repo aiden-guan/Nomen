@@ -106,3 +106,14 @@ describe("the clock under the tour", () => {
     expect(seek(SAMPLE, posted, tl.strategy[0])).toMatchObject({ t: tl.strategy[0], approved: {}, publish: null });
   });
 });
+
+describe("the battle step", () => {
+  it("says when the replay's numbers are illustrative, and never otherwise", () => {
+    const battle = (script: DemoScript) => tourSteps(script).find((s) => s.key === "battle")!.body;
+    expect(battle(recording)).toMatch(/never made up/);
+    expect(battle(recording)).not.toMatch(/illustrative/);
+    const unposted: DemoScript = { ...recording, creatives: recording.creatives.map((c) => ({ ...c, analytics: null })) };
+    expect(battle(unposted)).toMatch(/numbers here are illustrative/);
+    expect(battle(unposted)).not.toMatch(/never made up/);
+  });
+});

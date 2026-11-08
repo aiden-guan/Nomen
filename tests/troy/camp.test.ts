@@ -122,6 +122,16 @@ describe("the march into the camp", () => {
     expect(internals.agents.get("lookout")!.entity.z).toBeGreaterThan(25);
   });
 
+  it("has the first soldier out call the brand's men out of the horse", () => {
+    const { camp, run: tick } = world(true);
+    const said: string[] = [];
+    camp.events.onSay = (line) => said.push(line.text);
+    camp.brandName = "Naïve";
+    camp.apply(derive(view({ runs: [run("brand", "pending", "A")] })));
+    tick(3);
+    expect(said[0]).toBe("Men of Naïve, out of the horse! Let's roll out!");
+  });
+
   it("places everyone at once when the camp is opened directly", async () => {
     const { STATION } = await import("@/components/troy/scenes/layout");
     const { stage, camp, internals } = world(false);

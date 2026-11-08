@@ -1,5 +1,5 @@
 import { LANDS, landFor, type StationId } from "../scenes/layout";
-import { type DemoScript, timeline } from "./demo";
+import { type DemoScript, illustrativeNumbers, timeline } from "./demo";
 
 // The presenter's tour of a replayed campaign: one step per part of the work, from the website
 // going in to the posts coming back. Each step moves the demo clock to its part, opens the station
@@ -200,10 +200,13 @@ export function tourSteps(script: DemoScript): TourStep[] {
   });
 
   const bench = research?.benchmark;
+  const scored = illustrativeNumbers(script)
+    ? "In a live campaign it is scored on its real likes per view; this replay's videos weren't posted, so the numbers here are illustrative."
+    : "Scored on its real likes per view, never made up.";
   steps.push({
     key: "battle",
     title: "Into battle",
-    body: `Every video sails as a company against ${script.plan?.competitors?.[0]?.name ?? "the rival"}'s city. Once its posts have numbers, it fights the category's top videos${bench ? ` (${count(bench.views)} median views, ${((bench.likes / Math.max(1, bench.views)) * 100).toFixed(1)}% likes per view)` : ""}: scored on its real likes per view, never made up.`,
+    body: `Every video sails as a company against ${script.plan?.competitors?.[0]?.name ?? "the rival"}'s city. Once its posts have numbers, it fights the category's top videos${bench ? ` (${count(bench.views)} median views, ${((bench.likes / Math.max(1, bench.views)) * 100).toFixed(1)}% likes per view)` : ""}. ${scored}`,
     hold: "end",
     station: null,
   });

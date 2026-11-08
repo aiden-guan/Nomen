@@ -170,7 +170,7 @@ export class Expedition {
   private readonly missiles: Missile[] = [];
   private readonly puffs: Puff[] = [];
   private readonly scenery: Array<{ entity: Entity; box: { x0: number; y0: number; x1: number; y1: number } }> = [];
-  private plan: BattlePlan = { phase: "none", companies: [], rival: null, benchmark: null, score: null };
+  private plan: BattlePlan = { phase: "none", companies: [], rival: null, benchmark: null, score: null, illustrative: false };
   private enlisted: Enlisted[] = [];
   private runs: Run[] = [];
   private time = 0;
@@ -332,7 +332,7 @@ export class Expedition {
     this.runs = [];
     this.timers.length = 0;
     this.enlisted = [];
-    this.plan = { phase: "none", companies: [], rival: null, benchmark: null, score: null };
+    this.plan = { phase: "none", companies: [], rival: null, benchmark: null, score: null, illustrative: false };
     this.won = false;
     this.called.clear();
     for (const ship of this.ships) {

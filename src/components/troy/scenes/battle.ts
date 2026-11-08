@@ -7,7 +7,9 @@ import { ROME_BERTHS_B } from "./layout";
 //
 // What the battle shows is a real comparison, never a made-up one: likes per view of each posted
 // video against the median likes per view of the top videos the scouts found in the category.
-// Where either number is missing, the battle shows no result for it.
+// Where either number is missing, the battle shows no result for it. A demo replay of a recording
+// without real numbers gives its posts illustrative ones (camp/demo.ts), marked `illustrative: true`
+// in the analytics; the plan says so, and everything that shows the numbers labels them.
 
 export type CompanyState = "formed" | "approved" | "sent" | "engaged" | "failed";
 
@@ -38,6 +40,8 @@ export type BattlePlan = {
   benchmark: { engagement: number; videos: number } | null;
   /** All the posted videos together, against the benchmark. */
   score: { views: number; likes: number; engagement: number; ratio: number | null } | null;
+  /** The posts' numbers are illustrative (a demo replay's), not real ones. */
+  illustrative: boolean;
 };
 
 /** A company that does at least this well against the benchmark routs the Romans facing it. */
@@ -90,7 +94,7 @@ export function benchmarkOf(campaign: CampaignView | null): BattlePlan["benchmar
 
 export function deriveBattle(view: BrandView | null): BattlePlan {
   const campaign = view?.campaign ?? null;
-  const none: BattlePlan = { phase: "none", companies: [], rival: null, benchmark: null, score: null };
+  const none: BattlePlan = { phase: "none", companies: [], rival: null, benchmark: null, score: null, illustrative: false };
   if (!campaign) return none;
   const benchmark = benchmarkOf(campaign);
 
@@ -102,6 +106,7 @@ export function deriveBattle(view: BrandView | null): BattlePlan {
 
   let views = 0;
   let likes = 0;
+  let illustrative = false;
   const companies: Company[] = campaign.creatives
     .filter((c) => c.status === "ready")
     .slice()
@@ -112,6 +117,7 @@ export function deriveBattle(view: BrandView | null): BattlePlan {
       const going = posts.some((p) => p.status === "pending" || p.status === "scheduled" || p.status === "processing");
       const failed = posts.length > 0 && posts.every((p) => p.status === "failed");
       const state: CompanyState = posted.length ? "engaged" : going ? "sent" : failed ? "failed" : creative.approved ? "approved" : "formed";
+      if (posted.some((post) => (post.analytics as { illustrative?: unknown } | null)?.illustrative === true)) illustrative = true;
       const counted = posted.map((post) => postNumbers(post.analytics as Record<string, unknown> | null)).filter((n) => n !== null);
       const ownViews = counted.reduce((sum, n) => sum + n.views, 0);
       const ownLikes = counted.reduce((sum, n) => sum + n.likes, 0);
@@ -133,7 +139,7 @@ export function deriveBattle(view: BrandView | null): BattlePlan {
 
   const phase = companies.some((c) => c.state === "engaged") ? "clash" : companies.some((c) => c.state === "sent") ? "advance" : "muster";
   const score = views > 0 ? { views, likes, engagement: likes / views, ratio: benchmark ? likes / views / benchmark.engagement : null } : null;
-  return { phase, companies, rival, benchmark, score };
+  return { phase, companies, rival, benchmark, score, illustrative };
 }
 
 /** How a company's attack ends: it routs the legion, holds level, or is thrown back; null until its numbers are in. */

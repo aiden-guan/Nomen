@@ -39,7 +39,7 @@ const TICK_MS = 250;
  * ← goes back a step, R starts over, A turns autoplay on or off. ?auto=1 starts with autoplay
  * on and ?speed=1.5 runs the clock faster.
  */
-export function useDemo(enabled: boolean, arrived: boolean): DemoPlayer {
+export function useDemo(enabled: boolean, arrived: boolean, site: string | null = null): DemoPlayer {
   const [script, setScript] = useState<DemoScript | null>(null);
   const [state, setState] = useState<DemoState>(() => freshState());
   const [playing, setPlaying] = useState(true);
@@ -60,11 +60,13 @@ export function useDemo(enabled: boolean, arrived: boolean): DemoPlayer {
     setAuto(params.get("auto") === "1");
     const asked = Number(params.get("speed"));
     speed.current = Number.isFinite(asked) && asked > 0 ? Math.min(4, Math.max(0.25, asked)) : 1;
-    void loadDemoScript(params.get("site")).then((loaded) => alive && setScript(loaded));
+    // The site typed at the horse, else ?site=: the camp mounts while the doors open, before the
+    // address changes to ?site=, so the landing passes it in.
+    void loadDemoScript(site ?? params.get("site")).then((loaded) => alive && setScript(loaded));
     return () => {
       alive = false;
     };
-  }, [enabled]);
+  }, [enabled, site]);
 
   // The clock starts when the column reaches the camp.
   useEffect(() => {

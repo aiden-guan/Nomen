@@ -770,6 +770,7 @@ function Battle({ battle, category }: { battle: BattlePlan; category: string | n
         <p className="mt-1.5 text-[11px] text-[var(--ink-faint)]">
           {battle.benchmark ? `Median of ${battle.benchmark.videos} top videos.` : "Too few of the top videos had numbers to compare against."}
           {battle.score ? ` Yours: ${battle.score.likes.toLocaleString()} likes on ${battle.score.views.toLocaleString()} views.` : " Yours show here once posts have numbers."}
+          {battle.illustrative ? " Yours are illustrative: this replay's videos weren't posted." : ""}
         </p>
       </div>
       <ul className="mt-3 space-y-1.5">
