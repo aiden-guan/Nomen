@@ -31,7 +31,7 @@ import type { Concept } from "@/lib/strategy";
 // (Naive, cached in script.json) and one vision call, then stops at the cost guard. A rerun resumes
 // from the kept files without paying again; set NOMEN_REMAKE_TAG to something new for a fresh take.
 //
-// Options: NOMEN_REMAKE_MAX_USD (the cap), NOMEN_REMAKE_VOICE_MATCH=1 (speech-to-speech each render's
+// Options: NOMEN_REMAKE_MAX_USD (the cap), NOMEN_REMAKE_UNTIL (remake the reference up to this second), NOMEN_REMAKE_VOICE_MATCH=1 (speech-to-speech each render's
 // voice into the persona's one voice), NOMEN_REMAKE_FINISH=0 (no picture and sound finish, to A/B),
 // NOMEN_REMAKE_PRESENTER (kling-native, kling-motion or naive:<model>).
 
@@ -128,7 +128,8 @@ describe.skipIf(!live)("one-to-one remake, footage clone (live, paid)", () => {
       const kit = getBrandKit(campaign.brand_id);
       const referencePath = join(data, "media", "references", c.file);
       expect(existsSync(referencePath), `save the reference as ${referencePath}`).toBe(true);
-      const span = remakeSpan(breakdown.beats, c.until);
+      const until = Number(process.env.NOMEN_REMAKE_UNTIL) || c.until;
+      const span = remakeSpan(breakdown.beats, until);
       const tag = process.env.NOMEN_REMAKE_TAG ?? "v1";
       const out = join(data, "media", "remake-live", `${c.name}-${tag}`);
       const files = folderFiles(join(out, "kept"));
@@ -188,7 +189,7 @@ describe.skipIf(!live)("one-to-one remake, footage clone (live, paid)", () => {
             },
             product,
             kit: kit.assets.length || kit.repo ? kit : null,
-            until: c.until,
+            until,
             maxUsd: mode === "plan" ? 0 : Number(process.env.NOMEN_REMAKE_MAX_USD ?? c.maxUsd),
             presenter: process.env.NOMEN_REMAKE_PRESENTER ?? "kling-native",
             voice: "fresh",
