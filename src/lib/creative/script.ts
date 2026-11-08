@@ -5,7 +5,7 @@ import { extractJson } from "../research";
 import { isTall } from "./plan";
 import type { BeatJob, CreativeBrief, ProductBrief, ReferenceBreakdown, Script, ScriptBeat } from "./types";
 
-// The script room: a writer transplants a proven video's structure onto our product, a linter
+// The script room: a writer remakes a proven viral video for our product, as close to it as the truth allows, a linter
 // catches what makes scripts sound like AI, and a critic sends weak drafts back. The reference's
 // mechanics are kept (beats, timing, hook, rhythm, delivery); its words, people and footage never are.
 
@@ -114,9 +114,9 @@ const CRITIC_TOOL = {
         required: ["sounds_human", "hook", "product_clarity", "fidelity_to_reference", "specificity"],
         properties: {
           sounds_human: { type: "integer", description: "1-10: would a real creator say every line out loud like this?" },
-          hook: { type: "integer", description: "1-10: does beat 1 stop the scroll as well as the reference's hook?" },
+          hook: { type: "integer", description: "1-10: does beat 1 keep the reference's hook (its words and mechanic) and stop the scroll as well?" },
           product_clarity: { type: "integer", description: "1-10: after watching, does a stranger know what the product is and why they'd want it?" },
-          fidelity_to_reference: { type: "integer", description: "1-10: same structure, timing, rhythm and delivery as the reference (with new words)?" },
+          fidelity_to_reference: { type: "integer", description: "1-10: how close is it to the reference: same hook, beats, timing, wording, shots and delivery, changed only where the product requires it?" },
           specificity: { type: "integer", description: "1-10: concrete details from the brief instead of generic claims?" },
         },
       },
@@ -133,26 +133,27 @@ export type ScriptContext = { product: ProductBrief; brief: CreativeBrief; refer
 
 function writerSystem() {
   return [
-    "You write short-form video scripts that sound like a real person talking into their phone. You work by transplanting a proven video onto a new product: the reference's structure, timing, hook mechanic, sentence rhythm and delivery stay; the topic, words and product are ours.",
+    "You remake proven viral short videos for a new product. You are given one reference video that already went viral, broken down beat by beat with its exact transcript, and a product. Your job is to replicate that video as closely as possible so it earns the same retention: same hook, same beats, same lines, same timing, same shots, same on-screen text style and delivery, with an AI creator in place of the original person. Change only what has to change to make it about this product and true.",
     "",
-    "How to transplant:",
-    "- Mirror the reference beat by beat: the same jobs in the same order (hook, problem, demo...), similar seconds per beat, the same hook mechanic, the same kind of sentences (if the reference talks in short fragments, so do you; if it asks a question first, so do you).",
-    "- Match its delivery: register, energy, how casual it is. If it uses on-screen text for the hook, write on-screen text too.",
-    "- Never reuse more than four words in a row from the reference's lines or on-screen text. New words, same mechanics.",
+    "How to replicate:",
+    "- Keep the reference's beats one for one: the same number of beats, in the same order, with the same jobs and the same seconds per beat (round to 0.5 s).",
+    "- Keep the hook word for word where you can. Swap only the parts that are about their product or topic for this product's equivalent. \"POV: you just found the app that does your taxes in 5 minutes\" becomes \"POV: you just found the API that pays for every tool your agent uses\".",
+    "- Keep every line's wording, sentence shape, length and slang. Swap their product, their features and their specifics for this product's, using the product brief. If a line is generic (\"wait for it\", \"this is insane\", \"okay so\"), keep it exactly.",
+    "- Keep their on-screen text the same way: same wording and style, product details swapped.",
+    "- Keep their delivery: energy, pace, pauses, filler words. If they talk fast, you talk fast.",
+    "- Keep their visuals: where they show their product, an app screen or a demo, show this product's matching visual. Where they are on camera, the creator is on camera doing the same action with the same expression.",
     "",
-    "How real people talk:",
-    "- Contractions, fragments, plain words. One idea per sentence. Concrete nouns and numbers from the brief. A little filler is fine where a person would use it (\"okay so\", \"honestly\", \"wait\"), at most once per video.",
-    "- Never use ad-copy or AI phrases: game changer, revolutionize, unlock, elevate, seamless, effortless, say goodbye to, introducing, look no further, next level, supercharge, streamline, empower, leverage, dive in, whether you're, you won't believe, trust me, must-have, all-in-one, cutting-edge, the secret to, here's the thing, tired of, imagine, the best part, it's that simple, but wait, transform, journey, innovative, solution.",
-    "- No em dashes, no emojis, at most one exclamation mark in the whole script.",
-    "- Speak at 2.3-3.0 words per second (a 6 second beat is 14-18 words at most). The hook line is at most 12 words and lands in the first 3 seconds; don't open with the brand name.",
-    "",
-    "Truth:",
-    "- These ads are posted by the brand on its own accounts and labeled AI-generated. The speaker can show, explain and react to the product; they never claim a personal history with it: no \"I've been using it for months\", no personal results, no ratings or reviews.",
+    "What never carries over:",
+    "- Their claims about themselves or their product. If the reference says \"this saved me $400\" or \"I've used it for 6 months\", that is not true of this product: replace it with a real fact from the product brief that plays the same role (a number, a feature, the price, the free tier). These ads are posted by the brand on its own accounts and labeled AI-generated, so the speaker never claims a personal history with the product, personal results, ratings or reviews.",
     "- Every factual claim, number and price must come from the brief's claims, proof, offer or features. If the brief doesn't say it, don't say it.",
+    "- Their brand names, handles, people's names and other brands' trademarks.",
+    "",
+    "Sounding human:",
+    "- If the reference doesn't use them, avoid ad-copy and AI phrases: game changer, revolutionize, unlock, elevate, seamless, effortless, say goodbye to, introducing, look no further, next level, supercharge, streamline, empower, leverage, dive in, whether you're, must-have, all-in-one, cutting-edge, transform, journey, innovative, solution. No em dashes, no emojis.",
     "",
     "Showing the product:",
-    "- Real footage of the product exists only as the listed visuals (ids like p1, s2). Put the product on screen whenever the line is about what it does: at least 40% of the video's seconds must be product or split beats, and the demo or reveal beats must show the visual that matches the words.",
-    "- Creator beats are for the hook, the problem and reactions. Their direction is one small, calm action and an expression (a slight smile, a raised eyebrow, a small nod, leaning back). No pointing at the lens, no thumbs up, no fast head turns, no hands near the face.",
+    "- Real footage of the product exists only as the listed visuals (ids like p1, s2). Every beat where the reference cuts away to a product, a screen or a demo shows this product's best-matching visual. If the reference never cuts away, still show the product on the beat that names what it does.",
+    "- Creator beats: the reference's action and expression, kept small and calm (video models distort big gestures): no pointing at the lens, no thumbs up, no fast head turns, no hands near the face.",
     "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; talking_head_broll mixes creator and product beats.",
     "",
     "Call the script tool once with every beat.",
@@ -211,9 +212,9 @@ async function critique(naive: NaiveClient, ctx: ScriptContext, script: Script, 
     model: QC_MODEL,
     max_tokens: 3000,
     system: [
-      "You are a short-form creative director who has watched ten thousand TikToks. You review scripts before anything is filmed. You are strict: most AI-written scripts sound like ads, and ads get scrolled past.",
-      "Read every line out loud in your head. Fail anything a real person wouldn't say, anything generic that could sell any product, a hook weaker than the reference's, product beats whose visual doesn't match the words, and claims not in the product brief.",
-      "If the overall score is below 8, write the complete revised script that fixes every problem, following the same rules as the writer (transplant the reference's mechanics with new words, 2.3-3.0 words per second, product on screen for at least 40% of the time, no personal-history claims). Call the script_review tool once.",
+      "You are a short-form creative director who has watched ten thousand TikToks. You check remakes of viral videos before anything is filmed. The goal is a remake so close to the reference that it earns the same retention, adapted to a new product.",
+      "Compare the script to the reference beat by beat. Fail: beats that drift from the reference (different order, timing, jobs or shots), a hook that changed more than it had to, lines rewritten into different words when the reference's wording could have stayed, anything that sounds like an ad instead of the reference's voice, product beats whose visual doesn't match the words, claims or numbers not in the product brief, and any personal-history claim (past use, personal results, reviews) carried over from the reference.",
+      "If the overall score is below 8, write the complete revised script that fixes every problem, following the same rules as the writer (replicate the reference as closely as possible, swap only what must change for this product, keep every claim true to the brief). Call the script_review tool once.",
     ].join("\n"),
     messages: [
       {
@@ -279,59 +280,60 @@ export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptCo
 
 const words = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}'$%]+/gu, " ").trim().split(/\s+/).filter(Boolean);
 
-function ngrams(text: string, n: number) {
-  const list = words(text);
-  const out = new Set<string>();
-  for (let i = 0; i + n <= list.length; i++) out.add(list.slice(i, i + n).join(" "));
-  return out;
-}
-
 /** Everything a machine can check before a person (or a critic) reads it. Empty means clean. */
 export function lintScript(script: Script, ctx: ScriptContext): string[] {
   const issues: string[] = [];
   const spoken = script.beats.map((beat) => beat.line).join(" ");
   const allText = `${spoken} ${script.beats.map((b) => b.on_screen_text).join(" ")}`.toLowerCase();
+  const reference = ctx.reference;
+  const referenceText = `${reference.transcript} ${reference.beats.map((b) => `${b.line} ${b.on_screen_text}`).join(" ")}`.toLowerCase();
+  const has = (text: string, phrase: string) => new RegExp(`\\b${phrase.replace(/[-?]/g, (c) => `\\${c}`)}`, "i").test(text);
 
-  for (const phrase of BANNED) if (new RegExp(`\\b${phrase.replace(/[-?]/g, (c) => `\\${c}`)}`, "i").test(allText)) issues.push(`AI/ad phrase "${phrase}"`);
-  for (const pattern of TESTIMONIAL) if (pattern.test(spoken)) issues.push(`personal-history claim (${pattern.source}): the creator can't claim past use or results`);
+  // Ad-copy phrases are out, unless the viral reference itself says them (then they're its voice).
+  for (const phrase of BANNED) if (has(allText, phrase) && !has(referenceText, phrase)) issues.push(`AI/ad phrase "${phrase}" (not in the reference)`);
+  for (const pattern of TESTIMONIAL) if (pattern.test(spoken)) issues.push(`personal-history claim (${pattern.source}): replace it with a fact from the product brief`);
   if (/\p{Extended_Pictographic}/u.test(allText)) issues.push("emoji in the script");
-  if ((spoken.match(/!/g) ?? []).length > 1) issues.push("more than one exclamation mark");
 
-  // New words: no run of 5+ words lifted from the reference.
-  const referenceText = `${ctx.reference.transcript} ${ctx.reference.beats.map((b) => `${b.line} ${b.on_screen_text}`).join(" ")}`;
-  const lifted = [...ngrams(allText, 5)].filter((gram) => ngrams(referenceText, 5).has(gram));
-  if (lifted.length) issues.push(`copies the reference word for word: "${lifted[0]}"`);
-
-  // Numbers must come from the brief.
+  // Numbers must come from the brief: a number carried over from the reference is their claim, not ours.
   const briefText = JSON.stringify({ claims: ctx.product.claims, proof: ctx.product.proof, offer: ctx.product.offer, features: ctx.product.features, one_liner: ctx.product.one_liner }).toLowerCase().replace(/(\d),(?=\d{3})/g, "$1");
   for (const number of spoken.match(/\$?\d[\d,.]*\s*(?:%|x|k|m)?/gi) ?? []) {
     const digits = number.replace(/[^\d.]/g, "");
     if (digits && !briefText.includes(digits)) issues.push(`the number "${number.trim()}" is not in the product brief`);
   }
 
-  const first = script.beats[0];
-  if (first) {
-    if (words(first.line).length > 12) issues.push(`hook line is ${words(first.line).length} words (max 12)`);
-    if (first.seconds > 3.5) issues.push(`hook beat is ${first.seconds}s (keep it under 3.5s)`);
-    const name = ctx.product.name.toLowerCase();
-    if (name && words(first.line).slice(0, 3).join(" ").includes(name)) issues.push("the hook opens with the brand name");
-  }
-  for (const beat of script.beats) {
-    const count = words(beat.line).length;
-    if (count && count / beat.seconds > 3.4) issues.push(`beat ${beat.n} is too fast: ${count} words in ${beat.seconds}s`);
-    if (words(beat.on_screen_text).length > 8) issues.push(`beat ${beat.n} on-screen text is over 8 words`);
+  // Their names and handles never carry over.
+  const theirs = [reference.author, ...[...referenceText.matchAll(/@([\w.]{3,30})/g)].map((m) => m[1])].filter((name) => name && name.length > 2 && !ctx.product.name.toLowerCase().includes(name.toLowerCase()));
+  for (const name of theirs) if (has(allText, name.toLowerCase())) issues.push(`mentions the reference's handle or name "${name}"`);
+
+  // Replication: same beats, same timing.
+  if (reference.beats.length) {
+    if (Math.abs(script.beats.length - reference.beats.length) > 1) issues.push(`${script.beats.length} beats vs the reference's ${reference.beats.length}: keep its beats one for one`);
+    const refHook = reference.beats[0];
+    const hook = script.beats[0];
+    if (refHook && hook && Math.abs(hook.seconds - (refHook.end - refHook.start)) > 1.5) issues.push(`hook beat is ${hook.seconds}s vs the reference's ${(refHook.end - refHook.start).toFixed(1)}s`);
   }
 
-  if (ctx.brief.format === "talking_head_broll") {
-    const productSeconds = script.beats.filter((b) => b.visual !== "creator").reduce((sum, b) => sum + b.seconds, 0);
-    if (ctx.product.visuals.length && productSeconds < script.total_seconds * 0.4) issues.push(`the product is on screen for ${Math.round(productSeconds)}s of ${script.total_seconds}s (needs 40%)`);
+  // Pace: as fast as the reference, not faster than a person can say it.
+  const referenceWps = reference.pacing.words_per_minute ? reference.pacing.words_per_minute / 60 : 2.8;
+  const maxWps = Math.max(3.4, referenceWps * 1.15);
+  for (const beat of script.beats) {
+    const count = words(beat.line).length;
+    if (count && count / beat.seconds > maxWps) issues.push(`beat ${beat.n} is too fast: ${count} words in ${beat.seconds}s`);
+    if (words(beat.on_screen_text).length > 12) issues.push(`beat ${beat.n} on-screen text is over 12 words`);
   }
-  if (Math.abs(script.total_seconds - ctx.targetSeconds) > 4) issues.push(`total ${script.total_seconds}s vs target ${ctx.targetSeconds}s`);
-  if (!script.beats.some((b) => b.job === "cta")) issues.push("no call to action beat");
+
+  // The product has to appear: on every beat where the reference cut away, and at least once.
+  if (ctx.product.visuals.length && ctx.brief.format === "talking_head_broll") {
+    if (!script.beats.some((b) => b.visual !== "creator")) issues.push("the product is never on screen");
+    const cutaways = reference.beats.filter((b) => b.shot !== "talking_head" && b.shot !== "reaction").length;
+    const ours = script.beats.filter((b) => b.visual !== "creator").length;
+    if (cutaways > ours + 1) issues.push(`the reference cuts away ${cutaways} times, this script shows the product ${ours} times`);
+  }
+  if (Math.abs(script.total_seconds - ctx.targetSeconds) > 4) issues.push(`total ${script.total_seconds}s vs the reference's ${ctx.targetSeconds}s`);
   return issues;
 }
 
-/** How long the video should run: the reference's length, kept to 12-30 s. */
+/** How long the video should run: the reference's own length, kept to 8-40 s (render cost). */
 export function targetSeconds(reference: Pick<ReferenceBreakdown, "duration">) {
-  return Math.round(Math.min(30, Math.max(12, reference.duration || 18)));
+  return Math.round(Math.min(40, Math.max(8, reference.duration || 18)));
 }

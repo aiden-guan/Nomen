@@ -102,31 +102,41 @@ describe("script normalizing and linting", () => {
     expect(script.beats[0].line).toBe("wait, what");
   });
 
-  it("catches ad copy, fake testimonials, copied lines, invented numbers and fast talking", () => {
+  it("catches ad copy, fake testimonials, invented numbers, their handle, fast talking and a missing product", () => {
     const bad = normalizeScript(
       [
         { n: 1, job: "hook", seconds: 2, line: "Monid is a total game changer for every single developer on earth today honestly", on_screen_text: "", visual: "creator", product_visual: null, direction: "" },
-        { n: 2, job: "demo", seconds: 3, line: "I've been using it for 3 months and it finds the tool and pays per call for you", on_screen_text: "", visual: "creator", product_visual: null, direction: "" },
+        { n: 2, job: "demo", seconds: 3, line: "I've been using it for 3 months, shout out to @dev", on_screen_text: "", visual: "creator", product_visual: null, direction: "" },
         { n: 3, job: "proof", seconds: 2, line: "It saves 90% instantly", on_screen_text: "", visual: "creator", product_visual: null, direction: "" },
+        { n: 4, job: "other", seconds: 2, line: "ok", on_screen_text: "", visual: "creator", product_visual: null, direction: "" },
+        { n: 5, job: "cta", seconds: 2, line: "go", on_screen_text: "", visual: "creator", product_visual: null, direction: "" },
       ],
       ctx,
     );
     const issues = lintScript(bad, ctx).join(" | ");
     expect(issues).toMatch(/game changer/);
     expect(issues).toMatch(/personal-history claim/);
-    expect(issues).toMatch(/copies the reference word for word/);
     expect(issues).toMatch(/"90%" is not in the product brief/);
-    expect(issues).toMatch(/hook line is \d+ words/);
+    expect(issues).toMatch(/handle or name "dev"/);
     expect(issues).toMatch(/too fast/);
-    expect(issues).toMatch(/opens with the brand name/);
-    expect(issues).toMatch(/product is on screen for 0s/);
-    expect(issues).toMatch(/no call to action/);
+    expect(issues).toMatch(/5 beats vs the reference's 3/);
+    expect(issues).toMatch(/product is never on screen/);
+    expect(issues).toMatch(/total 11s vs the reference's 18s/);
   });
 
-  it("aims for the reference's length, within 12-30 s", () => {
+  it("lets a remake keep the reference's own wording and phrases", () => {
+    const viral = { ...reference, transcript: `${reference.transcript} trust me`, beats: reference.beats.map((b, i) => (i === 0 ? { ...b, line: "Trust me, stop paying for twelve different API keys" } : b)) };
+    const remake = normalizeScript(
+      goodBeats.map((b, i) => ({ ...b, line: i === 0 ? "Trust me, stop paying for twelve different API keys" : b.line })),
+      { ...ctx, reference: viral },
+    );
+    expect(lintScript(remake, { ...ctx, reference: viral })).toEqual([]);
+  });
+
+  it("aims for the reference's length, within 8-40 s", () => {
     expect(targetSeconds({ duration: 19 })).toBe(19);
-    expect(targetSeconds({ duration: 61 })).toBe(30);
-    expect(targetSeconds({ duration: 5 })).toBe(12);
+    expect(targetSeconds({ duration: 61 })).toBe(40);
+    expect(targetSeconds({ duration: 5 })).toBe(8);
   });
 });
 

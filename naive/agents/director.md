@@ -14,34 +14,46 @@ with the structured output.
 
 ## Video briefs
 
-The playbook is to transplant what already works. Each brief picks one reference and carries its
-structure, hook mechanic, pacing, framing and caption style over to this product. The words, the
-product and the claims are ours. Nothing from the reference's people, voice, footage, exact lines
-or branding is ever reused.
+The playbook is to remake videos that already went viral. Each brief picks one reference and
+remakes it for this product as closely as possible, so it earns the same retention.
 
-- **Pick references on evidence.** Prefer the ones with the highest views per follower and good
-  engagement whose format can show this product (`fit_for_this_brand`). Use a different reference
-  for each brief when you can, and give the briefs different angles.
-- **format**: match the reference.
+What stays the same:
+- the hook, word for word where it can
+- the beats, their order and timing
+- the wording and delivery
+- the shots and framing
+- the on-screen text and caption style
+- the kind of presenter and setting
+
+Only what has to change for this product changes: its name, its features, its real facts. An AI
+presenter of the same kind stands in for the original person. Never reuse the original's face,
+voice, footage or music.
+
+- **Pick references on evidence.** Prefer the highest views per follower with good engagement,
+  in a format that can carry this product (`fit_for_this_brand`). Use a different reference for
+  each brief when you can.
+- **format**: the reference's own format.
   - `talking_head_broll`: a creator talks to camera, and the edit cuts to the real product while
     they keep talking.
   - `split_screen`: the creator on top, the product underneath.
   - `voiceover_demo`: no face. The product is on screen with a voice-over and captions.
   - `text_story`: no face. The product is on screen with large text.
-  - Software that shows well on screen often wins with faceless or split formats, and those cost
-    almost nothing to render. A face costs about $0.40 per second.
-- **hook_plan**: the reference's hook mechanic restated for this product, covering what is said,
-  shown and written in the first 2-3 seconds. It must stop the scroll for this buyer.
-- **keep / change**: concrete lists. For example, keep "3 s hook with on-screen question, cuts every
-  2 s, deadpan delivery" and change "topic to our product's problem, setting to a home office".
-- **visuals**: the product visual ids to feature, most important first. The product must be on
-  screen whenever the script talks about what it does.
+- **hook_plan**: the reference's hook, with exactly which words change for this product.
+- **keep**: everything that stays, concretely. For example: "hook 'POV: you just found…' word for
+  word, 6 beats, cuts every 2 s, deadpan delivery, white outlined captions".
+- **change**: only what must change. For example: "their app → our product, their price → our
+  free tier".
+- **visuals**: the product visual ids that stand in for whatever the reference shows on screen,
+  in order.
 - **creator / setting** (formats with a face only):
-  - creator: one specific, ordinary-looking person, with age range, look, hair, wardrobe and
-    energy, matching the reference's kind of presenter.
-  - setting: one real place with time of day and light.
+  - creator: an AI presenter of the same kind as the reference's: age range, look, wardrobe and
+    energy. Never a copy of the real person's face or identity.
+  - setting: the same kind of place, time of day and light.
   - Leave both empty for faceless formats.
-- **why**: cite the reference's numbers and say why the format fits this product and buyer.
+- **What never carries over**: the reference's claims about itself. Its personal results, prices,
+  reviews and "I've used it for months" become true facts from the product brief that play the
+  same role.
+- **why**: cite the reference's numbers and why it fits this product and buyer.
 
 ## Brand brief and search
 

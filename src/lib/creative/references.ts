@@ -512,7 +512,7 @@ const SYSTEM = [
   "- Beats run in order from 0 to the end of the video with no gaps or overlaps: each beat starts where the previous one ends and the last ends at the video's duration. Times are seconds with one decimal. Put boundaries on detected cuts or transcript segment boundaries where they fit. One job per beat, usually 3-12 beats; the first beat is the hook and normally ends within 3 seconds.",
   "- Be exact about timing: when the product first appears, when text pops on, how long shots last. Take it from the frame and transcript timestamps.",
   "- hook.mechanic and why_it_works name mechanisms that would transfer to a different product, not the topic of this video.",
-  "- You describe format and mechanics only. The team will make an original video with different people, footage, voice and words, and will never reuse this video's people, footage, voice, music or exact lines; do not suggest otherwise. Do not try to identify anyone: describe people by role and look ('a woman in her 20s talking to a propped-up phone').",
+  "- The team will remake this video as closely as possible for its own product, with its own AI presenter and its own footage: it keeps the hook, beats, wording, timing, shots and on-screen text, and never reuses this video's people, footage, voice or music. So capture every line, beat and on-screen text exactly. Do not try to identify anyone: describe people by role and look ('a woman in her 20s talking to a propped-up phone').",
   "- Judge fit honestly for the brand given: 10 means the format carries its product almost unchanged, 5 means it works with real changes, 0 means it depends on something the brand cannot do (a celebrity, a physical stunt for an app, a product it does not have).",
 ].join("\n");
 

@@ -132,7 +132,7 @@ export type VideoFormat =
   /** No voice: the product on screen with large on-screen text. */
   | "text_story";
 
-/** The creative director's brief for one video: which winner it transplants and what changes. */
+/** The creative director's brief for one video: which viral video it remakes and what changes for this product. */
 export type CreativeBrief = {
   title: string;
   /** ReferenceBreakdown.id this video is modeled on. */

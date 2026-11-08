@@ -481,7 +481,8 @@ describe.skipIf(!bin)("breakdownReference on a synthetic video with three hard c
     expect(request.model).toBe(QC_MODEL);
     expect(request.tools[0].name).toBe("reference_breakdown");
     expect(request.system).toMatch(/word for word from the transcript/);
-    expect(request.system).toMatch(/never reuse this video's people, footage, voice, music or exact lines/);
+    expect(request.system).toMatch(/never reuses this video's people, footage, voice or music/);
+    expect(request.system).toMatch(/capture every line, beat and on-screen text exactly/);
     const content = request.messages[0].content;
     const images = content.filter((block) => block.type === "image");
     expect(images.length).toBeGreaterThanOrEqual(4);
