@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recorded": true,
-  "recordedAt": "2026-11-08T08:34:32.795Z",
+  "recordedAt": "2026-11-08T08:48:35.706Z",
   "brand": {
     "name": "Naïve",
     "domain": "usenaive.ai",
@@ -601,16 +601,6 @@
       "name": "Deploy a Company",
       "briefs": [
         {
-          "title": "Deploy it and watch the team work",
-          "format": "realistic AI creator",
-          "reference_id": "ref_c0ed3cecfe",
-          "angle": "Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves).",
-          "hook_plan": "Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves).",
-          "audience": "",
-          "role": "reach",
-          "metric": null
-        },
-        {
           "title": "A short-form channel in three steps",
           "format": "code ad (3D animation)",
           "reference_id": "ref_1a08c64bf9",
@@ -629,9 +619,19 @@
           "audience": "",
           "role": "reach",
           "metric": null
+        },
+        {
+          "title": "I told Naïve I'm exhausted",
+          "format": "one-to-one clone (faceless)",
+          "reference_id": "ref_1ed370bd12",
+          "angle": "One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption.",
+          "hook_plan": "One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption.",
+          "audience": "",
+          "role": "reach",
+          "metric": null
         }
       ],
-      "objective": "Get Naïve seen by solo founders and creators with a reach video, then drive sign-ups with a tutorial-style convert video, each with its own tracked link, by testing 3 formats the research backs: realistic AI creator, code ad (3D animation), brainrot meme.",
+      "objective": "Get Naïve seen by solo founders and creators with a reach video, then drive sign-ups with a tutorial-style convert video, each with its own tracked link, by testing 3 formats the research backs: code ad (3D animation), brainrot meme, one-to-one clone (faceless).",
       "posting_plan": {
         "notes": "Label every video AI-generated. Judge reach on views and shares, convert on link clicks and sign-ups per tracked link. Do not state earnings or results; Naïve's site lists no proof numbers. Some templates are Preview only; deploy only Deploy-status ones (Short Form v1 is deployable).",
         "cadence": "One video per day for a week, alternating reach and convert, each with its own tracked link. Re-test the winner with a new hook line after 7 days.",
@@ -641,40 +641,6 @@
         ]
       },
       "concepts": [
-        {
-          "title": "Deploy it and watch the team work",
-          "format": "realistic AI creator",
-          "hook": "Deploy it and watch the team work",
-          "caption": "Pick a template, deploy it, watch your agent team run. usenaive.ai",
-          "platforms": [
-            "tiktok",
-            "instagram",
-            "youtube"
-          ],
-          "inspired_by": [
-            "https://www.tiktok.com/@mplentg/video/7667230797337873685"
-          ],
-          "why": "Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves).",
-          "reference": {
-            "id": "ref_c0ed3cecfe",
-            "url": "https://www.tiktok.com/@mplentg/video/7667230797337873685",
-            "author": "mplentg",
-            "views": 643977,
-            "followers": 1770,
-            "outlier": 363.8,
-            "format": "realistic AI creator"
-          },
-          "brief": {
-            "format": "realistic AI creator",
-            "role": "reach",
-            "title": "Deploy it and watch the team work"
-          },
-          "script": {
-            "total_seconds": 15.9,
-            "beats": [],
-            "review": null
-          }
-        },
         {
           "title": "A short-form channel in three steps",
           "format": "code ad (3D animation)",
@@ -742,6 +708,41 @@
             "beats": [],
             "review": null
           }
+        },
+        {
+          "title": "I told Naïve I'm exhausted",
+          "format": "one-to-one clone (faceless)",
+          "hook": "I TOLD NAÏVE, \"I'M EXHAUSTED. AND I WANT TO STOP WORKING IN THE NEXT 2 YEARS. I WANT AI AGENTS RUNNING MY CHANNEL.\" HERE'S THE EXACT TEMPLATE I DEPLOYED 👇",
+          "caption": "Here's the exact template I deployed. usenaive.ai",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.instagram.com/reel/DfFZLxtOYeG/"
+          ],
+          "why": "One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption.",
+          "reference": {
+            "id": "ref_1ed370bd12",
+            "url": "https://www.instagram.com/reel/DfFZLxtOYeG/",
+            "author": "marketingwithed_",
+            "views": 407862,
+            "followers": null,
+            "outlier": null,
+            "format": "one-to-one clone (faceless)"
+          },
+          "brief": {
+            "format": "one-to-one clone (faceless)",
+            "role": "reach",
+            "title": "I told Naïve I'm exhausted"
+          },
+          "script": {
+            "total_seconds": 6.4,
+            "beats": [],
+            "review": null
+          },
+          "internal": true
         }
       ],
       "script_rounds": 1
@@ -803,55 +804,6 @@
   },
   "creatives": [
     {
-      "idx": 2,
-      "concept": {
-        "title": "Deploy it and watch the team work",
-        "format": "realistic AI creator",
-        "hook": "Deploy it and watch the team work",
-        "caption": "Pick a template, deploy it, watch your agent team run. usenaive.ai",
-        "platforms": [
-          "tiktok",
-          "instagram",
-          "youtube"
-        ],
-        "inspired_by": [
-          "https://www.tiktok.com/@mplentg/video/7667230797337873685"
-        ],
-        "why": "Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves).",
-        "reference": {
-          "id": "ref_c0ed3cecfe",
-          "url": "https://www.tiktok.com/@mplentg/video/7667230797337873685",
-          "author": "mplentg",
-          "views": 643977,
-          "followers": 1770,
-          "outlier": 363.8,
-          "format": "realistic AI creator"
-        },
-        "brief": {
-          "format": "realistic AI creator",
-          "role": "reach"
-        },
-        "script": {
-          "total_seconds": 15.9,
-          "beats": [],
-          "review": null
-        }
-      },
-      "caption": "Pick a template, deploy it, watch your agent team run. usenaive.ai",
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "youtube"
-      ],
-      "qcScore": null,
-      "cost": 2.65,
-      "generation": 1,
-      "shots": [],
-      "video": "1.mp4",
-      "poster": "1.png",
-      "analytics": null
-    },
-    {
       "idx": 3,
       "concept": {
         "title": "A short-form channel in three steps",
@@ -896,8 +848,8 @@
       "cost": 0.19,
       "generation": 1,
       "shots": [],
-      "video": "2.mp4",
-      "poster": "2.png",
+      "video": "1.mp4",
+      "poster": "1.png",
       "analytics": null
     },
     {
@@ -943,6 +895,56 @@
       ],
       "qcScore": null,
       "cost": 3.27,
+      "generation": 1,
+      "shots": [],
+      "video": "2.mp4",
+      "poster": "2.png",
+      "analytics": null
+    },
+    {
+      "idx": 5,
+      "concept": {
+        "title": "I told Naïve I'm exhausted",
+        "format": "one-to-one clone (faceless)",
+        "hook": "I TOLD NAÏVE, \"I'M EXHAUSTED. AND I WANT TO STOP WORKING IN THE NEXT 2 YEARS. I WANT AI AGENTS RUNNING MY CHANNEL.\" HERE'S THE EXACT TEMPLATE I DEPLOYED 👇",
+        "caption": "Here's the exact template I deployed. usenaive.ai",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.instagram.com/reel/DfFZLxtOYeG/"
+        ],
+        "why": "One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption.",
+        "reference": {
+          "id": "ref_1ed370bd12",
+          "url": "https://www.instagram.com/reel/DfFZLxtOYeG/",
+          "author": "marketingwithed_",
+          "views": 407862,
+          "followers": null,
+          "outlier": null,
+          "format": "one-to-one clone (faceless)"
+        },
+        "brief": {
+          "format": "one-to-one clone (faceless)",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 6.4,
+          "beats": [],
+          "review": null
+        },
+        "internal": true
+      },
+      "caption": "Here's the exact template I deployed. usenaive.ai",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0.22,
       "generation": 1,
       "shots": [],
       "video": "3.mp4",
@@ -1024,7 +1026,7 @@
     {
       "s": 342.3,
       "level": "info",
-      "message": "The creative director chose 3 videos, each on what the research found: \"Deploy it and watch the team work\" (realistic AI creator: Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves)); \"A short-form channel in three steps\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves)); \"Gary the Potato Deploys a Company\" (brainrot meme: Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers))"
+      "message": "The creative director chose 3 videos, each on what the research found: \"A short-form channel in three steps\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves)); \"Gary the Potato Deploys a Company\" (brainrot meme: Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers)); \"I told Naïve I'm exhausted\" (one-to-one clone (faceless): One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption)"
     },
     {
       "s": 1015,
@@ -1057,16 +1059,6 @@
       "message": "A provider is busy at production (naive: the service is at capacity); retrying with backoff for up to about 3 hours"
     },
     {
-      "s": 13023.4,
-      "level": "info",
-      "message": "\"Deploy it and watch the team work\": made as a realistic AI creator from @mplentg's video in the research (644K views on 2K followers)"
-    },
-    {
-      "s": 13024.4,
-      "level": "info",
-      "message": "\"Deploy it and watch the team work\" is ready"
-    },
-    {
       "s": 17387.4,
       "level": "info",
       "message": "\"A short-form channel in three steps\": made as a code ad (3D animation) from @zachhh.mp4's video in the research (1.3M views on 6K followers)"
@@ -1085,6 +1077,16 @@
       "s": 18348.4,
       "level": "info",
       "message": "\"Gary the Potato Deploys a Company\" is ready"
+    },
+    {
+      "s": 19487.4,
+      "level": "info",
+      "message": "\"I told Naïve I'm exhausted\": made as a one-to-one clone (faceless) from @marketingwithed_'s video in the research (408K views)"
+    },
+    {
+      "s": 19488.4,
+      "level": "info",
+      "message": "\"I told Naïve I'm exhausted\" is ready"
     }
   ],
   "spend": {
