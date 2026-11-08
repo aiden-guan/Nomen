@@ -1,7 +1,7 @@
 "use client";
 
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { type BrandView, campaignAction, getBrand } from "../api";
+import { type BrandView, campaignAction, connectLink, type CreativeView, getBrand, regenerate, setApproved } from "../api";
 import type { Baker } from "../engine/baker";
 import { easeInOutCubic, type Stage } from "../engine/stage";
 import type { CampScene } from "../scenes/camp";
@@ -9,40 +9,47 @@ import { derive, stationForEvent, stationOf } from "../scenes/derive";
 import { STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
-import { DEMO_ID, DEMO_SECONDS, demoView } from "./demo";
+import { DEMO_ID, type PublishMode } from "./demo";
 import { Dispatches } from "./Dispatches";
 import { ago, money } from "./format";
+import { Screening } from "./Screening";
 import { StationPanel } from "./StationPanel";
+import { type DemoPlayer, useDemo } from "./useDemo";
 import { useReducedMotion, useWide } from "../hooks";
 
 export type Engine = { stage: Stage; baker: Baker; landing: LandingScene; camp: CampScene };
 
+/** What the panels' buttons do: the core's API for a real campaign, the replay's clock in the demo. */
+export type CampActions = {
+  approve: (creative: CreativeView, approved: boolean) => void;
+  approveAll: () => void;
+  publish: (mode: PublishMode) => void;
+  regenerate: (creative: CreativeView) => void;
+  connect: () => void;
+  retry: () => void;
+  /** Opens a finished video at full height. */
+  screen: (creative: CreativeView) => void;
+};
+
 type Bubble = { id: number; station: StationId; text: string; level: string };
 
-export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: boolean; engine: RefObject<Engine | null> }) {
-  const [view, setView] = useState<BrandView | null>(null);
+export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string; arrived: boolean; engine: RefObject<Engine | null>; home?: string }) {
+  const demo = brandId === DEMO_ID;
+  const [liveView, setLiveView] = useState<BrandView | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<StationId | null>(null);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [screening, setScreening] = useState<string | null>(null);
+  // The demo replays a campaign on a clock (./demo.ts) instead of reading the API.
+  const player = useDemo(demo, arrived);
+  const view = demo ? player.view : liveView;
   const plan = useMemo(() => derive(view), [view]);
   const campaign = view?.campaign ?? null;
   const viewRef = useRef(view);
   viewRef.current = view;
   const reloadRef = useRef<() => void>(() => undefined);
-  const demo = brandId === DEMO_ID;
-  const [demoRun, setDemoRun] = useState(0);
-
-  // --- The demo plays a made-up campaign on a clock instead of reading the API. -----------------
-  useEffect(() => {
-    if (!demo || !arrived) return;
-    const start = performance.now();
-    const step = () => setView(demoView(Math.min(DEMO_SECONDS, (performance.now() - start) / 1000)));
-    step();
-    const timer = setInterval(step, 500);
-    return () => clearInterval(timer);
-  }, [demo, arrived, demoRun]);
 
   // --- Live data: fast while agents work, slower when the camp is waiting on you. ------------
   useEffect(() => {
@@ -54,7 +61,7 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
       try {
         const next = await getBrand(brandId);
         if (!alive) return;
-        setView(next);
+        setLiveView(next);
         setLoadError(null);
       } catch (error) {
         if (!alive) return;
@@ -157,10 +164,6 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
   }, [engine, arrived, frameCamera]);
 
   const act = useCallback(async (key: string, run: () => Promise<unknown>) => {
-    if (demo) {
-      setActionError("This is a demo camp, so its buttons don't do anything. Start a real campaign from the horse.");
-      return;
-    }
     setBusy(key);
     setActionError(null);
     try {
@@ -171,13 +174,48 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
     } finally {
       setBusy(null);
     }
-  }, [demo]);
+  }, []);
+
+  const campaignId = campaign?.id ?? null;
+  const actions = useMemo<CampActions>(() => {
+    const screen = (creative: CreativeView) => setScreening(creative.id);
+    if (demo) {
+      return {
+        approve: (creative, value) => player.approve(creative.idx, value),
+        approveAll: player.approveAll,
+        publish: player.publish,
+        regenerate: () => setActionError("The demo replays a finished campaign, so it can't film a new take here."),
+        connect: () => undefined,
+        retry: () => undefined,
+        screen,
+      };
+    }
+    return {
+      approve: (creative, value) => void act(`approve:${creative.id}`, () => setApproved(creative.id, value)),
+      approveAll: () => campaignId && void act("approve", () => campaignAction(campaignId, "approve_all")),
+      publish: (mode) => campaignId && void act(mode, () => campaignAction(campaignId, "publish", mode)),
+      regenerate: (creative) => void act(`regen:${creative.id}`, () => regenerate(creative.id)),
+      connect: () =>
+        void act("connect", async () => {
+          const url = await connectLink(brandId, window.location.href);
+          window.location.assign(url);
+        }),
+      retry: () => campaignId && void act("retry", () => campaignAction(campaignId, "retry")),
+      screen,
+    };
+  }, [demo, player.approve, player.approveAll, player.publish, act, campaignId, brandId]);
+
+  // The screening room shows finished videos; close it if its video goes away (a demo restart).
+  const finishedVideos = useMemo(() => (campaign?.creatives ?? []).filter((c) => c.status === "ready").sort((a, b) => a.idx - b.idx), [campaign]);
+  useEffect(() => {
+    if (screening && !finishedVideos.some((c) => c.id === screening)) setScreening(null);
+  }, [screening, finishedVideos]);
 
   const spend = campaign ? campaign.spend.naive + campaign.spend.monid : 0;
 
   return (
     <>
-      <TopBar view={view} spend={spend} visible={arrived} onSelect={setSelected} selected={selected} demo={demo ? () => setDemoRun((n) => n + 1) : undefined} />
+      <TopBar view={view} spend={spend} visible={arrived} onSelect={setSelected} selected={selected} demo={demo ? player : undefined} home={home} />
 
       {arrived && view && !wide && (
         <StationStrip
@@ -217,7 +255,7 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
             type="button"
             className={`${styles.button} ${styles.pixel} h-9 shrink-0 px-3 text-sm`}
             disabled={busy === "retry"}
-            onClick={() => act("retry", () => campaignAction(campaign.id, "retry"))}
+            onClick={actions.retry}
           >
             {busy === "retry" ? <span className={styles.spinner} aria-hidden="true" /> : null} Retry
           </button>
@@ -235,9 +273,20 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
           wide={wide}
           busy={busy}
           error={actionError}
-          act={act}
+          actions={actions}
+          demo={demo ? { recorded: Boolean(player.script?.recorded) } : null}
           onClose={() => setSelected(null)}
         />
+      )}
+
+      {arrived && screening && finishedVideos.length > 0 && (
+        <Screening videos={finishedVideos} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} />
+      )}
+
+      {demo && player.notice && (
+        <p role="status" className={`${styles.boxSoft} ${styles.enter} absolute left-1/2 top-[76px] z-30 -translate-x-1/2 px-3 py-1.5 text-[13px]`}>
+          {player.notice}
+        </p>
       )}
 
       {arrived && !view && (
@@ -246,7 +295,7 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
             <>
               <p className={`${styles.pixel} text-lg`}>We couldn&apos;t reach this camp</p>
               <p className="mt-2 text-sm text-[var(--ink-soft)]">{loadError}</p>
-              <a href="/" className={`${styles.button} ${styles.pixel} mt-5 h-10 px-4 text-sm`}>
+              <a href={home} className={`${styles.button} ${styles.pixel} mt-5 h-10 px-4 text-sm`}>
                 Back to the horse
               </a>
             </>
@@ -270,13 +319,15 @@ function TopBar({
   onSelect,
   selected,
   demo,
+  home,
 }: {
   view: BrandView | null;
   spend: number;
   visible: boolean;
   onSelect: (id: StationId | null) => void;
   selected: StationId | null;
-  demo?: () => void;
+  demo?: DemoPlayer;
+  home: string;
 }) {
   const campaign = view?.campaign ?? null;
   const plan = useMemo(() => derive(view), [view]);
@@ -287,7 +338,7 @@ function TopBar({
       className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 px-4 pb-6 pt-4 sm:gap-5 sm:px-6 ${visible ? styles.fadeIn : "opacity-0"}`}
       style={{ background: "linear-gradient(var(--page) 62%, rgba(246, 244, 239, 0))" }}
     >
-      <a href="/" className={`${styles.pixel} ${styles.link} pointer-events-auto shrink-0 text-[20px] font-semibold text-[var(--ink)]`} aria-label="Nomen home">
+      <a href={home} className={`${styles.pixel} ${styles.link} pointer-events-auto shrink-0 text-[20px] font-semibold text-[var(--ink)]`} aria-label="Nomen home">
         Nomen
       </a>
       {view && (
@@ -305,11 +356,7 @@ function TopBar({
         </div>
       )}
 
-      {demo && (
-        <button type="button" onClick={demo} className={`${styles.pixel} pointer-events-auto shrink-0 bg-[var(--teal)] px-2 py-1 text-[12px] text-[var(--paper)]`} title="Sample data. Replay from the start">
-          Demo · replay ↺
-        </button>
-      )}
+      {demo && <DemoControls player={demo} />}
       {campaign && (
         <nav aria-label="Campaign progress" className="pointer-events-auto ml-auto hidden items-center gap-1 lg:flex">
           {STEP_NAMES.map((name, i) => {
@@ -347,6 +394,47 @@ function TopBar({
         </a>
       )}
     </header>
+  );
+}
+
+/** The demo's badge and the presenter's buttons (the keys are listed in useDemo.ts). */
+function DemoControls({ player }: { player: DemoPlayer }) {
+  const label = player.script?.recorded ? "Replay" : "Demo";
+  return (
+    <div role="group" aria-label="Demo controls" className="pointer-events-auto flex shrink-0 items-center gap-[3px]">
+      <span
+        className={`${styles.pixel} flex h-[26px] items-center whitespace-nowrap bg-[var(--teal)] px-2 text-[12px] text-[var(--paper)]`}
+        title={player.script?.recorded ? "A recorded campaign, replayed. Nothing is spent." : "A made-up campaign. Nothing is spent."}
+      >
+        {label}
+        {!player.playing && !player.done ? " · paused" : ""}
+        {player.auto ? " · auto" : ""}
+      </span>
+      <button type="button" className={styles.iconButton} onClick={player.toggle} aria-label={player.playing ? "Pause" : "Play"} title={`${player.playing ? "Pause" : "Play"} (Space)`}>
+        <PixelIcon name={player.playing ? "pause" : "play"} />
+      </button>
+      <button type="button" className={styles.iconButton} onClick={player.next} aria-label="Skip to the next step" title="Skip to the next step (→). At the review this approves and posts every video.">
+        <PixelIcon name="skip" />
+      </button>
+      <button type="button" className={`${styles.iconButton} hidden sm:inline-grid`} onClick={player.restart} aria-label="Replay from the start" title="Replay from the start (R)">
+        <PixelIcon name="restart" />
+      </button>
+    </div>
+  );
+}
+
+const ICONS = {
+  play: "M4 3h2v9h-2zM6 4h1v7h-1zM7 5h1v5h-1zM8 6h1v3h-1zM9 7h1v1h-1z",
+  pause: "M3 3h3v8h-3zM8 3h3v8h-3z",
+  skip: "M3 3h2v8h-2zM5 4h1v6h-1zM6 5h1v4h-1zM7 6h1v2h-1zM9 3h2v8h-2z",
+  restart: "M4 2h6v2h-6zM2 4h2v6h-2zM4 10h6v2h-6zM10 7h2v3h-2zM10 0h1v1h1v1h1v2h-1v1h-1v1h-1z",
+};
+
+function PixelIcon({ name }: { name: keyof typeof ICONS }) {
+  return (
+    <svg viewBox="0 0 14 14" width="14" height="14" fill="currentColor" shapeRendering="crispEdges" aria-hidden="true">
+      <path d={ICONS[name]} />
+    </svg>
   );
 }
 

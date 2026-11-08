@@ -133,7 +133,7 @@ export class CampScene {
     }
     this.tvOn = plan.tvOn;
     this.posterList = plan.posters;
-    for (const poster of plan.posters) this.loadPoster(poster.creativeId, poster.url);
+    for (const poster of plan.posters) this.loadPoster(poster.creativeId, poster.url, poster.video);
 
     // Desks: one per video, appearing as the strategy hands out concepts.
     const workshop = STATION.workshop;
@@ -399,7 +399,7 @@ export class CampScene {
     });
   }
 
-  private loadPoster(id: string, url: string | null) {
+  private loadPoster(id: string, url: string | null, videoUrl: string | null) {
     if (this.posters.has(id) || typeof document === "undefined") return;
     this.posters.set(id, null);
     const toPixels = (source: CanvasImageSource, w: number, h: number) => {
@@ -415,10 +415,11 @@ export class CampScene {
       this.posters.set(id, canvas);
     };
     const fromVideo = () => {
+      if (!videoUrl) return;
       const video = document.createElement("video");
       video.muted = true;
       video.preload = "auto";
-      video.src = `/api/media/${encodeURIComponent(id)}/final.mp4#t=1`;
+      video.src = `${videoUrl}#t=1`;
       video.addEventListener("loadeddata", () => toPixels(video, video.videoWidth || 9, video.videoHeight || 16), { once: true });
     };
     if (!url) return fromVideo();

@@ -33,6 +33,8 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
   const [engineReady, setEngineReady] = useState(false);
   const pathname = usePathname();
   const reducedMotion = useReducedMotion();
+  // The demo has its own landing, so its camp's links and Back lead there.
+  const home = demoOnly ? "/demo" : "/";
 
   // The camp lives under the same canvas: these pages are full-bleed and ignore any app chrome.
   useInertSiblings(rootRef);
@@ -90,11 +92,11 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
   const cancelMarch = useRef<() => void>(() => undefined);
   useEffect(() => () => cancelMarch.current(), []);
 
-  // Back/forward between "/" and "/camp/…" without remounting.
+  // Back/forward between the landing and "/camp/…" without remounting.
   useEffect(() => {
     const e = engine.current;
     if (!e) return;
-    if (pathname === "/" && viewRef.current === "camp") {
+    if (pathname === home && viewRef.current === "camp") {
       cancelMarch.current();
       setView("landing");
       setArrived(false);
@@ -113,7 +115,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
         frame(e, "camp", true);
       }
     }
-  }, [pathname]);
+  }, [pathname, home]);
 
   // Keep the form glued under the island.
   useLayoutEffect(() => {
@@ -156,11 +158,13 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
         clearInterval(knocking);
         setBrandId(result.brandId);
         setPhase("opening");
+        // The demo camp replays the recording for this website, if one is installed.
+        const href = result.brandId === DEMO_ID ? `/camp/${DEMO_ID}?site=${encodeURIComponent(checked.domain)}` : `/camp/${encodeURIComponent(result.brandId)}`;
         cancelMarch.current();
         cancelMarch.current = march(e, result.brandId, reducedMotion, () => {
           setView("camp");
           setPhase("marching");
-          window.history.pushState(null, "", `/camp/${encodeURIComponent(result.brandId)}`);
+          window.history.pushState(null, "", href);
         }, () => setArrived(true));
       } catch (err) {
         clearInterval(knocking);
@@ -239,9 +243,9 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
             <p id="troy-site-hint" className="mt-4 text-center text-[13px] leading-relaxed text-[var(--ink-soft)]">
               Inside: an army of agents that researches your market, writes the strategy, films the ads and posts them.
               {cost && <span className="mt-1 block text-[12px] text-[var(--ink-faint)]">Each campaign: {cost}.</span>}
-              {demoOnly && <span className="mt-1 block text-[12px] text-[var(--ink-faint)]">Demo build: the camp plays a sample campaign, so nothing is spent.</span>}
-              <a href="/camp/demo" className={`${styles.link} ${styles.pixel} mt-2 inline-block text-[13px] underline decoration-dotted underline-offset-4`}>
-                Or watch a demo camp →
+              {demoOnly && <span className="mt-1 block text-[12px] text-[var(--ink-faint)]">This is the demo: the camp replays a finished campaign, so nothing is spent.</span>}
+              <a href={demoOnly ? "/camp/demo" : "/demo"} className={`${styles.link} ${styles.pixel} mt-2 inline-block text-[13px] underline decoration-dotted underline-offset-4`}>
+                {demoOnly ? "Or skip straight to the camp →" : "Or try the demo, which spends nothing →"}
               </a>
             </p>
             <p id="troy-site-error" role="alert" className="mt-2 min-h-5 text-center text-[13px] font-medium text-[var(--crimson)]">
@@ -251,7 +255,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
         </div>
       )}
 
-      {engineReady && view === "camp" && brandId && <Camp brandId={brandId} arrived={arrived} engine={engine} />}
+      {engineReady && view === "camp" && brandId && <Camp brandId={brandId} arrived={arrived} engine={engine} home={home} />}
 
       <p className="sr-only" aria-live="polite">
         {phase === "opening" ? "The gates are opening. Your agents are on their way." : ""}

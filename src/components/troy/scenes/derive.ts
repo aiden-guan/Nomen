@@ -48,7 +48,8 @@ export type CampPlan = {
   /** Variant overrides for props with a key in PROPS (basket fill, easel paint, reels, tv). */
   props: Record<string, number>;
   /** Finished videos to show on the theatre screen. */
-  posters: Array<{ creativeId: string; url: string | null; title: string }>;
+  /** Finished videos for the theatre screen: a still if there is one, else the video itself. */
+  posters: Array<{ creativeId: string; url: string | null; video: string | null; title: string }>;
   tvOn: boolean;
 };
 
@@ -300,7 +301,7 @@ export function derive(view: BrandView | null): CampPlan {
     agents,
     desks,
     props,
-    posters: ready.map((c) => ({ creativeId: c.id, url: c.posterUrl ?? c.shots.find((s) => s.frameUrl)?.frameUrl ?? null, title: c.concept?.title ?? "Video" })),
+    posters: ready.map((c) => ({ creativeId: c.id, url: c.posterUrl ?? c.shots.find((s) => s.frameUrl)?.frameUrl ?? null, video: c.videoUrl, title: c.concept?.title ?? "Video" })),
     tvOn: style === "working",
   };
 }

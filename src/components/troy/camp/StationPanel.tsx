@@ -1,17 +1,14 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef } from "react";
-import { type BrandView, campaignAction, connectLink, type CreativeView, regenerate, setApproved } from "../api";
+import { type ReactNode, type SyntheticEvent, useEffect, useRef } from "react";
+import type { BrandView, CreativeView } from "../api";
 import type { Baker } from "../engine/baker";
 import { type CampPlan, runLabel } from "../scenes/derive";
 import { STATION, type StationId } from "../scenes/layout";
 import styles from "../troy.module.css";
 import { Avatar } from "./Avatar";
-import { DEMO_ID } from "./demo";
-import { Pip } from "./Camp";
+import { type CampActions, Pip } from "./Camp";
 import { money, platformName, when } from "./format";
-
-type Act = (key: string, run: () => Promise<unknown>) => Promise<void>;
 
 const STATE_WORD: Record<string, string> = { waiting: "Waiting", working: "Working", done: "Done", failed: "Stopped", skipped: "Skipped", yours: "Your turn" };
 
@@ -23,7 +20,8 @@ export function StationPanel({
   wide,
   busy,
   error,
-  act,
+  actions,
+  demo,
   onClose,
 }: {
   id: StationId;
@@ -33,7 +31,9 @@ export function StationPanel({
   wide: boolean;
   busy: string | null;
   error: string | null;
-  act: Act;
+  actions: CampActions;
+  /** Set in the demo camp: whether it replays a recorded campaign or the made-up sample. */
+  demo: { recorded: boolean } | null;
   onClose: () => void;
 }) {
   const station = STATION[id];
@@ -116,14 +116,14 @@ export function StationPanel({
         {id === "scouts" && <Scouts view={view} />}
         {id === "oracle" && <Oracle view={view} state={state.state} />}
         {id === "tent" && <Tent view={view} />}
-        {id === "workshop" && <Workshop view={view} busy={busy} act={act} />}
-        {id === "theatre" && <Theatre view={view} busy={busy} act={act} />}
+        {id === "workshop" && <Workshop view={view} busy={busy} actions={actions} />}
+        {id === "theatre" && <Theatre view={view} busy={busy} actions={actions} />}
         {id === "agora" && <Agora view={view} />}
       </div>
 
       <footer className="border-t-2 border-[rgba(43,29,20,0.12)] px-5 py-3 text-[12px] text-[var(--ink-soft)]">
-        {view.brand.id === DEMO_ID ? (
-          <span>Demo camp: sample data, nothing is spent.</span>
+        {demo ? (
+          <span>{demo.recorded ? "A recorded campaign, replayed: nothing is spent." : "Demo camp: made-up data, nothing is spent."}</span>
         ) : (
           <a href={`/brands/${encodeURIComponent(view.brand.id)}`} className={`${styles.link} ${styles.pixel}`}>
             Open the full workspace ↗
@@ -262,7 +262,7 @@ function Tent({ view }: { view: BrandView }) {
   );
 }
 
-function Workshop({ view, busy, act }: { view: BrandView; busy: string | null; act: Act }) {
+function Workshop({ view, busy, actions }: { view: BrandView; busy: string | null; actions: CampActions }) {
   const campaign = view.campaign;
   if (!campaign) return null;
   const creatives = campaign.creatives.slice().sort((a, b) => a.idx - b.idx);
@@ -299,7 +299,7 @@ function Workshop({ view, busy, act }: { view: BrandView; busy: string | null; a
                   type="button"
                   className={`${styles.link} ${styles.pixel} mt-1.5 text-[12px] underline decoration-dotted underline-offset-4`}
                   disabled={busy === `regen:${creative.id}`}
-                  onClick={() => act(`regen:${creative.id}`, () => regenerate(creative.id))}
+                  onClick={() => actions.regenerate(creative)}
                 >
                   {busy === `regen:${creative.id}` ? "Sending back…" : "Send back for another take"}
                 </button>
@@ -312,7 +312,7 @@ function Workshop({ view, busy, act }: { view: BrandView; busy: string | null; a
   );
 }
 
-function Theatre({ view, busy, act }: { view: BrandView; busy: string | null; act: Act }) {
+function Theatre({ view, busy, actions }: { view: BrandView; busy: string | null; actions: CampActions }) {
   const campaign = view.campaign;
   if (!campaign) return null;
   const ready = campaign.creatives.filter((c) => c.status === "ready").sort((a, b) => a.idx - b.idx);
@@ -326,7 +326,7 @@ function Theatre({ view, busy, act }: { view: BrandView; busy: string | null; ac
         ) : (
           <ul className="grid grid-cols-2 gap-3">
             {ready.map((creative) => (
-              <VideoCard key={creative.id} creative={creative} busy={busy} act={act} />
+              <VideoCard key={creative.id} creative={creative} busy={busy} actions={actions} />
             ))}
           </ul>
         )}
@@ -339,12 +339,7 @@ function Theatre({ view, busy, act }: { view: BrandView; busy: string | null; ac
               <button
                 type="button"
                 className={`${styles.link} underline decoration-dotted underline-offset-4`}
-                onClick={() =>
-                  act("connect", async () => {
-                    const url = await connectLink(view.brand.id, window.location.href);
-                    window.location.assign(url);
-                  })
-                }
+                onClick={actions.connect}
               >
                 {busy === "connect" ? "Opening…" : "connect accounts"}
               </button>
@@ -352,13 +347,13 @@ function Theatre({ view, busy, act }: { view: BrandView; busy: string | null; ac
             </p>
           )}
           <div className="flex flex-wrap gap-3">
-            <button type="button" className={`${styles.button} ${styles.pixel} h-9 bg-[var(--ink)] px-3 text-[13px]`} disabled={busy === "approve" || approved === ready.length} onClick={() => act("approve", () => campaignAction(campaign.id, "approve_all"))}>
+            <button type="button" className={`${styles.button} ${styles.buttonInk} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={busy === "approve" || approved === ready.length} onClick={actions.approveAll}>
               Approve all
             </button>
-            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || approved === 0 || busy === "daily"} onClick={() => act("daily", () => campaignAction(campaign.id, "publish", "daily"))}>
+            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || approved === 0 || busy === "daily"} onClick={() => actions.publish("daily")}>
               {busy === "daily" ? <span className={styles.spinner} aria-hidden="true" /> : null} One a day
             </button>
-            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || approved === 0 || busy === "now"} onClick={() => act("now", () => campaignAction(campaign.id, "publish", "now"))}>
+            <button type="button" className={`${styles.button} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={!canPublish || approved === 0 || busy === "now"} onClick={() => actions.publish("now")}>
               {busy === "now" ? <span className={styles.spinner} aria-hidden="true" /> : null} Post now
             </button>
           </div>
@@ -369,26 +364,39 @@ function Theatre({ view, busy, act }: { view: BrandView; busy: string | null; ac
   );
 }
 
-function VideoCard({ creative, busy, act }: { creative: CreativeView; busy: string | null; act: Act }) {
+function VideoCard({ creative, busy, actions }: { creative: CreativeView; busy: string | null; actions: CampActions }) {
   const key = `approve:${creative.id}`;
+  const title = creative.concept?.title ?? "Video";
   return (
     <li className="text-[12px]">
-      <div className="relative aspect-[9/16] overflow-hidden bg-[var(--ink)]">
-        {creative.videoUrl ? (
-          <video src={creative.videoUrl} poster={creative.posterUrl ?? undefined} controls playsInline preload="metadata" className="size-full object-cover" />
-        ) : creative.posterUrl ? (
+      <button type="button" onClick={() => actions.screen(creative)} className="group relative block aspect-[9/16] w-full overflow-hidden bg-[var(--ink)]" aria-label={`Watch “${title}”`}>
+        {creative.posterUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={creative.posterUrl} alt="" className="size-full object-cover" />
+          <img src={creative.posterUrl} alt="" onLoad={crispIfTiny} className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+        ) : creative.videoUrl ? (
+          <video src={`${creative.videoUrl}#t=0.5`} muted playsInline preload="metadata" className="size-full object-cover" />
         ) : null}
-      </div>
-      <p className="mt-1.5 line-clamp-2 font-semibold leading-snug">{creative.concept?.title ?? "Video"}</p>
+        <span aria-hidden="true" className="absolute inset-0 grid place-items-center bg-[rgba(43,29,20,0.12)] opacity-90 transition-opacity group-hover:opacity-100">
+          <span className="grid size-10 place-items-center bg-[var(--paper)] text-[var(--ink)] shadow-[0_3px_0_rgba(43,29,20,0.3)]">
+            <svg viewBox="0 0 14 14" width="16" height="16" fill="currentColor" shapeRendering="crispEdges">
+              <path d="M4 3h2v9h-2zM6 4h1v7h-1zM7 5h1v5h-1zM8 6h1v3h-1zM9 7h1v1h-1z" />
+            </svg>
+          </span>
+        </span>
+      </button>
+      <p className="mt-1.5 line-clamp-2 font-semibold leading-snug">{title}</p>
       <label className="mt-1 flex cursor-pointer items-center gap-2">
-        <input type="checkbox" checked={creative.approved} disabled={busy === key} onChange={(event) => act(key, () => setApproved(creative.id, event.target.checked))} className="size-4 accent-[var(--crimson)]" />
+        <input type="checkbox" checked={creative.approved} disabled={busy === key} onChange={(event) => actions.approve(creative, event.target.checked)} className="size-4 accent-[var(--crimson)]" />
         <span className={styles.pixel}>{creative.approved ? "Approved" : "Approve"}</span>
         {creative.qcScore ? <span className="ml-auto text-[var(--ink-faint)]">QC {creative.qcScore}</span> : null}
       </label>
     </li>
   );
+}
+
+/** Pixel-art stills (a few dozen pixels wide) scale up crisp; photos stay smooth. */
+export function crispIfTiny(event: SyntheticEvent<HTMLImageElement>) {
+  if (event.currentTarget.naturalWidth < 120) event.currentTarget.style.imageRendering = "pixelated";
 }
 
 function Agora({ view }: { view: BrandView }) {

@@ -9,6 +9,7 @@
     "start": "next start",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "demo:export": "node scripts/demo-export.mjs",
     "naive": "node scripts/naive-guard.mjs",
     "naive:plan": "node scripts/naive-guard.mjs up --dry-run",
     "naive:apply": "node scripts/naive-guard.mjs up"

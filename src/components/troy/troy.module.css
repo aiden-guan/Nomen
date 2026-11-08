@@ -94,6 +94,34 @@
   filter: saturate(0.6) brightness(0.95);
 }
 
+/* Variants. They follow .button so they win; Tailwind's bg-* utilities can't (they sit in a layer). */
+.buttonInk {
+  background: var(--ink);
+  box-shadow:
+    0 calc(var(--px) * -1) 0 0 var(--ink),
+    0 var(--px) 0 0 var(--ink),
+    calc(var(--px) * -1) 0 0 0 var(--ink),
+    var(--px) 0 0 0 var(--ink),
+    inset 0 calc(var(--px) * -1) 0 0 #140d08,
+    inset 0 var(--px) 0 0 rgba(255, 255, 255, 0.14);
+}
+
+.buttonQuiet {
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow:
+    0 -2px 0 0 var(--ink),
+    0 2px 0 0 var(--ink),
+    -2px 0 0 0 var(--ink),
+    2px 0 0 0 var(--ink),
+    inset 0 -2px 0 0 rgba(43, 29, 20, 0.12);
+}
+
+.buttonQuiet:hover:not(:disabled) {
+  filter: none;
+  background: #f4ead6;
+}
+
 .button:focus-visible,
 .input:focus-visible,
 .link:focus-visible {
@@ -209,6 +237,33 @@
   }
 }
 
+/* The screening room: one finished video at full height over the camp. */
+.overlay {
+  background: rgba(43, 29, 20, 0.74);
+  animation: fadeIn 180ms ease both;
+}
+
+/* The demo's small square controls (pause, skip, replay). */
+.iconButton {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  color: var(--paper);
+  background: var(--teal);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  filter: brightness(1.12);
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 /* A little pop-up over a station when something happens there, like a game's emote. */
 .emote {
   display: grid;
@@ -262,7 +317,8 @@
   .enter,
   .leave,
   .shake,
-  .fadeIn {
+  .fadeIn,
+  .overlay {
     animation-duration: 1ms;
   }
   .spinner,

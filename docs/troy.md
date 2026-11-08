@@ -12,7 +12,9 @@ This track owns these paths; the core track owns everything else.
 - `src/components/troy/**` (engine, models, scenes, UI)
 - `src/app/page.tsx` (the landing; it replaced the brand list, which moved to `/brands`)
 - `src/app/brands/page.tsx` (the core's `HomeView`, unchanged, at its new address)
-- `src/app/camp/**`
+- `src/app/camp/**` and `src/app/demo/**`
+- `src/app/gate/**`, `src/app/api/gate/**` and `src/proxy.ts` (the password gate)
+- `scripts/demo-export.mjs` and `public/demo/**` (recorded demos)
 - `tests/troy/**`
 - `docs/troy.md`
 
@@ -43,13 +45,65 @@ Two things are matched on the core's wording, and both are pinned by `tests/troy
   example `QC sent "…" shot 1 back`) to the station it is about. If you reword a `logEvent` call,
   run the tests.
 
-## The demo camp
+## The demo
 
-`/camp/demo` plays a made-up brand (Olive & Ash, on the reserved `.example` domain) through every
-stage in about a minute and a half, from `camp/demo.ts`, with no keys and no spending. It builds
-the same `BrandView` the API returns, so it drives the real camp code. It is labeled as a demo in the
-top bar and the panels, and its buttons only explain that it's a demo. The landing links to it under
-the website box.
+`/` is the real product: the box starts a campaign, which spends real credits. `/demo` is the
+same horse and camp with nothing spent. Its box marches into `/camp/demo?site=<domain>`, which
+replays a finished campaign on a clock: research, the format study, the strategy, production,
+your review, then posting. That takes about two minutes, plus as long as the presenter spends on
+the review.
+
+**What it replays.** A `DemoScript` (`camp/demo.ts`):
+- **A recording:** a real campaign exported with its videos. The recording for the typed website
+  plays if there is one, otherwise the newest recording.
+- **The sample:** with no recordings installed, a made-up brand on a reserved domain (Olive & Ash,
+  `oliveandash.example`, in `camp/sample.ts`) with painted stills instead of videos.
+
+`replay(script, state)` builds the same `BrandView` the API returns, so the demo drives the real
+camp code. The top bar labels it "Replay" or "Demo", and the panels say nothing is spent.
+
+**The review waits for you.** The clock stops at the review until the presenter approves videos
+and presses "Post now" or "One a day" in the theatre, as in the real product. Clicking a video
+opens it at full height with its hook and caption. Posting then runs as the core does it: posts
+are queued and sent, then the campaign goes live. "One a day" schedules posts for 16:00 UTC on
+consecutive days.
+
+**Presenter controls.** These are in the top bar, and as keys while no control has focus:
+
+| Key | Does |
+| --- | --- |
+| Space | Pause / play |
+| → | Skip to the next step. At the review it approves and posts every video. |
+| ← | Back a step (undoing the review) |
+| R | Start over |
+| A | Autoplay on or off: the camp approves and posts by itself |
+
+`?auto=1` starts with autoplay on (for screen recordings) and `?speed=1.5` runs the clock faster.
+
+### Recording a campaign for the demo
+
+When a real campaign has turned out well:
+
+```bash
+npm run demo:export -- yourbrand.com
+```
+
+The exporter reads the campaign from a running Nomen (`--from`, default `http://localhost:3000`)
+through the same HTTP API the camp uses. It writes `public/demo/<id>/` and adds the recording to
+the front of `public/demo/index.json`:
+- the finished videos (`1.mp4`…);
+- a poster for each (the campaign's own, or a frame taken with ffmpeg);
+- `script.json`: the plan, research counts, strategy, concepts, captions, QC scores, costs and the
+  event log. The full log comes from `data/nomen.db` when it is there, otherwise the API's latest
+  60 lines.
+
+Commit `public/demo` and deploy. Typing that website on `/demo` then replays it.
+
+The replay places each event line on its own clock. Lines that mark a step (the plan, research
+done, a video ready) land exactly when the camp shows that step. The rest keep their relative place
+within their stage. Review and posting lines are dropped, because the replay writes those as the
+presenter acts. So are failures the campaign recovered from. Posted videos show numbers only if the
+recording has real analytics.
 
 ## Demo deployments
 
@@ -59,11 +113,18 @@ set, so local development is unchanged.
 | Variable | Effect |
 | --- | --- |
 | `SITE_PASSWORD` | `src/proxy.ts` sends every page to `/gate` until the browser has the cookie. API calls get a 401. The cookie holds a SHA-256 hash of the password, never the password, and lasts 30 days. Changing the password logs every browser out. |
-| `NOMEN_DEMO_ONLY=1` | The landing's box marches straight into the demo camp, with no API call. The proxy switches the API off (404), except `/api/status`, which answers "demo build" for the core's header. Nothing on the server opens the database or calls a provider. |
+| `NOMEN_DEMO_ONLY=1` | For a host that can't run campaigns. `/` forwards to `/demo`. The proxy switches the API off (404), except `/api/status`, which answers "demo build" for the core's header. Nothing on the server opens the database or calls a provider. |
 
-Vercel needs both. Its functions have no lasting disk and no background worker, so real
-campaigns can't run there. The password is set in the project's environment variables (type
-"sensitive"), never in the repo. Each browser enters it once.
+The Vercel project `nomen` (`nomen-phi.vercel.app`) sets both. Its functions have no lasting disk
+and no background worker, and the core keeps campaigns in SQLite, advances them with an in-process
+worker and writes videos to `data/media`, so real campaigns can't run there. The password is set
+in the project's environment variables (type "sensitive"), never in the repo, and each browser
+enters it once. The project isn't linked to Git: deploy a branch with the Vercel CLI, the API or
+Claude's Vercel tools.
+
+To run the real product on `/`, run `npm run build && npm start` on a server with a lasting disk
+for `data/`, the provider keys and `SITE_PASSWORD`, and without `NOMEN_DEMO_ONLY`. `/demo` works
+there too.
 
 ## Under the core's layout
 
@@ -136,11 +197,18 @@ Measured in headless Chromium at 1440×900, 2x (software rendering, so real GPUs
 npx vitest run tests/troy
 ```
 
-They cover the plan for every campaign state, event routing, that the website box accepts exactly
-what the server's `normalizeDomain` accepts, deterministic baking and the door timeline.
+They cover:
+- the plan for every campaign state and event routing;
+- that the website box accepts exactly what the server's `normalizeDomain` accepts;
+- deterministic baking and the door timeline;
+- the gate and the demo-only switch;
+- the demo's clock: the review that waits, posting now or one a day, autoplay, skips, where event
+  lines land, and loading recordings.
 
 ## Not done yet
 
+- **The real product online:** the core needs a server with a lasting disk (see Demo
+  deployments), or a rework onto a hosted database, file storage and scheduled jobs.
 - **Phones:** the warm-up track (`/api/phones/*`) isn't shown in the camp yet; a soldier scrolling a
   phone would fit the Agora.
 - **Linking:** the brand workspace (`/brands/[id]`, core) doesn't link to the camp yet; the camp

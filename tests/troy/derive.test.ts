@@ -132,13 +132,18 @@ describe("the camp through the pipeline", () => {
         stageIndex: 4,
         status: "review",
         style: { slug: "s", version: 1, skill_md: "", samples: [] },
-        creatives: [creative(0, "ready", ["passed"], { approved: true, posterUrl: "https://x/p.jpg" }), creative(1, "ready", ["passed"]), creative(2, "failed", ["failed"])] as never,
+        creatives: [
+          creative(0, "ready", ["passed"], { approved: true, posterUrl: "https://x/p.jpg" }),
+          creative(1, "ready", ["passed"], { videoUrl: "/api/media/crv_1/final.mp4" }),
+          creative(2, "failed", ["failed"]),
+        ] as never,
       }),
     );
     expect(plan.stations.theatre).toMatchObject({ state: "yours", status: "2 to review · 1 approved", progress: 0.5 });
+    // Without a still, the theatre screen takes a frame from the video itself.
     expect(plan.posters).toEqual([
-      { creativeId: "crv_0", url: "https://x/p.jpg", title: "Concept 0" },
-      { creativeId: "crv_1", url: null, title: "Concept 1" },
+      { creativeId: "crv_0", url: "https://x/p.jpg", video: null, title: "Concept 0" },
+      { creativeId: "crv_1", url: null, video: "/api/media/crv_1/final.mp4", title: "Concept 1" },
     ]);
     expect(plan.agents.filter((a) => a.station === "theatre")).toHaveLength(2);
   });
