@@ -23,6 +23,8 @@ export const LOOK = { exposure: 1.1, bloom: 0.12, fill: 0.45, toneMapping: "neut
  * and the floor, below the one-word caption (52 %).
  */
 export const BANDS = { term: 0.69, money: 0.735, label: 0.775, stamp: 0.63, sfx: 0.62 } as const;
+/** Callout heights in order of preference when another callout is already up there at the same time. */
+const SLOTS = [0.6, 0.67, 0.74, 0.81];
 
 export type StoryJson = {
   mode: "build";
@@ -86,7 +88,11 @@ export function layoutStory(story: CodeAdStory, voiced: Voiced, brand: CodeAdBra
       // long enough to read: a term or a fact 1.3 s (ED Studio's terms stay up ~1.5-2 s), a stamp or a comic word 0.8 s
       const least = c.style === "stamp" || c.style === "sfx" ? 0.8 : 1.3;
       if (e - a < least) e = Math.min(dur, a + least);
-      callouts.push({ text: c.text, style: c.style, t0: r3(a), t1: r3(e), ...(c.style === "sfx" ? { pos: [0.5, BANDS.sfx] as [number, number] } : { y: BANDS[c.style] }) });
+      // two callouts up at once never share a band: the second takes the nearest free slot
+      const busy = callouts.filter((o) => o.t0 < e && a < o.t1).map((o) => o.y ?? o.pos?.[1] ?? 0);
+      const want = c.style === "sfx" ? BANDS.sfx : BANDS[c.style];
+      const y = busy.every((b) => Math.abs(b - want) >= 0.065) ? want : ([...SLOTS].sort((p, q) => Math.abs(p - want) - Math.abs(q - want)).find((s) => busy.every((b) => Math.abs(b - s) >= 0.065)) ?? want);
+      callouts.push({ text: c.text, style: c.style, t0: r3(a), t1: r3(e), ...(c.style === "sfx" ? { pos: [0.5, y] as [number, number] } : { y }) });
     }
     const hitWord = vb.words.find((w) => norm(w.w) === norm(sb.hit));
     if (!hitWord) notes.push(`beat "${vb.id}": the gag's word "${sb.hit}" is not in the line; it lands mid-line`);

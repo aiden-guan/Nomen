@@ -46,7 +46,7 @@ const FRAMES = {
   face: (yaw = 0.12) => aim(HEAD, { frac: 0.38, d: 2.3, fov: 34, yaw, pitch: 0.05 }),
   gary: (yaw = 0) => aim(HEAD, { frac: 0.39, d: 3.9, fov: 40, yaw, pitch: 0.1 }),
   home: (yaw = 0) => aim(HEAD, { frac: 0.42, d: 5.3, fov: 40, yaw, pitch: 0.1 }),
-  screen: (yaw = 0) => aim(SCREEN, { frac: 0.27, d: 4.6, fov: 40, yaw, pitch: 0.03 }),
+  screen: (yaw = 0) => aim(SCREEN, { frac: 0.27, d: 5.2, fov: 40, yaw, pitch: 0.03 }),
   desk: (yaw = -0.22) => aim(HEAD, { frac: 0.36, d: 3.7, fov: 40, yaw, pitch: 0.16, dx: -0.18 }),
   wide: (yaw = 0) => aim([0.1, 1.0, -1.5], { frac: 0.42, d: 6.4, fov: 42, yaw, pitch: 0.16 }),
   floor: (yaw = 0) => aim([0.4, 1.05, -1.5], { frac: 0.4, d: 5.6, fov: 42, yaw, pitch: 0.14 }),
@@ -257,7 +257,7 @@ export async function build(studio, story) {
     // a show beat: Gary steps aside (walking) so the screen and the caption are clear, presents it, and steps back after
     for (const s of shows) {
       const out = u01(t, s.t0, s.t0 + 0.5), back = u01(t, s.t1, s.t1 + 0.5), k = easeIO(out) * (1 - easeIO(back));
-      if (k > 0) { p.x = G.x - 0.48 * k; if ((out > 0 && out < 1) || (back > 0 && back < 1)) { p.walk = t * 11; p.walkAmt = 0.8; } }
+      if (k > 0) { p.x = G.x - 0.6 * k; if ((out > 0 && out < 1) || (back > 0 && back < 1)) { p.walk = t * 11; p.walkAmt = 0.8; } }
     }
     // aftermath: an explosion or a zap leaves Gary charred for a while
     for (const e of [...explodes, ...zaps]) { const a = t - e.hit; if (a >= 0 && a < 5) { const c = (e.gag === 'explode' ? 0.85 : 0.45) * (1 - clamp((a - 0.4) / 4.2)); p.char = Math.max(p.char || 0, c); if (e.gag === 'explode' && a < 1.1) { p.hairUp = Math.max(p.hairUp || 0, 1 - a / 1.6); p.hatLift = Math.max(p.hatLift || 0, clamp(1 - Math.abs(a - 0.5) / 0.55)); } } }

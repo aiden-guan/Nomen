@@ -190,7 +190,7 @@ const voiced: Voiced = {
 describe("the page's story.json", () => {
   it("puts beats, words, callouts and gags on the narration's clock", () => {
     const story = normalizeStory(raw, ctx);
-    story.beats[1].callouts = [{ at: "ducks", text: "RUBBER DUCKS", style: "stamp" }, { at: "unsaid", text: "X", style: "sfx" }];
+    story.beats[1].callouts = [{ at: "ducks", text: "RUBBER DUCKS", style: "stamp" }, { at: "card", text: "MAXED", style: "sfx" }, { at: "unsaid", text: "X", style: "sfx" }];
     const { story: page, notes } = layoutStory(story, voiced, brand, { s1: "/ad/visual-s1.png" });
     expect(page.order).toEqual(["hook", "fail", "fix", "end"]);
     expect(page.beats.hook).toMatchObject({ t0: 0, t1: 2.6, s0: 0.06, s1: 2.5 });
@@ -199,7 +199,9 @@ describe("the page's story.json", () => {
     expect(page.words.find((w) => w.w === "Naïve")).toBeTruthy();
     // callouts sit in the lower third (the wall screen has the top)
     expect(page.callouts.find((c) => c.text === "RUBBER DUCKS")).toMatchObject({ style: "stamp", t0: 2.6 + 3 * 0.22 - 0.04, y: 0.63 });
-    expect(page.callouts.every((c) => (c.y ?? 0) > 0.55)).toBe(true);
+    expect(page.callouts.every((c) => (c.y ?? c.pos?.[1] ?? 0) > 0.55)).toBe(true);
+    // two callouts up at once take different bands
+    for (const a of page.callouts) for (const b of page.callouts) if (a !== b && a.t0 < b.t1 && b.t0 < a.t1) expect(Math.abs((a.y ?? a.pos![1]) - (b.y ?? b.pos![1]))).toBeGreaterThanOrEqual(0.065);
     expect(notes).toEqual(expect.arrayContaining([expect.stringMatching(/"X" dropped/)]));
     const fix = page.codead.beats.find((b) => b.id === "fix")!;
     expect(fix).toMatchObject({ gag: "deliver", hit: 4.7 + 3 * 0.21, labels: ["AGENT"], screen: { kind: "logo" } });

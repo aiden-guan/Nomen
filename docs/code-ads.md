@@ -98,5 +98,15 @@ The sample for Naïve, end to end (reads the main checkout's data read-only, wri
 NOMEN_DATA_DIR=/Users/dylan/Documents/GitHub/nomen/data NOMEN_CODEAD_LIVE=all npx vitest run tests/codead.live.test.ts
 ```
 
-`story` writes the story only, `make` makes the ad from the saved story, `stills` renders stills of an ad folder.
+`story` writes the story only, `make` makes the ad from the saved story, `page` prepares the ad's folder without
+rendering, `stills` renders stills of an ad folder.
+
+**The first sample (Nov 7).** Reference: mplentg's "I Let AI Run My Side Hustle" (644K views, 1,770 followers, 364x;
+an AI given one instruction, "make money"). The writer and critic (8/10) wrote: "You give an AI agent your credit card
+and one instruction: make money. / It buys a yacht and a LLAMA. Your card quits. / So you use Naïve. Agents get a
+company to run, not your wallet. / Pick a company template, like video or store. Deploy it. / Multi-agent teams split
+the goal and work in parallel. / Human approvals: spending waits for your yes. The llama is DENIED. / Now your card
+builds a company. Pick a company template at usenaive.ai." 27.1 s at 1080x1920, 60 fps, -14.1 LUFS; frame QC 8/10
+(two earlier renders scored 5 and 6, and their notes became the layout rules above). Paid: about $0.04 of narration
+per take, about $0.10 per story and a few cents per frame check.
 See the file's header for the options. Output: `data/codead-live/<brand>-<tag>/final.mp4`, `frames.jpg`, `made.json`.
