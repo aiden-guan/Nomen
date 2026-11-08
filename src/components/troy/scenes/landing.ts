@@ -15,7 +15,7 @@ export type LandingEvents = {
 };
 
 /** Seconds between two soldiers stepping out of the door. */
-const SPACING = 0.36;
+const SPACING = 0.3;
 /**
  * A knock from inside: two taps, each jolting the closed doors outward and letting them fall back.
  * The jolt moves the closed doors' own sprite (no other frame), so nothing re-shades or flickers.

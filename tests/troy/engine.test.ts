@@ -4,8 +4,8 @@ import { bakeJob, dirFor, type Job, jobKey, LEAF_STEPS, PLANK_STEPS, RIDER_FRAME
 import { doorPose, exitPath, HORSE, PLANK_REST } from "@/components/troy/engine/models/horse";
 import { projectX, projectY, unprojectGround } from "@/components/troy/engine/tracer";
 import { knockJolt } from "@/components/troy/scenes/landing";
-import { HORSE_GATE, hub, road, sandbars, STATION, STATIONS, stationIsland, TRAIL, travel } from "@/components/troy/scenes/layout";
-import { SPOTS, STABLE_GATE, STALLS } from "@/components/troy/scenes/stations";
+import { HORSE_GATE, hub, type Node, road, route, sandbars, STATION, STATIONS, stationIsland, TRAIL, travel } from "@/components/troy/scenes/layout";
+import { DESK_SLOTS, PROPS, SPOTS, STABLE_GATE, STALLS } from "@/components/troy/scenes/stations";
 
 // The art pipeline is deterministic: the same job always bakes the same pixels, in a worker or not.
 
@@ -122,23 +122,78 @@ describe("the horse opening", () => {
 });
 
 describe("the camp's roads", () => {
-  it("link the horse and every station in pipeline order", () => {
-    expect(sandbars()).toHaveLength(STATIONS.length);
+  it("link the horse to the scouts and every station in a ring, pipeline order first", () => {
+    expect(sandbars()).toHaveLength(STATIONS.length + 1);
     expect(road("scouts", "agora")).toHaveLength(6);
     expect(road("theatre", "workshop")).toHaveLength(2);
   });
 
-  it("take a walker from the horse through every station's hub, in order", () => {
-    const path = travel("horse", "agora", 1.5);
+  it("take the shortest way, so nobody walks round the camp to the station below the scouts", () => {
+    expect(route("horse", "agora")).toEqual(["horse", "scouts", "agora"]);
+    expect(route("horse", "tent")).toEqual(["horse", "scouts", "oracle", "tent"]);
+    expect(route("agora", "scouts")).toEqual(["agora", "scouts"]);
+    expect(route("theatre", "horse")).toEqual(["theatre", "agora", "scouts", "horse"]);
+    expect(route("oracle", "oracle")).toEqual(["oracle"]);
+  });
+
+  it("walk from the horse's gate along the sandbars to where the last one meets the island", () => {
+    const path = travel("horse", "agora");
     expect(path[0]).toEqual(HORSE_GATE);
-    const hubs = STATIONS.map((s) => hub(s.id));
-    const at = hubs.map((h) => path.findIndex((p) => p.x === h.x && p.y === h.y));
-    expect(at.every((i) => i > 0)).toBe(true);
-    expect([...at].sort((a, b) => a - b)).toEqual(at);
-    expect(path[path.length - 1]).toEqual(hub("agora"));
+    // Through the scouts' island by its crossing point, never by the oracle.
+    expect(path.some((p) => p.x === hub("scouts").x && p.y === hub("scouts").y)).toBe(true);
+    expect(path.some((p) => Math.hypot(p.x - STATION.oracle.x, p.y - STATION.oracle.y) < 60)).toBe(false);
+    const end = path[path.length - 1];
+    expect(Math.hypot(end.x - STATION.agora.x, end.y - STATION.agora.y)).toBeCloseTo(34, 6);
     // And back the same way.
     expect(travel("agora", "horse").map((p) => [p.x, p.y])).toEqual(travel("horse", "agora").reverse().map((p) => [p.x, p.y]));
-    expect(travel("oracle", "oracle")).toEqual([hub("oracle")]);
+    expect(travel("oracle", "oracle")).toEqual([]);
+  });
+
+  it("cross every island clear of its furniture", () => {
+    const distToSegment = (p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) => {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+    };
+    // Furniture a walker must not cross, relative to each island: points with a clearance radius.
+    const prop = (station: (typeof STATIONS)[number]["id"], id: string) => PROPS[station].find((p) => p.prop === id)!;
+    const shrine = prop("oracle", "shrine");
+    const podium = prop("agora", "podium");
+    const tiers = prop("theatre", "tier");
+    const blockers: Partial<Record<(typeof STATIONS)[number]["id"], Array<{ x: number; y: number; r: number }>>> = {
+      // The shrine's platform corner nearest the road, and its middle.
+      oracle: [
+        { x: shrine.x + 12.5, y: shrine.y + 10.5, r: 1.5 },
+        { x: shrine.x, y: shrine.y, r: 14 },
+      ],
+      // The seats: an arc of radius 15 to 26 around the screen.
+      theatre: [0, 1, 2, 3, 4].map((i) => ({ x: tiers.x + Math.cos((i / 4) * (Math.PI / 2)) * 20, y: tiers.y + Math.sin((i / 4) * (Math.PI / 2)) * 20, r: 7 })),
+      agora: [
+        { x: podium.x, y: podium.y, r: 9 },
+        ...PROPS.agora.filter((p) => p.prop === "banner").map((p) => ({ x: p.x, y: p.y, r: 2.5 })),
+      ],
+      workshop: DESK_SLOTS.slice(0, 4).map((d) => ({ x: d.x, y: d.y, r: 4.5 })),
+    };
+    const pairs: Array<[Node, Node]> = [
+      ["scouts", "tent"],
+      ["oracle", "workshop"],
+      ["tent", "theatre"],
+      ["workshop", "agora"],
+      ["theatre", "scouts"],
+    ];
+    for (const [from, to] of pairs) {
+      const path = travel(from, to);
+      const through = route(from, to).slice(1, -1) as Array<(typeof STATIONS)[number]["id"]>;
+      for (const id of through) {
+        const s = STATION[id];
+        for (const block of blockers[id] ?? []) {
+          const p = { x: s.x + block.x, y: s.y + block.y };
+          const nearest = Math.min(...path.slice(1).map((b, i) => distToSegment(p, path[i], b)));
+          expect(nearest, `${from}→${to} crosses ${id} clear of furniture at (${block.x}, ${block.y})`).toBeGreaterThan(block.r);
+        }
+      }
+    }
   });
 
   it("lead the scouts' trail off the left edge of the world", () => {

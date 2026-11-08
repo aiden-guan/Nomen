@@ -81,6 +81,18 @@ export class Stage {
     return { width: this.width, height: this.height, dpr: this.dpr };
   }
 
+  /** The canvas the stage draws on (for pointer input). */
+  get element() {
+    return this.canvas;
+  }
+
+  /**
+   * Keeps the camera on a moving world point (a selected soldier), offset in art pixels so the
+   * point sits clear of panels. A camera move in progress steers toward the point as it moves.
+   * Returning null leaves the camera where it is (the point left the visible world).
+   */
+  follow: { at: () => { x: number; y: number; z: number } | null; dx: number; dy: number } | null = null;
+
   /** Device pixels per art pixel for a zoom, snapped so art pixels stay whole on this screen. */
   snapZoom(zoom: number) {
     const device = Math.max(1, Math.round(zoom * this.dpr));
@@ -197,6 +209,19 @@ export class Stage {
   onResize: ((width: number, height: number) => void) | null = null;
 
   private step(dt: number) {
+    const followed = this.follow?.at();
+    if (this.follow && followed) {
+      const tx = projectX(followed.x, followed.y) + this.follow.dx;
+      const ty = projectY(followed.x, followed.y, followed.z) + this.follow.dy;
+      if (this.cameraTween) {
+        this.cameraTween.to = { ...this.cameraTween.to, x: tx, y: ty };
+      } else {
+        // Ease toward it, so a galloping rider pulls the camera along without jitter.
+        const k = 1 - Math.exp(-dt * 5);
+        this.camera.x += (tx - this.camera.x) * k;
+        this.camera.y += (ty - this.camera.y) * k;
+      }
+    }
     if (this.cameraTween) {
       const tw = this.cameraTween;
       const t = Math.min(1, (this.time - tw.start) / tw.duration);

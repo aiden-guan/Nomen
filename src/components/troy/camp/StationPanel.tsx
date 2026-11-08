@@ -1,16 +1,25 @@
 "use client";
 
-import { type ReactNode, type SyntheticEvent, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import type { BrandView, CreativeView } from "../api";
 import type { Baker } from "../engine/baker";
-import { type CampPlan, runLabel } from "../scenes/derive";
+import { type AgentPlan, type CampPlan, runLabel, stationForEvent } from "../scenes/derive";
 import { STATION, type StationId } from "../scenes/layout";
 import styles from "../troy.module.css";
-import { Avatar } from "./Avatar";
-import { type CampActions, Pip } from "./Camp";
-import { money, platformName, when } from "./format";
+import { Basket, VideoDossier } from "./AgentCard";
+import { type CampActions } from "./Camp";
+import { ago, money, platformName, when } from "./format";
+import { CampMap, Chip, crispIfTiny, Emblem, greekName, Icon, type IconName, Parchment, Portrait, quote, Section, Stat, STATE_COLOR, STATE_WORD, Steps } from "./ui";
 
-const STATE_WORD: Record<string, string> = { waiting: "Waiting", working: "Working", done: "Done", failed: "Stopped", skipped: "Skipped", yours: "Your turn" };
+/** What each station does, in a sentence, for someone seeing the camp for the first time. */
+const ABOUT: Record<StationId, string> = {
+  scouts: "Scouts ride out to the brand's website, its rivals, TikTok, Reels, Shorts, ad libraries and Reddit, and bring back what they find.",
+  oracle: "The oracle watches the best short videos in the category and writes down why they work: structure, pacing, hooks.",
+  tent: "The strategist turns the research into a brief and one concept per video: a hook, an angle and every shot.",
+  workshop: "Each editor makes one video: first frames are painted, shots are filmed, and an inspector checks every frame.",
+  theatre: "Finished videos play here. Approve the ones you want, then send them out.",
+  agora: "The herald posts each approved video to the brand's own accounts, now or one a day.",
+};
 
 export function StationPanel({
   id,
@@ -22,6 +31,8 @@ export function StationPanel({
   error,
   actions,
   demo,
+  onAgent,
+  onStation,
   onClose,
 }: {
   id: StationId;
@@ -34,16 +45,19 @@ export function StationPanel({
   actions: CampActions;
   /** Set in the demo camp: whether it replays a recorded campaign or the made-up sample. */
   demo: { recorded: boolean } | null;
+  onAgent: (id: string) => void;
+  onStation: (id: StationId) => void;
   onClose: () => void;
 }) {
   const station = STATION[id];
   const state = plan.stations[id];
   const here = plan.agents.filter((a) => a.station === id);
-  // Scouts who already brought their findings back are off duty: count them instead of listing.
-  const agents = here.filter((a) => !a.away && !a.returning);
+  // Scouts who already brought their findings back have gone home: count them instead of listing.
+  const agents = here.filter((a) => !a.returning);
   const away = here.filter((a) => a.away).length;
   const back = here.filter((a) => a.returning === "scroll").length;
   const empty = here.filter((a) => a.returning === "empty").length;
+  const latest = view.events.filter((e) => stationForEvent(e.message, view.campaign?.stage ?? "research") === id).slice(0, 4);
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     headingRef.current?.focus();
@@ -57,19 +71,25 @@ export function StationPanel({
   return (
     <aside
       aria-label={`${station.name}: ${station.role}`}
-      className={`${styles.box} ${styles.enter} absolute z-20 flex flex-col ${wide ? "bottom-4 right-4 top-[76px] w-[420px]" : "inset-x-3 bottom-3 h-[58vh]"}`}
+      className={`${styles.box} ${styles.rise} absolute z-20 flex flex-col ${wide ? "bottom-4 right-4 top-[76px] w-[420px]" : "inset-x-3 bottom-3 h-[62vh]"}`}
     >
-      <header className="flex items-start gap-3 border-b-2 border-[rgba(43,29,20,0.12)] px-5 pb-3 pt-4">
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-[var(--ink-soft)]">
-            <Pip state={state.state} /> {station.role} · {STATE_WORD[state.state]}
-          </p>
-          <h2 ref={headingRef} tabIndex={-1} className={`${styles.pixel} mt-1 text-[24px] font-semibold leading-none outline-none`}>
-            {station.name}
-          </h2>
-          <p className="mt-2 text-[13px] text-[var(--ink-soft)]">{state.status}</p>
+      <header className="relative border-b-2 border-[rgba(43,29,20,0.12)] px-5 pb-3 pt-4">
+        <div className="flex items-start gap-3">
+          <div className={`${styles.parchment} grid size-[64px] shrink-0 place-items-center`}>
+            <Emblem baker={baker} id={id} size={56} />
+          </div>
+          <div className="min-w-0 flex-1 pr-6">
+            <p className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-[var(--ink-soft)]">
+              {station.role} · <span style={{ color: STATE_COLOR[state.state] }}>{STATE_WORD[state.state]}</span>
+            </p>
+            <h2 ref={headingRef} tabIndex={-1} className={`${styles.pixel} mt-1 text-[24px] font-semibold leading-none outline-none`}>
+              {station.name}
+            </h2>
+            <p className="mt-2 text-[13px] leading-snug">{state.status}</p>
+          </div>
         </div>
-        <button type="button" onClick={onClose} className={`${styles.link} ${styles.pixel} -mr-1 px-2 text-xl leading-none`} aria-label="Close">
+        {state.progress !== null && <Progress value={state.progress} color={STATE_COLOR[state.state]} />}
+        <button type="button" onClick={onClose} className={`${styles.link} ${styles.pixel} absolute right-3 top-3 px-2 text-xl leading-none`} aria-label="Close">
           ×
         </button>
       </header>
@@ -81,36 +101,31 @@ export function StationPanel({
           </p>
         )}
 
-        <Section title={`Agents${away ? ` · ${away} out on runs` : ""}`}>
+        <div className="mb-5">
+          <p className="mb-2 text-[12px] leading-relaxed text-[var(--ink-soft)]">{ABOUT[id]}</p>
+          <div className="bg-[rgba(43,29,20,0.04)] px-2 pt-2">
+            <CampMap stations={plan.stations} here={id} onPick={onStation} />
+          </div>
+        </div>
+
+        <Section
+          title="Agents"
+          aside={
+            <span className="text-[11px] text-[var(--ink-faint)]">
+              {[away && `${away} out on runs`, back && `${back} back with findings`, empty && `${empty} came back empty`].filter(Boolean).join(" · ") || "Click one to follow them"}
+            </span>
+          }
+        >
           {agents.length === 0 ? (
             <p className="text-[13px] text-[var(--ink-soft)]">{away ? "Everyone is out gathering." : "No one is posted here yet."}</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="grid grid-cols-3 gap-2">
               {agents.slice(0, 12).map((agent) => (
-                <li key={agent.id} className="flex items-center gap-3">
-                  <span className="shrink-0 bg-[var(--sand)]/50">
-                    <Avatar baker={baker} look={agent.look} act={agent.act} size={36} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className={`${styles.pixel} block text-[13px]`}>
-                      {agent.role}
-                      {agent.state === "working" && <span className="ml-2 text-[11px] text-[var(--crimson)]">working</span>}
-                      {agent.state === "failed" && <span className="ml-2 text-[11px] text-[var(--crimson-dark)]">needs help</span>}
-                    </span>
-                    <span className="block text-[12px] leading-snug text-[var(--ink-soft)]">{agent.task}</span>
-                  </span>
-                </li>
+                <AgentTile key={agent.id} agent={agent} baker={baker} onClick={() => onAgent(agent.id)} />
               ))}
-              {agents.length > 12 && <li className="text-[12px] text-[var(--ink-soft)]">and {agents.length - 12} more</li>}
             </ul>
           )}
-          {(back > 0 || empty > 0) && (
-            <p className="mt-3 text-[12px] text-[var(--ink-soft)]">
-              {back > 0 && `${back} ${back === 1 ? "scout is" : "scouts are"} back with findings`}
-              {back > 0 && empty > 0 && " · "}
-              {empty > 0 && `${empty} came back empty-handed`}
-            </p>
-          )}
+          {agents.length > 12 && <p className="mt-2 text-[12px] text-[var(--ink-soft)]">and {agents.length - 12} more</p>}
         </Section>
 
         {id === "scouts" && <Scouts view={view} />}
@@ -119,6 +134,22 @@ export function StationPanel({
         {id === "workshop" && <Workshop view={view} busy={busy} actions={actions} />}
         {id === "theatre" && <Theatre view={view} busy={busy} actions={actions} />}
         {id === "agora" && <Agora view={view} />}
+
+        {latest.length > 0 && (
+          <Section title="Latest here">
+            <ol className="space-y-1.5 border-l-2 border-[rgba(43,29,20,0.12)] pl-3">
+              {latest.map((event, i) => (
+                <li key={`${event.ts}-${i}`} className="relative text-[12px] leading-snug">
+                  <span className="absolute -left-[17px] top-[5px] size-[6px]" style={{ background: event.level === "error" ? "var(--crimson)" : event.level === "warn" ? "var(--bronze)" : "var(--teal)" }} aria-hidden="true" />
+                  <span>{event.message}</span>
+                  <time dateTime={event.ts} className="ml-2 text-[11px] text-[var(--ink-faint)]">
+                    {ago(event.ts)}
+                  </time>
+                </li>
+              ))}
+            </ol>
+          </Section>
+        )}
       </div>
 
       <footer className="border-t-2 border-[rgba(43,29,20,0.12)] px-5 py-3 text-[12px] text-[var(--ink-soft)]">
@@ -134,26 +165,38 @@ export function StationPanel({
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function AgentTile({ agent, baker, onClick }: { agent: AgentPlan; baker: Baker | null; onClick: () => void }) {
+  const tone = agent.state === "working" ? "var(--crimson)" : agent.state === "done" ? "var(--olive)" : agent.state === "failed" ? "var(--crimson-dark)" : "var(--ink-faint)";
   return (
-    <section className="mb-6">
-      <h3 className={`${styles.pixel} mb-2.5 text-[12px] uppercase tracking-wider text-[var(--ink-faint)]`}>{title}</h3>
-      {children}
-    </section>
+    <li>
+      <button type="button" onClick={onClick} className={`${styles.boxSoft} group block w-full px-1 pb-2 pt-1 text-center transition-transform hover:-translate-y-0.5`} aria-label={`${greekName(agent.id)}, ${agent.role}: ${agent.task}`}>
+        <span className="block bg-[rgba(234,214,173,0.35)]">
+          <Portrait baker={baker} look={agent.look} act={agent.away ? "march" : agent.act} size={72} />
+        </span>
+        <span className={`${styles.pixel} mt-1 block truncate text-[12px]`}>{greekName(agent.id)}</span>
+        <span className="flex items-center justify-center gap-1 text-[10px] text-[var(--ink-soft)]">
+          <span className={`inline-block size-[6px] ${agent.state === "working" ? styles.blink : ""}`} style={{ background: tone }} aria-hidden="true" />
+          {agent.away ? "Out on a run" : agent.role}
+        </span>
+      </button>
+    </li>
   );
 }
 
-function Status({ value }: { value: string }) {
-  const tone =
-    value === "done" || value === "passed" || value === "ready" || value === "posted"
-      ? "text-[var(--olive)]"
-      : value === "failed"
-        ? "text-[var(--crimson-dark)]"
-        : value === "running" || value === "rendering" || value === "producing" || value === "processing"
-          ? "text-[var(--crimson)]"
-          : "text-[var(--ink-faint)]";
-  return <span className={`${styles.pixel} text-[12px] ${tone}`}>{value}</span>;
+function Progress({ value, color }: { value: number; color: string }) {
+  const segments = 16;
+  const filled = Math.round(Math.max(0, Math.min(1, value)) * segments);
+  return (
+    <div className="mt-3 flex gap-[3px]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)}>
+      {Array.from({ length: segments }, (_, i) => (
+        <span key={i} className="h-[6px] flex-1" style={{ background: i < filled ? color : "rgba(43,29,20,0.1)" }} />
+      ))}
+    </div>
+  );
 }
+
+const RUN_ICON: Record<string, IconName> = { pending: "hourglass", running: "horse", done: "scroll", failed: "cross" };
+const RUN_WORD: Record<string, string> = { pending: "Waiting", running: "Out riding", done: "Back", failed: "Empty-handed" };
 
 function Scouts({ view }: { view: BrandView }) {
   const campaign = view.campaign;
@@ -162,46 +205,46 @@ function Scouts({ view }: { view: BrandView }) {
   const pack = campaign.research;
   return (
     <>
-      {plan && (
-        <Section title="Battle plan">
-          <dl className="space-y-1.5 text-[13px]">
-            <Row label="Category">{plan.category}</Row>
-            <Row label="Audience">{plan.audience}</Row>
-            {plan.competitors.length > 0 && <Row label="Rivals">{plan.competitors.map((c) => c.name).join(", ")}</Row>}
-            {plan.content_queries.length > 0 && <Row label="Searching">{plan.content_queries.join(", ")}</Row>}
-          </dl>
-        </Section>
-      )}
       {pack && (
         <Section title="What came back">
           <div className="grid grid-cols-4 gap-2">
-            <Count n={pack.videos.length} label="top videos" />
-            <Count n={pack.ads.length} label="live ads" />
-            <Count n={pack.reddit.length} label="threads" />
-            <Count n={pack.seo.keywords.length} label="keywords" />
+            <Stat n={pack.videos.length} label="top videos" icon="film" />
+            <Stat n={pack.ads.length} label="live ads" icon="eye" />
+            <Stat n={pack.reddit.length} label="threads" icon="scroll" />
+            <Stat n={pack.seo.keywords.length} label="keywords" icon="pin" />
           </div>
         </Section>
       )}
+      <Basket view={view} />
       <Section title={`Sources · ${campaign.runs.filter((r) => r.status === "done").length}/${campaign.runs.length}`}>
         {campaign.runs.length === 0 ? (
           <p className="text-[13px] text-[var(--ink-soft)]">The scouts are about to set out.</p>
         ) : (
-          <table className="w-full text-[12px]">
-            <tbody>
-              {campaign.runs.map((run) => (
-                <tr key={run.key} className="border-b border-[rgba(43,29,20,0.07)] last:border-0" title={run.error ?? undefined}>
-                  <td className="py-1.5 pr-2">{runLabel(run.key)}</td>
-                  <td className="py-1.5 pr-2 text-[var(--ink-faint)]">{run.provider}</td>
-                  <td className="py-1.5 pr-2 text-right">
-                    <Status value={run.status} />
-                  </td>
-                  <td className="py-1.5 text-right tabular-nums text-[var(--ink-soft)]">{run.cost ? money(run.cost) : ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="grid grid-cols-2 gap-1.5">
+            {campaign.runs.map((run) => (
+              <li key={run.key} className="flex items-center gap-2 bg-[rgba(43,29,20,0.04)] px-2 py-1.5" title={run.error ?? `${run.provider}${run.cost ? ` · ${money(run.cost)}` : ""}`}>
+                <Icon name={RUN_ICON[run.status] ?? "hourglass"} size={14} color={run.status === "done" ? "var(--bronze)" : run.status === "failed" ? "var(--crimson-dark)" : run.status === "running" ? "var(--crimson)" : "var(--ink-faint)"} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] leading-tight">{runLabel(run.key)}</span>
+                  <span className={`block text-[10px] leading-tight ${run.status === "running" ? "text-[var(--crimson)]" : "text-[var(--ink-faint)]"}`}>{RUN_WORD[run.status] ?? run.status}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </Section>
+      {plan && (
+        <Section title="Their orders">
+          <Parchment>
+            <dl className="space-y-1.5 text-[12px]">
+              <Row label="Category">{plan.category}</Row>
+              <Row label="Audience">{plan.audience}</Row>
+              {plan.competitors.length > 0 && <Row label="Rivals">{plan.competitors.map((c) => c.name).join(", ")}</Row>}
+              {plan.content_queries.length > 0 && <Row label="Searching">{plan.content_queries.join(", ")}</Row>}
+            </dl>
+          </Parchment>
+        </Section>
+      )}
     </>
   );
 }
@@ -209,18 +252,26 @@ function Scouts({ view }: { view: BrandView }) {
 function Oracle({ view, state }: { view: BrandView; state: string }) {
   const campaign = view.campaign;
   if (!campaign) return null;
+  const style = campaign.style;
+  const steps = ["Gather the top videos", "Watch them frame by frame", "Write the format down"];
+  const current = state === "done" ? 3 : state === "working" ? 1 : 0;
   return (
     <Section title="Format study">
-      <p className="text-[13px] leading-relaxed text-[var(--ink-soft)]">
-        {state === "working"
-          ? "The oracle is watching the best-performing short videos in this category and writing down their structure, pacing and hooks."
-          : state === "skipped"
-            ? "No format study this time: there were no public short videos to learn from, or it was turned off. The strategist works from the research alone."
-            : campaign.style
-              ? `Learned the format from ${campaign.style.samples.length || "the top"} videos${campaign.style.slug ? `, saved as ${campaign.style.slug}${campaign.style.version ? `@${campaign.style.version}` : ""}` : ""}.`
-              : "Waits for the scouts' research."}
-      </p>
-      {campaign.spend.style > 0 && <p className="mt-2 text-[12px] text-[var(--ink-faint)]">Cost so far {money(campaign.spend.style)}</p>}
+      {state === "skipped" ? (
+        <p className="text-[13px] leading-relaxed text-[var(--ink-soft)]">No format study this time: there were no public short videos to learn from, or it was turned off. The strategist works from the research alone.</p>
+      ) : (
+        <>
+          <Steps steps={steps} current={current} failed={state === "failed"} />
+          <Parchment className="mt-3">
+            <p className="flex items-center gap-2">
+              <Icon name="eye" size={16} color="var(--teal)" />
+              <span className={`${styles.pixel} text-[15px]`}>{style ? `Learned from ${style.samples.length || "the top"} videos` : state === "working" ? "Watching now" : "Waits for the scouts"}</span>
+            </p>
+            {style?.slug && <p className="mt-1 text-[11px] text-[var(--ink-faint)]">Saved as {style.slug}{style.version ? `@${style.version}` : ""}</p>}
+            {campaign.spend.style > 0 && <p className="mt-1 text-[11px] text-[var(--ink-faint)]">Cost {money(campaign.spend.style)}</p>}
+          </Parchment>
+        </>
+      )}
     </Section>
   );
 }
@@ -237,23 +288,31 @@ function Tent({ view }: { view: BrandView }) {
   return (
     <>
       <Section title="The brief">
-        <p className={`${styles.pixel} text-[17px] leading-snug`}>{strategy.campaign.name}</p>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-soft)]">{strategy.campaign.objective}</p>
-        <dl className="mt-3 space-y-1.5 text-[13px]">
-          <Row label="Brand">{strategy.brand.one_liner}</Row>
-          <Row label="Tone">{strategy.brand.tone}</Row>
-          {strategy.audience.length > 0 && <Row label="For">{strategy.audience.map((a) => a.name).join(", ")}</Row>}
-          <Row label="Cadence">{strategy.campaign.posting_plan.cadence}</Row>
-        </dl>
+        <Parchment>
+          <p className={`${styles.pixel} text-[17px] leading-snug`}>{strategy.campaign.name}</p>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--ink-soft)]">{strategy.campaign.objective}</p>
+          <dl className="mt-3 space-y-1.5 text-[12px]">
+            <Row label="Brand">{strategy.brand.one_liner}</Row>
+            <Row label="Tone">{strategy.brand.tone}</Row>
+            {strategy.audience.length > 0 && <Row label="For">{strategy.audience.map((a) => a.name).join(", ")}</Row>}
+            <Row label="Cadence">{strategy.campaign.posting_plan.cadence}</Row>
+          </dl>
+        </Parchment>
       </Section>
       <Section title={`Concepts · ${strategy.campaign.concepts.length}`}>
-        <ol className="space-y-3">
+        <ol className="space-y-2">
           {strategy.campaign.concepts.map((concept, i) => (
-            <li key={i} className="text-[13px]">
-              <p className="font-semibold">
-                {i + 1}. {concept.title} <span className="font-normal text-[var(--ink-faint)]">· {concept.angle}</span>
-              </p>
-              <p className="mt-0.5 leading-snug text-[var(--ink-soft)]">Hook: {concept.hook}</p>
+            <li key={i} className="flex gap-3 bg-[rgba(43,29,20,0.04)] px-3 py-2.5">
+              <span className={`${styles.pixel} grid size-7 shrink-0 place-items-center bg-[var(--ink)] text-[13px] text-[var(--paper)]`}>{i + 1}</span>
+              <span className="min-w-0 text-[13px]">
+                <span className="block font-semibold leading-snug">{concept.title}</span>
+                <span className="mt-0.5 block text-[12px] leading-snug text-[var(--ink-soft)]">{quote(concept.hook)}</span>
+                {concept.angle && (
+                  <span className="mt-1.5 inline-block">
+                    <Chip tone="teal">{concept.angle}</Chip>
+                  </span>
+                )}
+              </span>
             </li>
           ))}
         </ol>
@@ -270,30 +329,16 @@ function Workshop({ view, busy, actions }: { view: BrandView; busy: string | nul
     <Section title={`Videos · ${creatives.filter((c) => c.status === "ready").length}/${creatives.length || campaign.options.concepts}`}>
       {campaign.naiveOut && <p className="mb-3 bg-[rgba(201,143,58,0.12)] px-3 py-2 text-[12px]">Naive is out of credits, so new shots render on Kling through Monid.</p>}
       {creatives.length === 0 ? (
-        <p className="text-[13px] text-[var(--ink-soft)]">Desks open as soon as the strategist hands over the concepts.</p>
+        <p className="text-[13px] text-[var(--ink-soft)]">The desks are set up; each editor starts when the strategist hands over the concepts.</p>
       ) : (
         <ul className="space-y-4">
           {creatives.map((creative) => (
-            <li key={creative.id} className="text-[13px]">
-              <div className="flex items-baseline gap-2">
+            <li key={creative.id} className="bg-[rgba(43,29,20,0.04)] px-3 py-3 text-[13px]">
+              <div className="mb-2 flex items-baseline gap-2">
                 <span className="min-w-0 flex-1 truncate font-semibold">{creative.concept?.title ?? `Video ${creative.idx + 1}`}</span>
-                <Status value={creative.status} />
+                <Chip tone={creative.status === "ready" ? "olive" : creative.status === "failed" ? "crimson" : creative.status === "producing" ? "crimson" : "faint"}>{creative.status}</Chip>
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {creative.shots.map((shot) => (
-                  <span key={shot.n} className="bg-[rgba(43,29,20,0.06)] px-2 py-1 text-[11px]" title={shot.error ?? shot.qc?.issues[0] ?? undefined}>
-                    Shot {shot.n}: {shot.status}
-                    {shot.provider ? ` · ${shot.provider === "monid" ? "Kling" : "Veo"}` : ""}
-                    {shot.qc ? ` · QC ${shot.qc.score}/10` : ""}
-                  </span>
-                ))}
-              </div>
-              <p className="mt-1 text-[12px] text-[var(--ink-faint)]">
-                {creative.cost ? `${money(creative.cost)} so far` : "No cost yet"}
-                {creative.qcScore ? ` · lowest QC ${creative.qcScore}/10` : ""}
-                {creative.generation > 1 ? ` · take ${creative.generation}` : ""}
-              </p>
-              {creative.error && <p className="mt-1 text-[12px] text-[var(--crimson-dark)]">{creative.error}</p>}
+              <VideoDossier creative={creative} compact />
               {(creative.status === "failed" || creative.status === "ready") && (
                 <button
                   type="button"
@@ -336,11 +381,7 @@ function Theatre({ view, busy, actions }: { view: BrandView; busy: string | null
           {!view.brand.connected && (
             <p className="mb-3 text-[12px] leading-relaxed text-[var(--ink-soft)]">
               Posting goes to the brand&apos;s own accounts, labeled AI-generated. Connect them once:{" "}
-              <button
-                type="button"
-                className={`${styles.link} underline decoration-dotted underline-offset-4`}
-                onClick={actions.connect}
-              >
+              <button type="button" className={`${styles.link} underline decoration-dotted underline-offset-4`} onClick={actions.connect}>
                 {busy === "connect" ? "Opening…" : "connect accounts"}
               </button>
               .
@@ -378,11 +419,14 @@ function VideoCard({ creative, busy, actions }: { creative: CreativeView; busy: 
         ) : null}
         <span aria-hidden="true" className="absolute inset-0 grid place-items-center bg-[rgba(43,29,20,0.12)] opacity-90 transition-opacity group-hover:opacity-100">
           <span className="grid size-10 place-items-center bg-[var(--paper)] text-[var(--ink)] shadow-[0_3px_0_rgba(43,29,20,0.3)]">
-            <svg viewBox="0 0 14 14" width="16" height="16" fill="currentColor" shapeRendering="crispEdges">
-              <path d="M4 3h2v9h-2zM6 4h1v7h-1zM7 5h1v5h-1zM8 6h1v3h-1zM9 7h1v1h-1z" />
-            </svg>
+            <Icon name="play" size={16} />
           </span>
         </span>
+        {creative.approved && (
+          <span className="absolute right-1.5 top-1.5 bg-[var(--olive)] p-1" aria-hidden="true">
+            <Icon name="check" size={12} color="var(--paper)" />
+          </span>
+        )}
       </button>
       <p className="mt-1.5 line-clamp-2 font-semibold leading-snug">{title}</p>
       <label className="mt-1 flex cursor-pointer items-center gap-2">
@@ -394,10 +438,7 @@ function VideoCard({ creative, busy, actions }: { creative: CreativeView; busy: 
   );
 }
 
-/** Pixel-art stills (a few dozen pixels wide) scale up crisp; photos stay smooth. */
-export function crispIfTiny(event: SyntheticEvent<HTMLImageElement>) {
-  if (event.currentTarget.naturalWidth < 120) event.currentTarget.style.imageRendering = "pixelated";
-}
+export { crispIfTiny };
 
 function Agora({ view }: { view: BrandView }) {
   const campaign = view.campaign;
@@ -408,22 +449,33 @@ function Agora({ view }: { view: BrandView }) {
       {posts.length === 0 ? (
         <p className="text-[13px] text-[var(--ink-soft)]">Approve videos in the theatre, then send them out. The herald posts each one to the brand&apos;s own accounts.</p>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="space-y-3">
           {posts.map((post) => {
-            const title = campaign.creatives.find((c) => c.id === post.creativeId)?.concept?.title ?? "Video";
+            const creative = campaign.creatives.find((c) => c.id === post.creativeId);
+            const title = creative?.concept?.title ?? "Video";
             const numbers = post.analytics ? Object.entries(post.analytics).filter(([, v]) => typeof v === "number").slice(0, 3) : [];
+            const step = post.status === "posted" || post.status === "scheduled" ? 3 : post.status === "processing" ? 2 : post.status === "failed" ? 2 : 1;
             return (
-              <li key={post.id} className="text-[13px]">
-                <div className="flex items-baseline gap-2">
-                  <span className="min-w-0 flex-1 truncate font-semibold">{title}</span>
-                  <Status value={post.status} />
+              <li key={post.id} className="flex gap-3 bg-[rgba(43,29,20,0.04)] p-2.5 text-[13px]">
+                {creative?.posterUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={creative.posterUrl} alt="" onLoad={crispIfTiny} className="aspect-[9/16] w-[38px] shrink-0 self-start bg-[var(--ink)] object-cover" />
+                ) : (
+                  <span className="aspect-[9/16] w-[38px] shrink-0 self-start bg-[var(--ink)]" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{title}</p>
+                  <p className="mb-2 mt-0.5 flex flex-wrap gap-1">
+                    {post.platforms.map((p) => (
+                      <Chip key={p} tone="ink">
+                        {platformName(p)}
+                      </Chip>
+                    ))}
+                  </p>
+                  <Steps steps={["Queued", "Sent", post.status === "scheduled" ? `On ${when(post.scheduledAt)}` : "Posted"]} current={step} failed={post.status === "failed"} />
+                  {numbers.length > 0 && <p className="mt-1.5 text-[12px] text-[var(--ink-soft)]">{numbers.map(([k, v]) => `${k} ${(v as number).toLocaleString()}`).join(" · ")}</p>}
+                  {post.error && <p className="mt-1 text-[12px] text-[var(--crimson-dark)]">{post.error}</p>}
                 </div>
-                <p className="text-[12px] text-[var(--ink-soft)]">
-                  {post.platforms.map(platformName).join(", ")}
-                  {post.scheduledAt ? ` · ${when(post.scheduledAt)}` : ""}
-                </p>
-                {numbers.length > 0 && <p className="text-[12px] text-[var(--ink-faint)]">{numbers.map(([k, v]) => `${k} ${v}`).join(" · ")}</p>}
-                {post.error && <p className="text-[12px] text-[var(--crimson-dark)]">{post.error}</p>}
               </li>
             );
           })}
@@ -436,17 +488,8 @@ function Agora({ view }: { view: BrandView }) {
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex gap-3">
-      <dt className="w-[72px] shrink-0 text-[var(--ink-faint)]">{label}</dt>
+      <dt className="w-[68px] shrink-0 text-[var(--ink-faint)]">{label}</dt>
       <dd className="min-w-0 flex-1">{children}</dd>
-    </div>
-  );
-}
-
-function Count({ n, label }: { n: number; label: string }) {
-  return (
-    <div className="bg-[rgba(43,29,20,0.05)] px-2 py-2 text-center">
-      <div className={`${styles.pixel} text-[20px] leading-none`}>{n}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-wide text-[var(--ink-soft)]">{label}</div>
     </div>
   );
 }

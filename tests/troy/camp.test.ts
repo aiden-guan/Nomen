@@ -188,6 +188,61 @@ describe("the courier", () => {
   });
 });
 
+describe("looking at one agent", () => {
+  it("picks the soldier under the pointer, and nothing on empty ground", () => {
+    const { stage, camp, run: tick } = world(false);
+    camp.apply(derive(view({})));
+    // Opened directly, everyone appears with their island first.
+    expect(camp.pick(...(() => {
+      const q = camp.position("lookout")!;
+      const t = stage.toScreen(q.x, q.y, q.z);
+      return [t.x, t.y - 10 * stage.camera.zoom] as const;
+    })())).toBeNull();
+    tick(2);
+    const p = camp.position("lookout")!;
+    const s = stage.toScreen(p.x, p.y, p.z);
+    expect(camp.pick(s.x, s.y - 10 * stage.camera.zoom)).toBe("lookout");
+    expect(camp.pick(5, 5)).toBeNull();
+  });
+
+  it("tells the card what a scout is doing and how far its trip has got", () => {
+    const { camp, run: tick } = world(false);
+    camp.apply(derive(view({ runs: [run("brand", "pending", "A")] })));
+    expect(camp.info("scout:brand")).toMatchObject({ trip: "camp", visible: true });
+    camp.apply(derive(view({ runs: [run("brand", "running", "A")] })));
+    tick(1.5);
+    const riding = camp.info("scout:brand")!;
+    expect(riding.trip).toBe("out");
+    expect(riding.doing).toMatch(/stable|Saddling|Galloping/);
+    tick(8);
+    expect(camp.info("scout:brand")).toMatchObject({ trip: "out", where: "out", visible: false });
+    expect(camp.info("scout:brand")!.doing).toMatch(/edge of the map/);
+    camp.apply(derive(view({ runs: [run("brand", "done", "A")] })));
+    tick(1);
+    expect(camp.info("scout:brand")).toMatchObject({ trip: "back", mounted: true });
+    tick(12);
+    expect(camp.info("scout:brand")!.trip).toBe("done");
+  });
+
+  it("tells the card where the courier is going and how many dispatches he has carried", () => {
+    const { camp, run: tick } = world(false);
+    camp.apply(derive(view({})));
+    camp.dispatch("scouts", "oracle");
+    tick(2);
+    expect(camp.info("courier")!.errand).toEqual({ from: "scouts", to: "oracle" });
+    tick(12);
+    expect(camp.info("courier")).toMatchObject({ errand: null, deliveries: 1, where: "posted" });
+  });
+
+  it("gives every agent its own Greek name, the same each time", async () => {
+    const { greekName } = await import("@/components/troy/camp/ui");
+    const ids = ["lookout", "courier", "watcher", "general", "scribe", "painter", "inspector", "herald", ...Array.from({ length: 16 }, (_, i) => `scout:k${i}`), ...Array.from({ length: 6 }, (_, i) => `editor:${i}`), ...Array.from({ length: 4 }, (_, i) => `audience:${i}`)];
+    const names = ids.map(greekName);
+    expect(new Set(names).size).toBe(ids.length);
+    expect(ids.map(greekName)).toEqual(names);
+  });
+});
+
 describe("agents the plan no longer needs", () => {
   it("march back into the horse instead of vanishing", () => {
     const { stage, camp, internals, run: tick } = world(false);

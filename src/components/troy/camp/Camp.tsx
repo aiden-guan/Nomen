@@ -4,12 +4,14 @@ import { type RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { type BrandView, campaignAction, connectLink, type CreativeView, getBrand, regenerate, setApproved } from "../api";
 import type { Baker } from "../engine/baker";
 import { easeInOutCubic, type Stage } from "../engine/stage";
+import { projectX, projectY } from "../engine/tracer";
 import type { CampScene } from "../scenes/camp";
 import { activeStation, derive, stationForEvent } from "../scenes/derive";
 import { STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
 import { DEMO_ID, type PublishMode } from "./demo";
+import { AgentCard } from "./AgentCard";
 import { Dispatches } from "./Dispatches";
 import { ago, money } from "./format";
 import { Screening } from "./Screening";
@@ -38,6 +40,13 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const [liveView, setLiveView] = useState<BrandView | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<StationId | null>(null);
+  // A soldier picked on the map (or from a station's panel): their card replaces the station panel.
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [following, setFollowing] = useState(true);
+  const openStation = useCallback((id: StationId | null) => {
+    setAgentId(null);
+    setSelected(id);
+  }, []);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -137,20 +146,109 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const [focused, setFocused] = useState<StationId | null>(null);
   const current = activeStation(campaign);
   const shown = selected ?? focused ?? current;
-  const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: selected && wide ? 440 : 0 }), [selected, wide]);
+  const panel = Boolean(selected || agentId);
+  const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: panel && wide ? 440 : 0 }), [panel, wide]);
   const frameCamera = useCallback(
     (duration: number) => {
       const e = engine.current;
-      if (!e) return;
-      e.camp.insets = { ...insets, bottom: selected && !wide ? Math.round(window.innerHeight * 0.58) : insets.bottom };
+      // While a soldier's card is open the camera follows them instead (below).
+      if (!e || (agentId && following)) return;
+      e.camp.insets = { ...insets, bottom: panel && !wide ? Math.round(window.innerHeight * 0.64) : insets.bottom };
       const target = wide ? (selected ? e.camp.focus(selected, e.camp.insets) : e.camp.camera(e.camp.insets)) : e.camp.focus(shown, e.camp.insets);
       e.stage.look(target, reduced ? 0 : duration, easeInOutCubic);
     },
-    [engine, insets, selected, wide, shown, reduced],
+    [engine, insets, selected, wide, shown, reduced, agentId, following, panel],
   );
   useEffect(() => {
     if (arrived) frameCamera(0.9);
   }, [arrived, frameCamera]);
+  // Follow the picked soldier: ease in close, then keep them in view (clear of the card) as they move.
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    e.camp.selected = agentId;
+    if (!agentId || !following || !arrived) {
+      e.stage.follow = null;
+      return;
+    }
+    const agent = plan.agents.find((a) => a.id === agentId);
+    const ins = { ...insets, bottom: wide ? insets.bottom : Math.round(window.innerHeight * 0.64) };
+    const zoom = e.camp.focus(agent?.station ?? current, ins).zoom;
+    const dx = ins.right / 2 / zoom;
+    const dy = (ins.bottom - ins.top) / 2 / zoom;
+    e.stage.follow = { at: () => e.camp.position(agentId), dx, dy };
+    const p = e.camp.position(agentId);
+    if (p) e.stage.look({ x: projectX(p.x, p.y) + dx, y: projectY(p.x, p.y, p.z) + dy, zoom }, reduced ? 0 : 0.8, easeInOutCubic);
+    return () => {
+      e.stage.follow = null;
+    };
+    // The plan changes every tick in the demo; who is followed and how is what matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine, agentId, following, arrived, insets, wide, reduced]);
+  useEffect(
+    () => () => {
+      const e = engine.current;
+      if (!e) return;
+      e.camp.selected = null;
+      e.camp.hovered = null;
+      e.stage.follow = null;
+    },
+    [engine],
+  );
+
+  // Soldiers on the map are clickable: hover shows a ring and a pointer, a click opens their card.
+  const [hinted, setHinted] = useState(true);
+  useEffect(() => {
+    const e = engine.current;
+    if (!e || !arrived) return;
+    const canvas = e.stage.element;
+    const at = (event: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      return e.camp.pick(event.clientX - rect.left, event.clientY - rect.top);
+    };
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      const id = at(event);
+      e.camp.hovered = id;
+      canvas.style.cursor = id ? "pointer" : "";
+    };
+    const leave = () => {
+      e.camp.hovered = null;
+      canvas.style.cursor = "";
+    };
+    const click = (event: MouseEvent) => {
+      const id = at(event);
+      if (!id) return;
+      setAgentId(id);
+      setFollowing(true);
+      setHinted(true);
+    };
+    canvas.addEventListener("pointermove", move);
+    canvas.addEventListener("pointerleave", leave);
+    canvas.addEventListener("click", click);
+    return () => {
+      canvas.removeEventListener("pointermove", move);
+      canvas.removeEventListener("pointerleave", leave);
+      canvas.removeEventListener("click", click);
+      leave();
+    };
+  }, [engine, arrived]);
+  // A first-time hint that the soldiers can be clicked (once per browser).
+  useEffect(() => {
+    if (!arrived) return;
+    let seen = true;
+    try {
+      seen = window.localStorage.getItem("troy:agents-hint") === "1";
+      window.localStorage.setItem("troy:agents-hint", "1");
+    } catch {
+      seen = false;
+    }
+    if (seen) return;
+    setHinted(false);
+    const timer = setTimeout(() => setHinted(true), 9000);
+    return () => clearTimeout(timer);
+  }, [arrived]);
+
   useEffect(() => {
     const e = engine.current;
     if (!e) return;
@@ -216,7 +314,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
 
   return (
     <>
-      <TopBar view={view} spend={spend} visible={arrived} onSelect={setSelected} selected={selected} demo={demo ? player : undefined} home={home} />
+      <TopBar view={view} spend={spend} visible={arrived} onSelect={openStation} selected={selected} demo={demo ? player : undefined} home={home} />
 
       {arrived && view && !wide && (
         <StationStrip
@@ -224,9 +322,9 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
           shown={shown}
           bubbles={bubbles}
           onPick={(id) => {
-            if (id === shown) setSelected(id);
+            if (id === shown) openStation(id);
             else {
-              setSelected(null);
+              openStation(null);
               setFocused(id);
             }
           }}
@@ -243,7 +341,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
             id={station.id}
             plan={plan.stations[station.id]}
             active={selected === station.id}
-            onClick={() => setSelected((current) => (current === station.id ? null : station.id))}
+            onClick={() => openStation(selected === station.id && !agentId ? null : station.id)}
             bubble={bubbles.filter((b) => b.station === station.id).slice(-1)[0]}
           />
         ))}
@@ -265,7 +363,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
 
       {arrived && view && <Dispatches events={view.events} wide={wide} />}
 
-      {arrived && selected && view && (
+      {arrived && selected && !agentId && view && (
         <StationPanel
           id={selected}
           view={view}
@@ -276,8 +374,34 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
           error={actionError}
           actions={actions}
           demo={demo ? { recorded: Boolean(player.script?.recorded) } : null}
+          onAgent={(id) => {
+            setAgentId(id);
+            setFollowing(true);
+          }}
+          onStation={openStation}
           onClose={() => setSelected(null)}
         />
+      )}
+
+      {arrived && agentId && view && (
+        <AgentCard
+          id={agentId}
+          view={view}
+          plan={plan}
+          engine={engine}
+          wide={wide}
+          following={following}
+          onFollow={() => setFollowing((f) => !f)}
+          onStation={openStation}
+          // Back to the station panel it was opened from, if any.
+          onClose={() => setAgentId(null)}
+        />
+      )}
+
+      {arrived && !hinted && !agentId && !selected && (
+        <p role="status" className={`${styles.boxSoft} ${styles.rise} pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 px-3 py-1.5 text-[12px] ${wide ? "bottom-5" : "top-[64px]"}`}>
+          <span className={`${styles.pixel} text-[var(--crimson)]`}>Tip </span>Click any soldier to see what they&apos;re doing and follow them.
+        </p>
       )}
 
       {arrived && screening && finishedVideos.length > 0 && (

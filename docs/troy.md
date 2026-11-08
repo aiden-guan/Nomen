@@ -169,8 +169,14 @@ open (`scenes/camp.ts`, tested in `tests/troy/camp.test.ts`):
 
 - **The march.** Submitting the box mounts the camp while the doors open, so its first plan is
   known when the plank lands. The soldiers that step out of the horse are those agents, in plan
-  order (scouts first); each walks the sandbars to its station (`travel()` in `scenes/layout.ts`
-  routes through each island's hub) and on to its post, and the camera follows the column down.
+  order (scouts first); each walks the sandbars to its station and on to its post, and the camera
+  follows the column down.
+- **Roads.** The sandbars form a ring (the horse's road joins it at the scouts, and the agora
+  links back to the scouts), and `travel()` in `scenes/layout.ts` takes the shortest way round it.
+  A walker crossing an island goes by its crossing points (`HUBS`), set clear of the shrine, the
+  seats, the desks and the podium; one stopping there walks straight from the island's edge to its
+  post. Soldiers march at double time and riders gallop, with longer strides at speed, so the camp
+  keeps up with the campaign.
   Opening a camp directly (or with reduced motion) places everyone at once, appearing with the
   islands.
 - **Later.** An agent that joins later (a scout for a new source) comes out of the horse the same
@@ -183,6 +189,25 @@ open (`scenes/camp.ts`, tested in `tests/troy/camp.test.ts`):
 The knock on the closed doors (every few seconds, and while the campaign starts) jolts the closed
 doors' own sprite outward and back, twice. It never swaps frames, so nothing re-shades or flickers;
 and the stage keeps the last drawn sprite of anything whose next frame is still baking.
+
+## Looking closer
+
+**Agents.** Every soldier on the map can be clicked (hover shows a ring and a pointer; a tap works
+on phones). Their card (`camp/AgentCard.tsx`) shows a Greek name, an animated portrait from the
+same sprites, what they are doing this moment in the camp ("Galloping off along the trail for
+“Reddit threads”"), their part of the campaign, and their piece of it drawn out: a scout's trip
+and the basket, an editor's video on its production line with every shot as a frame of film, the
+inspector's verdicts, the painter's frames, the courier's errand on a map of the camp, the
+strategist's brief, the audience's cut, the herald's posts. A marker bobs over their head and the
+camera follows them, galloping riders included, until the card closes (or "Follow" is turned
+off). `CampScene.pick()`, `info()` and `position()` are what the card reads.
+
+**Stations.** A station's panel (`camp/StationPanel.tsx`) opens with its emblem, a one-line
+explanation and a clickable map of the camp, then its agents as portraits (each opens their card)
+and its work as pictures: sources as tiles and the basket, the format study's steps, the brief and
+concept cards, each video's production line, the theatre's cut with approve and post, and each
+post's journey from queued to posted. The latest dispatches for the station close it. The pieces
+both share are in `camp/ui.tsx`.
 
 ## The art
 
@@ -233,6 +258,9 @@ They cover:
 - the agents as people, on the real scene with a stubbed canvas: the column reaching every post,
   scouts riding out and back and filling the basket, the courier, agents marching home, and that
   nobody fades out anywhere but the horse's doorway;
+- the shortest routes, and crossings that keep clear of the furniture;
+- picking a soldier, what the card is told about a scout's trip and the courier's errands, and
+  that every agent has a name of its own;
 - the gate and the demo-only switch;
 - the demo's clock: the review that waits, posting now or one a day, autoplay, skips, where event
   lines land, and loading recordings.

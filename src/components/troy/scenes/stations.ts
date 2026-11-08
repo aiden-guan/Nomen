@@ -40,8 +40,9 @@ export const PROPS: Record<StationId, Placement[]> = {
     { prop: "amphora", x: 30, y: 8 },
   ],
   oracle: [
-    { prop: "shrine", x: -8, y: -8, v: 0, key: "shrine" },
-    { prop: "olive", x: 26, y: -22, v: 2 },
+    // Set back from the road, which runs straight through the island in front of it.
+    { prop: "shrine", x: -12, y: -12, v: 0, key: "shrine" },
+    { prop: "olive", x: 12, y: -30, v: 2 },
     { prop: "amphora", x: 22, y: 18 },
     { prop: "amphora", x: 26, y: 13 },
   ],
@@ -66,7 +67,7 @@ export const PROPS: Record<StationId, Placement[]> = {
   ],
   agora: [
     { prop: "podium", x: -6, y: -6 },
-    { prop: "banner", x: 16, y: -20, v: 0, key: "banner0" },
+    { prop: "banner", x: 14, y: -10, v: 0, key: "banner0" },
     { prop: "banner", x: 24, y: -4, v: 4, key: "banner1" },
     { prop: "banner", x: -20, y: 16, v: 8, key: "banner2" },
     { prop: "olive", x: -30, y: -20, v: 6 },
@@ -91,10 +92,11 @@ export const SPOTS = {
     { x: -16, y: 38, dir: 2 },
   ] as Spot[],
   /** On the shrine's floor (its top step is at z 2.8), facing the television. */
-  watcher: { x: 0.5, y: -8, z: 2.8, dir: 4 },
+  watcher: { x: -3.5, y: -12, z: 2.8, dir: 4 },
+  /** Up the shrine's two steps from the front. */
   watcherSteps: [
-    { x: 9, y: -4, z: 0, dir: 4 },
-    { x: 5, y: -5, z: 2.8, dir: 4 },
+    { x: 5, y: -9, z: 0, dir: 4 },
+    { x: -0.3, y: -10, z: 1.6, dir: 4 },
   ] as Waypoint[],
   general: { x: 1, y: 9, dir: 0 },
   scribe: { x: 15, y: -2, dir: 2 },
