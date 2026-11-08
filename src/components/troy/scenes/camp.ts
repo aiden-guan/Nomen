@@ -4,10 +4,10 @@ import { SCREEN } from "../engine/models/props";
 import type { CameraTarget, Entity, Stage } from "../engine/stage";
 import { projectX, projectY } from "../engine/tracer";
 import type { Point } from "../engine/walker";
-import { type AgentPlan, type CampPlan, runLabel } from "./derive";
+import type { AgentPlan, CampPlan } from "./derive";
 import type { LandingScene } from "./landing";
-import { CAMP_CENTER, hub, ISLAND_RADIUS, type Node, sandbars, STATION, type StationId, STATIONS, TRAIL, travel } from "./layout";
-import { COURIER_STALL, DESK_SLOTS, PROPS, SPOTS, STABLE_GATE, STALLS, type Waypoint } from "./stations";
+import { CAMP_CENTER, hub, ISLAND_RADIUS, JUNCTION, LAND, type LandId, LANDS, LANDS_VIEW, type Node, roadToLand, sandbars, scoutLand, STATION, type StationId, STATIONS, travel, WORLD_VIEW, worldTrails } from "./layout";
+import { COURIER_STALL, DESK_SLOTS, LAND_SPOTS, PROPS, SPOTS, STABLE_AISLE, STABLE_GATE, STALLS, type Waypoint } from "./stations";
 
 // The camp: station islands, their furniture and the agents, below the horse. This file owns the
 // world; Camp.tsx owns the HTML around it and feeds it plans derived from the live campaign.
@@ -15,18 +15,32 @@ import { COURIER_STALL, DESK_SLOTS, PROPS, SPOTS, STABLE_GATE, STALLS, type Wayp
 // Agents are people, not icons: each one comes out of the horse and walks the sandbars to its
 // station, walks between its posts as the plan changes, climbs up to the tower or the podium, and
 // goes back into the horse when it is no longer needed. Scouts take a horse from the stable and
-// ride off the edge of the world along the trail, then ride back with a scroll case and drop it in
-// the basket. A courier rides each finished piece of work to the next station. Nobody appears or
-// dissolves in the open.
+// ride out to the land of the website or API they fetch from (TikTok, Reddit, the brand's own
+// site...), gather there, then ride back with a scroll case and drop it in the basket. A courier
+// rides each finished piece of work to the next station. Nobody appears or dissolves in the open.
 
 /**
  * World units per second. Brisk enough that the camp keeps up with the campaign: soldiers march
  * at double time on the roads and riders gallop flat out.
  */
-const SPEED = { column: 46, walk: 24, home: 40, run: 54, ride: 84, courier: 92 };
+const SPEED = { column: 46, walk: 24, home: 40, run: 54, ride: 110, courier: 92 };
 
-/** Seconds a figure holds still for small moments: mounting, unsaddling, a handover, a drop. */
-const BEAT = { mount: 0.25, dismount: 0.25, out: 0.5, drop: 0.45, pickup: 0.25, handover: 0.35 };
+/** Seconds a figure holds still for small moments: mounting, unsaddling, a handover, a drop, the shortest visit to a land. */
+const BEAT = { mount: 0.25, dismount: 0.25, gather: 1.2, drop: 0.45, pickup: 0.25, handover: 0.35 };
+
+/** What a scout does at each land while gathering. */
+const LAND_ACT: Record<LandId, Act> = {
+  site: "inspect",
+  similarweb: "inspect",
+  ahrefs: "read",
+  tiktok: "inspect",
+  instagram: "inspect",
+  youtube: "inspect",
+  metaads: "read",
+  reddit: "read",
+  chatgpt: "read",
+  perplexity: "read",
+};
 
 /** World units per full stride cycle: longer strides at speed, so a march becomes a run, not a scurry. */
 function strideLength(speed: number) {
@@ -36,13 +50,14 @@ function strideLength(speed: number) {
 /** A point to move to, with the act and heading for the leg that ends there. */
 type Step = Point & { act?: Act; dir?: number };
 
-type Figure = Entity & { look: number; act: Act; dir: number };
+/** `coat`: the coat of the horse it rides or last rode (see STALLS). */
+type Figure = Entity & { look: number; act: Act; dir: number; coat: number };
 
 type Agent = {
   plan: AgentPlan;
   entity: Figure;
-  /** Where the figure is: waiting to come out of the horse, on the move, at its post, off the map, or back inside the horse. */
-  where: "queued" | "moving" | "posted" | "out" | "home";
+  /** Where the figure is: waiting to come out of the horse, on the move, at its post, gathering at a land, or back inside the horse. */
+  where: Where;
   /** A sequence (a walk, a ride) is running; `settle` decides what is next when it ends. */
   busy: boolean;
   /** The island (or the horse) the figure is on, for routing. */
@@ -59,8 +74,8 @@ type Agent = {
   stall: number | null;
   /** Out on a run on foot (every horse was out). */
   onFoot: boolean;
-  /** Off the map: when the rider left the visible world. */
-  outSince: number;
+  /** A scout at a land: when it started gathering. */
+  gatherSince: number;
   phase: number;
   /** For queued agents: their place in the column (sideways offset on the sandbars). */
   lane: number;
@@ -71,9 +86,14 @@ type Agent = {
   deliveries: number;
   /** A scout's trip, as the camp shows it (it can trail the data by a few seconds). */
   trip: Trip;
+  /** A scout at a land: its spot there (and its horse's). */
+  slot: number | null;
 };
 
-type Trip = "camp" | "out" | "back" | "done" | "empty";
+type Where = "queued" | "moving" | "posted" | "afield" | "home";
+
+/** A scout's trip: in camp, riding out, at the land, riding back, then over (with the case, or empty). */
+type Trip = "camp" | "out" | "there" | "back" | "done" | "empty";
 
 type Stall = { steed: Entity; rider: Agent | null };
 
@@ -100,8 +120,8 @@ const ACT_WORDS: Record<Act, string> = {
 
 /** What the camp can say about one agent, for the agent card. */
 export type AgentInfo = {
-  /** Where the figure is: on the map, off its edge, or back inside the horse. */
-  where: "queued" | "moving" | "posted" | "out" | "home";
+  /** Where the figure is: on the move, at its post, gathering at a land, or inside the horse. */
+  where: Where;
   /** What it is doing right now, in a short sentence. */
   doing: string;
   mounted: boolean;
@@ -110,8 +130,12 @@ export type AgentInfo = {
   /** The courier's errand, if any, and how many he has run. */
   errand: { from: StationId; to: StationId } | null;
   deliveries: number;
-  /** A scout's trip: still in camp, riding out (or off the map), riding back, or over. */
+  /** A scout's trip: still in camp, riding out, at the land, riding back, or over. */
   trip: Trip;
+  /** A scout: the land it fetches from. */
+  land: LandId | null;
+  /** The coat of the horse it rides (or last rode). */
+  coat: number;
 };
 
 export type CampEvents = {
@@ -133,7 +157,11 @@ export class CampScene {
   private posterList: CampPlan["posters"] = [];
   private showing = false;
   private revealT = 0;
-  private readonly barCount = sandbars().length + 1;
+  /** When (seconds into the reveal) each ground and prop starts to appear; others follow the camp's props. */
+  private readonly revealAt = new Map<Entity, number>();
+  /** Scouts gathering at each land, by spot; and the horses they left there. */
+  private readonly landSpots = new Map<LandId, Array<Agent | null>>();
+  private readonly landSteeds = new Map<Agent, Entity>();
   private time = 0;
   private tvOn = false;
   private planned = false;
@@ -154,9 +182,17 @@ export class CampScene {
     private readonly stage: Stage,
     private readonly landing: LandingScene,
   ) {
-    sandbars().forEach((_, i) => this.grounds.push(stage.add({ x: 0, y: 0, z: 0, ground: true, job: { k: "bar", i }, reveal: 0, priority: 5 - i * 0.1 })));
-    this.grounds.push(stage.add({ x: 0, y: 0, z: 0, ground: true, job: { k: "trail" }, reveal: 0, priority: 4.3 }));
-    STATIONS.forEach((s, i) => this.grounds.push(stage.add({ x: s.x, y: s.y, z: 0, ground: true, job: { k: "island", id: s.id }, reveal: 0, priority: 5 - i * 0.1 })));
+    // Grounds appear one after another, grain by grain: the camp's roads and islands, then the
+    // roads west and the lands along them (see revealTick).
+    const ground = (entity: Entity, at: number) => {
+      this.grounds.push(stage.add(entity));
+      this.revealAt.set(entity, at);
+    };
+    sandbars().forEach((_, i) => ground({ x: 0, y: 0, z: 0, ground: true, job: { k: "bar", i }, reveal: 0, priority: 5 - i * 0.1 }, i * 0.28));
+    worldTrails().forEach((_, i) => ground({ x: 0, y: 0, z: 0, ground: true, job: { k: "road", i }, reveal: 0, priority: 4.2 }, 1.5 + i * 0.07));
+    ground({ x: JUNCTION.x, y: JUNCTION.y, z: 0, ground: true, job: { k: "junction" }, reveal: 0, priority: 4.2 }, 1.6);
+    STATIONS.forEach((s, i) => ground({ x: s.x, y: s.y, z: 0, ground: true, job: { k: "island", id: s.id }, reveal: 0, priority: 5 - i * 0.1 }, i * 0.28 + 0.14));
+    LANDS.forEach((l, i) => ground({ x: l.x, y: l.y, z: 0, ground: true, job: { k: "land", id: l.id }, reveal: 0, priority: 4.1 }, 1.9 + i * 0.12));
     for (const station of STATIONS) {
       for (const placement of PROPS[station.id]) {
         const entity = stage.add({
@@ -172,10 +208,19 @@ export class CampScene {
         if (placement.key) this.keyed.set(`${station.id}:${placement.key}`, entity);
       }
     }
+    // Each land's landmark, and the signpost at the crossroads.
+    LANDS.forEach((l, i) => {
+      const landmark = stage.add({ x: l.x + LAND_SPOTS.landmark.x, y: l.y + LAND_SPOTS.landmark.y, z: 0, job: { k: "prop", id: l.prop, v: 0 }, reveal: 0, priority: 3.9 });
+      this.props.push(landmark);
+      this.revealAt.set(landmark, 2.3 + i * 0.12);
+    });
+    const signpost = stage.add({ x: JUNCTION.x - 3, y: JUNCTION.y - 3, z: 0, job: { k: "prop", id: "signpost", v: 0 }, reveal: 0, priority: 3.9 });
+    this.props.push(signpost);
+    this.revealAt.set(signpost, 2);
     // Horses tied at the scouts' rail; they leave with a rider and come back with one.
     const scouts = STATION.scouts;
     for (const stall of STALLS) {
-      const steed = stage.add({ x: scouts.x + stall.horse.x, y: scouts.y + stall.horse.y, z: 0, shadow: 8, job: { k: "steed", dir: stall.horse.dir }, reveal: 0, priority: 4 });
+      const steed = stage.add({ x: scouts.x + stall.horse.x, y: scouts.y + stall.horse.y, z: 0, shadow: 8, job: { k: "steed", dir: stall.horse.dir, h: stall.coat }, reveal: 0, priority: 4 });
       this.props.push(steed);
       this.stalls.push({ steed, rider: null });
     }
@@ -213,6 +258,9 @@ export class CampScene {
       stall.rider = null;
       this.stage.add(stall.steed);
     }
+    for (const steed of this.landSteeds.values()) this.stage.remove(steed);
+    this.landSteeds.clear();
+    this.landSpots.clear();
     this.timers.length = 0;
     this.planned = false;
     this.entering = false;
@@ -239,6 +287,50 @@ export class CampScene {
   }
 
   insets = { top: 84, bottom: 72, right: 0 };
+
+  /** The camera that shows the camp and every land around it (while the scouts are out). */
+  world(insets: { top: number; bottom: number; right: number } = this.insets): CameraTarget {
+    return this.fitView(WORLD_VIEW, insets);
+  }
+
+  /** The lands and the roads to them, with the scouts' island: the scouts' errands on a narrow screen. */
+  lands(insets: { top: number; bottom: number; right: number } = this.insets): CameraTarget {
+    return this.fitView(LANDS_VIEW, insets);
+  }
+
+  private fitView(v: { x0: number; y0: number; x1: number; y1: number }, insets: { top: number; bottom: number; right: number }): CameraTarget {
+    const { width, height } = this.stage.size;
+    const usableW = width - insets.right - 24;
+    const usableH = height - insets.top - insets.bottom;
+    const fit = Math.min(usableW / (v.x1 - v.x0), usableH / (v.y1 - v.y0), 3.5);
+    const zoom = this.stage.fitZoom(fit);
+    return { x: (v.x0 + v.x1) / 2 + insets.right / 2 / zoom, y: (v.y0 + v.y1) / 2 + (insets.bottom - insets.top) / 2 / zoom, zoom };
+  }
+
+  /** How far the viewer may pan and zoom: around the whole world, from all of it in view to close up. */
+  limits(insets: { top: number; bottom: number; right: number } = this.insets) {
+    const widest = Math.min(this.world(insets).zoom, this.lands(insets).zoom);
+    const { dpr } = this.stage.size;
+    return { bounds: { ...WORLD_VIEW }, zoom: { min: Math.max(1 / dpr, widest * 0.8), max: 6 } };
+  }
+
+  /** How many scouts are out on an errand (riding, gathering or riding back). */
+  get scoutsOut() {
+    let n = 0;
+    for (const count of Object.values(this.landsBusy())) n += count ?? 0;
+    return n;
+  }
+
+  /** Scouts out at each land or on the road to or from it. */
+  landsBusy() {
+    const busy: Partial<Record<LandId, number>> = {};
+    for (const agent of this.agents.values()) {
+      if (agent.trip !== "out" && agent.trip !== "there" && agent.trip !== "back") continue;
+      const land = this.landOf(agent);
+      busy[land] = (busy[land] ?? 0) + 1;
+    }
+    return busy;
+  }
 
   /** A camera centred on one station (for the station panel). */
   focus(id: StationId, insets = this.insets): CameraTarget {
@@ -368,8 +460,8 @@ export class CampScene {
   }
 
   private create(plan: AgentPlan): Agent {
-    const entity: Figure = { x: 0, y: 0, z: 0, look: plan.look, act: plan.act, dir: plan.dir, sort: plan.sort ?? 0, shadow: 5, priority: 3, job: null };
-    return { plan, entity, where: "queued", busy: false, node: "horse", up: null, dismissed: false, finished: false, delivered: false, stall: null, onFoot: false, outSince: 0, phase: Math.random() * 10, lane: 0, doing: "Waiting inside the horse", errand: null, deliveries: 0, trip: "camp" };
+    const entity: Figure = { x: 0, y: 0, z: 0, look: plan.look, act: plan.act, dir: plan.dir, coat: 0, sort: plan.sort ?? 0, shadow: 5, priority: 3, job: null };
+    return { plan, entity, where: "queued", busy: false, node: "horse", up: null, dismissed: false, finished: false, delivered: false, stall: null, onFoot: false, gatherSince: 0, phase: Math.random() * 10, lane: 0, doing: "Waiting inside the horse", errand: null, deliveries: 0, trip: "camp", slot: null };
   }
 
   /** Puts an agent straight at its post (opening a camp directly, not through the march). */
@@ -384,16 +476,26 @@ export class CampScene {
       return;
     }
     if (plan.away) {
+      // Out on a run before we were watching: already gathering at the land, its horse waiting.
+      const land = this.landOf(agent);
+      const slot = this.claimSpot(land, agent);
       const stall = this.freeStall(agent);
       if (stall >= 0) {
         this.stalls[stall].rider = agent;
         this.stage.remove(this.stalls[stall].steed);
         agent.stall = stall;
-      }
-      agent.where = "out";
+        agent.entity.coat = STALLS[stall].coat;
+        this.tieUp(agent, land, slot, 0);
+      } else agent.onFoot = true;
+      const spot = LAND_SPOTS.gather[slot];
+      const p = this.landPoint(land, spot);
+      Object.assign(agent.entity, { x: p.x, y: p.y, z: 0, dir: spot.dir, act: LAND_ACT[land], reveal: 0, alpha: 1, shadow: 5 });
+      agent.where = "afield";
       agent.node = "scouts";
-      agent.trip = "out";
-      agent.outSince = this.time - 10;
+      agent.trip = "there";
+      agent.gatherSince = this.time - 10;
+      agent.doing = `Gathering at ${LAND[land].name}: ${this.source(agent)}`;
+      this.stage.add(agent.entity);
       return;
     }
     const post = this.postPoint(plan);
@@ -414,7 +516,7 @@ export class CampScene {
 
     if (agent.dismissed) {
       if (agent.where === "home") this.agents.delete(plan.id);
-      else if (agent.where === "out") this.rideBack(agent);
+      else if (agent.trip === "there") this.headBack(agent);
       else this.goHome(agent);
       return;
     }
@@ -433,19 +535,26 @@ export class CampScene {
 
     if (plan.id.startsWith("scout:")) {
       if (plan.away) {
-        if (agent.where !== "out") this.rideOut(agent);
+        // Back already, but its land has another source to fetch: out again.
+        if (agent.trip === "done" || agent.trip === "empty") {
+          agent.finished = false;
+          agent.trip = "camp";
+        }
+        // Off on the errand, or already gathering: carry on.
+        if (agent.trip === "camp") this.rideOut(agent);
         return;
       }
       if (plan.returning) {
         if (agent.finished) return this.goHome(agent);
-        if (agent.where === "out") return this.rideBack(agent);
-        // The run ended before this scout even left: out and straight back.
-        return this.rideOut(agent);
+        if (agent.trip === "there") return this.headBack(agent);
+        // The run ended before this scout even left: there and straight back.
+        if (agent.trip === "camp") return this.rideOut(agent);
+        return;
       }
-      if (agent.where === "out") return this.rideBack(agent);
+      // Waiting again (the demo stepped back): come back from the land first.
+      if (agent.trip === "there") return this.headBack(agent);
     }
 
-    if (agent.where === "out") return this.rideBack(agent);
     if (this.atPost(agent)) {
       agent.where = "posted";
       agent.entity.dir = plan.dir;
@@ -509,66 +618,88 @@ export class CampScene {
     );
   }
 
-  /** A scout takes a horse from the stable and gallops off along the trail. */
+  /** A scout takes a horse from the stable (or runs, when every horse is out) to the land of its source. */
   private rideOut(agent: Agent) {
+    const land = this.landOf(agent);
+    const name = LAND[land].name;
     const stall = agent.stall ?? this.freeStall(agent);
+    agent.node = "scouts";
+    agent.trip = "out";
     if (stall < 0) {
-      // Every horse is out: run for it, along the trail on foot.
       agent.onFoot = true;
-      agent.node = "scouts";
-      agent.trip = "out";
-      agent.doing = `Every horse is out: running off along the trail for ${this.source(agent)}`;
-      this.run(agent, [...this.descend(agent), this.gate(), TRAIL.b], SPEED.run, () => this.offTheMap(agent), "march", undefined, true);
+      agent.doing = `Every horse is out: running to ${name} for ${this.source(agent)}`;
+      const out = this.descend(agent);
+      if (!this.atStable(agent)) out.push(this.gate());
+      this.run(agent, [...out, ...roadToLand(land)], SPEED.run, () => this.reachLand(agent));
       return;
     }
     agent.onFoot = false;
     this.stalls[stall].rider = agent;
     agent.stall = stall;
-    agent.node = "scouts";
-    agent.trip = "out";
-    agent.doing = "Going to the stable for a horse";
-    this.run(agent, this.toStall(agent, stall), SPEED.walk, () => {
+    agent.doing = "Hurrying to the stable for a horse";
+    this.run(agent, this.toStall(agent, stall), SPEED.run, () => {
       agent.doing = "Saddling up";
       this.mount(agent, stall, () => {
-        agent.doing = `Galloping off along the trail for ${this.source(agent)}`;
-        this.ride(agent, [this.gate(), TRAIL.b], SPEED.ride, 0, () => this.offTheMap(agent));
+        agent.doing = `Galloping to ${name} for ${this.source(agent)}`;
+        this.ride(agent, [...this.outOfStable(agent), ...roadToLand(land)], SPEED.ride, 0, () => this.reachLand(agent));
       });
     });
   }
 
-  /** Off the edge of the world: hidden until the plan brings it back. */
-  private offTheMap(agent: Agent) {
-    agent.outSince = this.time;
-    agent.doing = `Out past the edge of the map, fetching ${this.source(agent)}`;
-    agent.where = "out";
-    this.stage.remove(agent.entity);
-    // The run may already be over: look again once the rider has been gone a moment.
-    this.later(0.85, () => this.settle(agent));
+  /** At the land: the horse is tied by the shore and the scout walks up to the landmark to gather. */
+  private reachLand(agent: Agent) {
+    const land = this.landOf(agent);
+    const slot = this.claimSpot(land, agent);
+    const spot = LAND_SPOTS.gather[slot];
+    const walkUp = () => this.run(agent, [{ ...this.landPoint(land, spot), dir: spot.dir }], SPEED.walk, () => this.gather(agent));
+    agent.trip = "there";
+    if (agent.onFoot) return walkUp();
+    const horse = LAND_SPOTS.horses[slot];
+    this.ride(agent, [{ ...this.landPoint(land, horse), dir: horse.dir }], SPEED.walk * 1.6, 0, () => {
+      agent.doing = `Tying up the horse at ${LAND[land].name}`;
+      this.pause(agent, BEAT.dismount, () => {
+        this.tieUp(agent, land, slot, 1);
+        // Down from the saddle, beside the horse.
+        const e = agent.entity;
+        const p = this.landPoint(land, { x: horse.x - 3, y: horse.y - 3 });
+        Object.assign(e, { x: p.x, y: p.y, z: 0, shadow: 5, act: "march" });
+        e.job = { k: "soldier", look: e.look, act: "march", dir: e.dir, f: 0 };
+        walkUp();
+      });
+    });
   }
 
-  /** A scout gallops back in along the trail, unsaddles at the stable and takes the case to the basket. */
-  private rideBack(agent: Agent) {
-    const plan = agent.plan;
-    // Stay out a moment at least, so a quick run still reads as a trip.
-    const wait = BEAT.out - (this.time - agent.outSince);
+  /** The horse a scout rode out on waits at the land's shore, in the scout's spot there. */
+  private tieUp(agent: Agent, land: LandId, slot: number, reveal: number) {
+    const horse = LAND_SPOTS.horses[slot];
+    const p = this.landPoint(land, horse);
+    this.landSteeds.set(agent, this.stage.add({ x: p.x, y: p.y, z: 0, shadow: 8, job: { k: "steed", dir: horse.dir, h: agent.entity.coat } as Job, reveal, priority: 3 }));
+  }
+
+  /** Gathering at the landmark, for as long as the run lasts (and a moment at least, so it reads). */
+  private gather(agent: Agent) {
+    const land = this.landOf(agent);
+    agent.where = "afield";
+    agent.gatherSince = this.time;
+    agent.entity.act = LAND_ACT[land];
+    agent.doing = `Gathering at ${LAND[land].name}: ${this.source(agent)}`;
+    this.later(BEAT.gather, () => this.settle(agent));
+  }
+
+  /** Back from the land: to the horse, home along the roads, and the case into the basket. */
+  private headBack(agent: Agent) {
+    const wait = BEAT.gather - (this.time - agent.gatherSince);
     if (wait > 0) {
-      agent.busy = true;
-      this.later(wait, () => {
-        agent.busy = false;
-        this.settle(agent);
-      });
+      this.pause(agent, wait, () => this.settle(agent));
       return;
     }
-    // Always from beyond the edge of the screen as it is now (the camera may have moved).
-    const from = this.offscreenOnTrail();
-    const carrying = !agent.dismissed && plan.returning === "scroll";
-    Object.assign(agent.entity, { x: from.x, y: from.y, z: 0, alpha: 1, reveal: 1 });
-    this.stage.add(agent.entity);
-    agent.where = "moving";
-    agent.node = "scouts";
+    const land = this.landOf(agent);
+    const name = LAND[land].name;
+    const carrying = !agent.dismissed && agent.plan.returning === "scroll";
+    const home: Step[] = roadToLand(land).reverse();
+    const slot = this.releaseSpot(land, agent);
     agent.trip = "back";
     const basket = { ...this.rel("scouts", SPOTS.basket.x, SPOTS.basket.y, 0), dir: SPOTS.basket.dir };
-    agent.doing = carrying ? "Riding back with a scroll case" : agent.dismissed ? "Called back to camp" : "Riding back empty-handed";
     const deliver = () => {
       agent.busy = true;
       agent.doing = "Dropping the scroll case in the basket";
@@ -582,37 +713,46 @@ export class CampScene {
         this.settle(agent);
       });
     };
-    if (agent.onFoot || agent.stall === null) {
-      // Back on foot: straight to the basket (or home, empty-handed).
-      agent.onFoot = false;
-      if (carrying) {
-        agent.doing = "Running the scroll case to the basket";
-        return this.run(agent, [this.gate(), basket], SPEED.run, deliver, "carry");
-      }
-      if (plan.returning && !agent.dismissed) {
+    // Back without a case: the errand is over if the run is, or it waits to set out again.
+    const backEmpty = () => {
+      if (agent.plan.returning && !agent.dismissed) {
         agent.finished = true;
         agent.trip = "empty";
-      }
-      return this.run(agent, [this.gate()], SPEED.run, () => undefined);
+      } else agent.trip = "camp";
+    };
+    if (agent.onFoot || agent.stall === null) {
+      agent.onFoot = false;
+      agent.doing = carrying ? `Running back from ${name} with a scroll case` : `Running back from ${name}`;
+      if (carrying) return this.run(agent, [...home, this.gate(), basket], SPEED.run, deliver, "carry");
+      backEmpty();
+      return this.run(agent, [...home, this.gate()], SPEED.run, () => undefined);
     }
-    const stall = agent.stall;
-    const at = STALLS[stall];
-    const horse = { ...this.rel("scouts", at.horse.x, at.horse.y, 0), dir: at.horse.dir };
-    this.ride(agent, [this.gate(), horse], SPEED.ride, carrying ? 1 : 0, () => {
-      agent.doing = "Tying up the horse";
-      this.dismount(agent, carrying, () => {
-        if (agent.dismissed) return this.settle(agent);
-        if (!carrying) {
-          if (agent.plan.returning) {
-            agent.finished = true;
-            agent.trip = "empty";
-          }
-          return this.settle(agent);
-        }
-        // Into the basket with it.
-        agent.entity.act = "carry";
-        agent.doing = "Carrying the scroll case to the basket";
-        this.run(agent, [this.gate(), basket], SPEED.walk, deliver, "carry");
+    const steed = this.landSteeds.get(agent);
+    const horse = LAND_SPOTS.horses[slot ?? 0];
+    const at = steed ? { x: steed.x, y: steed.y, z: 0 } : this.landPoint(land, horse);
+    agent.doing = "Going back to the horse";
+    this.run(agent, [{ x: at.x - 3, y: at.y - 3, z: 0 }], SPEED.walk, () => {
+      if (steed) this.stage.remove(steed);
+      this.landSteeds.delete(agent);
+      const e = agent.entity;
+      Object.assign(e, { x: at.x, y: at.y, z: 0, shadow: 9 });
+      e.job = { k: "rider", look: e.look, dir: e.dir, f: -1, c: carrying ? 1 : 0, h: e.coat };
+      this.pause(agent, BEAT.mount, () => {
+        agent.doing = carrying ? `Riding back from ${name} with a scroll case` : agent.dismissed ? "Called back to camp" : `Riding back from ${name} empty-handed`;
+        this.ride(agent, [...home, ...this.intoStable(agent.stall!, "horse")], SPEED.ride, carrying ? 1 : 0, () => {
+          agent.doing = "Tying up the horse";
+          this.dismount(agent, carrying, () => {
+            if (agent.dismissed) return this.settle(agent);
+            if (!carrying) {
+              backEmpty();
+              return this.settle(agent);
+            }
+            // Into the basket with it.
+            agent.entity.act = "carry";
+            agent.doing = "Carrying the scroll case to the basket";
+            this.run(agent, [...this.outOfStable(agent), basket], SPEED.run, deliver, "carry");
+          });
+        });
       });
     });
   }
@@ -636,12 +776,11 @@ export class CampScene {
     const job = this.dispatches.shift();
     const stall = agent.stall!;
     // Leave the stable through its gate, or cross the island the last job ended on.
-    const lead: Step[] = this.atStable(agent) ? [this.gate(), hub("scouts")] : [hub(agent.node)];
+    const lead: Step[] = this.atStable(agent) ? [...this.outOfStable(agent), hub("scouts")] : [hub(agent.node)];
     if (!job) {
       // Nothing more to carry: back to the stable, unsaddle, back to the post.
-      const at = STALLS[stall];
       const home: Step[] = agent.node === "scouts" ? [] : [...travel(agent.node, "scouts"), hub("scouts")];
-      const steps: Step[] = [...lead, ...home, this.gate(), { ...this.rel("scouts", at.horse.x, at.horse.y, 0), dir: at.horse.dir }];
+      const steps: Step[] = [...lead, ...home, ...this.intoStable(stall, "horse")];
       agent.node = "scouts";
       agent.errand = null;
       agent.doing = "Riding back to the stable";
@@ -674,7 +813,8 @@ export class CampScene {
     this.stage.remove(steed);
     const e = agent.entity;
     Object.assign(e, { x: steed.x, y: steed.y, z: 0, dir: at.horse.dir, shadow: 9 });
-    e.job = { k: "rider", look: e.look, dir: e.dir, f: -1, c: agent.plan.id === "courier" ? 1 : 0 };
+    e.coat = at.coat;
+    e.job = { k: "rider", look: e.look, dir: e.dir, f: -1, c: agent.plan.id === "courier" ? 1 : 0, h: e.coat };
     agent.busy = true;
     this.later(BEAT.mount, () => {
       agent.busy = false;
@@ -688,7 +828,7 @@ export class CampScene {
     const at = STALLS[stall];
     const e = agent.entity;
     agent.busy = true;
-    e.job = { k: "rider", look: e.look, dir: at.horse.dir, f: -1, c: carrying ? 1 : agent.plan.id === "courier" ? 1 : 0 };
+    e.job = { k: "rider", look: e.look, dir: at.horse.dir, f: -1, c: carrying ? 1 : agent.plan.id === "courier" ? 1 : 0, h: e.coat };
     this.later(BEAT.dismount, () => {
       const steed = this.stalls[stall].steed;
       this.stalls[stall].rider = null;
@@ -713,7 +853,7 @@ export class CampScene {
   // --- Moving -------------------------------------------------------------------------------------
 
   /** Walks a figure through steps; when it gets there, `done` runs and the agent settles. */
-  private run(agent: Agent, steps: Step[], speed: number, done: () => void, act: Act = "march", door?: "in" | "home", leaving = false) {
+  private run(agent: Agent, steps: Step[], speed: number, done: () => void, act: Act = "march", door?: "in" | "home") {
     agent.busy = true;
     agent.where = "moving";
     const e = agent.entity;
@@ -758,26 +898,24 @@ export class CampScene {
       e.act = legAct;
       const frames = ACT_FRAMES[legAct];
       e.job = { k: "soldier", look: e.look, act: legAct, dir: e.dir, f: frames > 1 ? Math.floor((travelled / stride) * frames) % frames : 0 };
-      const gone = leaving && leg >= steps.length - 1 && this.offscreen(e);
-      if (leg >= steps.length || gone) {
+      if (leg >= steps.length) {
         const last = steps[steps.length - 1];
-        if (last?.dir !== undefined && !gone) e.dir = last.dir;
+        if (last?.dir !== undefined) e.dir = last.dir;
         e.tick = undefined;
         agent.busy = false;
         agent.where = "posted";
         done();
-        // `done` may have sent the agent off the map, or started its next errand.
-        if (!agent.busy && (agent.where as Agent["where"]) !== "out") this.settle(agent);
+        // `done` may have started the agent's next errand.
+        if (!agent.busy) this.settle(agent);
       }
     };
   }
 
-  /** Gallops a rider through steps. `carry` 1 holds the scroll case. Stops early once it leaves the screen on the trail. */
+  /** Gallops a rider through steps. `carry` 1 holds the scroll case. */
   private ride(agent: Agent, steps: Step[], speed: number, carry: number, done: () => void) {
     agent.busy = true;
     agent.where = "moving";
     const e = agent.entity;
-    const leaving = steps[steps.length - 1] === TRAIL.b;
     this.stage.add(e);
     let leg = 0;
     let travelled = 0;
@@ -804,15 +942,14 @@ export class CampScene {
           remaining = 0;
         }
       }
-      e.job = { k: "rider", look: e.look, dir: e.dir, f: Math.floor((travelled / 7) % RIDER_FRAMES), c: carry };
-      const gone = leaving && leg >= 1 && this.offscreen(e);
-      if (leg >= steps.length || gone) {
+      e.job = { k: "rider", look: e.look, dir: e.dir, f: Math.floor((travelled / 7) % RIDER_FRAMES), c: carry, h: e.coat };
+      if (leg >= steps.length) {
         e.tick = undefined;
-        if (!gone) e.job = { k: "rider", look: e.look, dir: e.dir, f: -1, c: carry };
+        e.job = { k: "rider", look: e.look, dir: e.dir, f: -1, c: carry, h: e.coat };
         agent.busy = false;
         done();
-        // `done` may have sent the agent off the map, or started its next errand.
-        if (!agent.busy && (agent.where as Agent["where"]) !== "out") this.settle(agent);
+        // `done` may have started the agent's next errand.
+        if (!agent.busy) this.settle(agent);
       }
     };
   }
@@ -838,7 +975,7 @@ export class CampScene {
     return best?.id ?? null;
   }
 
-  /** Where an agent is on the map, or null while it is off the map or inside the horse. */
+  /** Where an agent is on the map, or null while it is inside the horse. */
   position(id: string): Point | null {
     const agent = this.agents.get(id);
     if (!agent || !this.stage.has(agent.entity)) return null;
@@ -852,13 +989,14 @@ export class CampScene {
     const e = agent.entity;
     const posted = agent.where === "posted" && !agent.busy;
     const doing = agent.where === "home" ? (agent.finished ? "Back inside the horse, the job done" : "Inside the horse, about to march out") : agent.where === "queued" ? "Waiting inside the horse for a place in the column" : posted ? ACT_WORDS[e.act] : agent.doing;
-    return { where: agent.where, doing, mounted: e.job?.k === "rider", visible: this.stage.has(e), errand: agent.errand, deliveries: agent.deliveries, trip: agent.trip };
+    return { where: agent.where, doing, mounted: e.job?.k === "rider", visible: this.stage.has(e), errand: agent.errand, deliveries: agent.deliveries, trip: agent.trip, land: agent.plan.id.startsWith("scout:") ? this.landOf(agent) : null, coat: e.coat };
   }
 
   /** "the brand profile", for a scout's errand. */
+  /** What a scout fetches at its land, for sentences ("galloping to TikTok for top videos and ads"). */
   private source(agent: Agent) {
-    const key = agent.plan.id.startsWith("scout:") ? agent.plan.id.slice(6) : "";
-    return key ? `“${runLabel(key)}”` : "the research";
+    const what = LAND[this.landOf(agent)].what;
+    return what.charAt(0).toLowerCase() + what.slice(1);
   }
 
   /** Keeps the marker and rings on the selected and hovered soldiers. */
@@ -927,15 +1065,33 @@ export class CampScene {
 
   /** On foot to the stall's mounting spot, around the end of the rail. */
   private toStall(agent: Agent, stall: number): Step[] {
+    // Already in the stable (just back from a ride, say): along the aisle to the horse.
+    if (this.atStable(agent)) return this.intoStable(stall, "mount").slice(2);
     const steps: Step[] = [...this.descend(agent)];
     if (agent.node !== "scouts") steps.push(...travel(agent.node, "scouts"), hub("scouts"));
-    const at = STALLS[stall];
-    steps.push(this.gate(), this.rel("scouts", at.mount.x, at.mount.y, 0));
+    steps.push(...this.intoStable(stall, "mount"));
     return steps;
   }
 
   private gate(): Point {
     return this.rel("scouts", STABLE_GATE.x, STABLE_GATE.y, 0);
+  }
+
+  /** From a stall (on foot or on horseback) back into the aisle behind the horses, and out of the gate. */
+  private outOfStable(agent: Agent): Step[] {
+    const y = agent.entity.y - STATION.scouts.y;
+    return [this.rel("scouts", STABLE_AISLE.x, y, 0), this.rel("scouts", STABLE_AISLE.x, STABLE_AISLE.south, 0), this.gate()];
+  }
+
+  /** In at the gate and up the aisle to a stall: its horse (riding in), or behind it (walking up to mount). */
+  private intoStable(stall: number, to: "horse" | "mount"): Step[] {
+    const spot = STALLS[stall][to];
+    return [
+      this.gate(),
+      this.rel("scouts", STABLE_AISLE.x, STABLE_AISLE.south, 0),
+      this.rel("scouts", STABLE_AISLE.x, spot.y, 0),
+      { ...this.rel("scouts", spot.x, spot.y, 0), dir: spot.dir },
+    ];
   }
 
   private atStable(agent: Agent) {
@@ -965,7 +1121,7 @@ export class CampScene {
   private descend(agent: Agent): Step[] {
     const up = agent.up;
     agent.up = null;
-    if (!up?.length) return this.atStable(agent) ? [this.gate()] : [];
+    if (!up?.length) return this.atStable(agent) ? this.outOfStable(agent) : [];
     const steps: Step[] = [];
     for (let i = up.length - 1; i >= 0; i--) {
       const leg = up[i + 1];
@@ -986,20 +1142,34 @@ export class CampScene {
     return this.stalls.findIndex((s, i) => i !== COURIER_STALL && !s.rider);
   }
 
-  private offscreen(e: Entity) {
-    const { width, height } = this.stage.size;
-    const s = this.stage.toScreen(e.x, e.y, e.z);
-    const margin = 48;
-    return s.x < -margin || s.x > width + margin || s.y < -margin || s.y > height + margin;
+  /** The land a scout's source is fetched from. */
+  private landOf(agent: Agent): LandId {
+    return scoutLand(agent.plan.id);
   }
 
-  /** The first point along the trail that is off the screen (where a rider coming back appears). */
-  private offscreenOnTrail(): Point {
-    for (let t = 0.1; t <= 1; t += 0.05) {
-      const p = { x: TRAIL.a.x + (TRAIL.b.x - TRAIL.a.x) * t, y: TRAIL.a.y + (TRAIL.b.y - TRAIL.a.y) * t, z: 0 };
-      if (this.offscreen(p)) return p;
-    }
-    return TRAIL.b;
+  private landPoint(land: LandId, at: { x: number; y: number }): Point {
+    const l = LAND[land];
+    return { x: l.x + at.x, y: l.y + at.y, z: 0 };
+  }
+
+  /** A spot at the land for this scout (its own if it has one); four, shared beyond that. */
+  private claimSpot(land: LandId, agent: Agent) {
+    const spots = this.landSpots.get(land) ?? Array<Agent | null>(LAND_SPOTS.gather.length).fill(null);
+    this.landSpots.set(land, spots);
+    let slot = spots.indexOf(agent);
+    if (slot < 0) slot = spots.indexOf(null);
+    if (slot < 0) slot = (agent.slot ?? [...agent.plan.id].reduce((n, c) => n + c.charCodeAt(0), 0)) % spots.length;
+    else spots[slot] = agent;
+    agent.slot = slot;
+    return slot;
+  }
+
+  private releaseSpot(land: LandId, agent: Agent) {
+    const spots = this.landSpots.get(land);
+    const slot = agent.slot;
+    if (spots && slot !== null && spots[slot] === agent) spots[slot] = null;
+    agent.slot = null;
+    return slot;
   }
 
   private updateBasket() {
@@ -1027,7 +1197,7 @@ export class CampScene {
     }
     // Animate agents that are at their posts.
     for (const agent of this.agents.values()) {
-      if (agent.where !== "posted" || agent.busy) continue;
+      if ((agent.where !== "posted" && agent.where !== "afield") || agent.busy) continue;
       const e = agent.entity;
       const act = e.act;
       const frames = ACT_FRAMES[act];
@@ -1035,6 +1205,7 @@ export class CampScene {
       e.job = { k: "soldier", look: e.look, act, dir: e.dir, f };
       if ((e.reveal ?? 1) < 1 && this.revealT > 0.6) e.reveal = Math.min(1, (e.reveal ?? 0) + dt * 1.6);
     }
+    for (const steed of this.landSteeds.values()) if ((steed.reveal ?? 1) < 1 && this.revealT > 2.4) steed.reveal = Math.min(1, (steed.reveal ?? 0) + dt * 1.6);
     // Desk screens: a working screen scrolls through four frames.
     const phase = Math.floor(this.time / 0.22) % 4;
     for (const desk of this.desks.values()) {
@@ -1061,13 +1232,12 @@ export class CampScene {
     if (this.revealT <= 0 && this.landing.isOpen) this.revealT = 0.0001;
     if (this.revealT <= 0) return;
     this.revealT += dt;
-    // Grounds appear one after another along the road, grain by grain; furniture follows.
-    this.grounds.forEach((ground, i) => {
-      const order = i < this.barCount ? i * 2 : (i - this.barCount) * 2 + 1;
-      ground.reveal = Math.max(ground.reveal ?? 0, Math.min(1, (this.revealT - order * 0.14) / 0.6));
-    });
+    // Grounds appear one after another along the road, grain by grain; furniture follows; then
+    // the roads west and the lands along them.
+    for (const ground of this.grounds) ground.reveal = Math.max(ground.reveal ?? 0, Math.min(1, (this.revealT - (this.revealAt.get(ground) ?? 0)) / 0.6));
     this.props.forEach((prop, i) => {
-      prop.reveal = Math.max(prop.reveal ?? 0, Math.min(1, (this.revealT - 0.5 - i * 0.05) / 0.5));
+      const at = this.revealAt.get(prop) ?? 0.5 + i * 0.05;
+      prop.reveal = Math.max(prop.reveal ?? 0, Math.min(1, (this.revealT - at) / 0.5));
     });
   }
 

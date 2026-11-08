@@ -80,6 +80,11 @@ consecutive days.
 
 `?auto=1` starts with autoplay on (for screen recordings) and `?speed=1.5` runs the clock faster.
 
+**Research takes as long as the rides.** Each research source stays out until its scout has ridden
+to its land and gathered a moment, so the panels and the riders agree. The planned sweep starts
+once its scouts have marched from the horse to the stable, farthest lands first. The research is
+done once the last scout is home with the case: about 40 seconds for the sample.
+
 ### Recording a campaign for the demo
 
 When a real campaign has turned out well:
@@ -139,12 +144,15 @@ layout so `/` and `/camp/*` never render it.
 `done`, `failed`, `skipped`, or `yours` when the campaign waits on the user), a one-line status and
 progress, and every agent's post and activity:
 
-- **Scouts:** one per research source. They queue while it is pending. When it runs, the scout
-  takes a horse from the stable and gallops off the edge of the world along the trail (on foot when
-  all four scout horses are out). When it finishes, the scout rides back with a scroll case, ties
-  the horse up and drops the case in the basket, which fills case by case; one whose source failed
-  comes back empty-handed. Then the scout marches back into the horse. The lookout climbs the
-  tower's ladder and keeps watch.
+- **Scouts:** one per land: the website or API that land stands for (see "The lands" below). A
+  scout carries every research source fetched there. It waits in camp until the first of them
+  starts, then takes a horse from the stable and gallops along the roads west to its land. It ties
+  the horse by the shore and gathers at the landmark until every source there is in. Then it rides
+  back with a scroll case and drops the case in the basket, which fills case by case. A scout whose
+  sources all failed comes back empty-handed. Then the scout marches back into the horse, and out
+  again if its land gets another source. The stable has eight horses: seven for scouts and one for
+  the courier. Scouts beyond seven run on foot. The lookout climbs the tower's ladder and keeps
+  watch.
 - **Oracle:** watches the top videos on a CRT from the shrine's floor during the format study.
 - **War tent:** the strategist points at the map while the strategy is written, and a scribe
   takes notes.
@@ -161,6 +169,29 @@ progress, and every agent's post and activity:
 A courier with a horse of his own rides each piece of work along the sandbars when it changes
 hands (each stage change, each finished video), then rides back to the stable. New event lines
 flash in the station's label with a pop-up emote beside the island.
+
+### The lands
+
+West of the camp, a road leaves the stable's gate for a crossroads with a signpost. From there the
+high road runs north and south between two columns of lands, with a spur to each. Each land is the
+website or API the research reads (`LANDS` in `scenes/layout.ts`; landmarks in
+`engine/models/lands.ts`):
+
+| Land | Landmark | Sources (`landFor()`) |
+| --- | --- | --- |
+| The brand's site | a little walled town with its banners | `brand`, `site` |
+| SimilarWeb | three houses alike, but not quite | `similar`, and any source the camp has no land for |
+| Ahrefs | a striped beacon | `seo_*` |
+| TikTok | a giant phone, its screen a cyan and magenta glitch | `tiktok_*` |
+| Instagram | square pictures on easels in its gradient | `reels` |
+| YouTube | an outdoor screen on red posts, with benches | `shorts` |
+| Meta Ad Library | billboards of ads, framed in blue | `meta_ads_*` |
+| Reddit | a stone forum with a notice board of threads | `reddit` |
+| ChatGPT | a dark round shrine with a glowing orb | `aeo_chatgpt` |
+| Perplexity | a faceted teal crystal on stepped stone | `aeo_perplexity` |
+
+A scout ties its horse in one of four spots by the shore and gathers in front of the landmark. A
+label under each land names it, says what is fetched there and counts the scouts out on it.
 
 ### Agents are people
 
@@ -183,8 +214,9 @@ open (`scenes/camp.ts`, tested in `tests/troy/camp.test.ts`):
   way; one the plan drops marches back up the plank into it. Posts that move (the inspector, the
   audience) are walked to; posts off the ground are climbed to (`via` waypoints: the tower's
   ladder, the podium's step, the shrine's floor).
-- **Off the map.** Riders vanish only once they are off the screen on the trail, and come back
-  from beyond its edge.
+- **Nobody leaves the map.** Scouts ride to their land and back in plain view. At the stable,
+  everyone walks or rides along the aisle behind the horses, so nobody passes through one. The
+  horses come in five coats so a line of them reads as horses.
 
 The knock on the closed doors (every few seconds, and while the campaign starts) jolts the closed
 doors' own sprite outward and back, twice. It never swaps frames, so nothing re-shades or flickers;
@@ -192,11 +224,21 @@ and the stage keeps the last drawn sprite of anything whose next frame is still 
 
 ## Looking closer
 
+**The map.** Scroll or pinch to zoom toward the pointer, and drag to look around. The + − buttons
+at the bottom right do the same, as do the keys + − 0. Zooms settle on whole device pixels per art
+pixel, so the art stays crisp. Once you move the camera it stays yours (the fit button turns red)
+until you press fit (or 0), open a station or click a soldier.
+
+Left alone, the camera frames the camp. While scouts are out it pulls back to show the lands as
+well; on phones it shows the lands and the scouts' island. Zoomed out, the station tags shrink to
+their names. The land labels shrink to their names, then to a marker in the land's colour with the
+count of scouts out.
+
 **Agents.** Every soldier on the map can be clicked (hover shows a ring and a pointer; a tap works
 on phones). Their card (`camp/AgentCard.tsx`) shows a Greek name, an animated portrait from the
-same sprites, what they are doing this moment in the camp ("Galloping off along the trail for
-“Reddit threads”"), their part of the campaign, and their piece of it drawn out: a scout's trip
-and the basket, an editor's video on its production line with every shot as a frame of film, the
+same sprites, what they are doing this moment in the camp ("Galloping to Reddit for what people
+say"), their part of the campaign, and their piece of it drawn out: a scout's land, its sources,
+its trip and the basket, an editor's video on its production line with every shot as a frame of film, the
 inspector's verdicts, the painter's frames, the courier's errand on a map of the camp, the
 strategist's brief, the audience's cut, the herald's posts. A marker bobs over their head and the
 camera follows them, galloping riders included, until the card closes (or "Follow" is turned
@@ -221,14 +263,16 @@ Nothing is a bitmap. `engine/tracer.ts` is a small analytic ray tracer:
 - **Grounds:** islands whose rims dissolve into scattered grains.
 
 - `engine/models/*`: the horse (body, door leaves and gangplank as separate layers), the hoplite
-  (a pose is a few joint angles; looks vary skin, crest, tunic, shield emblem) and the station
-  props.
+  (a pose is a few joint angles; looks vary skin, crest, tunic, shield emblem), the riding horse in
+  five coats, the station props and the lands' landmarks.
 - `engine/jobs.ts`: every drawable as a serialisable job (`{ k: "soldier", look, act, dir, f }`).
   `engine/bake.worker.ts` bakes jobs in a pool of up to three workers, with an inline fallback.
   `engine/baker.ts` caches the results as `ImageBitmap`s.
 - `engine/stage.ts`: one canvas, a camera in art pixels and whole device pixels per art pixel where
-  that costs little (quarter steps otherwise). It depth-sorts entities isometrically, draws soft blob
-  shadows and pixel-dissolve reveals, and keeps HTML anchored to world points.
+  that costs little (quarter steps otherwise). The viewer's zoom eases toward the pointer and settles
+  on those same crisp steps; panning stays within the world. The stage depth-sorts entities
+  isometrically, draws soft blob shadows and pixel-dissolve reveals, and keeps HTML anchored to
+  world points.
 
 To add a prop: write a builder in `engine/models/props.ts`, add a case to `propModel()` in
 `jobs.ts`, and place it in `scenes/stations.ts`. The island bakes its shadow automatically. To add
@@ -239,9 +283,10 @@ an activity, add an `Act` and its pose in `poseFor()`.
 Measured in headless Chromium at 1440×900, 2x (software rendering, so real GPUs do better):
 - **Landing:** the website box appears about 0.5 s after load, and the horse about 1 s after load
   in dev mode.
-- **Frame time:** a median of 16.7 ms and a 95th percentile of 16.8 ms (slowest frame 33.4 ms)
-  over the first 25 s after pressing the button: the doors, the column marching into the camp,
-  the camera following it, and the first scouts riding out.
+- **Frame time:** a median of 16.7 ms and a 95th percentile of 16.8 ms over the first 25 s after
+  pressing the button: the doors, the column marching into the camp, the camera following it, and
+  the scouts riding out to the lands with the camera pulled back. Over four runs, the slowest frame
+  was 117 ms once, 50 ms twice, and under 34 ms once.
 - **Bake cost:** the horse body takes about 250 ms and a soldier frame about 5 ms, all in workers.
 
 ## Tests
@@ -254,16 +299,19 @@ They cover:
 - the plan for every campaign state and event routing;
 - that the website box accepts exactly what the server's `normalizeDomain` accepts;
 - deterministic baking, the door timeline and the knock;
-- the roads, and the stable and waiting places standing on sand;
+- the roads, the roads west to every land, and the stable and waiting places standing on sand;
+- the lands: which land each source rides to, lands clear of each other and of the camp, their
+  spots on sand, and every landmark baking;
 - the agents as people, on the real scene with a stubbed canvas: the column reaching every post,
-  scouts riding out and back and filling the basket, the courier, agents marching home, and that
-  nobody fades out anywhere but the horse's doorway;
+  one scout per land riding out, gathering there, riding back and filling the basket, scouts
+  running on foot when every horse is out, a scout setting out again for a new source, the
+  courier, agents marching home, and that nobody fades out anywhere but the horse's doorway;
 - the shortest routes, and crossings that keep clear of the furniture;
 - picking a soldier, what the card is told about a scout's trip and the courier's errands, and
   that every agent has a name of its own;
 - the gate and the demo-only switch;
-- the demo's clock: the review that waits, posting now or one a day, autoplay, skips, where event
-  lines land, and loading recordings.
+- the demo's clock: research paced to the rides, the review that waits, posting now or one a day,
+  autoplay, skips, where event lines land, and loading recordings.
 
 ## Not done yet
 

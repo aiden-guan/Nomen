@@ -502,10 +502,29 @@ function flame(heat: number) {
 }
 
 /**
- * A small chestnut riding horse with a rider seat, galloping along +x. `f` is the stride 0..5, or
- * -1 for a horse standing still (tied at the stable, or waiting for its rider).
+ * Horse coats: bay, chestnut, dun, grey and black, each with its mane. Tied side by side at the
+ * stable, horses of one colour would merge into one long brown shape; mixed, each reads as a horse.
  */
-export function mount(m: Model, f: number) {
+const COATS = [
+  { ramp: R.wood, tone: 0.6, dither: 0.3, mane: R.hair, maneTone: 0.6 },
+  { ramp: R.bronze, tone: -0.35, dither: 0.12, mane: R.wood, maneTone: -0.6 },
+  { ramp: R.woodPale, tone: 0.2, dither: 0.3, mane: R.hair, maneTone: 0.4 },
+  { ramp: R.stone, tone: 0.9, dither: 0.3, mane: R.iron, maneTone: 0.6 },
+  { ramp: R.hair, tone: 1, dither: 0.3, mane: R.black, maneTone: 0.4 },
+];
+
+/**
+ * A small riding horse with a rider seat, galloping along +x, in one of the COATS. `f` is the
+ * stride 0..5, or -1 for a horse standing still (tied at the stable, or waiting for its rider).
+ */
+export function mount(m: Model, f: number, coatIndex = 0) {
+  const look = COATS[coatIndex % COATS.length];
+  const coat = (h: HitInfo, out: ShadeOut) => {
+    out.ramp = look.ramp;
+    out.dither = look.dither;
+    out.tone = look.tone;
+  };
+  const mane = solid(look.mane, look.maneTone, 0);
   const still = f < 0;
   const phase = still ? 0 : (f / 6) * Math.PI * 2;
   const bob = still ? 0 : Math.sin(phase * 2) * 0.35;
@@ -515,10 +534,10 @@ export function mount(m: Model, f: number) {
     m.with(mul(translate(still ? 4.6 : 5.2, 0, 11.4), rotY(still ? 0.32 : -0.75 + Math.sin(phase) * 0.1)), () => {
       m.box(0, 0, 2.4, 1.6, 1.4, 3.2, { mat: coat });
       m.box(1.4, 0, 5.4, 3, 1.25, 1.35, { mat: coat, rot: rotY(still ? 0.62 : 1.1) });
-      m.box(-0.6, 0, 3.4, 0.9, 0.5, 3.4, { mat: solid(R.hair, 0.6, 0) });
+      m.box(-0.6, 0, 3.4, 0.9, 0.5, 3.4, { mat: mane });
       for (const y of [-0.7, 0.7]) m.box(0, y, 6.6, 0.3, 0.25, 0.7, { mat: coat });
     });
-    m.capsule([-5.8, 0, 10], still ? [-6.8, 0, 5.2] : [-8.4, 0, 6.6 + Math.sin(phase) * 0.8], 0.6, { mat: solid(R.hair, 0.5, 0) });
+    m.capsule([-5.8, 0, 10], still ? [-6.8, 0, 5.2] : [-8.4, 0, 6.6 + Math.sin(phase) * 0.8], 0.6, { mat: mane });
     // Saddle cloth.
     m.box(-0.4, 0, 11.2, 2.6, 2.75, 0.5, { mat: solid(R.crimson, 0.4, 0) });
   });
@@ -541,7 +560,7 @@ export function mount(m: Model, f: number) {
 }
 
 /** The scouts' stable: a hitching rail along y between two posts, with a water trough on its +x side. */
-export const RAIL = { half: 18 };
+export const RAIL = { half: 24 };
 
 export function hitchingRail(m: Model) {
   const wood = solid(R.woodDark, 0.5, 0);
@@ -552,8 +571,3 @@ export function hitchingRail(m: Model) {
   m.box(3.2, 0, 2.5, 1.1, RAIL.half - 3.5, 0.15, { mat: solid(R.water, 0.6, 0) });
 }
 
-function coat(h: HitInfo, out: ShadeOut) {
-  out.ramp = R.wood;
-  out.dither = 0.3;
-  out.tone = 0.6;
-}

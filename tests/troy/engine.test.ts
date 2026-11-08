@@ -4,8 +4,29 @@ import { bakeJob, dirFor, type Job, jobKey, LEAF_STEPS, PLANK_STEPS, RIDER_FRAME
 import { doorPose, exitPath, HORSE, PLANK_REST } from "@/components/troy/engine/models/horse";
 import { projectX, projectY, unprojectGround } from "@/components/troy/engine/tracer";
 import { knockJolt } from "@/components/troy/scenes/landing";
-import { HORSE_GATE, hub, type Node, road, route, sandbars, STATION, STATIONS, stationIsland, TRAIL, travel } from "@/components/troy/scenes/layout";
-import { DESK_SLOTS, PROPS, SPOTS, STABLE_GATE, STALLS } from "@/components/troy/scenes/stations";
+import {
+  HORSE_GATE,
+  hub,
+  ISLAND_RADIUS,
+  JUNCTION,
+  LAND,
+  LAND_RADIUS,
+  landFor,
+  landIsland,
+  LANDS,
+  type Node,
+  road,
+  roadToLand,
+  route,
+  sandbars,
+  stableGate,
+  STATION,
+  STATIONS,
+  stationIsland,
+  travel,
+  worldTrails,
+} from "@/components/troy/scenes/layout";
+import { DESK_SLOTS, LAND_SPOTS, PROPS, SPOTS, STABLE_GATE, STALLS } from "@/components/troy/scenes/stations";
 
 // The art pipeline is deterministic: the same job always bakes the same pixels, in a worker or not.
 
@@ -57,7 +78,9 @@ describe("jobs", () => {
       { k: "rider", look: 0, dir: 1, f: 2, c: 1 },
       { k: "rider", look: 0, dir: 1, f: -1 },
       { k: "steed", dir: 1 },
-      { k: "trail" },
+      { k: "road", i: 0 },
+      { k: "land", id: "tiktok" },
+      { k: "junction" },
     ];
     expect(new Set(jobs.map(jobKey)).size).toBe(jobs.length);
   });
@@ -196,8 +219,68 @@ describe("the camp's roads", () => {
     }
   });
 
-  it("lead the scouts' trail off the left edge of the world", () => {
-    expect(projectX(TRAIL.b.x, TRAIL.b.y)).toBeLessThan(projectX(TRAIL.a.x, TRAIL.a.y) - 500);
+  it("lead west from the stable to a crossroads, and on to every land", () => {
+    const trails = worldTrails();
+    expect(trails[0].a).toEqual(stableGate());
+    expect(trails[0].b).toEqual(JUNCTION);
+    for (const land of LANDS) {
+      const way = roadToLand(land.id);
+      expect(way[0]).toEqual(JUNCTION);
+      const end = way[way.length - 1];
+      expect(Math.hypot(end.x - land.x, end.y - land.y)).toBeLessThan(LAND_RADIUS);
+      // Every leg of the way is on a sandbar.
+      for (let i = 0; i < way.length - 2; i++) {
+        const on = trails.some((t) => [t.a, t.b].some((p) => Math.hypot(p.x - way[i].x, p.y - way[i].y) < 0.01) && [t.a, t.b].some((p) => Math.hypot(p.x - way[i + 1].x, p.y - way[i + 1].y) < 0.01));
+        expect(on, `${land.id}: leg ${i}`).toBe(true);
+      }
+    }
+    // The lands lie west of the camp.
+    for (const land of LANDS) expect(projectX(land.x, land.y)).toBeLessThan(projectX(STATION.scouts.x, STATION.scouts.y) - 150);
+  });
+});
+
+describe("the lands", () => {
+  it("send every research source to the land of the website or API it reads", () => {
+    const expected: Record<string, string> = {
+      brand: "site",
+      site: "site",
+      similar: "similarweb",
+      seo_rating: "ahrefs",
+      seo_keywords: "ahrefs",
+      tiktok_brand: "tiktok",
+      tiktok_0: "tiktok",
+      tiktok_1: "tiktok",
+      tiktok_ads: "tiktok",
+      reels: "instagram",
+      shorts: "youtube",
+      meta_ads_brand: "metaads",
+      meta_ads_0: "metaads",
+      meta_ads_1: "metaads",
+      reddit: "reddit",
+      aeo_chatgpt: "chatgpt",
+      aeo_perplexity: "perplexity",
+    };
+    for (const [key, land] of Object.entries(expected)) expect(landFor(key), key).toBe(land);
+    expect(new Set(Object.values(expected)).size).toBe(LANDS.length);
+  });
+
+  it("stand apart from each other, the camp and the horse", () => {
+    const islands = [...STATIONS.map((s) => ({ x: s.x, y: s.y, r: ISLAND_RADIUS })), { x: 4, y: 16, r: 78 }];
+    LANDS.forEach((a, i) => {
+      for (const b of LANDS.slice(i + 1)) expect(Math.hypot(a.x - b.x, a.y - b.y), `${a.id}–${b.id}`).toBeGreaterThan(2 * LAND_RADIUS + 20);
+      for (const s of islands) expect(Math.hypot(a.x - s.x, a.y - s.y), a.id).toBeGreaterThan(LAND_RADIUS + s.r + 20);
+    });
+  });
+
+  it("keep the scouts' spots and their horses on the land's sand", () => {
+    LANDS.forEach((land, i) => {
+      const sand = island(landIsland(LAND[land.id], i));
+      for (const spot of [...LAND_SPOTS.gather, ...LAND_SPOTS.horses]) expect(sand.sdf(spot.x, spot.y), `${land.id} (${spot.x}, ${spot.y})`).toBeLessThan(0);
+    });
+  });
+
+  it("bake every landmark", () => {
+    for (const land of LANDS) expect(opaque(bakeJob({ k: "prop", id: land.prop, v: 0 }).rgba), land.id).toBeGreaterThan(150);
   });
 });
 

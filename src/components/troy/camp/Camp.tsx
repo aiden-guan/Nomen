@@ -7,7 +7,7 @@ import { easeInOutCubic, type Stage } from "../engine/stage";
 import { projectX, projectY } from "../engine/tracer";
 import type { CampScene } from "../scenes/camp";
 import { activeStation, derive, stationForEvent } from "../scenes/derive";
-import { STATION, type StationId, STATIONS } from "../scenes/layout";
+import { type Land, LAND_RADIUS, type LandId, LANDS, STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
 import { DEMO_ID, type PublishMode } from "./demo";
@@ -43,10 +43,22 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   // A soldier picked on the map (or from a station's panel): their card replaces the station panel.
   const [agentId, setAgentId] = useState<string | null>(null);
   const [following, setFollowing] = useState(true);
-  const openStation = useCallback((id: StationId | null) => {
-    setAgentId(null);
-    setSelected(id);
+  // The viewer zoomed or dragged the map: the camera is theirs until they fit the view again or
+  // open something (a station, a soldier), which the camera frames for them.
+  const [manual, setManual] = useState(false);
+  const manualRef = useRef(false);
+  const takeCamera = useCallback((mine: boolean) => {
+    manualRef.current = mine;
+    setManual(mine);
   }, []);
+  const openStation = useCallback(
+    (id: StationId | null) => {
+      setAgentId(null);
+      setSelected(id);
+      takeCamera(false);
+    },
+    [takeCamera],
+  );
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -140,7 +152,8 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
 
   // --- Camera: frame the camp, or zoom to a station when its panel is open. ---------------------
   // Narrow screens can't show six islands at a readable size: they follow one station at a time,
-  // picked from a strip of cards along the bottom.
+  // picked from a strip of cards along the bottom. While scouts are out on the roads the camera
+  // pulls back to show the lands they ride to.
   const wide = useWide();
   const reduced = useReducedMotion();
   const [focused, setFocused] = useState<StationId | null>(null);
@@ -148,19 +161,61 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const shown = selected ?? focused ?? current;
   const panel = Boolean(selected || agentId);
   const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: panel && wide ? 440 : 0 }), [panel, wide]);
+
+  // What the map shows changes with the camp, not only with the data: polled a few times a second.
+  const [away, setAway] = useState(false);
+  const [busyLands, setBusyLands] = useState<Partial<Record<LandId, number>>>({});
+  // How much the labels on the map say: 2 in full, 1 names only (zoomed out), 0 a marker (far out).
+  const [detail, setDetail] = useState<0 | 1 | 2>(2);
+  useEffect(() => {
+    const e = engine.current;
+    if (!e || !arrived) return;
+    let lastOut = -Infinity;
+    let lastKey = "";
+    const poll = () => {
+      const now = performance.now();
+      const busy = e.camp.landsBusy();
+      if (Object.keys(busy).length) lastOut = now;
+      // Hold the wide view a moment after the last scout is back, so it doesn't bounce between errands.
+      setAway(now - lastOut < 2500);
+      const key = JSON.stringify(busy);
+      if (key !== lastKey) {
+        lastKey = key;
+        setBusyLands(busy);
+      }
+      // Zoomed out, the labels shrink so the map stays readable: to their names, then to markers.
+      const zoom = e.stage.camera.zoom;
+      setDetail(zoom >= Math.max(1.6, e.camp.camera(e.camp.insets).zoom * 0.8) ? 2 : zoom >= 0.95 ? 1 : 0);
+    };
+    poll();
+    const timer = setInterval(poll, 250);
+    return () => clearInterval(timer);
+  }, [engine, arrived]);
+
   const frameCamera = useCallback(
     (duration: number) => {
       const e = engine.current;
-      // While a soldier's card is open the camera follows them instead (below).
-      if (!e || (agentId && following)) return;
+      if (!e) return;
       e.camp.insets = { ...insets, bottom: panel && !wide ? Math.round(window.innerHeight * 0.64) : insets.bottom };
-      const target = wide ? (selected ? e.camp.focus(selected, e.camp.insets) : e.camp.camera(e.camp.insets)) : e.camp.focus(shown, e.camp.insets);
+      // While a soldier's card is open the camera follows them instead (below); a viewer who moved
+      // the camera keeps it.
+      if ((agentId && following) || manualRef.current) return;
+      const ins = e.camp.insets;
+      const target = wide
+        ? selected
+          ? e.camp.focus(selected, ins)
+          : away
+            ? e.camp.world(ins)
+            : e.camp.camera(ins)
+        : away && shown === "scouts" && !panel
+          ? e.camp.lands(ins)
+          : e.camp.focus(shown, ins);
       e.stage.look(target, reduced ? 0 : duration, easeInOutCubic);
     },
-    [engine, insets, selected, wide, shown, reduced, agentId, following, panel],
+    [engine, insets, selected, wide, shown, reduced, agentId, following, panel, away],
   );
   useEffect(() => {
-    if (arrived) frameCamera(0.9);
+    if (arrived) frameCamera(1);
   }, [arrived, frameCamera]);
   // Follow the picked soldier: ease in close, then keep them in view (clear of the card) as they move.
   useEffect(() => {
@@ -174,11 +229,12 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
     const agent = plan.agents.find((a) => a.id === agentId);
     const ins = { ...insets, bottom: wide ? insets.bottom : Math.round(window.innerHeight * 0.64) };
     const zoom = e.camp.focus(agent?.station ?? current, ins).zoom;
-    const dx = ins.right / 2 / zoom;
-    const dy = (ins.bottom - ins.top) / 2 / zoom;
+    // CSS px from the soldier to the camera's centre, so they sit in the middle of the open map.
+    const dx = ins.right / 2;
+    const dy = (ins.bottom - ins.top) / 2;
     e.stage.follow = { at: () => e.camp.position(agentId), dx, dy };
     const p = e.camp.position(agentId);
-    if (p) e.stage.look({ x: projectX(p.x, p.y) + dx, y: projectY(p.x, p.y, p.z) + dy, zoom }, reduced ? 0 : 0.8, easeInOutCubic);
+    if (p) e.stage.look({ x: projectX(p.x, p.y) + dx / zoom, y: projectY(p.x, p.y, p.z) + dy / zoom, zoom }, reduced ? 0 : 0.8, easeInOutCubic);
     return () => {
       e.stage.follow = null;
     };
@@ -192,47 +248,181 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
       e.camp.selected = null;
       e.camp.hovered = null;
       e.stage.follow = null;
+      e.stage.bounds = null;
     },
     [engine],
   );
 
-  // Soldiers on the map are clickable: hover shows a ring and a pointer, a click opens their card.
+  // The viewer's own camera: buttons and keys zoom a step around the middle of the open map
+  // (around the followed soldier, who stays put), and Fit hands the camera back.
+  const limitCamera = useCallback(() => {
+    const e = engine.current;
+    if (!e) return;
+    const limits = e.camp.limits(e.camp.insets);
+    e.stage.bounds = limits.bounds;
+    e.stage.zoomRange = limits.zoom;
+  }, [engine]);
+  const zoomBy = useCallback(
+    (direction: 1 | -1) => {
+      const e = engine.current;
+      if (!e) return;
+      limitCamera();
+      const { width, height } = e.stage.size;
+      const ins = e.camp.insets;
+      e.stage.zoomStep(direction, e.stage.follow ? undefined : { x: (width - ins.right) / 2, y: (ins.top + height - ins.bottom) / 2 });
+      takeCamera(true);
+    },
+    [engine, limitCamera, takeCamera],
+  );
+  const fitView = useCallback(() => {
+    takeCamera(false);
+    if (agentId && following) setFollowing(false);
+    else frameCamera(0.7);
+  }, [takeCamera, agentId, following, frameCamera]);
+  useEffect(() => {
+    if (!arrived) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (event.key === "+" || event.key === "=") zoomBy(1);
+      else if (event.key === "-" || event.key === "_") zoomBy(-1);
+      else if (event.key === "0") fitView();
+      else return;
+      event.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [arrived, zoomBy, fitView]);
+
+  // The map takes the pointer: the wheel (or a trackpad pinch) zooms toward the pointer, a drag
+  // pans, two fingers pinch. A press that doesn't move is a click: it picks the soldier under it,
+  // and a mouse hovering over a soldier rings them.
   const [hinted, setHinted] = useState(true);
   useEffect(() => {
     const e = engine.current;
     if (!e || !arrived) return;
     const canvas = e.stage.element;
-    const at = (event: MouseEvent) => {
+    const local = (event: { clientX: number; clientY: number }) => {
       const rect = canvas.getBoundingClientRect();
-      return e.camp.pick(event.clientX - rect.left, event.clientY - rect.top);
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    };
+    const own = () => {
+      if (!manualRef.current) takeCamera(true);
+    };
+    const pointers = new Map<number, { x: number; y: number }>();
+    let press: { x: number; y: number } | null = null;
+    let dragging = false;
+    let pinch: { dist: number; mid: { x: number; y: number } } | null = null;
+    const fingers = () => {
+      const [a, b] = [...pointers.values()];
+      return { dist: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+    };
+    const hover = (p: { x: number; y: number } | null) => {
+      const id = p ? e.camp.pick(p.x, p.y) : null;
+      e.camp.hovered = id;
+      canvas.style.cursor = dragging ? "grabbing" : id ? "pointer" : "grab";
+    };
+    const down = (event: PointerEvent) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      limitCamera();
+      canvas.setPointerCapture?.(event.pointerId);
+      const p = local(event);
+      pointers.set(event.pointerId, p);
+      if (pointers.size === 1) {
+        press = p;
+        dragging = false;
+      } else if (pointers.size === 2) {
+        pinch = fingers();
+        dragging = true;
+      }
     };
     const move = (event: PointerEvent) => {
-      if (event.pointerType !== "mouse") return;
-      const id = at(event);
-      e.camp.hovered = id;
-      canvas.style.cursor = id ? "pointer" : "";
+      const p = local(event);
+      const last = pointers.get(event.pointerId);
+      if (!last) {
+        if (event.pointerType === "mouse") hover(p);
+        return;
+      }
+      if (pointers.size >= 2) {
+        pointers.set(event.pointerId, p);
+        if (!pinch) return;
+        const now = fingers();
+        e.stage.zoomToward(now.dist / Math.max(1, pinch.dist), now.mid, { instant: true });
+        e.stage.panBy(now.mid.x - pinch.mid.x, now.mid.y - pinch.mid.y);
+        pinch = now;
+        own();
+        return;
+      }
+      // A small wobble is still a click.
+      if (!dragging && press && Math.hypot(p.x - press.x, p.y - press.y) < (event.pointerType === "mouse" ? 4 : 9)) return;
+      if (!dragging) {
+        dragging = true;
+        own();
+        // Dragging the map lets go of a followed soldier.
+        setFollowing(false);
+        hover(null);
+      }
+      e.stage.panBy(p.x - last.x, p.y - last.y);
+      pointers.set(event.pointerId, p);
+    };
+    const up = (event: PointerEvent) => {
+      if (!pointers.delete(event.pointerId)) return;
+      if (pinch && pointers.size < 2) {
+        pinch = null;
+        e.stage.settleZoom();
+      }
+      if (pointers.size > 0) return;
+      const p = local(event);
+      if (!dragging && event.type === "pointerup") {
+        const id = e.camp.pick(p.x, p.y);
+        if (id) {
+          setAgentId(id);
+          setFollowing(true);
+          setHinted(true);
+          takeCamera(false);
+        }
+      }
+      dragging = false;
+      press = null;
+      if (event.pointerType === "mouse") hover(p);
     };
     const leave = () => {
+      if (pointers.size) return;
       e.camp.hovered = null;
       canvas.style.cursor = "";
     };
-    const click = (event: MouseEvent) => {
-      const id = at(event);
-      if (!id) return;
-      setAgentId(id);
-      setFollowing(true);
-      setHinted(true);
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault();
+      limitCamera();
+      const delta = event.deltaY * (event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 800 : 1);
+      // A trackpad pinch arrives as a wheel with ctrl held, in small steps.
+      const factor = Math.min(2, Math.max(0.5, Math.exp(-delta * (event.ctrlKey ? 0.01 : 0.0022))));
+      e.stage.zoomToward(factor, e.stage.follow ? undefined : local(event));
+      own();
+      clearTimeout(settle);
+      settle = setTimeout(() => e.stage.settleZoom(), 160);
     };
+    canvas.addEventListener("pointerdown", down);
     canvas.addEventListener("pointermove", move);
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", up);
     canvas.addEventListener("pointerleave", leave);
-    canvas.addEventListener("click", click);
+    canvas.addEventListener("wheel", wheel, { passive: false });
+    canvas.style.cursor = "grab";
     return () => {
+      clearTimeout(settle);
+      canvas.removeEventListener("pointerdown", down);
       canvas.removeEventListener("pointermove", move);
+      canvas.removeEventListener("pointerup", up);
+      canvas.removeEventListener("pointercancel", up);
       canvas.removeEventListener("pointerleave", leave);
-      canvas.removeEventListener("click", click);
-      leave();
+      canvas.removeEventListener("wheel", wheel);
+      e.camp.hovered = null;
+      canvas.style.cursor = "";
     };
-  }, [engine, arrived]);
+  }, [engine, arrived, limitCamera, takeCamera]);
   // A first-time hint that the soldiers can be clicked (once per browser).
   useEffect(() => {
     if (!arrived) return;
@@ -341,10 +531,15 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
             id={station.id}
             plan={plan.stations[station.id]}
             active={selected === station.id}
+            compact={detail < 2}
             onClick={() => openStation(selected === station.id && !agentId ? null : station.id)}
             bubble={bubbles.filter((b) => b.station === station.id).slice(-1)[0]}
           />
         ))}
+
+      {arrived && view && LANDS.map((land) => <LandTag key={land.id} engine={engine} land={land} scouts={busyLands[land.id] ?? 0} detail={detail} />)}
+
+      {arrived && view && (wide || !panel) && <ZoomControls wide={wide} panel={panel} manual={manual || (Boolean(agentId) && following)} onZoom={zoomBy} onFit={fitView} />}
 
       {arrived && campaign?.status === "failed" && (
         <div role="alert" className={`${styles.box} ${styles.enter} absolute left-1/2 top-[92px] z-20 flex max-w-[min(640px,calc(100vw-32px))] -translate-x-1/2 items-center gap-4 px-4 py-3`}>
@@ -377,6 +572,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
           onAgent={(id) => {
             setAgentId(id);
             setFollowing(true);
+            takeCamera(false);
           }}
           onStation={openStation}
           onClose={() => setSelected(null)}
@@ -391,7 +587,10 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
           engine={engine}
           wide={wide}
           following={following}
-          onFollow={() => setFollowing((f) => !f)}
+          onFollow={() => {
+            if (!following) takeCamera(false);
+            setFollowing((f) => !f);
+          }}
           onStation={openStation}
           // Back to the station panel it was opened from, if any.
           onClose={() => setAgentId(null)}
@@ -400,7 +599,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
 
       {arrived && !hinted && !agentId && !selected && (
         <p role="status" className={`${styles.boxSoft} ${styles.rise} pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 px-3 py-1.5 text-[12px] ${wide ? "bottom-5" : "top-[64px]"}`}>
-          <span className={`${styles.pixel} text-[var(--crimson)]`}>Tip </span>Click any soldier to see what they&apos;re doing and follow them.
+          <span className={`${styles.pixel} text-[var(--crimson)]`}>Tip </span>Click any soldier to follow them. Scroll or pinch to zoom, drag to look around.
         </p>
       )}
 
@@ -555,6 +754,9 @@ const ICONS = {
   pause: "M3 3h3v8h-3zM8 3h3v8h-3z",
   skip: "M3 3h2v8h-2zM5 4h1v6h-1zM6 5h1v4h-1zM7 6h1v2h-1zM9 3h2v8h-2z",
   restart: "M4 2h6v2h-6zM2 4h2v6h-2zM4 10h6v2h-6zM10 7h2v3h-2zM10 0h1v1h1v1h1v2h-1v1h-1v1h-1z",
+  plus: "M6 2h2v4h4v2h-4v4h-2v-4h-4v-2h4z",
+  minus: "M2 6h10v2h-10z",
+  fit: "M1 1h5v2h-3v3h-2zM8 1h5v5h-2v-3h-3zM1 8h2v3h3v2h-5zM11 8h2v5h-5v-2h3z",
 };
 
 function PixelIcon({ name }: { name: keyof typeof ICONS }) {
@@ -594,6 +796,7 @@ function StationTag({
   id,
   plan,
   active,
+  compact,
   onClick,
   bubble,
 }: {
@@ -601,6 +804,8 @@ function StationTag({
   id: StationId;
   plan: ReturnType<typeof derive>["stations"][StationId];
   active: boolean;
+  /** Zoomed well out: just the name and its light. */
+  compact: boolean;
   onClick: () => void;
   bubble?: Bubble;
 }) {
@@ -631,14 +836,15 @@ function StationTag({
           onClick={onClick}
           aria-pressed={active}
           aria-label={`${station.name}, ${station.role}: ${STATE_WORD[plan.state]}. ${plan.status}`}
-          className={`${active ? styles.box : styles.boxSoft} ${styles.enter} pointer-events-auto block w-[208px] -translate-x-1/2 px-3 py-2 text-left transition-transform hover:-translate-y-0.5`}
+          title={compact ? `${station.role}: ${plan.status}` : undefined}
+          className={`${active ? styles.box : styles.boxSoft} ${styles.enter} pointer-events-auto block -translate-x-1/2 text-left transition-transform hover:-translate-y-0.5 ${compact ? "whitespace-nowrap px-2 py-1" : "w-[208px] px-3 py-2"}`}
         >
           <span className="flex items-center gap-2">
             <Pip state={plan.state} />
-            <span className={`${styles.pixel} text-[14px] font-semibold uppercase tracking-wide`}>{station.name}</span>
-            <span className="ml-auto text-[11px] text-[var(--ink-soft)]">{station.role}</span>
+            <span className={`${styles.pixel} font-semibold uppercase tracking-wide ${compact ? "text-[12px]" : "text-[14px]"}`}>{station.name}</span>
+            {!compact && <span className="ml-auto text-[11px] text-[var(--ink-soft)]">{station.role}</span>}
           </span>
-          {bubble ? (
+          {compact ? null : bubble ? (
             // A fresh dispatch replaces the status line for a few seconds.
             <span key={bubble.id} className={`${styles.fadeIn} mt-1 line-clamp-2 block text-[12px] leading-snug`} style={{ color: tone }} role="status">
               › {bubble.text}
@@ -646,7 +852,7 @@ function StationTag({
           ) : (
             <span className="mt-1 block truncate text-[12px] leading-snug text-[var(--ink-soft)]">{plan.status}</span>
           )}
-          {plan.progress !== null && (
+          {plan.progress !== null && !compact && (
             <span className="mt-1.5 flex gap-[3px]" aria-hidden="true">
               {Array.from({ length: segments }, (_, i) => (
                 <span
@@ -678,6 +884,72 @@ function StationTag({
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * A land's name on the map, under its shore: the site or API the scouts ride to, what they fetch
+ * there, and how many scouts are out on that errand now. Zoomed far out it is just a marker in the
+ * land's colour (and the count), so neighbouring labels don't pile up.
+ */
+function LandTag({ engine, land, scouts, detail }: { engine: RefObject<Engine | null>; land: Land; scouts: number; detail: 0 | 1 | 2 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const e = engine.current;
+    if (!e || !ref.current) return;
+    return e.stage.anchor(ref.current, () => ({ x: land.x + LAND_RADIUS * 0.72, y: land.y + LAND_RADIUS * 0.72, z: 0 }));
+  }, [engine, land]);
+  const count = scouts > 0 && (
+    <span className={`${styles.pixel} bg-[var(--crimson)] px-1 text-[10px] leading-[14px] text-[var(--paper)]`} aria-label={`${scouts} ${scouts === 1 ? "scout" : "scouts"} on this errand`}>
+      {scouts}
+    </span>
+  );
+  return (
+    <div ref={ref} className="pointer-events-none absolute left-0 top-0 z-[4] will-change-transform">
+      {detail === 0 ? (
+        <div className={`${styles.fadeIn} flex -translate-x-1/2 items-center gap-1`} aria-label={land.name}>
+          <span aria-hidden="true" className="inline-block size-2.5" style={{ background: land.color, boxShadow: "0 0 0 2px var(--paper)" }} />
+          {count}
+        </div>
+      ) : (
+        <div className={`${scouts ? styles.box : styles.boxSoft} ${styles.fadeIn} -translate-x-1/2 whitespace-nowrap ${detail === 1 ? "px-1.5 py-0.5" : "px-2 py-1"}`}>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="inline-block size-2 shrink-0" style={{ background: land.color }} />
+            <span className={`${styles.pixel} font-semibold ${detail === 1 ? "text-[11px]" : "text-[12px]"}`}>{land.name}</span>
+            {count}
+          </span>
+          {detail === 2 && <span className="block text-[11px] leading-tight text-[var(--ink-soft)]">{land.what}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Zoom buttons for the map (the wheel, a pinch and the + − 0 keys do the same). */
+function ZoomControls({ wide, panel, manual, onZoom, onFit }: { wide: boolean; panel: boolean; manual: boolean; onZoom: (direction: 1 | -1) => void; onFit: () => void }) {
+  return (
+    <div
+      role="group"
+      aria-label="Map zoom"
+      className={`${styles.fadeIn} absolute z-10 flex flex-col gap-[3px] ${wide ? `bottom-4 ${panel ? "right-[448px]" : "right-4"}` : "bottom-[184px] right-4"}`}
+    >
+      <button type="button" className={styles.iconButton} onClick={() => onZoom(1)} aria-label="Zoom in" title="Zoom in (+)">
+        <PixelIcon name="plus" />
+      </button>
+      <button type="button" className={styles.iconButton} onClick={() => onZoom(-1)} aria-label="Zoom out" title="Zoom out (−)">
+        <PixelIcon name="minus" />
+      </button>
+      <button
+        type="button"
+        className={styles.iconButton}
+        style={manual ? { background: "var(--crimson)" } : undefined}
+        onClick={onFit}
+        aria-label="Fit the view"
+        title="Fit the view (0): the camera frames the camp again, and the lands while scouts are out"
+      >
+        <PixelIcon name="fit" />
+      </button>
+    </div>
   );
 }
 

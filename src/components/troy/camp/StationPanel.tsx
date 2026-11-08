@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 import type { BrandView, CreativeView } from "../api";
 import type { Baker } from "../engine/baker";
 import { type AgentPlan, type CampPlan, runLabel, stationForEvent } from "../scenes/derive";
-import { STATION, type StationId } from "../scenes/layout";
+import { LAND, landFor, STATION, type StationId } from "../scenes/layout";
 import styles from "../troy.module.css";
 import { Basket, VideoDossier } from "./AgentCard";
 import { type CampActions } from "./Camp";
@@ -221,15 +221,26 @@ function Scouts({ view }: { view: BrandView }) {
           <p className="text-[13px] text-[var(--ink-soft)]">The scouts are about to set out.</p>
         ) : (
           <ul className="grid grid-cols-2 gap-1.5">
-            {campaign.runs.map((run) => (
-              <li key={run.key} className="flex items-center gap-2 bg-[rgba(43,29,20,0.04)] px-2 py-1.5" title={run.error ?? `${run.provider}${run.cost ? ` · ${money(run.cost)}` : ""}`}>
-                <Icon name={RUN_ICON[run.status] ?? "hourglass"} size={14} color={run.status === "done" ? "var(--bronze)" : run.status === "failed" ? "var(--crimson-dark)" : run.status === "running" ? "var(--crimson)" : "var(--ink-faint)"} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] leading-tight">{runLabel(run.key)}</span>
-                  <span className={`block text-[10px] leading-tight ${run.status === "running" ? "text-[var(--crimson)]" : "text-[var(--ink-faint)]"}`}>{RUN_WORD[run.status] ?? run.status}</span>
-                </span>
-              </li>
-            ))}
+            {campaign.runs.map((run) => {
+              // The land on the map this source is fetched from, in its colour.
+              const land = LAND[landFor(run.key)];
+              return (
+                <li
+                  key={run.key}
+                  className="flex items-center gap-2 bg-[rgba(43,29,20,0.04)] py-1.5 pl-2.5 pr-2"
+                  style={{ boxShadow: `inset 3px 0 0 ${land.color}` }}
+                  title={run.error ?? `${land.name}: ${land.what}, through ${run.provider}${run.cost ? ` · ${money(run.cost)}` : ""}`}
+                >
+                  <Icon name={RUN_ICON[run.status] ?? "hourglass"} size={14} color={run.status === "done" ? "var(--bronze)" : run.status === "failed" ? "var(--crimson-dark)" : run.status === "running" ? "var(--crimson)" : "var(--ink-faint)"} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12px] leading-tight">{runLabel(run.key)}</span>
+                    <span className={`block truncate text-[10px] leading-tight ${run.status === "running" ? "text-[var(--crimson)]" : "text-[var(--ink-faint)]"}`}>
+                      {land.name} · {RUN_WORD[run.status] ?? run.status}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Section>

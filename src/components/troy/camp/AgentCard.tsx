@@ -5,7 +5,7 @@ import type { BrandView, CreativeView } from "../api";
 import type { Baker } from "../engine/baker";
 import type { AgentInfo } from "../scenes/camp";
 import { type AgentPlan, type CampPlan, runLabel } from "../scenes/derive";
-import { STATION, type StationId } from "../scenes/layout";
+import { LAND, landRuns, scoutLand, STATION, type StationId } from "../scenes/layout";
 import styles from "../troy.module.css";
 import type { Engine } from "./Camp";
 import { money, platformName, when } from "./format";
@@ -69,7 +69,7 @@ export function AgentCard({
   const baker = engine.current?.baker ?? null;
   const name = greekName(agent.id);
   const moving = info?.where === "moving";
-  const gone = info?.where === "home" || info?.where === "out";
+  const gone = info?.where === "home";
 
   return (
     <aside
@@ -78,7 +78,7 @@ export function AgentCard({
     >
       <header className="relative flex gap-4 border-b-2 border-[rgba(43,29,20,0.12)] px-5 pb-4 pt-4">
         <div className={`${styles.parchment} shrink-0 self-start`}>
-          <Portrait baker={baker} look={agent.look} act={moving && !info?.mounted ? (agent.returning === "scroll" && !gone ? "carry" : "march") : agent.act} mounted={info?.mounted} moving={moving} carry={agent.returning === "scroll" ? 1 : 0} size={wide ? 104 : 84} />
+          <Portrait baker={baker} look={agent.look} act={moving && !info?.mounted ? (agent.returning === "scroll" && !gone ? "carry" : "march") : agent.act} mounted={info?.mounted} moving={moving} carry={agent.returning === "scroll" ? 1 : 0} coat={info?.coat} size={wide ? 104 : 84} />
         </div>
         <div className="min-w-0 flex-1 pt-1">
           <p className="flex flex-wrap items-center gap-1.5 text-[11px] uppercase tracking-wider text-[var(--ink-soft)]">
@@ -120,7 +120,7 @@ export function AgentCard({
         <button type="button" onClick={() => onStation(agent.station)} className={`${styles.link} ${styles.pixel} text-[12px] underline decoration-dotted underline-offset-4`}>
           ← The {station.name.toLowerCase()}
         </button>
-        {!info?.visible && <span className="ml-auto text-right text-[11px] leading-tight text-[var(--ink-faint)]">{info?.where === "out" ? "Off the map" : "Inside the horse"}</span>}
+        {!info?.visible && <span className="ml-auto text-right text-[11px] leading-tight text-[var(--ink-faint)]">Inside the horse</span>}
       </footer>
     </aside>
   );
@@ -129,10 +129,20 @@ export function AgentCard({
 /** What the agent is for. For a scout, the errand itself (the camp shows how far along it is). */
 function mission(agent: AgentPlan, view: BrandView) {
   if (!agent.id.startsWith("scout:")) return agent.task;
-  const key = agent.id.slice(6);
-  const run = view.campaign?.runs.find((r) => r.key === key);
-  return `Fetch “${runLabel(key)}”${run?.provider ? ` from ${run.provider}` : ""} and bring it back to camp.`;
+  const land = LAND[scoutLand(agent.id)];
+  const runs = landRuns(view.campaign?.runs ?? [], land.id);
+  const providers = [...new Set(runs.map((run) => run.provider).filter(Boolean))];
+  const what = runs.length ? list(runs.map((run) => `“${runLabel(run.key)}”`)) : land.what.toLowerCase();
+  return `Ride to ${land.name}, fetch ${what}${providers.length ? ` through ${list(providers)}` : ""} and bring it all back to camp in a scroll case.`;
 }
+
+/** "a", "a and b", "a, b and c". */
+function list(items: string[]) {
+  return items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+const SOURCE_ICON: Record<string, IconName> = { pending: "hourglass", running: "horse", done: "scroll", failed: "cross" };
+const SOURCE_COLOR: Record<string, string> = { pending: "var(--ink-faint)", running: "var(--crimson)", done: "var(--bronze)", failed: "var(--crimson-dark)" };
 
 /** What this agent's job looks like right now, by role. */
 function Dossier({ agent, info, view, plan }: { agent: AgentPlan; info: AgentInfo | null; view: BrandView; plan: CampPlan }) {
@@ -141,30 +151,47 @@ function Dossier({ agent, info, view, plan }: { agent: AgentPlan; info: AgentInf
   const creatives = campaign.creatives.slice().sort((a, b) => a.idx - b.idx);
 
   if (agent.id.startsWith("scout:")) {
-    const key = agent.id.slice(6);
-    const run = campaign.runs.find((r) => r.key === key);
+    const land = LAND[scoutLand(agent.id)];
+    const runs = landRuns(campaign.runs, land.id);
+    const cost = runs.reduce((sum, run) => sum + (run.cost ?? 0), 0);
+    const errors = runs.filter((run) => run.error);
     // The trip as the camp shows it, so the steps match the rider you are following.
     const trip = info?.trip ?? "camp";
-    const step = { camp: 0, out: 1, back: 2, done: 4, empty: 3 }[trip];
+    const step = { camp: 0, out: 1, there: 2, back: 3, done: 5, empty: 4 }[trip];
     return (
       <>
         <Section title="The errand">
           <Parchment>
             <p className="flex items-center gap-2">
-              <Icon name="scroll" size={16} color="var(--bronze)" />
-              <span className={`${styles.pixel} text-[16px]`}>{runLabel(key)}</span>
+              <span className="inline-block size-[10px] shrink-0" style={{ background: land.color }} aria-hidden="true" />
+              <span className={`${styles.pixel} text-[16px]`}>{land.name}</span>
             </p>
             <p className="mt-1 text-[12px] text-[var(--ink-soft)]">
-              Fetched from {run?.provider ?? "the web"}
-              {run?.cost ? ` · ${money(run.cost)}` : ""}
+              {land.what}
+              {cost ? ` · ${money(cost)}` : ""}
             </p>
+            {runs.length > 0 && (
+              <ul className="mt-2.5 space-y-1 border-t border-dashed border-[rgba(43,29,20,0.18)] pt-2.5">
+                {runs.map((run) => (
+                  <li key={run.key} className="flex items-center gap-2 text-[12px]">
+                    <Icon name={SOURCE_ICON[run.status] ?? "hourglass"} size={12} color={SOURCE_COLOR[run.status] ?? "var(--ink-faint)"} />
+                    <span className="min-w-0 flex-1 truncate">{runLabel(run.key)}</span>
+                    <span className="shrink-0 text-[11px] text-[var(--ink-faint)]">{run.provider}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="mt-3">
-              <Steps steps={["In camp", "Riding out", "Riding back", trip === "empty" ? "Came back empty" : "In the basket"]} current={step} failed={trip === "empty"} />
+              <Steps steps={["In camp", "Riding out", `At ${land.name}`, "Riding back", trip === "empty" ? "Came back empty" : "In the basket"]} current={step} failed={trip === "empty"} />
             </div>
-            {run?.error && <p className="mt-2 text-[12px] text-[var(--crimson-dark)]">{run.error}</p>}
+            {errors.map((run) => (
+              <p key={run.key} className="mt-2 text-[12px] text-[var(--crimson-dark)]">
+                {runLabel(run.key)}: {run.error}
+              </p>
+            ))}
           </Parchment>
         </Section>
-        <Basket view={view} highlight={key} />
+        <Basket view={view} highlight={runs.map((run) => run.key)} />
       </>
     );
   }
@@ -463,7 +490,7 @@ function ShotBadge({ status }: { status: string }) {
 }
 
 /** The scouts' basket: one scroll per source, filled when it is in. */
-export function Basket({ view, highlight }: { view: BrandView; highlight?: string }) {
+export function Basket({ view, highlight = [] }: { view: BrandView; highlight?: string[] }) {
   const runs = view.campaign?.runs ?? [];
   if (!runs.length) return null;
   const done = runs.filter((r) => r.status === "done").length;
@@ -473,7 +500,7 @@ export function Basket({ view, highlight }: { view: BrandView; highlight?: strin
         {runs.map((run) => {
           const color = run.status === "done" ? "var(--bronze)" : run.status === "failed" ? "var(--crimson-dark)" : run.status === "running" ? "var(--ink-soft)" : "rgba(43,29,20,0.18)";
           return (
-            <span key={run.key} title={`${runLabel(run.key)}: ${run.status}`} className={`grid size-6 place-items-center ${run.key === highlight ? "outline outline-2 outline-[var(--ink)]" : ""}`}>
+            <span key={run.key} title={`${runLabel(run.key)}: ${run.status}`} className={`grid size-6 place-items-center ${highlight.includes(run.key) ? "outline outline-2 outline-[var(--ink)]" : ""}`}>
               <Icon name={run.status === "failed" ? "cross" : run.status === "running" ? "horse" : "scroll"} size={14} color={color} />
             </span>
           );

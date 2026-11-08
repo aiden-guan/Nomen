@@ -87,16 +87,138 @@ export class Stage {
   }
 
   /**
-   * Keeps the camera on a moving world point (a selected soldier), offset in art pixels so the
-   * point sits clear of panels. A camera move in progress steers toward the point as it moves.
-   * Returning null leaves the camera where it is (the point left the visible world).
+   * Keeps the camera on a moving world point (a selected soldier). The camera's centre sits `dx`,
+   * `dy` CSS pixels from the point, so the point stays clear of panels at any zoom. A camera move in
+   * progress steers toward the point as it moves. Returning null leaves the camera where it is
+   * (the point left the visible world).
    */
   follow: { at: () => { x: number; y: number; z: number } | null; dx: number; dy: number } | null = null;
+
+  /** Where the camera's centre may go (art px) when the viewer pans or zooms; null: anywhere. */
+  bounds: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  /** How far the viewer can zoom out and in, in CSS pixels per art pixel. */
+  zoomRange = { min: 0.5, max: 6 };
+  /**
+   * A zoom the viewer asked for (wheel, pinch, buttons): the camera eases toward `zoom` while the
+   * world point (ax, ay) stays at (sx, sy) CSS px from the canvas's centre, under the pointer.
+   */
+  private zoomGoal: { zoom: number; sx: number; sy: number; ax: number; ay: number } | null = null;
 
   /** Device pixels per art pixel for a zoom, snapped so art pixels stay whole on this screen. */
   snapZoom(zoom: number) {
     const device = Math.max(1, Math.round(zoom * this.dpr));
     return device / this.dpr;
+  }
+
+  /**
+   * The zooms the camera settles on, smallest first: whole device pixels per art pixel (crisp art),
+   * with quarter steps between them where they are far apart (1x screens, zoomed far out).
+   */
+  zoomSteps() {
+    const { min, max } = this.zoomRange;
+    const crisp: number[] = [];
+    for (let d = Math.max(1, Math.ceil(min * this.dpr - 1e-6)); d / this.dpr <= max + 1e-6; d++) crisp.push(d / this.dpr);
+    const steps: number[] = [];
+    crisp.forEach((zoom, i) => {
+      steps.push(zoom);
+      const next = crisp[i + 1];
+      if (!next || next / zoom <= 1.3) return;
+      for (let q = Math.floor(zoom * 4 + 1) / 4; q < next; q += 0.25) {
+        if (q / steps[steps.length - 1] >= 1.15 && next / q >= 1.15) steps.push(q);
+      }
+    });
+    return steps.length ? steps : [this.fitZoom(min)];
+  }
+
+  /** The zoom the camera is heading for: a zoom in progress, a camera move, or where it is. */
+  get zoomTarget() {
+    return this.zoomGoal?.zoom ?? this.cameraTween?.to.zoom ?? this.camera.zoom;
+  }
+
+  /**
+   * Zooms by `factor` toward a point on screen (CSS px from the canvas's top left; the centre by
+   * default), keeping the world under that point where it is. The camera eases there unless
+   * `instant` (a pinch, which tracks the fingers); `settle` lands on the nearest crisp zoom.
+   */
+  zoomToward(factor: number, at?: { x: number; y: number }, { instant = false, settle = false } = {}) {
+    const { min, max } = this.zoomRange;
+    let zoom = Math.min(max, Math.max(min, this.zoomTarget * factor));
+    if (settle) zoom = this.nearestStep(zoom);
+    this.aimZoom(zoom, at);
+    if (instant) this.stepZoom(Infinity);
+  }
+
+  /** One crisp step in (+1) or out (-1), toward a point on screen (the centre by default). */
+  zoomStep(direction: 1 | -1, at?: { x: number; y: number }) {
+    const steps = this.zoomSteps();
+    const from = this.zoomTarget;
+    const next = direction > 0 ? steps.find((s) => s > from * 1.01) : [...steps].reverse().find((s) => s < from / 1.01);
+    if (next !== undefined) this.aimZoom(next, at);
+  }
+
+  /** Ends a free zoom (a pinch, a trackpad) on the nearest crisp step, around the same point. */
+  settleZoom() {
+    const goal = this.zoomGoal;
+    const zoom = this.nearestStep(this.zoomTarget);
+    if (goal) goal.zoom = zoom;
+    else if (Math.abs(zoom - this.camera.zoom) > 1e-6) this.aimZoom(zoom);
+  }
+
+  /** Moves the camera by a distance on screen (CSS px): the world follows a dragging pointer. */
+  panBy(dx: number, dy: number) {
+    this.cameraTween = null;
+    const z = this.camera.zoom;
+    this.camera.x -= dx / z;
+    this.camera.y -= dy / z;
+    if (this.zoomGoal) {
+      this.zoomGoal.ax -= dx / z;
+      this.zoomGoal.ay -= dy / z;
+    }
+    this.keepInBounds();
+  }
+
+  private nearestStep(zoom: number) {
+    let best = zoom;
+    let score = Infinity;
+    for (const step of this.zoomSteps()) {
+      const d = Math.abs(Math.log(step / zoom));
+      if (d < score) {
+        score = d;
+        best = step;
+      }
+    }
+    return best;
+  }
+
+  private aimZoom(zoom: number, at?: { x: number; y: number }) {
+    const sx = (at?.x ?? this.width / 2) - this.width / 2;
+    const sy = (at?.y ?? this.height / 2) - this.height / 2;
+    // The viewer took the camera: a framing move in progress stops where it is.
+    this.cameraTween = null;
+    this.zoomGoal = { zoom, sx, sy, ax: this.camera.x + sx / this.camera.zoom, ay: this.camera.y + sy / this.camera.zoom };
+  }
+
+  private stepZoom(dt: number) {
+    const goal = this.zoomGoal;
+    if (!goal) return;
+    const k = 1 - Math.exp(-dt * 16);
+    let zoom = this.camera.zoom * (goal.zoom / this.camera.zoom) ** k;
+    if (Math.abs(Math.log(goal.zoom / zoom)) < 0.004) zoom = goal.zoom;
+    this.camera.zoom = zoom;
+    // A followed soldier holds the camera's position; otherwise the point under the pointer does.
+    if (!this.follow) {
+      this.camera.x = goal.ax - goal.sx / zoom;
+      this.camera.y = goal.ay - goal.sy / zoom;
+      this.keepInBounds();
+    }
+    if (zoom === goal.zoom) this.zoomGoal = null;
+  }
+
+  private keepInBounds() {
+    const b = this.bounds;
+    if (!b) return;
+    this.camera.x = Math.min(b.x1, Math.max(b.x0, this.camera.x));
+    this.camera.y = Math.min(b.y1, Math.max(b.y0, this.camera.y));
   }
 
   /**
@@ -149,6 +271,7 @@ export class Stage {
   }
 
   look(target: CameraTarget, duration = 0, ease: (t: number) => number = easeInOutCubic, done?: () => void) {
+    this.zoomGoal = null;
     if (duration <= 0) {
       this.camera.x = target.x;
       this.camera.y = target.y;
@@ -209,10 +332,13 @@ export class Stage {
   onResize: ((width: number, height: number) => void) | null = null;
 
   private step(dt: number) {
+    this.stepZoom(dt);
     const followed = this.follow?.at();
     if (this.follow && followed) {
-      const tx = projectX(followed.x, followed.y) + this.follow.dx;
-      const ty = projectY(followed.x, followed.y, followed.z) + this.follow.dy;
+      // The offset is in CSS px: in art px it shrinks as the camera zooms in.
+      const zoom = this.cameraTween?.to.zoom ?? this.camera.zoom;
+      const tx = projectX(followed.x, followed.y) + this.follow.dx / zoom;
+      const ty = projectY(followed.x, followed.y, followed.z) + this.follow.dy / zoom;
       if (this.cameraTween) {
         this.cameraTween.to = { ...this.cameraTween.to, x: tx, y: ty };
       } else {

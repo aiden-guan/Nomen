@@ -1,9 +1,10 @@
 import { HORSE_ISLAND, island, sandbar } from "./grounds";
 import { doorPose, horseBody, horseLeaves, horsePlank } from "./models/horse";
+import { adBillboards, answerShrine, brandGate, crystalSpire, instagramGallery, lookalikeHuts, rankBeacon, redditForum, tiktokPhone, youtubeScreen } from "./models/lands";
 import { amphora, banner, campfire, easel, editDesk, hitchingRail, mapTable, mount, oliveTree, pavilion, PLATFORM_FLAGS, podium, reels, screenFrame, scrollBasket, shrine, signpost, tier, tvOnTripod, watchtower } from "./models/props";
 import { GENERAL, type Look, look, type Pose, soldierInto, soldierModel, STANDING } from "./models/soldier";
-import { sandbars, STATIONS, type StationId, stationIsland, TRAIL } from "../scenes/layout";
-import { PROPS, type PropId } from "../scenes/stations";
+import { LAND, type LandId, LANDS, landIsland, sandbars, STATIONS, type StationId, stationIsland, worldTrails } from "../scenes/layout";
+import { LAND_SPOTS, PROPS, type PropId } from "../scenes/stations";
 import { bake, type BakeOptions, Model, mul, type Prim, rotZ, type Sprite, translate } from "./tracer";
 
 // Everything the camp can draw is a "job": a small, serialisable description that turns into a
@@ -24,13 +25,17 @@ export type Job =
   | { k: "soldier"; look: number; act: Act; dir: number; f: number }
   | { k: "island"; id: StationId }
   | { k: "bar"; i: number }
-  /** The scouts' trail, leading off the edge of the world. */
-  | { k: "trail" }
+  /** A road of the wider world (see worldTrails). */
+  | { k: "road"; i: number }
+  /** A land the scouts ride to, with its landmark's shadow. */
+  | { k: "land"; id: LandId }
+  /** The crossroads on the high road. */
+  | { k: "junction" }
   | { k: "prop"; id: PropId; v: number }
   /** A mounted soldier. `f` is the gallop frame, or -1 standing still; `c` 1 carries a scroll case. */
-  | { k: "rider"; look: number; dir: number; f: number; c?: number }
+  | { k: "rider"; look: number; dir: number; f: number; c?: number; h?: number }
   /** A riderless horse standing still (tied at the stable). */
-  | { k: "steed"; dir: number };
+  | { k: "steed"; dir: number; h?: number };
 
 /** Frames in each act's loop. */
 export const ACT_FRAMES: Record<Act, number> = { stand: 1, march: 8, carry: 8, climb: 4, type: 4, paint: 4, inspect: 4, read: 2, lookout: 2, herald: 2, point: 4, cheer: 2, sit: 1, watch: 2 };
@@ -57,14 +62,18 @@ export function jobKey(job: Job): string {
       return `i.${job.id}`;
     case "bar":
       return `b${job.i}`;
-    case "trail":
-      return "tr";
+    case "road":
+      return `rd${job.i}`;
+    case "land":
+      return `l.${job.id}`;
+    case "junction":
+      return "jn";
     case "prop":
       return `p.${job.id}.${job.v}`;
     case "rider":
-      return `r${job.look}.${job.dir}.${job.f}.${job.c ?? 0}`;
+      return `r${job.look}.${job.dir}.${job.f}.${job.c ?? 0}.${job.h ?? 0}`;
     case "steed":
-      return `st${job.dir}`;
+      return `st${job.dir}.${job.h ?? 0}`;
   }
 }
 
@@ -132,6 +141,36 @@ export function propModel(id: PropId, v = 0): Model {
     case "rail":
       hitchingRail(m);
       break;
+    case "phone":
+      tiktokPhone(m);
+      break;
+    case "gallery":
+      instagramGallery(m);
+      break;
+    case "bigscreen":
+      youtubeScreen(m);
+      break;
+    case "billboards":
+      adBillboards(m);
+      break;
+    case "forum":
+      redditForum(m);
+      break;
+    case "orbshrine":
+      answerShrine(m);
+      break;
+    case "crystal":
+      crystalSpire(m);
+      break;
+    case "beacon":
+      rankBeacon(m);
+      break;
+    case "huts":
+      lookalikeHuts(m);
+      break;
+    case "gate":
+      brandGate(m);
+      break;
   }
   return m;
 }
@@ -147,11 +186,12 @@ function stationCasters(id: StationId): Prim[] {
   return all;
 }
 
-function riderModel(lookIndex: number, dir: number, f: number, carry: number) {
+/** A soldier on horseback; `coat` is the horse's (see COATS in props.ts). */
+function riderModel(lookIndex: number, dir: number, f: number, carry: number, coat: number) {
   const m = new Model();
   const still = f < 0;
   m.with(rotZ(dir * (Math.PI / 4)), () => {
-    mount(m, f);
+    mount(m, f, coat);
     const bob = still ? 0 : Math.sin((f / RIDER_FRAMES) * Math.PI * 4) * 0.35;
     m.with(mul(translate(-0.6, 0, bob), rotZ(0)), () => {
       // Out on a run the hands are on the reins; coming back they hold the scroll case.
@@ -162,9 +202,9 @@ function riderModel(lookIndex: number, dir: number, f: number, carry: number) {
   return m;
 }
 
-function steedModel(dir: number) {
+function steedModel(dir: number, coat: number) {
   const m = new Model();
-  m.with(rotZ(dir * (Math.PI / 4)), () => mount(m, -1));
+  m.with(rotZ(dir * (Math.PI / 4)), () => mount(m, -1, coat));
   return m;
 }
 
@@ -250,13 +290,26 @@ export function bakeJob(job: Job): Sprite {
       const bar = sandbars()[job.i];
       return bake([], { ground: sandbar(bar.a, bar.b, 100 + job.i) });
     }
-    case "trail":
-      return bake([], { ground: sandbar(TRAIL.a, TRAIL.b, 140, { fade: true }) });
+    case "road": {
+      const road = worldTrails()[job.i];
+      return bake([], { ground: sandbar(road.a, road.b, 140 + job.i) });
+    }
+    case "land": {
+      const index = LANDS.findIndex((l) => l.id === job.id);
+      const holder = new Model();
+      holder.with(translate(LAND_SPOTS.landmark.x, LAND_SPOTS.landmark.y, 0), () => holder.include(propModel(LAND[job.id].prop)));
+      return bake([], { ground: island(landIsland(LAND[job.id], index)), shadowCasters: holder.prims });
+    }
+    case "junction": {
+      const holder = new Model();
+      holder.with(translate(-3, -3, 0), () => holder.include(propModel("signpost")));
+      return bake([], { ground: island({ cx: 0, cy: 0, rx: 13, ry: 12, seed: 61, rim: 8, wobble: 6, grass: 0.4 }), shadowCasters: holder.prims });
+    }
     case "prop":
       return withOptions(propModel(job.id, job.v));
     case "rider":
-      return withOptions(riderModel(job.look, job.dir, job.f, job.c ?? 0), { frame: RIDER_FRAME });
+      return withOptions(riderModel(job.look, job.dir, job.f, job.c ?? 0, job.h ?? 0), { frame: RIDER_FRAME });
     case "steed":
-      return withOptions(steedModel(job.dir), { frame: RIDER_FRAME });
+      return withOptions(steedModel(job.dir, job.h ?? 0), { frame: RIDER_FRAME });
   }
 }

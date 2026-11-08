@@ -1,6 +1,6 @@
 import type { BrandView, CampaignView, CreativeView, RunView } from "../api";
 import type { Act } from "../engine/jobs";
-import type { StationId } from "./layout";
+import { LAND, type LandId, landFor, landRuns, type StationId } from "./layout";
 import { DESK_SLOTS, EDITOR_OFFSET, SPOTS, WATCH_DROP, type Waypoint } from "./stations";
 
 // From the campaign the core track reports to what the camp shows: each station's state and
@@ -34,7 +34,7 @@ export type AgentPlan = {
   sort?: number;
   /** Points to pass on the way to the post (up a ladder, onto a step), relative to the island. */
   via?: Waypoint[];
-  /** Out of the camp (a scout on a run): ride off along the trail. */
+  /** Out of the camp (a scout on a run): ride out to its land and gather there. */
   away?: boolean;
   /** Back from a run: rides in, and carries the scroll case to the basket (or comes back empty). */
   returning?: "scroll" | "empty";
@@ -228,8 +228,10 @@ export function derive(view: BrandView | null): CampPlan {
     z: 0,
     state: "idle",
   });
+  // One scout per land: the website or API its sources are fetched from (TikTok, Reddit...).
   let queued = 0;
-  runs.forEach((run, i) => agents.push(scoutPlan(run, i, () => queued++)));
+  const lands = [...new Set(runs.map((run) => landFor(run.key)))];
+  lands.forEach((land, i) => agents.push(scoutPlan(land, landRuns(runs, land), i, () => queued++)));
 
   const style = states[1];
   agents.push({
@@ -366,30 +368,42 @@ export function derive(view: BrandView | null): CampPlan {
   };
 }
 
-function scoutPlan(run: RunView, i: number, nextQueueSlot: () => number): AgentPlan {
-  const label = runLabel(run.key);
-  const base = { id: `scout:${run.key}`, station: "scouts" as const, role: "Scout", look: (i + 1) % 6, z: 0, sort: 0 };
+/**
+ * The scout for one land and every source fetched there. It sets out when the first one starts,
+ * stays at the land until the last one is in, and brings back a scroll case if any came back.
+ */
+function scoutPlan(land: LandId, runs: RunView[], i: number, nextQueueSlot: () => number): AgentPlan {
+  const name = LAND[land].name;
+  const base = { id: `scout:${land}`, station: "scouts" as const, role: "Scout", look: (i + 1) % 6, z: 0, sort: 0 };
   const exit = SPOTS.exits[i % SPOTS.exits.length];
-  if (run.status === "pending") {
+  const over = runs.filter((run) => run.status === "done" || run.status === "failed");
+  const started = over.length > 0 || runs.some((run) => run.status === "running");
+  if (!started) {
     const spot = SPOTS.queue(nextQueueSlot());
-    return { ...base, task: `${label}: waiting to set out`, act: "stand", x: spot.x, y: spot.y, dir: spot.dir, state: "idle" };
+    return { ...base, task: `${name}: waiting to set out`, act: "stand", x: spot.x, y: spot.y, dir: spot.dir, state: "idle" };
   }
-  if (run.status === "running") {
-    return { ...base, task: `${label}: out gathering`, act: "march", x: exit.x, y: exit.y, dir: exit.dir, away: true, state: "working" };
+  if (over.length < runs.length) {
+    const sources = runs.length === 1 ? quoteLabel(runs[0].key) : `${over.length} of ${runs.length} sources in`;
+    return { ...base, task: `${name}: out gathering, ${sources}`, act: "march", x: exit.x, y: exit.y, dir: exit.dir, away: true, state: "working" };
   }
-  const delivered = run.status === "done";
+  const fetched = over.filter((run) => run.status === "done").length;
+  const error = over.find((run) => run.error)?.error;
   const angle = i * 2.39996;
   return {
     ...base,
-    task: delivered ? `${label}: brought it back` : `${label}: came back empty-handed${run.error ? ` (${run.error})` : ""}`,
+    task: fetched
+      ? `${name}: brought back ${runs.length === 1 ? quoteLabel(runs[0].key) : `${fetched} of ${runs.length} sources`}`
+      : `${name}: came back empty-handed${error ? ` (${error})` : ""}`,
     act: "stand",
     x: SPOTS.basket.x + Math.cos(angle) * (7 + (i % 3) * 3),
     y: SPOTS.basket.y + Math.sin(angle) * (5 + (i % 3) * 2),
     dir: 5,
-    returning: delivered ? "scroll" : "empty",
-    state: delivered ? "done" : "failed",
+    returning: fetched ? "scroll" : "empty",
+    state: fetched ? "done" : "failed",
   };
 }
+
+const quoteLabel = (key: string) => `“${runLabel(key)}”`;
 
 function editorTask(creative: CreativeView) {
   const title = creative.concept?.title ? `“${creative.concept.title}”` : `Video ${creative.idx + 1}`;

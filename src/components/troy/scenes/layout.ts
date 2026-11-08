@@ -1,6 +1,7 @@
 import type { Stage as PipelineStage } from "../api";
 import type { IslandSpec } from "../engine/grounds";
 import type { Point } from "../engine/walker";
+import type { PropId } from "./stations";
 
 // Where everything in the camp sits. Stations follow the core pipeline in reading order: the top
 // row runs left to right, then the road turns down and the bottom row runs back.
@@ -47,8 +48,8 @@ export const STATION = Object.fromEntries(STATIONS.map((s) => [s.id, s])) as Rec
 export const ISLAND_RADIUS = 48;
 
 export function stationIsland(station: Station, index: number): IslandSpec {
-  // The scouts' island bulges to the left for the stable, where the trail leaves.
-  const lobes = station.id === "scouts" ? [{ cx: -40, cy: 5, r: 19 }] : undefined;
+  // The scouts' island bulges to the left for the stable and the aisle behind its horses.
+  const lobes = station.id === "scouts" ? [{ cx: -42, cy: 0, r: 27 }] : undefined;
   return { cx: 0, cy: 0, rx: ISLAND_RADIUS, ry: ISLAND_RADIUS * 0.94, seed: 11 + index * 7, rim: 12, wobble: 14, grass: 0.22, trodden: 0.8, lobes };
 }
 
@@ -77,11 +78,11 @@ export function road(from: StationId, to: StationId): Point[] {
 /** Where the horse's road leaves its island, at the foot of the gangplank. */
 export const HORSE_GATE: Point = { x: 0, y: 62, z: 0 };
 
-/** The scouts' trail: from their island off the left edge of the world, where the sources are. */
-export const TRAIL = (() => {
-  const s = STATIONS[0];
-  return { a: { x: s.x, y: s.y, z: 0 }, b: { x: s.x - 300, y: s.y + 300, z: 0 } };
-})();
+/** Where the hitching rail stands on the scouts' island (it runs along y, horses on its -x side). */
+export const STABLE = { x: -30, y: 5 };
+
+/** Past the rail's end, where the road west to the lands starts: everyone going to or from the horses passes here. */
+export const STABLE_GATE = { x: STABLE.x - 4, y: STABLE.y + 24 };
 
 /** A place on the road network: the horse or a station. */
 export type Node = StationId | "horse";
@@ -188,3 +189,137 @@ function crossing(node: Node, entry: Point, exit: Point): Point[] {
   if (pts.length > 1 && d(entry, pts[0]) + d(pts[pts.length - 1], exit) > d(entry, pts[pts.length - 1]) + d(pts[0], exit)) pts.reverse();
   return pts;
 }
+
+// --- The wider world: the lands the scouts ride to -------------------------------------------------
+//
+// West of the camp a high road runs north and south, with a land on either side of it for each
+// website or API the research reads. A road from the scouts' stable joins it at a crossroads.
+
+export type LandId = "site" | "similarweb" | "ahrefs" | "tiktok" | "instagram" | "youtube" | "metaads" | "reddit" | "chatgpt" | "perplexity";
+
+export type Land = {
+  id: LandId;
+  name: string;
+  /** What the scouts bring back from there. */
+  what: string;
+  prop: PropId;
+  /** Its colour, for its label. */
+  color: string;
+  /** World centre. */
+  x: number;
+  y: number;
+  /** Screen position (art px), for the camera. */
+  sx: number;
+  sy: number;
+  /** The high road's row it sits on. */
+  row: number;
+};
+
+/** Screen x of the high road, and of the lands between it and the camp ("near") and beyond it ("far"). */
+const ROAD_SX = -470;
+const SIDE_SX = { near: -390, far: -550 };
+/** Screen y of each row of lands, and of the crossroads (between the second and third rows). */
+const ROW_SY = [22, 124, 250, 352, 454];
+const JUNCTION_SY = 180;
+
+export const LAND_RADIUS = 30;
+
+function land(id: LandId, name: string, what: string, prop: PropId, color: string, row: number, side: keyof typeof SIDE_SX): Land {
+  const sx = SIDE_SX[side];
+  const sy = ROW_SY[row];
+  const p = ground(sx, sy);
+  return { id, name, what, prop, color, x: p.x, y: p.y, sx, sy, row };
+}
+
+export const LANDS: Land[] = [
+  land("chatgpt", "ChatGPT", "AI answers about the brand", "orbshrine", "#18a07c", 0, "near"),
+  land("perplexity", "Perplexity", "AI answers about the brand", "crystal", "#2d7b98", 0, "far"),
+  land("ahrefs", "Ahrefs", "Domain rating and keywords", "beacon", "#df7c22", 1, "near"),
+  land("similarweb", "SimilarWeb", "Sites like the brand's", "huts", "#2b6be0", 1, "far"),
+  land("site", "The brand's site", "Brand profile and website", "gate", "#b73a31", 2, "near"),
+  land("tiktok", "TikTok", "Top videos and ads", "phone", "#e0264f", 2, "far"),
+  land("instagram", "Instagram", "Top Reels", "gallery", "#d65a45", 3, "near"),
+  land("youtube", "YouTube", "Top Shorts", "bigscreen", "#b73a31", 3, "far"),
+  land("metaads", "Meta Ad Library", "Rivals' running ads", "billboards", "#2b6be0", 4, "near"),
+  land("reddit", "Reddit", "What people say", "forum", "#de6c4a", 4, "far"),
+];
+
+export const LAND = Object.fromEntries(LANDS.map((l) => [l.id, l])) as Record<LandId, Land>;
+
+/** Which land a research source is fetched from (a run's key, as the core names it). */
+export function landFor(runKey: string): LandId {
+  if (runKey === "brand" || runKey === "site") return "site";
+  if (runKey === "similar") return "similarweb";
+  if (runKey.startsWith("seo")) return "ahrefs";
+  if (runKey.startsWith("tiktok")) return "tiktok";
+  if (runKey === "reels") return "instagram";
+  if (runKey === "shorts") return "youtube";
+  if (runKey.startsWith("meta_ads")) return "metaads";
+  if (runKey === "reddit") return "reddit";
+  if (runKey === "aeo_chatgpt") return "chatgpt";
+  if (runKey === "aeo_perplexity") return "perplexity";
+  // A source this camp doesn't know yet: the open web, as the brand's neighbours on SimilarWeb.
+  return "similarweb";
+}
+
+/** The land a scout rides to, from its id: one scout per land ("scout:tiktok"). */
+export function scoutLand(agentId: string): LandId {
+  const key = agentId.startsWith("scout:") ? agentId.slice(6) : agentId;
+  return key in LAND ? (key as LandId) : landFor(key);
+}
+
+/** The research runs that a land's scout fetches, in the order the core lists them. */
+export function landRuns<T extends { key: string }>(runs: T[], land: LandId): T[] {
+  return runs.filter((run) => landFor(run.key) === land);
+}
+
+/** The crossroads where the road from the camp meets the high road (world). */
+export const JUNCTION: Point = ground(ROAD_SX, JUNCTION_SY);
+
+/** The stable's gate in world units. */
+export function stableGate(): Point {
+  const s = STATIONS[0];
+  return { x: s.x + STABLE_GATE.x, y: s.y + STABLE_GATE.y, z: 0 };
+}
+
+/** Points along the high road, north to south, the crossroads among them. */
+function highRoad(): Array<{ sy: number; p: Point }> {
+  return [...ROW_SY, JUNCTION_SY].sort((a, b) => a - b).map((sy) => ({ sy, p: ground(ROAD_SX, sy) }));
+}
+
+/** The sandbars of the wider world: the road from the stable, the high road, and a spur to each land. */
+export function worldTrails(): Array<{ a: Point; b: Point }> {
+  const road = highRoad();
+  const trails: Array<{ a: Point; b: Point }> = [{ a: stableGate(), b: JUNCTION }];
+  for (let i = 0; i < road.length - 1; i++) trails.push({ a: road[i].p, b: road[i + 1].p });
+  for (const l of LANDS) trails.push({ a: ground(ROAD_SX, ROW_SY[l.row]), b: { x: l.x, y: l.y, z: 0 } });
+  return trails;
+}
+
+/** The way from the crossroads to where a land's spur reaches its shore (world points). */
+export function roadToLand(id: LandId): Point[] {
+  const l = LAND[id];
+  const target = ROW_SY[l.row];
+  const road = highRoad();
+  const from = road.findIndex((r) => r.sy === JUNCTION_SY);
+  const to = road.findIndex((r) => r.sy === target);
+  const step = to >= from ? 1 : -1;
+  const points: Point[] = [];
+  for (let i = from; i !== to + step; i += step) points.push(road[i].p);
+  const spur = points[points.length - 1];
+  const dx = spur.x - l.x;
+  const dy = spur.y - l.y;
+  const len = Math.hypot(dx, dy) || 1;
+  points.push({ x: l.x + (dx / len) * (LAND_RADIUS - 7), y: l.y + (dy / len) * (LAND_RADIUS - 7), z: 0 });
+  return points;
+}
+
+export function landIsland(l: Land, index: number): IslandSpec {
+  return { cx: 0, cy: 0, rx: LAND_RADIUS, ry: LAND_RADIUS * 0.94, seed: 71 + index * 13, rim: 10, wobble: 10, grass: 0.35, trodden: 0.6 };
+}
+
+/** The screen rectangle (art px) that holds the camp and every land, for the camera's view of the world. */
+export const WORLD_VIEW = { x0: SIDE_SX.far - 62, x1: 300, y0: ROW_SY[0] - 48, y1: ROW_SY[ROW_SY.length - 1] + 52 };
+
+/** The lands and the roads west, out to the scouts' island (the east edge of the scouts' errands). */
+export const LANDS_VIEW = { ...WORLD_VIEW, x1: CAMP_CENTER.sx - COLUMN + ISLAND_RADIUS + 40 };

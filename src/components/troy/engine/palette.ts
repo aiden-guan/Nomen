@@ -39,6 +39,11 @@ export const R = {
   water: defineRamp("water", ["#1d4f6e", "#25668a", "#3381a3", "#4f9fba", "#83c2cf", "#c3e4e0"]),
   white: defineRamp("white", ["#9a968c", "#b6b2a8", "#cecac0", "#e2dfd6", "#f1efe8", "#fdfcf8"]),
   shadow: defineRamp("shadow", ["#8e7a63", "#a48d72", "#b89f81", "#c9b190", "#d8c19f", "#e5cfae"]),
+  // The lands the scouts ride to wear their platforms' colours.
+  magenta: defineRamp("magenta", ["#4a0a1c", "#7a1030", "#b0183f", "#e0264f", "#f7587a", "#ff9db1"]),
+  cyan: defineRamp("cyan", ["#0b3a40", "#0f5f68", "#16929b", "#21c8cf", "#5eecee", "#b8fbf7"]),
+  blue: defineRamp("blue", ["#0b1f4d", "#12337a", "#1a4fb0", "#2b6be0", "#5b93f2", "#a8c6fb"]),
+  jade: defineRamp("jade", ["#0a3328", "#0e5241", "#127a5f", "#18a07c", "#4dc3a0", "#a2e3cd"]),
 };
 
 export type RampName = keyof typeof R;

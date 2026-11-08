@@ -56,6 +56,7 @@ export function Portrait({
   mounted = false,
   moving = false,
   carry = 0,
+  coat = 0,
   size = 112,
 }: {
   baker: Baker | null;
@@ -64,6 +65,8 @@ export function Portrait({
   mounted?: boolean;
   moving?: boolean;
   carry?: number;
+  /** The horse's coat, when mounted. */
+  coat?: number;
   size?: number;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -74,8 +77,8 @@ export function Portrait({
     const dir = 1;
     const jobs: Job[] = mounted
       ? moving
-        ? Array.from({ length: RIDER_FRAMES }, (_, f) => ({ k: "rider", look, dir, f, c: carry }))
-        : [{ k: "rider", look, dir, f: -1, c: carry }]
+        ? Array.from({ length: RIDER_FRAMES }, (_, f) => ({ k: "rider", look, dir, f, c: carry, h: coat }))
+        : [{ k: "rider", look, dir, f: -1, c: carry, h: coat }]
       : Array.from({ length: ACT_FRAMES[act] }, (_, f) => ({ k: "soldier", look, act, dir, f }));
     const rate = mounted ? 0.075 : ACT_RATE[act];
     const frame = mounted ? RIDER_FRAME : SOLDIER_FRAME;
@@ -115,7 +118,7 @@ export function Portrait({
       alive = false;
       cancelAnimationFrame(raf);
     };
-  }, [baker, look, act, mounted, moving, carry]);
+  }, [baker, look, act, mounted, moving, carry, coat]);
   return <canvas ref={ref} width={size * 2} height={Math.round(size * 2.2)} style={{ width: size, height: Math.round(size * 1.1), imageRendering: "pixelated" }} aria-hidden="true" />;
 }
 

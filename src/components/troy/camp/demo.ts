@@ -1,5 +1,6 @@
 import { type BrandView, type CreativeView, normalizeSite } from "../api";
 import { stationForEvent } from "../scenes/derive";
+import { LAND, landFor } from "../scenes/layout";
 import { SAMPLE } from "./sample";
 
 // The demo camp replays one campaign on a clock: the website, research, the format study, the
@@ -88,9 +89,26 @@ export type Timeline = {
   stagger: number;
 };
 
+// Research takes as long as the scouts' rides: each source stays out until its scout has ridden
+// to its land and gathered a moment (the camp's riders take 15 to 21 seconds there and back), and
+// the research is done once the last of them is home with the case.
+
+/**
+ * Seconds a source stays out, by its land's row on the map: the ride there and a moment's
+ * gathering. The rows at the ends of the high road are the longest rides; the ride home takes
+ * about as long again.
+ */
+const STAY_BY_ROW = [9.2, 8, 8.2, 9.4, 10.8];
+const stay = (key: string) => STAY_BY_ROW[LAND[landFor(key)].row];
+const firstStart = (i: number) => 0.6 + i * 0.25;
+/** Seconds the planned sweep's scouts take to march out of the horse to the stable. */
+const MARCH_OUT = 8;
+
 export function timeline(script: DemoScript): Timeline {
-  const research: [number, number] = [0, 20];
-  const style: [number, number] | null = script.style ? [20, 28] : null;
+  const first = script.runs.filter((run) => run.phase === "A");
+  const home = Math.max(20, ...first.map((run, i) => firstStart(i) + 2 * stay(run.key)), ...secondSweep(script).map((run) => run.end + (run.end - run.start)));
+  const research: [number, number] = [0, Math.ceil(home + 1)];
+  const style: [number, number] | null = script.style ? [research[1], research[1] + 8] : null;
   const strategyStart = style ? style[1] : research[1];
   const strategy: [number, number] = [strategyStart, strategyStart + 9];
   const count = Math.max(1, script.creatives.length);
@@ -108,10 +126,31 @@ export function marks(script: DemoScript) {
 const ordered = (script: DemoScript) => script.creatives.slice().sort((a, b) => a.idx - b.idx);
 const between = (a: number, b: number, t: number) => (b <= a ? (t >= b ? 1 : 0) : Math.max(0, Math.min(1, (t - a) / (b - a))));
 
-/** When the research plan comes back: after the first sweep, before the second. */
+/** When the research plan comes back: once the first sweep is in. */
 function planTime(script: DemoScript) {
-  const firstSweep = script.runs.filter((run) => run.phase === "A").length;
-  return Math.max(5.5, 1 + Math.max(0, firstSweep - 1) * 0.6 + 2.5);
+  const first = script.runs.filter((run) => run.phase === "A");
+  const end = first.reduce((latest, run, i) => Math.max(latest, firstStart(i) + stay(run.key)), 0);
+  return Math.max(5.5, end + 0.5);
+}
+
+/**
+ * When each source of the planned sweep (the runs after the first sweep, in order) starts and
+ * comes back in. Its scouts march out of the horse when the plan lists them, so the sweep starts
+ * once they reach the stable: a land at a time, the farthest first so every scout is home soon
+ * after, and a land's sources together, since one scout fetches them all.
+ */
+function secondSweep(script: DemoScript) {
+  const runs = script.runs.filter((run) => run.phase !== "A");
+  const begin = planTime(script) + MARCH_OUT;
+  const lands = [...new Set(runs.map((run) => landFor(run.key)))].sort((a, b) => STAY_BY_ROW[LAND[b].row] - STAY_BY_ROW[LAND[a].row]);
+  const seen = new Map<string, number>();
+  return runs.map((run) => {
+    const land = landFor(run.key);
+    const n = seen.get(land) ?? 0;
+    seen.set(land, n + 1);
+    const start = begin + lands.indexOf(land) * 0.5 + n * 0.3;
+    return { start, end: start + stay(run.key) };
+  });
 }
 
 function videoWindow(tl: Timeline, i: number) {
@@ -202,12 +241,11 @@ export function replay(script: DemoScript, state: DemoState): BrandView {
     const over = t >= end;
     return { key: run.key, phase: run.phase, provider: run.provider, endpoint: "/demo", status, error: over ? run.error : null, cost_micro: over ? Math.round(run.cost * 1e6) : 0, cost: over ? run.cost : 0 };
   };
-  const runs = first.map((run, i) => runView(run, 1 + i * 0.6, 1 + i * 0.6 + 2.2));
-  if (t >= planAt + 1) {
-    const start = planAt + 1.5;
-    const latest = tl.research[1] - 0.5 - 7;
-    const step = second.length > 1 ? Math.max(0.2, Math.min(0.9, (latest - start) / (second.length - 1))) : 0;
-    second.forEach((run, j) => runs.push(runView(run, start + j * step, start + j * step + 4 + (j % 3) * 1.5)));
+  const runs = first.map((run, i) => runView(run, firstStart(i), firstStart(i) + stay(run.key)));
+  // The planned sources are listed once the plan is in; their scouts march out to the stable.
+  if (t >= planAt + 0.3) {
+    const times = secondSweep(script);
+    second.forEach((run, j) => runs.push(runView(run, times[j].start, times[j].end)));
   }
 
   // Production: each video paints its first frames, renders its shots, then passes QC.

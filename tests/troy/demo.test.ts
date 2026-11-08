@@ -34,34 +34,35 @@ function play(script: DemoScript, state: DemoState, seconds: number, auto = fals
 
 describe("the demo clock", () => {
   it("gives every stage its window", () => {
-    expect(timeline(SAMPLE)).toMatchObject({ research: [0, 20], style: [20, 28], strategy: [28, 37], production: [37, 66], review: 66 });
+    expect(timeline(SAMPLE)).toMatchObject({ research: [0, 42], style: [42, 50], strategy: [50, 59], production: [59, 88], review: 88 });
     const noStyle = timeline({ ...SAMPLE, style: null });
     expect(noStyle.style).toBeNull();
-    expect(noStyle.strategy).toEqual([20, 29]);
+    expect(noStyle.strategy).toEqual([42, 51]);
   });
 
   it("walks through research, the format study, the strategy and production", () => {
     expect(campaignAt(0)).toMatchObject({ stage: "research", status: "running", plan: null, research: null, creatives: [] });
+    expect(campaignAt(5).runs.filter((r) => r.status === "running").map((r) => r.phase)).toEqual(["A", "A", "A", "A", "A"]);
     expect(campaignAt(12).plan?.category).toBe("olive oil soap");
-    expect(campaignAt(12).runs.some((r) => r.status === "running")).toBe(true);
-    const style = campaignAt(21);
+    expect(campaignAt(20).runs.some((r) => r.status === "running")).toBe(true);
+    const style = campaignAt(43);
     expect(style.stage).toBe("style");
     expect(style.research?.videos).toHaveLength(24);
     expect(style.runs.filter((r) => r.status === "failed").map((r) => r.key)).toEqual(["aeo_perplexity"]);
-    expect(campaignAt(30).stage).toBe("strategy");
-    expect(campaignAt(30).style).not.toBeNull();
-    const making = campaignAt(50);
+    expect(campaignAt(51).stage).toBe("strategy");
+    expect(campaignAt(51).style).not.toBeNull();
+    const making = campaignAt(72);
     expect(making.stage).toBe("production");
     expect(making.strategy?.campaign.name).toBe("Clean Hands, Short Story");
     expect(new Set(making.creatives.map((c) => c.status))).toEqual(new Set(["producing"]));
   });
 
   it("finishes every video by the review and then waits for the presenter", () => {
-    const review = campaignAt(66);
+    const review = campaignAt(88);
     expect(review).toMatchObject({ stage: "review", status: "review" });
     expect(review.creatives.every((c) => c.status === "ready" && c.posterUrl && !c.approved)).toBe(true);
     expect(review.spend.naive).toBeCloseTo(SAMPLE.spend.naive, 5);
-    const waited = play(SAMPLE, at(60), 60);
+    const waited = play(SAMPLE, at(82), 60);
     expect(waited.t).toBe(timeline(SAMPLE).review + REVIEW_HOLD);
   });
 
@@ -72,7 +73,7 @@ describe("the demo clock", () => {
   });
 
   it("builds views the camp can draw at every moment", () => {
-    for (let t = 0; t <= 70; t += 0.5) {
+    for (let t = 0; t <= 100; t += 0.5) {
       const plan = derive(replay(SAMPLE, at(t)));
       expect(Object.keys(plan.stations)).toHaveLength(6);
     }
@@ -90,7 +91,7 @@ describe("the review and posting", () => {
   });
 
   it("can't approve or post before the videos are ready", () => {
-    const early = at(50);
+    const early = at(75);
     expect(approveAll(SAMPLE, early)).toBe(early);
     expect(publish(SAMPLE, { ...early, approved: { 0: true } }, "now")).toEqual({ ...early, approved: { 0: true } });
   });
@@ -130,13 +131,13 @@ describe("the review and posting", () => {
   });
 
   it("autoplay approves each video and posts them without anyone touching it", () => {
-    const end = play(SAMPLE, at(60), 40, true);
+    const end = play(SAMPLE, at(82), 40, true);
     expect(end.publish?.ids).toEqual([0, 1, 2, 3]);
     expect(replay(SAMPLE, end).campaign!.status).toBe("live");
   });
 
   it("autoplay leaves a video alone if the presenter unticked it", () => {
-    const end = play(SAMPLE, at(60, { approved: { 1: false } }), 40, true);
+    const end = play(SAMPLE, at(82, { approved: { 1: false } }), 40, true);
     expect(end.publish?.ids).toEqual([0, 2, 3]);
   });
 });
@@ -156,7 +157,7 @@ describe("the presenter's skips", () => {
   });
 
   it("goes back a stage, undoing the review", () => {
-    const posted = jump(SAMPLE, jump(SAMPLE, at(66), 1), 1);
+    const posted = jump(SAMPLE, jump(SAMPLE, at(88), 1), 1);
     const back = jump(SAMPLE, posted, -1);
     expect(back.publish).toBeNull();
     expect(back.t).toBe(timeline(SAMPLE).review);

@@ -132,20 +132,24 @@ describe("the march into the camp", () => {
 });
 
 describe("scouts", () => {
-  it("ride off the map on a horse from the stable, ride back and drop the case in the basket", () => {
+  it("ride a horse from the stable to their source's land, gather there, ride back and drop the case in the basket", async () => {
+    const { LAND } = await import("@/components/troy/scenes/layout");
     const { stage, camp, internals, run: tick } = world(false);
-    camp.apply(derive(view({ runs: [run("brand", "pending", "A"), run("site", "pending", "A")] })));
+    camp.apply(derive(view({ runs: [run("brand", "pending", "A"), run("similar", "pending", "A")] })));
     tick(1);
-    camp.apply(derive(view({ runs: [run("brand", "running", "A"), run("site", "pending", "A")] })));
+    camp.apply(derive(view({ runs: [run("brand", "running", "A"), run("similar", "pending", "A")] })));
     tick(8);
-    const scout = internals.agents.get("scout:brand")!;
-    expect(scout.where).toBe("out");
-    expect(stage.has(scout.entity)).toBe(false);
-    // Its horse went with it.
+    const scout = internals.agents.get("scout:site")!;
+    // At the brand's own site, in plain view, gathering.
+    expect(scout.where).toBe("afield");
+    expect(stage.has(scout.entity)).toBe(true);
+    const land = LAND.site;
+    expect(Math.hypot(scout.entity.x - land.x, scout.entity.y - land.y)).toBeLessThan(30);
+    // Its horse went with it: gone from the stable, waiting at the land.
     expect(internals.stalls.filter((s) => s.rider === scout)).toHaveLength(1);
     expect(internals.stalls.filter((s) => !stage.has(s.steed))).toHaveLength(1);
 
-    camp.apply(derive(view({ runs: [run("brand", "done", "A"), run("site", "pending", "A")] })));
+    camp.apply(derive(view({ runs: [run("brand", "done", "A"), run("similar", "pending", "A")] })));
     tick(12);
     expect(scout.delivered).toBe(true);
     // The horse is back at the rail, and the basket shows one of two cases.
@@ -158,17 +162,33 @@ describe("scouts", () => {
     expect(stage.has(scout.entity)).toBe(false);
   });
 
-  it("run on foot when every horse is out", () => {
+  it("run on foot when every horse is out", async () => {
+    const { landFor } = await import("@/components/troy/scenes/layout");
     const { internals, camp, run: tick } = world(false);
-    const keys = ["a", "b", "c", "d", "e", "f"];
+    // One source for each of the ten lands: ten scouts.
+    const keys = ["brand", "similar", "seo_rating", "tiktok_0", "reels", "shorts", "meta_ads_0", "reddit", "aeo_chatgpt", "aeo_perplexity"];
     camp.apply(derive(view({ runs: keys.map((k) => run(k, "pending", "A")) })));
     tick(1);
     camp.apply(derive(view({ runs: keys.map((k) => run(k, "running", "A")) })));
+    tick(22);
+    const scouts = keys.map((k) => internals.agents.get(`scout:${landFor(k)}`)!);
+    expect(scouts.every((s) => s.where === "afield")).toBe(true);
+    // Seven horses are for scouts (the eighth is the courier's); the other three went on foot.
+    expect(scouts.filter((s) => (s as unknown as { onFoot: boolean }).onFoot)).toHaveLength(3);
+  });
+
+  it("set out again when their land has another source to fetch", () => {
+    const { camp, internals, run: tick } = world(false);
+    camp.apply(derive(view({ runs: [run("brand", "running", "A")] })));
     tick(10);
-    const scouts = keys.map((k) => internals.agents.get(`scout:${k}`)!);
-    expect(scouts.every((s) => s.where === "out")).toBe(true);
-    // Four horses are for scouts; the other two went on foot.
-    expect(scouts.filter((s) => (s as unknown as { onFoot: boolean }).onFoot)).toHaveLength(2);
+    camp.apply(derive(view({ runs: [run("brand", "done", "A")] })));
+    tick(14);
+    const scout = internals.agents.get("scout:site")!;
+    expect(scout.delivered).toBe(true);
+    // The site is wanted again: the same scout rides back out to it.
+    camp.apply(derive(view({ runs: [run("brand", "done", "A"), run("site", "running", "C")] })));
+    tick(40);
+    expect(scout.where).toBe("afield");
   });
 });
 
@@ -208,20 +228,20 @@ describe("looking at one agent", () => {
   it("tells the card what a scout is doing and how far its trip has got", () => {
     const { camp, run: tick } = world(false);
     camp.apply(derive(view({ runs: [run("brand", "pending", "A")] })));
-    expect(camp.info("scout:brand")).toMatchObject({ trip: "camp", visible: true });
+    expect(camp.info("scout:site")).toMatchObject({ trip: "camp", visible: true });
     camp.apply(derive(view({ runs: [run("brand", "running", "A")] })));
     tick(1.5);
-    const riding = camp.info("scout:brand")!;
+    const riding = camp.info("scout:site")!;
     expect(riding.trip).toBe("out");
     expect(riding.doing).toMatch(/stable|Saddling|Galloping/);
     tick(8);
-    expect(camp.info("scout:brand")).toMatchObject({ trip: "out", where: "out", visible: false });
-    expect(camp.info("scout:brand")!.doing).toMatch(/edge of the map/);
+    expect(camp.info("scout:site")).toMatchObject({ trip: "there", where: "afield", visible: true, land: "site" });
+    expect(camp.info("scout:site")!.doing).toMatch(/Gathering at The brand's site/);
     camp.apply(derive(view({ runs: [run("brand", "done", "A")] })));
     tick(1);
-    expect(camp.info("scout:brand")).toMatchObject({ trip: "back", mounted: true });
+    expect(camp.info("scout:site")).toMatchObject({ trip: "back", mounted: true });
     tick(12);
-    expect(camp.info("scout:brand")!.trip).toBe("done");
+    expect(camp.info("scout:site")!.trip).toBe("done");
   });
 
   it("tells the card where the courier is going and how many dispatches he has carried", () => {
@@ -247,14 +267,14 @@ describe("agents the plan no longer needs", () => {
   it("march back into the horse instead of vanishing", () => {
     const { stage, camp, internals, run: tick } = world(false);
     camp.apply(derive(view({ runs: [run("brand", "pending", "A")] })));
-    const scout = internals.agents.get("scout:brand")!;
+    const scout = internals.agents.get("scout:site")!;
     expect(stage.has(scout.entity)).toBe(true);
     camp.apply(derive(view({ runs: [] })));
     tick(2);
     // Still walking, still solid.
     expect(stage.has(scout.entity)).toBe(true);
     tick(40);
-    expect(internals.agents.has("scout:brand")).toBe(false);
+    expect(internals.agents.has("scout:site")).toBe(false);
     expect(stage.has(scout.entity)).toBe(false);
   });
 });

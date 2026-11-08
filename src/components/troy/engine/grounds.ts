@@ -72,20 +72,16 @@ export function island(spec: IslandSpec): Ground {
 /** The island the horse stands on, sized for the gangplank's reach. */
 export const HORSE_ISLAND: IslandSpec = { cx: 4, cy: 16, rx: 78, ry: 70, seed: 1, rim: 15, wobble: 22, grass: 0.4 };
 
-/**
- * A narrow strip of sand between two points: the road between islands. With `fade`, the strip
- * thins out toward `b` and ends in scattered grains (a trail leading off the edge of the world).
- */
-export function sandbar(a: { x: number; y: number }, b: { x: number; y: number }, seed: number, options: { fade?: boolean } = {}): Ground {
+/** A narrow strip of sand between two points: the road between islands, and out to the lands. */
+export function sandbar(a: { x: number; y: number }, b: { x: number; y: number }, seed: number): Ground {
   const base = 7.5;
   const rim = 7;
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len2 = dx * dx + dy * dy || 1;
-  const width = (t: number) => (options.fade ? base * (1 - 0.75 * t ** 2) - Math.max(0, t - 0.7) * 20 : base);
   const sdf = (x: number, y: number) => {
     const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len2));
-    const d = Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t)) - width(t);
+    const d = Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t)) - base;
     return d + (fbm(x * 0.08 + seed, y * 0.08) - 0.5) * 6;
   };
   const shade = (x: number, y: number, out: ShadeOut) => {

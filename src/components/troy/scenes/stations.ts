@@ -1,9 +1,39 @@
-import type { StationId } from "./layout";
+import { STABLE, STABLE_GATE, type StationId } from "./layout";
+
+export { STABLE, STABLE_GATE };
 
 // What stands on each island, relative to the island's centre (world units), and where the
 // agents work. Props are their own sprites so figures can walk in front of and behind them.
 
-export type PropId = "tower" | "basket" | "signpost" | "shrine" | "pavilion" | "maptable" | "desk" | "easel" | "reels" | "tier" | "screen" | "podium" | "banner" | "olive" | "amphora" | "campfire" | "rail";
+export type PropId =
+  | "tower"
+  | "basket"
+  | "signpost"
+  | "shrine"
+  | "pavilion"
+  | "maptable"
+  | "desk"
+  | "easel"
+  | "reels"
+  | "tier"
+  | "screen"
+  | "podium"
+  | "banner"
+  | "olive"
+  | "amphora"
+  | "campfire"
+  | "rail"
+  // The lands' landmarks (engine/models/lands.ts).
+  | "phone"
+  | "gallery"
+  | "bigscreen"
+  | "billboards"
+  | "forum"
+  | "orbshrine"
+  | "crystal"
+  | "beacon"
+  | "huts"
+  | "gate";
 
 export type Placement = { prop: PropId; x: number; y: number; v?: number; key?: string; sort?: number };
 
@@ -25,8 +55,6 @@ export const DESK_SLOTS: Array<{ x: number; y: number }> = [
 /** Where an editor sits relative to their desk (on the stool, in front of the screen). */
 export const EDITOR_OFFSET = { x: 4.95, y: 4.95, dir: 5 };
 
-/** Where the hitching rail stands on the scouts' island (it runs along y, horses on its -x side). */
-export const STABLE = { x: -30, y: 5 };
 
 export const PROPS: Record<StationId, Placement[]> = {
   scouts: [
@@ -34,8 +62,9 @@ export const PROPS: Record<StationId, Placement[]> = {
     // Beside the road to the oracle, not on it.
     { prop: "signpost", x: 20, y: -30 },
     { prop: "basket", x: 8, y: 8, v: 0, key: "basket" },
-    // The stable: scouts take a horse here and ride off along the trail (left).
-    { prop: "rail", x: STABLE.x, y: STABLE.y },
+    // The stable: scouts take a horse here and ride off along the road west to the lands (left).
+    // Centred on the line of eight horses (see STALLS).
+    { prop: "rail", x: STABLE.x, y: STABLE.y - 7 },
     { prop: "olive", x: -6, y: -38, v: 1 },
     { prop: "amphora", x: 30, y: 8 },
   ],
@@ -130,18 +159,42 @@ export const SPOTS = {
 
 
 /**
- * Horses tied at the rail, facing it (+x, heads over the rail toward the island), and where a rider
- * stands to mount each one. The last stall is the courier's, so dispatches never wait behind the
- * research.
+ * Eight horses tied along the rail, facing it (+x, heads over the rail toward the island), and
+ * where a rider stands to mount each one: behind its rump, in the aisle. The last stall, nearest
+ * the gate, is the courier's, so dispatches never wait behind the research.
  */
-export const STALLS = [-16, -8, 0, 8, 16].map((dy) => ({
+export const STALLS = [-28, -22, -16, -10, -4, 2, 8, 14].map((dy, i) => ({
   horse: { x: STABLE.x - 7, y: STABLE.y + dy, dir: 0 },
-  mount: { x: STABLE.x - 12, y: STABLE.y + dy + 2.8, dir: 0 },
+  mount: { x: STABLE.x - 14, y: STABLE.y + dy, dir: 0 },
+  /** Its horse's coat (bay, chestnut, dun, grey, black: see COATS), never the same as its neighbour's; the courier's is grey. */
+  coat: [0, 1, 4, 2, 0, 1, 2, 3][i],
 }));
 export const COURIER_STALL = STALLS.length - 1;
+/**
+ * The aisle behind the horses: everyone walks or rides along it between the gate and a stall, so
+ * nobody passes through a tied horse. `south` is where it meets the way to the gate.
+ */
+export const STABLE_AISLE = { x: STABLE.x - 16, south: STABLE.y + 20 };
 
-/** Past the rail's end, on the trail: everyone going to or from the horses passes here. */
-export const STABLE_GATE = { x: STABLE.x - 4, y: STABLE.y + 24 };
+/**
+ * On every land (relative to its centre): its landmark, where scouts stand to gather in front of
+ * it, and where they leave their horses meanwhile. Spot `i` goes with horse `i`.
+ */
+export const LAND_SPOTS = {
+  landmark: { x: -5, y: -5 },
+  gather: [
+    { x: 7, y: 3, dir: 5 },
+    { x: 3, y: 8, dir: 5 },
+    { x: 11, y: 9, dir: 5 },
+    { x: 9, y: -4, dir: 4 },
+  ] as Spot[],
+  horses: [
+    { x: 17, y: 12, dir: 1 },
+    { x: 12, y: 18, dir: 1 },
+    { x: 20, y: 3, dir: 1 },
+    { x: 4, y: 21, dir: 1 },
+  ] as Spot[],
+};
 
 
 /** Seated spectators sit this far below the seat top (their feet rest on the step below). */

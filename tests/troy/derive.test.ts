@@ -88,21 +88,40 @@ describe("the camp before and during research", () => {
     expect(plan.agents.find((a) => a.id === "herald")?.via?.length).toBeGreaterThan(0);
   });
 
-  it("counts sources and posts one scout per run", () => {
+  it("counts sources and posts one scout per land they come from", () => {
     const plan = derive(
       view({
-        runs: [run("brand", "done", "A"), run("site", "done", "A"), run("tiktok_brand", "running"), run("reels", "pending"), run("reddit", "failed")] as never,
+        runs: [
+          run("brand", "done", "A"),
+          run("site", "done", "A"),
+          run("tiktok_brand", "running"),
+          run("tiktok_0", "pending"),
+          run("reels", "pending"),
+          run("meta_ads_brand", "done"),
+          run("meta_ads_0", "pending"),
+          run("reddit", "failed"),
+        ] as never,
       }),
     );
-    expect(plan.stations.scouts).toMatchObject({ state: "working", status: "2 of 5 sources in" });
-    expect(plan.stations.scouts.progress).toBeCloseTo(3 / 5);
+    expect(plan.stations.scouts).toMatchObject({ state: "working", status: "3 of 8 sources in" });
+    expect(plan.stations.scouts.progress).toBeCloseTo(4 / 8);
     const scouts = Object.fromEntries(plan.agents.filter((a) => a.id.startsWith("scout:")).map((a) => [a.id, a]));
-    expect(scouts["scout:brand"]).toMatchObject({ returning: "scroll", state: "done" });
-    expect(scouts["scout:tiktok_brand"]).toMatchObject({ away: true, state: "working" });
-    expect(scouts["scout:reels"]).toMatchObject({ act: "stand", state: "idle" });
+    expect(Object.keys(scouts)).toEqual(["scout:site", "scout:tiktok", "scout:instagram", "scout:metaads", "scout:reddit"]);
+    // The brand and its site are both fetched from the brand's own site: one scout brings both back.
+    expect(scouts["scout:site"]).toMatchObject({ returning: "scroll", state: "done" });
+    expect(scouts["scout:tiktok"]).toMatchObject({ away: true, state: "working" });
+    expect(scouts["scout:instagram"]).toMatchObject({ act: "stand", state: "idle" });
+    // One source back and one still to start: the scout waits at the land rather than riding twice.
+    expect(scouts["scout:metaads"]).toMatchObject({ away: true, state: "working" });
     expect(scouts["scout:reddit"]).toMatchObject({ returning: "empty", state: "failed" });
     expect(plan.agents.find((a) => a.id === "lookout")?.act).toBe("lookout");
-    expect(plan.props.basket).toBe(Math.round((2 / 5) * 7));
+    expect(plan.props.basket).toBe(Math.round((3 / 8) * 7));
+  });
+
+  it("sends a scout for a source the camp has no land for to the open web (SimilarWeb)", () => {
+    const plan = derive(view({ runs: [run("similar", "done", "A"), run("news_mentions", "running")] as never }));
+    expect(plan.agents.filter((a) => a.id.startsWith("scout:")).map((a) => a.id)).toEqual(["scout:similarweb"]);
+    expect(plan.agents.find((a) => a.id === "scout:similarweb")).toMatchObject({ away: true, state: "working" });
   });
 
   it("says when the scouts are planning the second sweep", () => {
