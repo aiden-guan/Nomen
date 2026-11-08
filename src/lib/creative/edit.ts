@@ -56,6 +56,11 @@ const minVisible = (split: boolean) => (split ? 0.75 : 0.5);
  * height (see samples/monid), so a centre crop slices through the forehead; 12-62% keeps the face.
  */
 const SPLIT_AROLL_TOP = 0.12;
+/**
+ * A punched-in take (`zoom` > 1) is cropped this far down its extra height: above centre, because a
+ * chest-up creator's face sits in the upper half and a centre crop would trim the top of the head.
+ */
+const PUNCH_TOP = 0.3;
 
 // ---------- ffmpeg ----------
 
@@ -493,7 +498,7 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
 
   const W = OUTPUT.width;
   const H = OUTPUT.height;
-  const aroll = await Promise.all(timeline.aroll.map(async (clip) => ({ path: resolve(clip.path), ...(await probe(resolve(clip.path))) })));
+  const aroll = await Promise.all(timeline.aroll.map(async (clip) => ({ path: resolve(clip.path), zoom: clip.zoom ?? 1, ...(await probe(resolve(clip.path))) })));
   const audio = timeline.audio ? { path: resolve(timeline.audio.path), ...(await probe(resolve(timeline.audio.path))) } : null;
   const arollSeconds = aroll.reduce((sum, clip) => sum + clip.duration, 0);
   const soundtrack = audio ? audio.duration : arollSeconds;
@@ -525,7 +530,12 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
     const parts: string[] = [];
     aroll.forEach((clip, i) => {
       const v = input("-i", clip.path);
-      graph.push(`[${v}:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H},setsar=1,fps=${fps},format=yuv420p[av${i}]`);
+      // A punch-in scales past the frame and crops back to it, keeping the face (see PUNCH_TOP).
+      const fit =
+        clip.zoom > 1
+          ? `scale=${even(W * clip.zoom)}:${even(H * clip.zoom)}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H}:(iw-${W})/2:(ih-${H})*${PUNCH_TOP}`
+          : `scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H}`;
+      graph.push(`[${v}:v]${fit},setsar=1,fps=${fps},format=yuv420p[av${i}]`);
       if (useARollAudio) {
         const a = clip.hasAudio ? v : input("-f", "lavfi", "-t", String(clip.duration || 8), "-i", "anullsrc=r=48000:cl=stereo");
         graph.push(`[${a}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[aa${i}]`);

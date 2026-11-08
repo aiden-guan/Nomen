@@ -35,6 +35,10 @@ export type ShotState = {
   /** The shot's one gentle action: a later shot's frame is shot 1's still re-posed to it (plan.ts). */
   pose?: string;
   seconds: number;
+  /** The exact render length in whole seconds (organic takes). */
+  duration?: number;
+  /** The product covers this take for its whole length (organic takes): rendered at 720p, not reviewed for looks. */
+  covered?: boolean;
   status: "pending" | "framed" | "rendering" | "rendered" | "passed" | "failed";
   provider: "naive" | "monid" | null;
   renders: number;
@@ -218,6 +222,8 @@ export async function insertCreative(campaignId: string, idx: number, concept: C
     prompt: shot.video_prompt,
     ...(shot.pose !== undefined ? { pose: shot.pose } : {}),
     seconds: shot.seconds,
+    ...(shot.duration !== undefined ? { duration: shot.duration } : {}),
+    ...(shot.covered ? { covered: true } : {}),
     status: "pending",
     provider: null,
     renders: 0,
@@ -342,6 +348,8 @@ async function ensureIdentity(ctx: ProductionContext, creativeId: string, shots:
  */
 async function checkContinuity(ctx: ProductionContext, creative: CreativeRow, concept: Concept, shots: ShotState[]): Promise<boolean> {
   const previous = parse<Continuity | null>(creative.continuity_json, null);
+  // A persona's takes all start from her one still: the same person in the same place by construction.
+  if (concept.persona) return true;
   if (previous?.checked || shots.length < 2 || !ctx.naive || ctx.naiveOut() || !(await ffmpegPath())) return true;
   const rounds = (previous?.rounds ?? 0) + 1;
   try {
@@ -388,6 +396,7 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
     shot.status = "framed";
     return;
   }
+  if (concept.persona?.file_id) return personaFrame(ctx, creativeId, concept.persona.file_id, shot);
   const first = shots[0];
   const identity = shot.previous_frame_file_id ?? (shot.n === 1 ? null : identityOf(first));
   const products = shot.drop_product_refs ? [] : concept.reference_images;
@@ -445,12 +454,35 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
 }
 
 /**
+ * An organic take with a persona starts from her own still, the same one for every take: the face
+ * never changes and no image is generated. Kept like any frame, for the review page and the poster.
+ */
+async function personaFrame(ctx: ProductionContext, creativeId: string, fileId: string, shot: ShotState) {
+  try {
+    const { url } = await ctx.naive!.fileUrl(fileId);
+    Object.assign(shot, { frame_file_id: fileId, frame_url: url, frame_inflight_since: null, frame_gated: true, status: "framed" } satisfies Partial<ShotState>);
+    const key = fileKey(creativeId, `shot${shot.n}-frame.png`);
+    shot.frame_key = await store()
+      .files.saveUrl(key, url, "image/png")
+      .then(() => key)
+      .catch(() => null);
+  } catch (error) {
+    if (error instanceof ApiError && error.retryable && shot.submit_errors < MAX_SUBMIT_ERRORS) backoff(shot);
+    else {
+      shot.status = "failed";
+      shot.error = `the persona's still could not be read: ${message(error)}`;
+    }
+  }
+}
+
+/**
  * The first-frame gate: a vision check of the still before the video model animates it. A new still
  * costs cents, a render dollars, and shot 1's still becomes every later shot's identity. A check that
  * cannot run never holds the video up.
  */
 async function gateFrame(ctx: ProductionContext, creativeId: string, concept: Concept, shot: ShotState) {
   shot.frame_gated = true;
+  if (concept.persona) return; // her own still, chosen by a person
   if (shot.frame_skipped || !ctx.naive || ctx.naiveOut() || (shot.frame_checks ?? 0) >= FRAME_CHECKS) return;
   const image = await frameJpeg(await storedFrame(creativeId, shot.n));
   if (!image) return;
@@ -569,9 +601,11 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
     shot.error = "Naive is out of credits and the Monid video fallback is off";
     return;
   }
-  const resolution = getSetting("monid_video_resolution");
-  // About a second longer than the line needs: the edit trims each take to its best part.
-  const duration = Math.max(3, Math.min(15, Math.ceil(shot.seconds + (kling ? 1 : 0))));
+  // A take the product covers is only heard: 720p costs a quarter less and nobody sees it.
+  const resolution = shot.covered ? "720p" : getSetting("monid_video_resolution");
+  // About a second longer than the line needs (the edit trims each take to its best part), or the
+  // length the plan asked for: organic takes are sized to their line.
+  const duration = Math.max(3, Math.min(15, shot.duration ?? Math.ceil(shot.seconds + (kling ? 1 : 0))));
   const prompt = shot.prompt.slice(0, 3000);
   const firstFrame = shot.frame_url && !shot.text_only;
   try {
@@ -631,7 +665,8 @@ async function finishMonid(run: MonidRun, shot: ShotState) {
 
 async function checkQuality(ctx: ProductionContext, concept: Concept, shot: ShotState) {
   const canReview = ctx.naive && !ctx.naiveOut() && shot.local_path && (await ffmpegPath());
-  if (!canReview) {
+  // A covered take is never on screen: only its voice is used.
+  if (!canReview || shot.covered) {
     shot.status = "passed";
     return;
   }
@@ -649,7 +684,8 @@ async function checkQuality(ctx: ProductionContext, concept: Concept, shot: Shot
       shot.prompt = verdict.fix_prompt;
       shot.video_idem = `${shot.video_idem.replace(/-qc\d+$/, "")}-qc${shot.qc_rounds}`;
       Object.assign(shot, { job_id: null, monid_run_id: null, video_file_id: null, video_url: null });
-      if (shot.frame_file_id && ctx.naive && !ctx.naiveOut()) {
+      // A persona's take re-renders from her same still with the fixed prompt: her face is the one constant.
+      if (shot.frame_file_id && ctx.naive && !ctx.naiveOut() && !concept.persona) {
         // The first frame sets the composition, so a defect is often already in it: rebuild the
         // frame from the old one with the fixes, keeping the same person and room, then re-render.
         // Drawn-in text, cards or UI live in the old frame itself, so those rebuild from the

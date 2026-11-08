@@ -276,8 +276,17 @@ export type SuccessMetric = "views" | "shares" | "saves" | "link_clicks" | "sign
 
 export type CreativeBrief = {
   title: string;
-  /** ReferenceBreakdown.id this video is modeled on. */
+  /** ReferenceBreakdown.id this video is modeled on ("" for an organic video, which follows a formula). */
   reference_id: string;
+  /**
+   * "remake" (missing on older briefs): a one-to-one remake of `reference_id`. "organic": an original
+   * video built on `formula_id`, one of the winning formulas the research found across references.
+   */
+  mode?: "remake" | "organic";
+  /** Organic videos: the Formula.id it is written in. */
+  formula_id?: string;
+  /** Organic videos with a persona: which of the persona's stills (by setting, e.g. "bedroom") it is filmed in. */
+  persona_setting?: string;
   /** Its job in the campaign. Missing on briefs written before campaigns were planned as a mix. */
   role?: FunnelRole;
   /** The number this video is judged on (reach: views, shares, saves; convert: link clicks, sign-ups, purchases). */
@@ -352,6 +361,10 @@ export type ARollShot = {
   video_prompt: string;
   /** The shot's one gentle action: a later shot's first frame is shot 1's still re-posed to it, in the same place. */
   pose?: string;
+  /** The exact length to render, in whole seconds (Kling bills what is asked). Missing: the line's length plus a second. */
+  duration?: number;
+  /** The product covers this take for its whole length: only its voice is heard, so it renders at a lower resolution. */
+  covered?: boolean;
 };
 
 /** A real product asset placed on the timeline. */
@@ -369,14 +382,22 @@ export type ProductionPlan = {
   voiceover: { text: string; voice: string } | null;
   /** Screens the screen builder renders before the edit; their clips are B-roll visual ids `screen:<id>`. */
   screens?: ScreenRequest[];
+  /**
+   * Organic videos: a jump cut between every take, alternating the full frame and this punch-in
+   * (1.12 = 12% closer), the way creators cut their own talking-head videos.
+   */
+  punch_in?: number;
 };
 
 // ---------- the edit ----------
 
 /** Everything the edit engine needs to cut one finished vertical video. All times in seconds. */
 export type EditTimeline = {
-  /** A-roll clips in order; their audio is the video's soundtrack unless `audio` says otherwise. */
-  aroll: Array<{ path: string }>;
+  /**
+   * A-roll clips in order; their audio is the video's soundtrack unless `audio` says otherwise.
+   * `zoom` punches in on a clip (1.12 = 12% closer, the face kept in frame); missing is the full frame.
+   */
+  aroll: Array<{ path: string; zoom?: number }>;
   /** A separate soundtrack (voice-over formats). When set, A-roll audio is ignored. */
   audio: { path: string } | null;
   /** What fills the screen and when. Gaps show the A-roll. */

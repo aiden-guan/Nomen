@@ -83,7 +83,7 @@ export function planProduction(script: Script, brief: CreativeBrief, product: Pr
     const text = script.beats.map((beat) => beat.line).filter(Boolean).join(" ");
     return { format: brief.format, aroll: [], broll, voiceover: text ? { text, voice: "" } : null, screens };
   }
-  return { format: brief.format, aroll: groupShots(script).map((beats, i) => arollShot(i + 1, beats, brief, product, delivery)), broll, voiceover: null, screens };
+  return { format: brief.format, aroll: groupShots(script).map((beats, i) => presenterShot(i + 1, beats, brief, product, delivery)), broll, voiceover: null, screens };
 }
 
 function motionFor(visual: ProductVisual, beat: ScriptBeat, turn: number): BRollClip["motion"] {
@@ -187,9 +187,10 @@ export function emotionArc(tags: string[]): string {
  * creator talking into a propped-up phone, one gentle action, hands down, the body mostly still,
  * nothing about the person's looks (the first frame carries the face), ending on the no-text line.
  */
-export function creatorDirection(input: { who: "She" | "He" | "They"; arc: string; action?: string; line?: string; listening?: boolean; green?: boolean }): string {
+export function creatorDirection(input: { who: "She" | "He" | "They"; arc: string; action?: string; line?: string; listening?: boolean; green?: boolean; voice?: string }): string {
   const { who } = input;
   const s = (verb: string) => (who === "They" ? verb : `${verb}s`);
+  const possessive = who === "She" ? "Her" : who === "He" ? "His" : "Their";
   return [
     input.listening
       ? `${who} ${s("listen")} and ${s("react")} like a real creator watching a clip: a small nod, a raised eyebrow, a half-smile, mouth closed, not speaking.`
@@ -198,6 +199,8 @@ export function creatorDirection(input: { who: "She" | "He" | "They"; arc: strin
     `Natural micro-expressions, eyebrow raises, small head tilts, natural blinking, eye contact with the lens${input.listening ? "." : ", mouth movements that match every word."}`,
     "Hands relaxed and mostly below the frame, the body mostly still; no pointing, no thumbs-up, no head turns past a slight angle.",
     `Real phone-camera look: natural daylight, slight sensor noise, no studio lighting, no music.${input.green ? " The background stays one flat chroma-key green." : ""}`,
+    // A persona's voice, described the same way in every take, so the takes sound like one person.
+    input.voice && input.line && !input.listening ? `${possessive} voice: ${input.voice.replace(/\.$/, "")}.` : "",
     input.line && !input.listening ? `${who} ${s("say")}: "${input.line}"` : "",
     NO_TEXT,
   ]
@@ -215,7 +218,8 @@ export const FRAME_LOOK =
 /** The camera holds still, as a phone propped up on a desk does. */
 const CAMERA_STILL = "The camera is propped up and stays still apart from a very slight natural shake; never an arm's-length selfie, no arm reaching toward the lens.";
 
-function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product: ProductBrief, delivery: string): ARollShot {
+/** One presenter shot: the frame and video prompts for a creator saying `beats`' lines (the recipe above). */
+export function presenterShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product: ProductBrief, delivery: string, personaVoice?: string): ARollShot {
   const who = pronoun(brief.creator);
   const line = beats.map((beat) => beat.line).filter(Boolean).join(" ");
   const directions = beats
@@ -261,7 +265,7 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
       CAMERA_STILL,
       SAFE,
       // Last, as in the head-to-head: the direction, then the line, then the no-text line.
-      creatorDirection({ who, arc, action, line, listening: !line }),
+      creatorDirection({ who, arc, action, line, listening: !line, ...(personaVoice ? { voice: personaVoice } : {}) }),
     ]
       .filter(Boolean)
       .join(" "),
@@ -358,7 +362,8 @@ export function buildTimeline(
   const withCaptions = plan.format !== "text_story";
   const duration = plan.aroll.length ? assets.aroll.reduce((sum, clip) => sum + clip.duration, 0) : (assets.voiceover?.duration ?? script.total_seconds);
   return {
-    aroll: assets.aroll.map((clip) => ({ path: clip.path })),
+    // Jump cuts (organic plans): every other take punched in, so no two takes in a row match.
+    aroll: assets.aroll.map((clip, i) => ({ path: clip.path, ...(plan.punch_in ? { zoom: i % 2 ? plan.punch_in : 1 } : {}) })),
     audio: plan.aroll.length ? null : assets.voiceover ? { path: assets.voiceover.path } : null,
     segments,
     captions: withCaptions ? chunk(captionSegments) : [],

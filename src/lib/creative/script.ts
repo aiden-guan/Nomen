@@ -72,9 +72,9 @@ export const BANNED = [
 ] as const;
 
 /** Things only a real customer could say; the brand's AI creator must not claim them. */
-const TESTIMONIAL = [/\bi'?ve been using\b/i, /\bfor (?:the past |the last )?\d+\s*(?:days|weeks|months|years)\b/i, /\bmy results\b/i, /\bsince i started\b/i, /\bi lost \d/i, /\bi saved \$?\d/i, /\bi made \$?\d/i];
+export const TESTIMONIAL = [/\bi'?ve been using\b/i, /\bfor (?:the past |the last )?\d+\s*(?:days|weeks|months|years)\b/i, /\bmy results\b/i, /\bsince i started\b/i, /\bi lost \d/i, /\bi saved \$?\d/i, /\bi made \$?\d/i];
 
-const SCRIPT_TOOL = {
+export const SCRIPT_TOOL = {
   name: "script",
   description: "Record the script, beat by beat.",
   input_schema: {
@@ -116,7 +116,7 @@ const SCRIPT_TOOL = {
   },
 };
 
-const CRITIC_TOOL = {
+export const CRITIC_TOOL = {
   name: "script_review",
   description: "Record the review and, if it falls short, a full revised script.",
   input_schema: {
@@ -212,21 +212,48 @@ function contextBlock(ctx: ScriptContext) {
 /** Briefs written before campaigns were planned as a mix are reach videos. */
 const roleOf = (brief: CreativeBrief) => brief.role ?? "reach";
 
+/**
+ * One script room: a writer, then up to MAX_ROUNDS of the linter and a critic that rewrites a weak
+ * draft. The remake room and the organic room differ only in their prompts, context and checks.
+ */
+export type ScriptRoom = {
+  /** The writer's system prompt. */
+  writer: string;
+  /** The context both the writer and the critic read: product, brief, reference or formula, target. */
+  context: string;
+  title: string;
+  normalize: (beats: Array<Partial<ScriptBeat>>) => Script;
+  lint: (script: Script) => string[];
+  /** The critic's system prompt (without the call instruction) and its review tool. */
+  critic: { system: string; tool: { name: string; [key: string]: unknown } };
+};
+
 export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promise<Script> {
+  return runScriptRoom(naive, {
+    writer: writerSystem(),
+    context: contextBlock(ctx),
+    title: ctx.brief.title,
+    normalize: (beats) => normalizeScript(beats, ctx),
+    lint: (script) => lintScript(script, ctx),
+    critic: { system: criticSystem(), tool: CRITIC_TOOL },
+  });
+}
+
+export async function runScriptRoom(naive: NaiveClient, room: ScriptRoom): Promise<Script> {
   const reply = await naive.message({
     model: QC_MODEL,
     max_tokens: 8000,
-    system: writerSystem(),
-    messages: [{ role: "user", content: `${contextBlock(ctx)}\n\nWrite the script for "${ctx.brief.title}".` }],
+    system: room.writer,
+    messages: [{ role: "user", content: `${room.context}\n\nWrite the script for "${room.title}".` }],
     tools: [SCRIPT_TOOL],
   });
   const beats = readBeats(reply, SCRIPT_TOOL.name, "beats");
   if (!beats.length) throw new ApiError("naive", 502, "script_unreadable", "the writer returned no script");
-  let script = normalizeScript(beats, ctx);
+  let script = room.normalize(beats);
 
   for (let round = 1; round <= MAX_ROUNDS; round++) {
-    const issues = lintScript(script, ctx);
-    const review = await critique(naive, ctx, script, issues);
+    const issues = room.lint(script);
+    const review = await critique(naive, room, script, issues);
     if (review.score === null) {
       // No usable review: keep the draft and say so honestly rather than inventing a score.
       script.review = { score: 0, notes: [...issues.map((issue) => `lint: ${issue}`), "critic unavailable: no review came back"].slice(0, 10), rounds: round };
@@ -235,26 +262,29 @@ export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promi
     script.review = { score: review.score, notes: [...issues.map((issue) => `lint: ${issue}`), ...review.notes].slice(0, 10), rounds: round };
     if (review.score >= PASS && issues.length === 0) break;
     if (!review.revised.length) break;
-    const revised = normalizeScript(review.revised, ctx);
+    const revised = room.normalize(review.revised);
     revised.review = script.review;
     script = revised;
   }
   return script;
 }
 
-async function critique(naive: NaiveClient, ctx: ScriptContext, script: Script, issues: string[]): Promise<{ score: number | null; notes: string[]; revised: Array<Partial<ScriptBeat>> }> {
-  const system = [
+function criticSystem() {
+  return [
     "You are a short-form creative director who has watched ten thousand TikToks. You check remakes of viral videos before anything is filmed. The goal is a remake so close to the reference that it earns the same retention, adapted to a new product.",
     "Compare the script to the reference beat by beat. Fail: beats that drift from the reference (different order, timing, jobs or shots), a hook that changed more than it had to, lines rewritten into different words when the reference's wording could have stayed, anything that sounds like an ad instead of the reference's voice, product beats whose visual doesn't match the words, claims or numbers not in the product brief, any personal-history claim (past use, personal results, reviews) carried over from the reference, and lines too long to say in their beat's seconds.",
     "Also judge the video's job (the role at the end of the brief). A convert video that drops the reference's problem, proof or offer beats, or ends without one clear call to action, fails: it will get views and no sign-ups. A reach video with a hard sell the reference does not have fails too.",
     "If the overall score is below 8, write the complete revised script that fixes every problem, following the same rules as the writer (replicate the reference as closely as possible, swap only what must change for this product, keep every claim true to the brief, fit each line in its seconds).",
   ].join("\n");
-  const content = `${contextBlock(ctx)}\n\n<script>\n${JSON.stringify(script.beats)}\n</script>\n\nAutomatic checks found: ${issues.length ? issues.join("; ") : "nothing"}.`;
-  const ask = (extra: string, tools?: object[]) => naive.message({ model: QC_MODEL, max_tokens: 10000, system: `${system}\n${extra}`, messages: [{ role: "user", content }], tools });
+}
+
+async function critique(naive: NaiveClient, room: ScriptRoom, script: Script, issues: string[]): Promise<{ score: number | null; notes: string[]; revised: Array<Partial<ScriptBeat>> }> {
+  const content = `${room.context}\n\n<script>\n${JSON.stringify(script.beats)}\n</script>\n\nAutomatic checks found: ${issues.length ? issues.join("; ") : "nothing"}.`;
+  const ask = (extra: string, tools?: object[]) => naive.message({ model: QC_MODEL, max_tokens: 10000, system: `${room.critic.system}\n${extra}`, messages: [{ role: "user", content }], tools });
 
   type Review = { score?: unknown; scores?: unknown; notes?: unknown; revised_beats?: unknown } | null;
-  const reply = await ask("Call the script_review tool once.", [CRITIC_TOOL]);
-  const call = reply.content.find((block) => block.type === "tool_use" && block.name === CRITIC_TOOL.name);
+  const reply = await ask(`Call the ${room.critic.tool.name} tool once.`, [room.critic.tool]);
+  const call = reply.content.find((block) => block.type === "tool_use" && block.name === room.critic.tool.name);
   let raw = (call?.input ?? extractJson(reply.content.map((block) => block.text ?? "").join("\n"))) as Review;
   if (!raw || (raw.score === undefined && raw.scores === undefined)) {
     // A cut-off or fumbled tool call: ask once more for plain JSON.
@@ -288,7 +318,7 @@ const clean = (value: unknown) =>
     : "";
 
 /** Makes the model's beats renderable: numbered, valid jobs and visuals, 1-8 s, format rules applied. */
-export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptContext): Script {
+export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: Pick<ScriptContext, "product" | "brief"> & Partial<ScriptContext>): Script {
   const ids = new Set(ctx.product.visuals.map((v) => v.id));
   const fallbackVisual = ctx.brief.visuals.find((id) => ids.has(id)) ?? ctx.product.visuals[0]?.id ?? null;
   const out: ScriptBeat[] = beats.slice(0, 12).map((beat, i) => {
@@ -386,7 +416,7 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
 }
 
 /** Words that ask a viewer to take a step. */
-const ASK = /\blink\b|\bbio\b|sign ?up|\btry\b|download|\bget\b|\bstart\b|\bfree\b|\bcode\b|\bshop\b|\bbuy\b|\bjoin\b|install|\bcomment\b|check (?:it )?out|go to|head to|\btap\b|\bclick\b|\bgrab\b/i;
+export const ASK = /\blink\b|\bbio\b|sign ?up|\btry\b|download|\bget\b|\bstart\b|\bfree\b|\bcode\b|\bshop\b|\bbuy\b|\bjoin\b|install|\bcomment\b|check (?:it )?out|go to|head to|\btap\b|\bclick\b|\bgrab\b/i;
 
 /**
  * How long the remake should run: the reference's own length, capped for render cost. A face costs

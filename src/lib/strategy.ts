@@ -1,10 +1,22 @@
 import { CLONE_EASY, cloneLine } from "./creative/cloneability";
+import { type Formula, formulaDigest } from "./creative/formulas";
+import type { Persona, PersonaStill } from "./creative/organic";
 import type { ResearchPack } from "./research";
 import type { CreativeBrief, FunnelRole, ProductBrief, ProductionPlan, ReferenceBreakdown, Script, SuccessMetric, VideoFormat } from "./creative/types";
 
 // The strategist's contract: the JSON Schema Naive enforces on the session, and the types it fills.
 
-export type Shot = { seconds: number; frame_prompt: string; video_prompt: string; dialogue: string; pose?: string };
+export type Shot = {
+  seconds: number;
+  frame_prompt: string;
+  video_prompt: string;
+  dialogue: string;
+  pose?: string;
+  /** The exact render length in whole seconds (organic takes); missing, production renders the line plus a second. */
+  duration?: number;
+  /** The product covers this take for its whole length (organic takes): rendered cheaper, never reviewed for looks. */
+  covered?: boolean;
+};
 
 export type Concept = {
   title: string;
@@ -29,6 +41,10 @@ export type Concept = {
   script?: Script;
   plan?: ProductionPlan;
   reference?: { id: string; url: string; author: string; views: number; followers: number | null; outlier: number | null; format: string; hook_mechanic: string };
+  /** Organic videos: the winning formula it is written in, with the videos and numbers behind it. */
+  formula?: { id: string; name: string; summary: string; references: Array<{ id: string; url: string; author: string; views: number | null; outlier: number | null }> };
+  /** Organic videos: the persona's still every take starts from, and her voice. */
+  persona?: PersonaStill;
 };
 
 export type Strategy = {
@@ -142,6 +158,46 @@ export const STRATEGY_SCHEMA = {
   },
 } as const;
 
+const REMAKE_BRIEF = STRATEGY_SCHEMA.properties.campaign.properties.briefs.items;
+const { reference_id: _remakeOnly, ...briefProperties } = REMAKE_BRIEF.properties;
+
+/**
+ * The director's schema in organic mode: every brief names the formula it is written in (and the
+ * persona's setting) instead of a reference to remake. Organic videos always have the presenter.
+ */
+export const ORGANIC_STRATEGY_SCHEMA = {
+  ...STRATEGY_SCHEMA,
+  properties: {
+    ...STRATEGY_SCHEMA.properties,
+    campaign: {
+      ...STRATEGY_SCHEMA.properties.campaign,
+      properties: {
+        ...STRATEGY_SCHEMA.properties.campaign.properties,
+        briefs: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["title", "formula_id", "persona_setting", "role", "metric", "format", "angle", "audience", "hook_plan", "keep", "change", "visuals", "platforms", "caption", "hashtags", "cta", "why"],
+            properties: {
+              ...briefProperties,
+              formula_id: { type: "string", description: "The id of the winning formula this original video is written in (from <formulas>)." },
+              persona_setting: { type: "string", description: "Which of the persona's settings it is filmed in (from <persona>); a different one per video where you can." },
+              format: { type: "string", enum: ["talking_head_broll"] },
+              hook_plan: { type: "string", description: "The formula's hook archetype applied to this product and angle: what is said and written in the first 2-3 seconds, in new words." },
+              keep: { type: "array", items: { type: "string" }, description: "What it takes from the formula: the hook mechanic, the beat order, the proof device, the ask." },
+              change: { type: "array", items: { type: "string" }, description: "What is new: the angle, this product's facts and screens, the ask." },
+              why: {
+                type: "string",
+                description: "Why this formula and angle will work for this product and buyer, citing the numbers behind the formula (backed_by).",
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
 export type StrategyOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string };
 
 /** The first message of a strategist session: the brief, the research and the house rules for this run. */
@@ -213,20 +269,74 @@ export function strategyMessage(
   ].join("\n\n");
 }
 
+/**
+ * The director's message in organic mode: original videos built on the campaign's winning formulas
+ * (formulas.ts), each in one of the persona's settings, instead of one-to-one remakes.
+ */
+export function organicStrategyMessage(
+  pack: ResearchPack,
+  creative: { product: ProductBrief; formulas: Formula[]; breakdowns?: ReferenceBreakdown[] },
+  options: StrategyOptions,
+  past: PastResult[] = [],
+  persona?: Persona,
+) {
+  const research = {
+    domain: pack.domain,
+    brand: pack.brand,
+    site_excerpt: pack.site_excerpt.slice(0, 3000),
+    similar_sites: pack.similar_sites,
+    seo: pack.seo,
+    ads: pack.ads.slice(0, 10).map((ad) => ({ ...ad, video_url: undefined, cover: undefined })),
+    reddit: pack.reddit.slice(0, 8),
+    aeo: pack.aeo,
+  };
+  const { product, formulas } = creative;
+  return [
+    `Build the campaign for ${product.name || pack.brand.name || pack.domain}.`,
+    `This campaign is in organic mode. Ignore the one-to-one remake rules for the video briefs: no brief remakes a single reference video. Deliver exactly ${options.concepts} video briefs. Each is an original video written in one of the winning formulas below (formula_id), with the brand's best angle for it. A formula is what several proven videos share: the hook archetype and its mechanic, the beat structure, the pacing, the proof device and the call-to-action pattern; backed_by and references give the videos and numbers behind it. Pick each video's formula on that evidence and on fit for this product, and cite the numbers in why.`,
+    `Plan the campaign as a funnel mix: the customer pays for sales, not views. Give every brief a role and the metric it is judged on: reach videos get the product seen and shared (views, shares or saves); convert videos make viewers click, sign up or buy (link clicks, sign-ups or purchases) and end on one concrete step true to the product brief. ${options.concepts >= 2 ? `With ${options.concepts} videos, include at least one of each role.` : "With one video, pick the role the evidence supports best."} A formula's role says what its videos proved.`,
+    `How organic videos are made: one AI presenter (the persona below) talks to a camera propped up at eye level, in short takes of 3 to 7 seconds, one sentence each, with a jump cut between them. She carries the hook and the emotional beats; every claim about what the product does is shown on the product's real screens, built from the product brief. So pick formulas and angles that work as one person to camera plus screens: no second person, no hands working a product, no moving camera, no big gestures. Every video is talking_head_broll and runs about 15 to 20 seconds (every presenter second is rendered, about $0.17).`,
+    `Give the videos different formulas where the evidence allows, and different angles, hooks and settings, so the campaign tests several ways to win.`,
+    persona
+      ? `Every video stars this one persona, so viewers meet the same person each time. persona_setting picks one of her settings; use a different one per video where you can. Leave creator and setting empty: the persona supplies them.\n<persona>\n${JSON.stringify({ name: persona.name, look: persona.look, settings: persona.stills.map(({ setting, place }) => ({ setting, place })) })}\n</persona>`
+      : "There is no persona: describe one ordinary-looking presenter in creator (the same person in every brief) and a lived-in place in setting, and set persona_setting to an empty string.",
+    `The winning formulas, strongest evidence first:\n<formulas>\n${JSON.stringify(formulaDigest(formulas))}\n</formulas>`,
+    `The product brief (the only source of claims):\n<product>\n${JSON.stringify({ ...product, visuals: undefined })}\n</product>`,
+    product.visuals.length
+      ? `Real product visuals that can be on screen (refer to them by id):\n<visuals>\n${JSON.stringify(product.visuals.map(({ id, kind, caption, source }) => ({ id, kind, caption, source })))}\n</visuals>`
+      : "There are no product visuals for this brand: the screens are built from the product brief.",
+    `Research for the brand brief and the search plan (collected today from public sources):\n<research>\n${JSON.stringify(research)}\n</research>`,
+    ...(past.length
+      ? [`How this brand's earlier Nomen videos performed on its own accounts (repeat what worked, drop what did not, do not reuse the same hooks):\n<past_results>\n${JSON.stringify(past)}\n</past_results>`]
+      : []),
+  ].join("\n\n");
+}
+
 /** Trims the director's answer to what the script room can use: known references, formats, visuals, platforms. */
-export function normalizeStrategy(raw: unknown, options: StrategyOptions, context: { referenceIds: string[]; visualIds: string[] }): Strategy {
+export function normalizeStrategy(
+  raw: unknown,
+  options: StrategyOptions,
+  context: { referenceIds: string[]; visualIds: string[]; /** Organic mode: the formula ids briefs may name. */ formulaIds?: string[]; /** Organic mode: the persona's settings. */ settings?: string[] },
+): Strategy {
+  const organic = Boolean(context.formulaIds?.length);
+  const formulaIds = context.formulaIds ?? [];
+  const settings = context.settings ?? [];
   const strategy = raw as Strategy & { campaign: { briefs?: Array<Partial<CreativeBrief>> } };
   const references = new Set(context.referenceIds);
   const visuals = new Set(context.visualIds);
   const list = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim() !== "").map((v) => v.trim()) : []);
   const briefs: CreativeBrief[] = (strategy.campaign.briefs ?? []).slice(0, options.concepts).map((brief, i) => {
-    const format = FORMATS.includes(brief.format as VideoFormat) ? (brief.format as VideoFormat) : "talking_head_broll";
-    const reference = typeof brief.reference_id === "string" && references.has(brief.reference_id) ? brief.reference_id : (context.referenceIds[i % Math.max(1, context.referenceIds.length)] ?? "");
+    // Organic videos always have the presenter, and follow a formula rather than one reference.
+    const format = organic ? "talking_head_broll" : FORMATS.includes(brief.format as VideoFormat) ? (brief.format as VideoFormat) : "talking_head_broll";
+    const reference = organic ? "" : typeof brief.reference_id === "string" && references.has(brief.reference_id) ? brief.reference_id : (context.referenceIds[i % Math.max(1, context.referenceIds.length)] ?? "");
+    const formula = typeof brief.formula_id === "string" && formulaIds.includes(brief.formula_id) ? brief.formula_id : formulaIds[i % Math.max(1, formulaIds.length)];
+    const setting = typeof brief.persona_setting === "string" && settings.includes(brief.persona_setting) ? brief.persona_setting : settings[0];
     const platforms = list(brief.platforms).filter((p): p is (typeof PLATFORMS)[number] => (PLATFORMS as readonly string[]).includes(p)).slice(0, 4);
     const role: FunnelRole = brief.role === "reach" || brief.role === "convert" ? brief.role : DIRECT_ASK.test(brief.cta ?? "") ? "convert" : "reach";
     return {
       title: (brief.title ?? `Video ${i + 1}`).toString().trim(),
       reference_id: reference,
+      ...(organic ? { mode: "organic" as const, formula_id: formula, ...(setting ? { persona_setting: setting } : {}) } : {}),
       role,
       metric: METRICS[role].includes(brief.metric as SuccessMetric) ? (brief.metric as SuccessMetric) : METRICS[role][0],
       format,
@@ -272,7 +382,15 @@ export function balanceRoles(briefs: CreativeBrief[]): CreativeBrief[] {
 }
 
 /** One finished concept: the brief, its script and its shot plan, in the shape production and the UI read. */
-export function conceptFrom(brief: CreativeBrief, script: Script, plan: ProductionPlan, reference: ReferenceBreakdown | undefined, product: ProductBrief): Concept {
+export function conceptFrom(
+  brief: CreativeBrief,
+  script: Script,
+  plan: ProductionPlan,
+  reference: ReferenceBreakdown | undefined,
+  product: ProductBrief,
+  organic?: { formula?: Formula; persona?: PersonaStill },
+): Concept {
+  const formula = organic?.formula;
   const hook = script.beats[0];
   const productPhotos = product.kind === "physical" ? product.visuals.filter((v) => v.kind === "photo" && /^https?:/.test(v.url)).map((v) => v.url) : [];
   return {
@@ -283,13 +401,21 @@ export function conceptFrom(brief: CreativeBrief, script: Script, plan: Producti
     hook: [hook?.on_screen_text, hook?.line].filter(Boolean).join(" / "),
     creator: brief.creator,
     setting: brief.setting,
-    shots: plan.aroll.map((shot) => ({ seconds: shot.seconds, frame_prompt: shot.frame_prompt, video_prompt: shot.video_prompt, dialogue: shot.line, ...(shot.pose !== undefined ? { pose: shot.pose } : {}) })),
+    shots: plan.aroll.map((shot) => ({
+      seconds: shot.seconds,
+      frame_prompt: shot.frame_prompt,
+      video_prompt: shot.video_prompt,
+      dialogue: shot.line,
+      ...(shot.pose !== undefined ? { pose: shot.pose } : {}),
+      ...(shot.duration !== undefined ? { duration: shot.duration } : {}),
+      ...(shot.covered ? { covered: true } : {}),
+    })),
     // A physical product's real photos guide the first frame, so the product looks right when the creator holds it.
     reference_images: productPhotos.slice(0, 2),
     caption: brief.caption,
     hashtags: brief.hashtags,
     cta: brief.cta,
-    inspired_by: reference ? [reference.url] : [],
+    inspired_by: reference ? [reference.url] : formula ? formula.evidence.references.map((r) => r.url) : [],
     why: brief.why,
     ...(brief.role ? { role: brief.role, metric: brief.metric ?? METRICS[brief.role][0] } : {}),
     brief,
@@ -305,6 +431,17 @@ export function conceptFrom(brief: CreativeBrief, script: Script, plan: Producti
       format: reference.format,
       hook_mechanic: reference.hook.mechanic,
     },
+    ...(formula
+      ? {
+          formula: {
+            id: formula.id,
+            name: formula.name,
+            summary: formula.evidence.summary,
+            references: formula.evidence.references.map(({ id, url, author, views, outlier }) => ({ id, url, author, views, outlier })),
+          },
+        }
+      : {}),
+    ...(organic?.persona ? { persona: organic.persona } : {}),
   };
 }
 

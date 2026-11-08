@@ -25,6 +25,13 @@ export const DEFAULTS = {
   presenter_engine: "kling-3.0",
   /** The finish on the final render: a touch of contrast, sharpening and grain, and the voice chain with loudness ("on" or "off", to A/B). */
   finish: "on",
+  /**
+   * What new campaigns make: "remake" (one-to-one remakes of reference videos) or "organic" (original
+   * videos built on the winning formulas found across the references; src/lib/creative/organic.ts).
+   */
+  creative_mode: "remake",
+  /** Organic mode's presenter as JSON: { name, look, voice, stills: [{ setting, file_id (a Naive fil_), place }] }. Empty: none. */
+  persona: "",
 } as const;
 
 export type SettingKey = keyof typeof DEFAULTS;

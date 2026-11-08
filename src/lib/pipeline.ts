@@ -14,11 +14,13 @@ import { cloneOf } from "./creative/cloneability";
 import { breakdownAll, canonicalUrl, orderBreakdowns, pickForBreakdown, scoreCandidates } from "./creative/references";
 import { applyRelevance, screenRelevance } from "./creative/relevance";
 import { scout, scoutSpecs } from "./creative/scout";
+import { extractFormulas, type Formula } from "./creative/formulas";
+import { organicConcept, type Persona, readPersona } from "./creative/organic";
 import { targetSeconds, writeScript } from "./creative/script";
 import type { ProductBrief, ProductVisual, ReferenceBreakdown, ReferenceCandidate } from "./creative/types";
 import { compactResearch, fallbackPlan, phaseASpecs, phaseCSpecs, planResearch, type ResearchPack, type ResearchPlan, type RunSpec, type Video } from "./research";
 import { getBool, getInt, getSetting } from "./settings";
-import { type Concept, conceptFrom, normalizeStrategy, type PastResult, STRATEGY_SCHEMA, type Strategy, strategyMessage } from "./strategy";
+import { type Concept, conceptFrom, normalizeStrategy, ORGANIC_STRATEGY_SCHEMA, organicStrategyMessage, type PastResult, STRATEGY_SCHEMA, type Strategy, strategyMessage } from "./strategy";
 
 // The campaign state machine. The worker calls advanceCampaign() every few seconds; every step is
 // idempotent, so a restart picks up exactly where it stopped. Rows live in the store (src/lib/store):
@@ -29,7 +31,17 @@ import { type Concept, conceptFrom, normalizeStrategy, type PastResult, STRATEGY
 export type CampaignStage = "research" | "style" | "strategy" | "production" | "review" | "live";
 export type CampaignStatus = "running" | "review" | "publishing" | "live" | "failed" | "stopped";
 
-export type CampaignOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string; learnStyle: boolean };
+export type CampaignOptions = {
+  concepts: number;
+  shotsPerConcept: number;
+  secondsPerShot: number;
+  videoModel: string;
+  learnStyle: boolean;
+  /** "organic": original videos on the winning formulas instead of one-to-one remakes (missing: remakes). */
+  mode?: "remake" | "organic";
+  /** Organic mode's presenter, fixed for the campaign when it starts. */
+  persona?: Persona;
+};
 
 export type BrandRow = { id: string; name: string; domain: string; url: string; profile_json: string | null; identity_id: string | null; social_activated: number; created_at: string };
 
@@ -69,12 +81,16 @@ export const listCreatives = (campaignId: string) => store().find<CreativeRow>("
 const listRuns = (campaignId: string) => store().find<RunRow>("monid_runs", { campaign_id: campaignId }, { order: [["created_at", "asc"]] });
 
 export function defaultOptions(): CampaignOptions {
+  const organic = getSetting("creative_mode") === "organic";
+  const persona = organic ? readPersona(getSetting("persona")) : undefined;
   return {
     concepts: Math.max(1, Math.min(8, getInt("videos_per_campaign"))),
     shotsPerConcept: Math.max(1, Math.min(3, getInt("shots_per_video"))),
     secondsPerShot: Math.max(4, Math.min(10, getInt("video_seconds"))),
     videoModel: getSetting("video_model"),
     learnStyle: getBool("learn_style"),
+    ...(organic ? { mode: "organic" as const } : {}),
+    ...(persona ? { persona } : {}),
   };
 }
 
@@ -294,6 +310,8 @@ export type CreativeState = {
   failures?: Array<{ url: string; error: string }>;
   /** Reference URLs whose breakdown failed for a passing reason, retried once on the next tick. */
   retry?: string[];
+  /** Organic mode: the winning formulas found across the breakdowns (creative/formulas.ts), made once before the director runs. */
+  formulas?: Formula[];
 };
 
 /** A researched video's lane, from the search that found it. */
@@ -457,6 +475,22 @@ async function stepStrategy(campaign: CampaignRow) {
   // The director's briefs are in: the script room writes each video, then production starts.
   if (campaign.strategy_json) return scriptRoom(campaign, naive, product, breakdowns);
 
+  // Organic mode: the director plans original videos on the winning formulas behind the
+  // references, found once (one model call) and kept with the study. Without breakdowns there is
+  // nothing to find formulas in, and the campaign plans as before.
+  const organic = options.mode === "organic" && breakdowns.length > 0;
+  let formulas = state?.formulas ?? [];
+  if (organic && !formulas.length && !campaign.strategy_session_id) {
+    formulas = await extractFormulas(naive, breakdowns, product);
+    await save("campaigns", campaign.id, { style_json: JSON.stringify({ ...(state ?? {}), formulas }) });
+    await logEvent({
+      brandId: brand.id,
+      campaignId: campaign.id,
+      message: `Found ${formulas.length} winning formulas across ${breakdowns.length} references: ${formulas.map((f) => `"${f.name}" (${f.evidence.summary})`).join("; ")}`,
+    });
+  }
+  const formulaMode = organic && formulas.length > 0;
+
   if (!campaign.strategy_session_id) {
     if (!strategistId) {
       const agent = await naive.findAgent(getSetting("strategist_agent"));
@@ -466,8 +500,10 @@ async function stepStrategy(campaign: CampaignRow) {
     const session = await naive.createSession(
       {
         agent_id: strategistId,
-        message: strategyMessage(pack, { product, breakdowns }, options, await pastResults(brand.id, campaign.id)),
-        output_schema: STRATEGY_SCHEMA,
+        message: formulaMode
+          ? organicStrategyMessage(pack, { product, formulas, breakdowns }, options, await pastResults(brand.id, campaign.id), options.persona)
+          : strategyMessage(pack, { product, breakdowns }, options, await pastResults(brand.id, campaign.id)),
+        output_schema: formulaMode ? ORGANIC_STRATEGY_SCHEMA : STRATEGY_SCHEMA,
         structured_output_required: true,
         budget_micro_usd: 4_000_000,
         metadata: { nomen_campaign: campaign.id, nomen_brand: brand.id },
@@ -475,7 +511,11 @@ async function stepStrategy(campaign: CampaignRow) {
       campaign.strategy_idem ?? `${campaign.id}-strategy`,
     );
     await save("campaigns", campaign.id, { strategy_session_id: session.id });
-    await logEvent({ brandId: brand.id, campaignId: campaign.id, message: `The creative director is choosing which ${breakdowns.length ? "reference videos to transplant" : "patterns to use"} for ${options.concepts} videos` });
+    await logEvent({
+      brandId: brand.id,
+      campaignId: campaign.id,
+      message: `The creative director is choosing which ${formulaMode ? "formulas to write original videos in" : breakdowns.length ? "reference videos to transplant" : "patterns to use"} for ${options.concepts} videos`,
+    });
     return;
   }
 
@@ -483,7 +523,11 @@ async function stepStrategy(campaign: CampaignRow) {
   await save("campaigns", campaign.id, { strategy_spend_micro: session.consumed_micro_usd ?? 0 });
   if (session.status === "queued" || session.status === "running") return;
   if (session.structured_output && (session.status === "idle" || session.status === "completed")) {
-    const strategy = normalizeStrategy(session.structured_output, options, { referenceIds: breakdowns.map((b) => b.id), visualIds: product.visuals.map((v) => v.id) });
+    const strategy = normalizeStrategy(session.structured_output, options, {
+      referenceIds: breakdowns.map((b) => b.id),
+      visualIds: product.visuals.map((v) => v.id),
+      ...(formulaMode ? { formulaIds: formulas.map((f) => f.id), settings: options.persona?.stills.map((still) => still.setting) ?? [] } : {}),
+    });
     if (!strategy.campaign.briefs?.length) throw new Error("The creative director returned no video briefs.");
     await save("campaigns", campaign.id, { strategy_json: JSON.stringify(strategy) });
     await logEvent({
@@ -516,8 +560,12 @@ async function scriptRoom(campaign: CampaignRow, naive: NaiveClient, product: Pr
   const pending = briefs.filter((brief) => !done.some((concept) => concept.brief?.title === brief.title));
   const round = (strategy.campaign.script_rounds ?? 0) + 1;
   strategy.campaign.script_rounds = round;
+  const formulas = creativeState(campaign)?.formulas ?? [];
+  const { persona } = parse<CampaignOptions>(campaign.options_json, defaultOptions());
   const results = await Promise.allSettled(
     pending.map(async (brief) => {
+      // An organic brief is written in its formula, for the persona; remakes below are unchanged.
+      if (brief.mode === "organic" && formulas.length) return organicConcept(naive, { product, brief, formulas, breakdowns, persona });
       const reference = breakdowns.find((b) => b.id === brief.reference_id) ?? breakdowns[0];
       const script = await writeScript(naive, { product, brief, reference: reference ?? emptyReference(), targetSeconds: reference ? targetSeconds(reference, brief.format) : 18 });
       const plan = planProduction(script, brief, product, reference?.delivery ?? "", reference?.beats ?? []);
