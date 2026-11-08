@@ -130,9 +130,23 @@ export function db(): Database.Database {
     conn.pragma("foreign_keys = ON");
     conn.pragma("busy_timeout = 5000");
     conn.exec(SCHEMA);
+    migrate(conn);
     globalThis.__nomenDb = conn;
   }
   return globalThis.__nomenDb;
+}
+
+/** Columns added after a table first shipped. `create table if not exists` never alters a table. */
+const ADDED_COLUMNS: Array<[table: string, column: string, definition: string]> = [
+  ["campaigns", "style_attempt", "integer not null default 0"],
+  ["creatives", "continuity_json", "text"],
+];
+
+function migrate(conn: Database.Database) {
+  for (const [table, column, definition] of ADDED_COLUMNS) {
+    const columns = conn.prepare(`pragma table_info(${table})`).all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === column)) conn.exec(`alter table ${table} add column ${column} ${definition}`);
+  }
 }
 
 export const newId = (prefix: string) => `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 20)}`;

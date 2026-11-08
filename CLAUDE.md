@@ -10,3 +10,5 @@
 - Never put a Naive, Monid or Mobilerun key in the repo, in chat or on a command line. In cloud
   sessions the Naive key is a network secret for api.vetta.sh: prefix commands with
   `NODE_USE_ENV_PROXY=1 NAIVE_API_KEY=proxy-injected`.
+- Working on video quality? Read `samples/monid/REVIEW.md` first and look at the `*-frames.jpg`
+  contact sheets (you cannot play the MP4s): they show the current output and its known defects.

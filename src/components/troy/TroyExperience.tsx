@@ -14,7 +14,7 @@ import styles from "./troy.module.css";
 type View = "landing" | "camp";
 type Phase = "loading" | "idle" | "submitting" | "opening" | "marching";
 
-export function TroyExperience({ initialView, brandId: initialBrandId }: { initialView: View; brandId?: string }) {
+export function TroyExperience({ initialView, brandId: initialBrandId, cost }: { initialView: View; brandId?: string; cost?: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const formAnchorRef = useRef<HTMLDivElement>(null);
@@ -172,9 +172,12 @@ export function TroyExperience({ initialView, brandId: initialBrandId }: { initi
       <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
 
       {view === "landing" && (
-        <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between px-5 py-4 sm:px-8 sm:py-6">
-          <span className={`${styles.pixel} pointer-events-auto text-[22px] font-semibold tracking-tight`}>Nomen</span>
+        <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-5 px-5 py-4 sm:px-8 sm:py-6">
+          <span className={`${styles.pixel} pointer-events-auto mr-auto text-[22px] font-semibold tracking-tight`}>Nomen</span>
           {brands && brands.length > 0 && <BrandsMenu brands={brands} />}
+          <a href="/settings" className={`${styles.link} ${styles.pixel} pointer-events-auto text-[15px]`}>
+            Settings
+          </a>
         </header>
       )}
 
@@ -225,6 +228,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId }: { initi
             </div>
             <p id="troy-site-hint" className="mt-4 text-center text-[13px] leading-relaxed text-[var(--ink-soft)]">
               Inside: an army of agents that researches your market, writes the strategy, films the ads and posts them.
+              {cost && <span className="mt-1 block text-[12px] text-[var(--ink-faint)]">Each campaign: {cost}.</span>}
             </p>
             <p id="troy-site-error" role="alert" className="mt-2 min-h-5 text-center text-[13px] font-medium text-[var(--crimson)]">
               {error}
@@ -299,7 +303,7 @@ function BrandsMenu({ brands }: { brands: BrandListItem[] }) {
         Your camps ({brands.length}) {open ? "▴" : "▾"}
       </button>
       {open && (
-        <ul className={`${styles.boxSoft} absolute right-0 top-9 w-72 py-2 text-sm`}>
+        <ul className={`${styles.boxSoft} absolute right-0 top-9 z-10 max-h-[60vh] w-72 overflow-y-auto py-2 text-sm`}>
           {brands.map((brand) => (
             <li key={brand.id}>
               <a href={`/camp/${encodeURIComponent(brand.id)}`} className="flex items-center justify-between gap-3 px-4 py-2 hover:bg-[var(--sand)]/40">
@@ -311,6 +315,11 @@ function BrandsMenu({ brands }: { brands: BrandListItem[] }) {
               </a>
             </li>
           ))}
+          <li className="mt-1 border-t-2 border-[rgba(43,29,20,0.1)] px-4 pt-2">
+            <a href="/brands" className={`${styles.link} ${styles.pixel} text-[13px]`}>
+              All brands and workspaces →
+            </a>
+          </li>
         </ul>
       )}
     </div>

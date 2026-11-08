@@ -60,7 +60,7 @@ export async function probe(path: string): Promise<{ duration: number; hasAudio:
 }
 
 /** Evenly spaced stills from a clip, as JPEG buffers small enough to send to a vision model. */
-export async function extractFrames(path: string, count = 4): Promise<Buffer[]> {
+export async function extractFrames(path: string, count = 4, width = 540): Promise<Buffer[]> {
   const bin = await ffmpegPath();
   if (!bin) throw new Error("ffmpeg is not available");
   const { duration } = await probe(path);
@@ -68,7 +68,7 @@ export async function extractFrames(path: string, count = 4): Promise<Buffer[]> 
   for (let i = 0; i < count; i++) {
     const at = Math.max(0, (duration || 8) * ((i + 0.5) / count));
     const out = `${path}.frame${i}.jpg`;
-    await exec(bin, ["-hide_banner", "-loglevel", "error", "-y", "-ss", at.toFixed(2), "-i", path, "-frames:v", "1", "-vf", "scale=540:-2", "-q:v", "4", out]);
+    await exec(bin, ["-hide_banner", "-loglevel", "error", "-y", "-ss", at.toFixed(2), "-i", path, "-frames:v", "1", "-vf", `scale=${width}:-2`, "-q:v", width > 540 ? "2" : "4", out]);
     frames.push(await readFile(out));
     await rm(out, { force: true });
   }
@@ -92,7 +92,7 @@ export async function stitch(paths: string[], out: string) {
   const parts = paths.map((_, i) => {
     const audio = silent[i] !== undefined ? `${silent[i]}:a` : `${i}:a`;
     return (
-      `[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}];` +
+      `[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}];` +
       `[${audio}]aresample=48000,aformat=channel_layouts=stereo[a${i}];`
     );
   });

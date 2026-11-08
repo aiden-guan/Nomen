@@ -59,7 +59,8 @@ export class NaiveClient {
   private async call<T>(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, body?: unknown, idempotencyKey?: string, timeoutMs?: number) {
     const headers: Record<string, string> = { authorization: `Bearer ${this.key}`, "vetta-version": "2026-09-30" };
     if (idempotencyKey) headers["idempotency-key"] = idempotencyKey;
-    const { data } = await requestJson<T>({ service: "naive", url: `${this.base}${path}`, method, headers, body, timeoutMs });
+    // Writes are never retried here: the pipeline retries on a later tick with the same key.
+    const { data } = await requestJson<T>({ service: "naive", url: `${this.base}${path}`, method, headers, body, timeoutMs, retries: method === "GET" ? 2 : 0 });
     return data;
   }
 
@@ -91,6 +92,10 @@ export class NaiveClient {
     return this.call<NaiveSession>("GET", `/v1/sessions/${id}`);
   }
 
+  cancelSession(id: string) {
+    return this.call<NaiveSession>("POST", `/v1/sessions/${id}/cancel`);
+  }
+
   sendMessage(id: string, message: string, idempotencyKey: string) {
     return this.call<{ accepted_seq: number }>("POST", `/v1/sessions/${id}/messages`, { message }, idempotencyKey);
   }
@@ -107,11 +112,16 @@ export class NaiveClient {
   }
 
   generateImage(input: { prompt: string; aspect_ratio?: string; image_urls?: string[]; model?: string; n?: number }, idempotencyKey: string) {
-    return this.call<ImageGeneration>("POST", "/v1/media/images", input, idempotencyKey, 180_000);
+    return this.call<ImageGeneration>("POST", "/v1/media/images", input, idempotencyKey, 300_000);
   }
 
   generateVideo(input: { prompt: string; model?: string; seconds?: number; aspect_ratio?: string; image_urls?: string[] }, idempotencyKey: string) {
     return this.call<MediaJob>("POST", "/v1/media/videos", input, idempotencyKey);
+  }
+
+  async mediaModels(kind: "video" | "image") {
+    const page = await this.call<Page<{ id: string }>>("GET", `/v1/media/models?kind=${kind}&limit=100`);
+    return page.data.map((model) => model.id);
   }
 
   getMediaJob(id: string) {

@@ -46,14 +46,36 @@ The guard requires every agent, app, skill, vault and identity name, and every n
 organization; the prefix means `naive up` can never match, change or delete one of theirs. The
 guard also refuses `tasks`, because they create or edit the organization's CEO agent.
 
-## Adding agents
+## The agent Nomen runs
 
-Agents cost money, so none are declared yet. Each one needs a budget you choose, in integer
-micro-USD (1 USD = 1,000,000): `cap_micro_usd` per period, `max_task_micro_usd` per session and a
-`period` of `day`, `week` or `month`. Tools that publish or spend ask a person first by default,
-including `social.post`, `generate_video`, `mobile` and `data_run`
+`naive.config.ts` declares one agent, `nomen-strategist` (Claude Sonnet 5.5). It reads the research
+Nomen already collected and returns the brand brief, the search plan and the video concepts as a
+structured answer. Its standing instructions live in `naive/agents/strategist.md`. It has no tools,
+so it cannot browse, buy, post or spend on its own, and its budget is $4 per run and $40 a month.
+Video renders, images, the format study and quality checks are called directly by the app; they
+are billed to the organization, not to this agent's budget.
+
+To change the agent (its model, budget or instructions), edit the config or the Markdown file,
+commit, then run `npm run naive:plan`, read the preview, and `npm run naive:apply`.
+
+Any new agent needs a budget you choose, in integer micro-USD (1 USD = 1,000,000):
+`cap_micro_usd` per period, `max_task_micro_usd` per session and a `period` of `day`, `week` or
+`month`. Tools that publish or spend ask a person first by default, including `social.post`,
+`generate_video`, `mobile` and `data_run`
 ([tools reference](https://usenaive.ai/docs/capabilities/tools)). Keep them on `ask` until you
-trust the agent. Then run `npm run naive:plan`, read it, and `npm run naive:apply`.
+trust the agent.
+
+## What else Nomen uses on Naive
+
+| Primitive | Used for |
+| --- | --- |
+| Model proxy (`/v1/proxy/anthropic/v1/messages`) | the research plan (Claude Haiku), the format study, shot QC and the continuity check (Claude Sonnet, with images) |
+| Media (`/v1/media/images`, `/v1/media/videos`) | first frames and Veo 3.1 renders |
+| Files | storing renders and the finished ads, and the signed links the review page plays |
+| Identities and Social | one identity per brand (`nomen-brand-<domain>`), its connection page and the posts |
+
+Naive's media-skill builder was tried for the format study and could not fetch public TikTok or
+Instagram links (November 2026), so Nomen studies the videos itself from Monid's download links.
 
 ## Why there is no blueprint clone
 

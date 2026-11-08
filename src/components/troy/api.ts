@@ -1,115 +1,19 @@
-// The core track's HTTP API, as this UI uses it. Shapes mirror `brandView()` and `brandList()` in
-// src/lib/views.ts (core branch): only the fields read here are listed, so a new field there never
-// breaks this side. Money arrives in dollars.
+import type { BrandListItem as CoreBrandListItem, BrandView as CoreBrandView, CampaignView as CoreCampaignView, CreativeView as CoreCreativeView } from "@/lib/views";
 
-export type Stage = "research" | "style" | "strategy" | "production" | "review" | "live";
-export type CampaignStatus = "running" | "review" | "publishing" | "live" | "failed";
+// The core track's HTTP API, as this UI uses it. The shapes are the core's own view types
+// (src/lib/views.ts), imported as types only, so a change there shows up here as a type error
+// instead of a broken page. Money arrives in dollars.
 
-export type RunView = {
-  key: string;
-  phase: string;
-  provider: string;
-  endpoint: string;
-  status: "pending" | "running" | "done" | "failed";
-  error: string | null;
-  cost: number;
-};
-
-export type ShotView = {
-  n: number;
-  status: "pending" | "framed" | "rendering" | "rendered" | "passed" | "failed";
-  provider: "naive" | "monid" | null;
-  renders: number;
-  frameUrl: string | null;
-  qc: { score: number; pass: boolean; issues: string[] } | null;
-  error: string | null;
-};
-
-export type ConceptView = {
-  title: string;
-  format: string;
-  angle: string;
-  hook: string;
-  platforms: string[];
-  caption: string;
-  why: string;
-};
-
-export type CreativeView = {
-  id: string;
-  idx: number;
-  generation: number;
-  status: "queued" | "producing" | "ready" | "failed";
-  concept: ConceptView | null;
-  caption: string;
-  platforms: string[];
-  approved: boolean;
-  videoUrl: string | null;
-  posterUrl: string | null;
-  qcScore: number | null;
-  cost: number;
-  error: string | null;
-  shots: ShotView[];
-};
-
-export type PostView = {
-  id: string;
-  creativeId: string;
-  platforms: string[];
-  scheduledAt: string | null;
-  status: "pending" | "scheduled" | "processing" | "posted" | "failed" | "deleted";
-  error: string | null;
-  analytics: Record<string, unknown> | null;
-};
-
-export type ResearchPlanView = { brand_name: string; category: string; audience: string; competitors: Array<{ name: string }>; content_queries: string[] };
-
-export type StrategyView = {
-  brand: { name: string; one_liner: string; category: string; tone: string };
-  audience: Array<{ name: string; description: string }>;
-  campaign: { name: string; objective: string; concepts: Array<{ title: string; angle: string; hook: string }>; posting_plan: { cadence: string } };
-};
-
-export type CampaignView = {
-  id: string;
-  status: CampaignStatus;
-  stage: Stage;
-  stageIndex: number;
-  error: string | null;
-  naiveOut: boolean;
-  options: { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string; learnStyle: boolean };
-  estimateUsd: number | null;
-  plan: ResearchPlanView | null;
-  research: { videos: unknown[]; ads: unknown[]; reddit: unknown[]; seo: { keywords: unknown[] } } | null;
-  style: { slug: string | null; version: number | null; samples: string[] } | null;
-  strategy: StrategyView | null;
-  runs: RunView[];
-  creatives: CreativeView[];
-  posts: PostView[];
-  spend: { naive: number; monid: number; style: number; strategy: number };
-  createdAt: string;
-};
-
-export type EventView = { ts: string; level: "info" | "warn" | "error" | string; message: string };
-
-export type BrandView = {
-  brand: { id: string; name: string; domain: string; url: string; profile: { logo: string | null; colors: string[]; description: string } | null; connected: boolean };
-  campaign: CampaignView | null;
-  campaigns: Array<{ id: string; status: string; stage: string; created_at: string }>;
-  /** Newest first. */
-  events: EventView[];
-};
-
-export type BrandListItem = {
-  id: string;
-  name: string;
-  domain: string;
-  logo: string | null;
-  colors: string[];
-  campaign: { id: string; status: CampaignStatus; stage: Stage; error: string | null } | null;
-  ready: number;
-  total: number;
-};
+export type BrandView = CoreBrandView;
+export type CampaignView = CoreCampaignView;
+export type CreativeView = CoreCreativeView;
+export type BrandListItem = CoreBrandListItem;
+export type RunView = CampaignView["runs"][number];
+export type ShotView = CreativeView["shots"][number];
+export type PostView = CampaignView["posts"][number];
+export type EventView = BrandView["events"][number];
+export type Stage = CampaignView["stage"];
+export type CampaignStatus = CampaignView["status"];
 
 export class ApiFailure extends Error {
   constructor(

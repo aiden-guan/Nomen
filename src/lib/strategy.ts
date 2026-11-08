@@ -105,14 +105,16 @@ export const STRATEGY_SCHEMA = {
 export type StrategyOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string };
 
 /** The first message of a strategist session: the brief, the research and the house rules for this run. */
-export function strategyMessage(pack: ResearchPack, style: { skill_md: string } | null, options: StrategyOptions) {
+export type PastResult = { title: string; format: string; hook: string; platforms: string[]; status: string; analytics: Record<string, unknown> | null };
+
+export function strategyMessage(pack: ResearchPack, style: { skill_md: string } | null, options: StrategyOptions, past: PastResult[] = []) {
   const research = {
     domain: pack.domain,
     brand: pack.brand,
     site_excerpt: pack.site_excerpt,
     similar_sites: pack.similar_sites,
     seo: pack.seo,
-    top_videos: pack.videos.slice(0, 16).map(({ source, thumbnail, ...video }) => video),
+    top_videos: pack.videos.slice(0, 16).map(({ source, thumbnail, media_url, ...video }) => video),
     ads: pack.ads.slice(0, 12),
     reddit: pack.reddit.slice(0, 10),
     aeo: pack.aeo,
@@ -122,9 +124,14 @@ export function strategyMessage(pack: ResearchPack, style: { skill_md: string } 
     `Deliver exactly ${options.concepts} concepts. Each concept has ${options.shotsPerConcept} shots of ${options.secondsPerShot} seconds; shots are rendered separately by ${options.videoModel} (vertical 9:16, native audio) and cut together in order.`,
     `Product images you may list in reference_images (use only these URLs, copied exactly): ${JSON.stringify(pack.brand.images.slice(0, 8))}`,
     style?.skill_md
-      ? `A format study of the best-performing short videos in this category follows. Use its structure, pacing and hooks; never copy its people, script or branding.\n<format_study>\n${style.skill_md.slice(0, 9000)}\n</format_study>`
+      ? `A format study of the best-performing short videos in this category follows, written from their frames. Use its structure, pacing and hooks; never copy its people, script or branding.\n<format_study>\n${style.skill_md.slice(0, 9000)}\n</format_study>`
       : "No format study is available for this run; derive the format from the top videos in the research.",
     `Research (collected today from public sources):\n<research>\n${JSON.stringify(research)}\n</research>`,
+    ...(past.length
+      ? [
+          `How this brand's earlier Nomen videos performed on its own accounts (repeat what worked, drop what did not, and do not reuse the same hooks):\n<past_results>\n${JSON.stringify(past)}\n</past_results>`,
+        ]
+      : []),
   ].join("\n\n");
 }
 

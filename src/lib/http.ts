@@ -10,9 +10,22 @@ export class ApiError extends Error {
     super(`${service}: ${message}`);
   }
 
-  /** Worth retrying later: rate limits, provider outages and network trouble. */
+  /** Worth retrying later: rate limits, provider outages, network trouble, a request still running. */
   get retryable() {
-    return this.status === 0 || this.status === 408 || this.status === 429 || this.status >= 500;
+    return this.status === 0 || this.status === 408 || this.status === 429 || this.status >= 500 || this.inFlight;
+  }
+
+  /**
+   * The same Idempotency-Key is still being processed (a slow render outlived our timeout). Asking
+   * again later with the same key returns the original result once it lands; never use a new key.
+   */
+  get inFlight() {
+    return this.status === 409 && /in flight|in progress|still running/i.test(this.message);
+  }
+
+  /** The Idempotency-Key was already used with a different request body. */
+  get keyConflict() {
+    return this.status === 409 && !this.inFlight && /idempotency/i.test(`${this.code} ${this.message}`);
   }
 
   /** The account is out of money (Naive `insufficient_credits`, Monid 402). */
