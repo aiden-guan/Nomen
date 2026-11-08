@@ -38,8 +38,8 @@ export type CutFx = { start: number; end: number; fx: BrainrotFx };
 
 export type BrainrotCut = {
   clips: CutClip[];
-  /** The end card: the product's real page, shown whole at the top. */
-  end: { image: string; seconds: number } | null;
+  /** The end card: the mascot with the site over it (centred), or the product's page (from its top). */
+  end: { image: string; seconds: number; anchor: "center" | "top" } | null;
   duration: number;
   texts: CutText[];
   sounds: CutSound[];
@@ -56,6 +56,8 @@ export type CutInput = {
   shots: Array<{ clip: string; voice: { path: string; seconds: number } | null; length?: number }>;
   endVoice: { path: string; seconds: number } | null;
   endImage: string | null;
+  /** "center" for the mascot card (the default), "top" for a page screenshot. */
+  endAnchor?: "center" | "top";
   music: { bed: string | null; hype: string | null };
   sfx: Partial<Record<BrainrotSfx, string>>;
   site: string;
@@ -92,11 +94,19 @@ export function shotDurations(input: Pick<CutInput, "script" | "shots">): number
   });
 }
 
-/** Words spread over a stretch by their length (one huge word at a time, or chunks of a few). */
+/**
+ * Words spread over a stretch by their length (one huge word at a time, or chunks of up to `per`),
+ * the chunks evened out so no word is left on its own ("twenty phones" / "thirty-one seconds").
+ */
 export function spreadWords(text: string, start: number, seconds: number, per = 1): Array<{ start: number; end: number; text: string }> {
   const words = text.split(/\s+/).filter(Boolean);
+  const count = Math.ceil(words.length / Math.max(1, per));
   const chunks: string[] = [];
-  for (let i = 0; i < words.length; i += per) chunks.push(words.slice(i, i + per).join(" "));
+  for (let c = 0, at = 0; c < count; c++) {
+    const size = Math.ceil((words.length - at) / (count - c));
+    chunks.push(words.slice(at, at + size).join(" "));
+    at += size;
+  }
   if (!chunks.length || seconds <= 0) return [];
   const weights = chunks.map((c) => Math.max(2, c.replace(/[^\p{L}\p{N}]/gu, "").length) + 2);
   const total = weights.reduce((a, b) => a + b, 0);
@@ -184,7 +194,11 @@ export function buildCut(input: CutInput): BrainrotCut {
   if (input.endImage) {
     const start = picture;
     if (input.endVoice) sounds.push({ path: input.endVoice.path, at: round(start + 0.15), gain: 1, bus: "voice" });
-    const sub = script.end.text.replace(new RegExp(input.site.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), "").replace(/\s+/g, " ").trim();
+    const sub = script.end.text
+      .replace(new RegExp(input.site.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), "")
+      .replace(/\s+/g, " ")
+      .replace(/^[\s,.;:·•|/-]+|[\s,;:·•|/-]+$/g, "")
+      .trim();
     texts.push({ kind: "end", start: round(start + 0.1), end: duration, text: input.site, sub });
     fx.push({ start, end: round(start + 0.08), fx: "flash" }, { start, end: round(start + 0.7), fx: "zoom_punch" }, { start: round(start + 0.7), end: duration, fx: "slow_zoom" });
     sfx("vine_boom", start, 1);
@@ -193,7 +207,7 @@ export function buildCut(input: CutInput): BrainrotCut {
 
   return {
     clips: input.shots.map((s, i) => ({ path: s.clip, seconds: durations[i], from: 0, ...(s.length ? { length: s.length } : {}) })),
-    end: input.endImage ? { image: input.endImage, seconds: endSeconds } : null,
+    end: input.endImage ? { image: input.endImage, seconds: endSeconds, anchor: input.endAnchor ?? "center" } : null,
     duration,
     texts,
     sounds,
@@ -256,7 +270,7 @@ export function brainrotAss(cut: Pick<BrainrotCut, "texts">, metrics?: FontMetri
 
   for (const t of cut.texts) {
     const words = t.text.split(/\s+/).filter(Boolean);
-    if (t.kind === "hook") block(words, { em: 66, max: 960, lines: 3, y: H * 0.1, layer: 6, start: t.start, end: t.end, tags: "\\fscx85\\fscy85\\t(0,120,\\fscx100\\fscy100)", outline: 7, anchor: "top" });
+    if (t.kind === "hook") block(words, { em: 66, max: 960, lines: 3, y: H * 0.1, layer: 6, start: t.start, end: t.end, tags: `\\shad5\\4c${black}\\fscx85\\fscy85\\t(0,120,\\fscx100\\fscy100)`, outline: 9, anchor: "top" });
     else if (t.kind === "lyric") {
       const key = norm(t.keyword);
       block(words, { em: 62, max: 980, lines: 3, y: H * 0.83, layer: 5, start: t.start, end: t.end, tags: "", outline: 6, anchor: "bottom", color: (w) => (key && norm(w) === key ? assColor(t.color) : null) });
@@ -267,8 +281,8 @@ export function brainrotAss(cut: Pick<BrainrotCut, "texts">, metrics?: FontMetri
       add(7, t.start, t.end, `\\an5\\pos(${W / 2},${Math.round(H * 0.37)})\\fs${fs(em)}\\bord11\\c${assColor(t.color)}\\3c${black}\\frz${t.tilt}\\fscx240\\fscy240\\t(0,110,\\fscx100\\fscy100)\\t(110,700,\\frz${Math.round(t.tilt * 0.4)})`, escapeAssText(t.text, "space"));
     } else if (t.kind === "end") {
       const em = Math.min(128, Math.floor((128 * 960) / Math.max(1, measure(t.text, 128))));
-      add(8, t.start, t.end, `\\an5\\pos(${W / 2},${Math.round(H * 0.74)})\\fs${fs(em)}\\bord11\\c${white}\\fscx180\\fscy180\\t(0,120,\\fscx100\\fscy100)`, escapeAssText(t.text, "space"));
-      if (t.sub) block(t.sub.toUpperCase().split(/\s+/), { em: 58, max: 940, lines: 2, y: H * 0.835, layer: 8, start: t.start + 0.25, end: t.end, tags: `\\c${assColor(0xffe600)}`, outline: 6, anchor: "top" });
+      add(8, t.start, t.end, `\\an5\\pos(${W / 2},${Math.round(H * 0.76)})\\fs${fs(em)}\\bord12\\shad5\\4c${black}\\c${white}\\fscx180\\fscy180\\t(0,120,\\fscx100\\fscy100)`, escapeAssText(t.text, "space"));
+      if (t.sub) block(t.sub.toUpperCase().split(/\s+/), { em: 74, max: 960, lines: 2, y: H * 0.84, layer: 8, start: t.start + 0.25, end: t.end, tags: `\\c${assColor(0xffe600)}\\shad4\\4c${black}`, outline: 7, anchor: "top" });
     }
   }
 
@@ -346,7 +360,7 @@ export function cutArgs(cut: BrainrotCut, out: string, options: { ass: boolean }
     const e = input("-loop", "1", "-framerate", String(FPS), "-t", n3(cut.end.seconds + 0.5), "-i", resolve(cut.end.image));
     // The page shown from its top (its header and name), slightly darkened at the bottom for the text.
     graph.push(
-      `[${e}:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=bicubic,crop=${W}:${H}:(iw-${W})/2:0,setsar=1,fps=${FPS},drawbox=x=0:y=${Math.round(H * 0.62)}:w=${W}:h=${Math.round(H * 0.38)}:color=black@0.45:t=fill,trim=duration=${n3(cut.end.seconds)},setpts=PTS-STARTPTS[cend]`,
+      `[${e}:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=bicubic,crop=${W}:${H}:(iw-${W})/2:${cut.end.anchor === "top" ? "0" : `(ih-${H})/2`},setsar=1,fps=${FPS},drawbox=x=0:y=${Math.round(H * 0.66)}:w=${W}:h=${Math.round(H * 0.34)}:color=black@0.5:t=fill,trim=duration=${n3(cut.end.seconds)},setpts=PTS-STARTPTS[cend]`,
     );
     parts.push("[cend]");
   }
@@ -370,7 +384,7 @@ export function cutArgs(cut: BrainrotCut, out: string, options: { ass: boolean }
   if (of("glitch").length) chain.push(`rgbashift=rh=18:bh=-18:gv=8:enable='${within(of("glitch"))}'`);
   if (of("flash").length) chain.push(`eq=brightness=0.5:saturation=0.5:enable='${within(of("flash"))}'`);
   if (options.ass) chain.push("ass=filename=brainrot.ass:fontsdir=fonts");
-  graph.push(`[base]${[...chain, "format=yuv420p"].join(",")}[vout]`);
+  graph.push(`[base]${[...chain, "setsar=1", "format=yuv420p"].join(",")}[vout]`);
 
   // Sound: the voice, the beat ducked under it, the effects; bass-boosted drops on the whole mix.
   const buses: Record<CutSound["bus"], string[]> = { voice: [], music: [], sfx: [] };
@@ -399,7 +413,7 @@ export function cutArgs(cut: BrainrotCut, out: string, options: { ass: boolean }
   );
 
   args.push("-filter_complex", graph.join(";"), "-map", "[vout]", "-map", "[aout]", "-t", n3(cut.duration));
-  args.push("-r", String(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p");
+  args.push("-r", String(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "8M", "-bufsize", "16M", "-pix_fmt", "yuv420p");
   args.push("-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", resolve(out));
   return args;
 }

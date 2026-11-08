@@ -30,7 +30,9 @@ on anything that reads as suicide, self-harm or a fall to death; the critic send
    polite, too ad-like or breaks a rule. The script is a `BrainrotScript`: characters, shots
    (frame, motion, words, stamp, sound effects, picture effects), music, the end line and card.
 2. **The voice** is one ElevenLabs line per shot, read through Monid for cents, so every shot is as
-   long as what is said over it.
+   long as what is said over it. Each bit has its own voice and tempo (the anthem's
+   Italian-accented voice plays 1.3x faster). When Monid's wallet refuses, Naive's own models
+   take over the voice (OpenAI's voices, no accent), the music and the sound effects.
 3. **The pictures:** each recurring character is drawn once, then every shot's still is drawn from
    those references on Naive's image model, with no text in any picture.
 4. **The clips** are a Naive video model per still (Veo 3.1 Lite by default, measured at $0.08 a
@@ -47,8 +49,9 @@ on anything that reads as suicide, self-harm or a fall to death; the critic send
 7. **The cut** (`brainrot-cut.ts`, ffmpeg): hard cuts, the hook on top, karaoke lyrics or one word
    at a time, stamps slammed in at an angle, zoom punches, shake, deep fry, flash frames, an RGB
    glitch and a fisheye bulge. The voice plays over the beat ducked under it, with sound effects
-   on cue and bass-boosted, clipped drops. The product's own home page is the end card, with its
-   site in big letters.
+   on cue and bass-boosted, clipped drops. The end card is the mascot with the site slammed on it
+   in giant letters and its line under it. A screenshot of the product's page made a flat ending,
+   and monid.ai's failed the final check for the other companies' logos on it.
 
 Everything paid for is kept by key with a manifest (`crv_…/brainrot/manifest.json`), so a restart
 resumes without paying twice. The cut is `crv_…/final.mp4`.

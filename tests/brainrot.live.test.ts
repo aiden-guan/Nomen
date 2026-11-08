@@ -28,6 +28,7 @@ import type { Files } from "@/lib/store/types";
 // NOMEN_BRAINROT_OUT (default ./data/media/brainrot-live), so the app's own media is never touched;
 // a rerun resumes from the kept files without paying again (NOMEN_BRAINROT_TAG for a fresh take).
 // Options: NOMEN_BRAINROT_MAX_USD (the cap per video), NOMEN_BRAINROT_MODEL (a Naive video model),
+// NOMEN_BRAINROT_RECUT=1 (cut a finished video again from its kept pieces, after the cut changed),
 // NOMEN_BRAINROT_USD_PER_SECOND (its price until a clip measures it), NOMEN_BRAINROT_IMAGE_MODEL.
 
 const mode = process.env.NOMEN_BRAINROT_LIVE;
@@ -134,6 +135,7 @@ describe.skipIf(!live)("brainrot ads (live, paid)", () => {
             maxUsd: Number(process.env.NOMEN_BRAINROT_MAX_USD ?? c.maxUsd),
             idem: `brainrot-live-${c.name}-${tag}`,
             probe: mode === "probe",
+            recut: process.env.NOMEN_BRAINROT_RECUT === "1",
             pollMs: 6000,
             onEvent: log,
           },

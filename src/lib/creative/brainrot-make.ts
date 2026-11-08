@@ -62,6 +62,10 @@ export type BrainrotInput = {
   qc?: boolean;
   /** Stop after the first clip, with the video model's measured price (the live test's probe). */
   probe?: boolean;
+  /** Cut it again from the kept pieces (and check the new cut), after the cut itself changed. */
+  recut?: boolean;
+  /** The end card: the mascot with the site over it (default), or the product's own page. */
+  endCard?: "mascot" | "page";
   pollMs?: number;
   onEvent?: (message: string) => void;
 };
@@ -471,10 +475,18 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
 
   // 6. The cut, kept by key.
   const finalKey = `${input.prefix}/final.mp4`;
+  if (input.recut && manifest.final) {
+    manifest.final = undefined;
+    manifest.qc = undefined;
+  }
   let finalPath = manifest.final ? await local(manifest.final.key) : null;
   if (!finalPath) {
-    const visual = endVisual(input.product);
-    let endImage = visual ? ((await local(visual.key)) ?? (existsSync(visual.url) ? visual.url : null)) : null;
+    // The mascot card keeps the brainrot energy at the punchline, and a site screenshot can carry
+    // other companies' logos (monid.ai's "give this to your agent" row failed the final check).
+    const mascot = script.characters.map((c) => manifest.characters[c.id]).find(Boolean) ?? manifest.stills[String(script.shots.length)];
+    let endImage = input.endCard !== "page" && mascot ? await local(mascot.key) : null;
+    const visual = endImage ? null : endVisual(input.product);
+    if (visual) endImage = (await local(visual.key)) ?? (existsSync(visual.url) ? visual.url : null);
     if (visual && !endImage && /^https:\/\//.test(visual.url)) {
       endImage = join(dir, "end-card.png");
       await fetchTo(visual.url, endImage).catch(() => (endImage = null));
@@ -495,6 +507,7 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
       ),
       endVoice: await voiceOf("end"),
       endImage,
+      endAnchor: visual ? "top" : "center",
       music: { bed: await local(manifest.music.bed), hype: await local(manifest.music.hype) },
       sfx,
       site: input.site,

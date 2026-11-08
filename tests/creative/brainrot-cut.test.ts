@@ -97,6 +97,11 @@ describe("the brainrot clock", () => {
     expect(words.map((w) => w.text)).toEqual(["Monidino", "Monidino", "Saldolino", "one", "balance", "for", "every", "tool"]);
   });
 
+  it("evens out caption chunks so no word is left alone", () => {
+    expect(spreadWords("Twenty phones. Thirty-one seconds.", 0, 2, 3).map((c) => c.text)).toEqual(["Twenty phones.", "Thirty-one seconds."]);
+    expect(spreadWords("a b c d e f g", 0, 2, 3).map((c) => c.text)).toEqual(["a b c", "d e", "f g"]);
+  });
+
   it("spreads words over a line by their length", () => {
     const parts = spreadWords("a bigword ok", 1, 3);
     expect(parts[0].start).toBe(1);
