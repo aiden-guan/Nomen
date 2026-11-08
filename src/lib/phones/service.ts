@@ -1,9 +1,12 @@
 // OWNED BY THE PHONES TRACK (see docs/handoff-dylan.md). What the /api/phones routes do.
-import { logEvent, now } from "../db";
+import { logEvent, now, parse, store } from "../db";
+import type { CreativeRow } from "../production";
+import { postingHold } from "../publish";
 import { secretStatus } from "../settings";
+import type { Concept } from "../strategy";
 import { warmupMinutes, stopSession } from "./engine";
 import { APP_PACKAGES, MobilerunClient, PLATFORMS, PLATFORM_LABELS, VPN_COUNTRIES, type Device, type Platform } from "./mobilerun";
-import { clampDays, describeApiError, describeDevice, estimateCredits, scheduleSummary } from "./rules";
+import { POST_LIMITS, clampDays, describeApiError, describeDevice, estimateCredits, estimatePostCredits, phoneCaption, scheduleSummary } from "./rules";
 import {
   activeSessions,
   deleteLink,
@@ -11,13 +14,16 @@ import {
   getLink,
   getLinkByDevice,
   getSession,
+  insertPhonePost,
   insertSession,
   linkTopics,
   listAccounts,
+  listPhonePosts,
   listSessions,
   phonesDb,
   saveLink,
   updateLink,
+  type PhonePostRow,
   type SessionRow,
 } from "./store";
 
@@ -261,4 +267,91 @@ export async function cancelSession(sessionId: string) {
   const stopped = await stopSession(session, "Stopped by you.", secretStatus("mobilerun_api_key").set ? new MobilerunClient() : undefined);
   if (!stopped) throw new PhonesError(409, "That session already finished.");
   return getStatus(session.brand_id);
+}
+
+// --- Post through phone: one finished video, posted in the TikTok app on the brand's phone. ------
+
+export type PhonePostView = {
+  id: string;
+  creativeId: string;
+  title: string;
+  status: PhonePostRow["status"];
+  message: string | null;
+  error: string | null;
+  url: string | null;
+  steps: number | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+function phonePostView(row: PhonePostRow): PhonePostView {
+  return {
+    id: row.id,
+    creativeId: row.creative_id,
+    title: row.title,
+    status: row.status,
+    message: row.message,
+    error: row.error,
+    url: row.post_url,
+    steps: row.steps,
+    createdAt: row.created_at,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+  };
+}
+
+/** Whether the brand can post through its phone now, and if not, what to do first. */
+function phonePostingBlocker(brandId: string) {
+  if (!secretStatus("mobilerun_api_key").set) return "No Mobilerun API key. Add one in Settings.";
+  if (!getLink(brandId)) return "Link the brand's phone in its workspace first.";
+  if (!listAccounts(brandId).some((account) => account.platform === "tiktok")) return "Link the brand's TikTok account on its phone first.";
+  return null;
+}
+
+/** Phones keep their data in the local SQLite database, so they don't run where the store is Convex (Vercel). */
+const PHONES_UNAVAILABLE = "Posting through a phone needs Nomen running with its local database; this deployment doesn't run phones.";
+const phonesAvailable = () => store().kind === "sqlite";
+
+/**
+ * What the camp shows next to its posting: whether "Post through phone" is offered here at all,
+ * whether it can run now (and if not, what to do first), its cost, and the brand's phone posts.
+ */
+export async function phonePosts(brandId: unknown) {
+  const cost = { maxSteps: POST_LIMITS.maxSteps, credits: estimatePostCredits(), minutes: POST_LIMITS.minutes };
+  if (!phonesAvailable()) return { available: false, ready: false, blocker: PHONES_UNAVAILABLE, cost, posts: [] as PhonePostView[] };
+  phonesDb();
+  const brand = requireBrand(brandId);
+  const blocker = phonePostingBlocker(brand.id);
+  return { available: true, ready: blocker === null, blocker, cost, posts: listPhonePosts(brand.id, 10).map(phonePostView) };
+}
+
+/**
+ * "Post through phone" for one finished, approved video: queues a post the worker runs on the
+ * brand's phone. Internal remakes that nobody cleared are refused here and again before posting.
+ * Nothing touches the phone until the worker's next tick.
+ */
+export async function postThroughPhone(input: { creativeId?: unknown }) {
+  if (!phonesAvailable()) throw new PhonesError(400, PHONES_UNAVAILABLE);
+  phonesDb();
+  const creativeId = typeof input.creativeId === "string" ? input.creativeId : "";
+  const [creative] = creativeId ? await store().find<CreativeRow>("creatives", { id: creativeId }, { limit: 1 }) : [];
+  if (!creative) throw new PhonesError(404, "Video not found.");
+  const [campaign] = await store().find<{ brand_id: string }>("campaigns", { id: creative.campaign_id }, { limit: 1 });
+  const brand = requireBrand(campaign?.brand_id);
+  const concept = parse<Concept | null>(creative.concept_json, null);
+  const hold = postingHold(concept);
+  if (hold) throw new PhonesError(409, `This video can't be posted: ${hold}.`);
+  if (creative.status !== "ready" || !(await store().files.exists(creative.final_key || `${creative.id}/final.mp4`))) throw new PhonesError(409, "The video has no finished file yet.");
+  if (!creative.approved || creative.rejected) throw new PhonesError(409, "Approve the video first.");
+  const blocker = phonePostingBlocker(brand.id);
+  if (blocker) throw new PhonesError(400, blocker);
+  const viaNaive = await store().find<{ platforms_json: string }>("posts", { creative_id: creative.id, status: { ne: "failed" } });
+  if (viaNaive.some((post) => parse<string[]>(post.platforms_json, []).includes("tiktok"))) throw new PhonesError(409, "This video already went to TikTok through Naive.");
+
+  const queued = insertPhonePost({ brandId: brand.id, creativeId: creative.id, title: concept?.title ?? "Video", deviceId: getLink(brand.id)!.device_id, caption: phoneCaption(creative.caption) });
+  if (queued === "posted") throw new PhonesError(409, "This video was already posted through the phone.");
+  if (queued === "active") throw new PhonesError(409, "This video is already being posted through the phone.");
+  await logEvent({ brandId: brand.id, campaignId: creative.campaign_id, message: `Phones: “${queued.title}” will be posted on TikTok through the brand's phone.` });
+  return phonePosts(brand.id);
 }

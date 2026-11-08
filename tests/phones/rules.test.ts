@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "@/lib/http";
-import { DAY_MS, clampDays, describeApiError, describeTaskOutcome, phoneAction, scheduleDay, scheduleSummary, sessionStatusFor, taskLimits } from "@/lib/phones/rules";
+import { DAY_MS, clampDays, describeApiError, describeTaskOutcome, phoneAction, phoneCaption, postOutcome, scheduleDay, scheduleSummary, sessionStatusFor, taskLimits } from "@/lib/phones/rules";
 
 const start = "2026-11-07T18:00:00.000Z";
 const at = (ms: number) => new Date(Date.parse(start) + ms);
@@ -85,5 +85,64 @@ describe("describeApiError", () => {
     expect(describeApiError(new ApiError("mobilerun", 503, "503", "down")).retry).toBe(true);
     expect(describeApiError(new ApiError("mobilerun", 0, "network_error", "ECONNRESET")).retry).toBe(true);
     expect(describeApiError(new ApiError("mobilerun", 401, "not_configured", "no key")).message).toMatch(/Settings/);
+  });
+});
+
+describe("posting through a phone", () => {
+  const done = { status: "completed" as const, succeeded: true, message: "Done.", execution: null };
+  const report = (fields: Record<string, unknown>) => ({ posted: true, postUrl: "", aiLabel: true, reason: "", ...fields });
+
+  it("reads a post the agent made, with its link", () => {
+    expect(postOutcome({ ...done, output: report({ postUrl: " https://www.tiktok.com/@acme/video/1 " }) })).toEqual({
+      status: "posted",
+      url: "https://www.tiktok.com/@acme/video/1",
+      warn: false,
+      message: "Posted on TikTok.",
+    });
+  });
+
+  it("keeps a post whose link the agent couldn't copy, and only takes web links", () => {
+    for (const postUrl of ["", "Link copied!"]) {
+      expect(postOutcome({ ...done, output: report({ postUrl }) })).toMatchObject({ status: "posted", url: null, message: expect.stringMatching(/couldn't copy the post's link/) });
+    }
+  });
+
+  it("counts a video the agent says it posted as posted, even when its task then failed", () => {
+    expect(postOutcome({ status: "failed", succeeded: false, message: "lost the share sheet", execution: { terminationReason: "agent_failed" }, output: report({}) })).toMatchObject({
+      status: "posted",
+    });
+  });
+
+  it("flags a post that went out without TikTok's AI-generated label", () => {
+    expect(postOutcome({ ...done, output: report({ aiLabel: false }) })).toMatchObject({ status: "posted", warn: true, message: expect.stringMatching(/AI-generated label/) });
+  });
+
+  it("gives the agent's reason when it did not post", () => {
+    expect(postOutcome({ ...done, succeeded: false, output: report({ posted: false, reason: "TikTok asked for a verification code" }) })).toEqual({
+      status: "failed",
+      url: null,
+      warn: true,
+      message: "Not posted: TikTok asked for a verification code.",
+    });
+  });
+
+  it("says the video may be out when the task ended without a report", () => {
+    expect(postOutcome({ status: "failed", succeeded: false, message: null, output: null, execution: { terminationReason: "worker_lost" } })).toMatchObject({
+      status: "failed",
+      url: null,
+      message: expect.stringMatching(/check the brand's TikTok profile before posting it again/i),
+    });
+  });
+
+  it("reads a stopped task as cancelled", () => {
+    expect(postOutcome({ status: "cancelled", succeeded: null, message: null, output: null, execution: null })).toMatchObject({ status: "cancelled", url: null });
+  });
+
+  it("writes the caption on one line, labeled AI-generated, inside TikTok's 2,200 characters", () => {
+    expect(phoneCaption("Three steps.\n\n#skincare  #glow")).toBe("Three steps. #skincare #glow #AIgenerated");
+    expect(phoneCaption("Made with AI #aigenerated")).toBe("Made with AI #aigenerated");
+    const long = phoneCaption("x".repeat(3000));
+    expect(long).toHaveLength(2200);
+    expect(long.endsWith(" #AIgenerated")).toBe(true);
   });
 });

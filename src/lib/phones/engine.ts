@@ -7,7 +7,8 @@
 import { logEvent, now } from "../db";
 import { ApiError } from "../http";
 import { getInt, secretStatus } from "../settings";
-import { APP_PACKAGES, MobilerunClient, PLATFORM_LABELS, TERMINAL_TASK_STATES, warmupTask, type Device, type TaskInput } from "./mobilerun";
+import { AGENT_MODEL, APP_PACKAGES, MobilerunClient, PLATFORM_LABELS, TERMINAL_TASK_STATES, warmupTask, type Device, type TaskInput } from "./mobilerun";
+import { advancePost, onPostError } from "./posting";
 import {
   LIMITS,
   PARK,
@@ -27,6 +28,7 @@ import {
   clearPark,
   deviceBusy,
   dueParks,
+  duePhonePosts,
   dueSessions,
   getBrand,
   getLink,
@@ -44,11 +46,10 @@ import {
   type SessionStatus,
 } from "./store";
 
-/** At most this many sessions (and phones to park) are looked at per tick, so one tick stays a few API calls long. */
+/** At most this many sessions (and posts, and phones to park) are looked at per tick, so one tick stays a few API calls long. */
 const SESSIONS_PER_TICK = 8;
+const POSTS_PER_TICK = 4;
 const PARKS_PER_TICK = 4;
-
-export const AGENT_MODEL = "mobilerun/mobile-agent-fast";
 
 const later = (ms: number) => new Date(Date.now() + ms).toISOString();
 const age = (iso: string | null) => (iso ? Date.now() - Date.parse(iso) : 0);
@@ -70,14 +71,23 @@ async function runTick() {
   phonesDb();
   if (!secretStatus("mobilerun_api_key").set) return;
   await queueScheduledSessions(new Date());
+  const posts = duePhonePosts(now(), POSTS_PER_TICK);
   const due = dueSessions(now(), SESSIONS_PER_TICK);
-  if (due.length === 0 && dueParks(now(), 1).length === 0) return;
+  if (posts.length === 0 && due.length === 0 && dueParks(now(), 1).length === 0) return;
   const client = new MobilerunClient();
   const devices = new Map<string, Promise<Device>>();
   const device = (id: string) => {
     if (!devices.has(id)) devices.set(id, client.getDevice(id));
     return devices.get(id)!;
   };
+  // Posts first: a person asked for each one and is waiting for it; a warm-up can wait its turn.
+  for (const post of posts) {
+    try {
+      await advancePost(client, post, device);
+    } catch (error) {
+      await onPostError(post, error);
+    }
+  }
   for (const session of due) {
     try {
       await step(client, session, device);

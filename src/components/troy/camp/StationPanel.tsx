@@ -9,6 +9,7 @@ import styles from "../troy.module.css";
 import { Avatar } from "./Avatar";
 import { type CampActions, Pip } from "./Camp";
 import { money, platformName, remakeLine, when } from "./format";
+import { PhonePosting } from "./PhonePosting";
 import { InternalBadge, ReferenceList, RoleBadge } from "./References";
 
 /** What a brief's video is judged on once posted, as the War tent says it. */
@@ -478,6 +479,7 @@ function Theatre({ view, busy, actions, demo }: { view: BrandView; busy: string 
             </button>
           </div>
           <p className="mt-2 text-[11px] text-[var(--ink-faint)]">&ldquo;One a day&rdquo; posts each approved video at 16:00 UTC on consecutive days.</p>
+          {demo ? null : <PhonePosting brandId={view.brand.id} videos={ready} />}
         </Section>
       )}
     </>

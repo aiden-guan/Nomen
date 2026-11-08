@@ -1,0 +1,141 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { type CreativeView, type PhonePostView, type PhonePostsView, phonePosts, postThroughPhone } from "../api";
+import styles from "../troy.module.css";
+import { ago } from "./format";
+
+const ACTIVE = new Set<PhonePostView["status"]>(["pending", "waiting", "starting", "queued", "running"]);
+const STATUS_WORDS: Record<PhonePostView["status"], string> = {
+  pending: "queued",
+  waiting: "waking the phone",
+  starting: "copying to the phone",
+  queued: "queued on the phone",
+  running: "posting",
+  posted: "posted",
+  failed: "failed",
+  cancelled: "stopped",
+};
+
+const tone = (status: PhonePostView["status"]) =>
+  status === "posted" ? "text-[var(--olive)]" : status === "failed" ? "text-[var(--crimson-dark)]" : ACTIVE.has(status) ? "text-[var(--crimson)]" : "text-[var(--ink-faint)]";
+
+/**
+ * "Post through phone": one finished, approved video posted on TikTok by Mobilerun's phone agent,
+ * in the TikTok app on the brand's own phone (src/lib/phones/posting.ts). A separate path from the
+ * posting above it, and it runs only when a person clicks it for one video; warm-ups never post.
+ */
+export function PhonePosting({ brandId, videos }: { brandId: string; videos: CreativeView[] }) {
+  const [state, setState] = useState<PhonePostsView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [picked, setPicked] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      setState(await phonePosts(brandId));
+      setError(null);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    }
+  }, [brandId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // Follow the posts while one is on its way.
+  const inFlight = state?.posts.some((post) => ACTIVE.has(post.status)) ?? false;
+  useEffect(() => {
+    if (!inFlight) return;
+    const timer = setInterval(() => void load(), 5000);
+    return () => clearInterval(timer);
+  }, [inFlight, load]);
+
+  if (!state) return error ? <p className="mt-4 text-[12px] text-[var(--crimson-dark)]">Posting through the phone: {error}</p> : null;
+  // Not offered where phones don't run (the Vercel deployment).
+  if (!state.available) return null;
+
+  // Approved videos that aren't held back and haven't gone out (or started going out) through the phone.
+  const taken = new Set(state.posts.filter((post) => post.status !== "failed" && post.status !== "cancelled").map((post) => post.creativeId));
+  const choices = videos.filter((video) => video.approved && !(video.internal && !video.cleared) && !taken.has(video.id));
+  const choice = choices.find((video) => video.id === picked) ?? choices[0] ?? null;
+
+  const post = async () => {
+    if (!choice) return;
+    const title = choice.concept?.title ?? "this video";
+    const ok = window.confirm(
+      `Post “${title}” publicly on the brand's TikTok, through its phone?\n\nThe phone agent uploads it in the TikTok app with its caption and TikTok's AI-generated label. It costs up to ${state.cost.credits} Mobilerun credits (about $${(state.cost.credits / 100).toFixed(2)}) plus up to ${state.cost.minutes} minutes of phone time.`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setState(await postThroughPhone(choice.id));
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 border-t-2 border-dotted border-[rgba(43,29,20,0.15)] pt-3">
+      <p className="text-[12px] leading-relaxed text-[var(--ink-soft)]">
+        Or post one video on TikTok through the brand&apos;s own phone: the phone agent uploads it in the TikTok app, with its caption and the AI-generated label. It runs only when you click it, one video at a time.
+      </p>
+      {!state.ready ? (
+        <p className="mt-2 text-[12px] text-[var(--ink-faint)]">
+          {state.blocker}{" "}
+          <a href={`/brands/${encodeURIComponent(brandId)}`} className={`${styles.link} underline decoration-dotted underline-offset-4`}>
+            Open the workspace
+          </a>
+        </p>
+      ) : choices.length === 0 ? (
+        <p className="mt-2 text-[12px] text-[var(--ink-faint)]">Approve a video to post it through the phone.</p>
+      ) : (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <select
+            value={choice?.id ?? ""}
+            onChange={(event) => setPicked(event.target.value)}
+            aria-label="Video to post through the phone"
+            className={`${styles.input} h-9 min-w-0 flex-1 border-2 border-[rgba(43,29,20,0.2)] bg-[var(--paper)] px-2 text-[13px]`}
+          >
+            {choices.map((video) => (
+              <option key={video.id} value={video.id}>
+                {video.concept?.title ?? "Video"}
+              </option>
+            ))}
+          </select>
+          <button type="button" className={`${styles.button} ${styles.buttonQuiet} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={busy} onClick={() => void post()}>
+            {busy ? <span className={styles.spinner} aria-hidden="true" /> : null} Post through phone
+          </button>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="mt-2 text-[12px] text-[var(--crimson-dark)]">
+          {error}
+        </p>
+      )}
+      {state.posts.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {state.posts.slice(0, 5).map((post) => (
+            <li key={post.id} className="text-[12px]">
+              <div className="flex items-baseline gap-2">
+                <span className="min-w-0 flex-1 truncate font-semibold">{post.title}</span>
+                <span className={`${styles.pixel} ${tone(post.status)}`}>{STATUS_WORDS[post.status]}</span>
+              </div>
+              <p className={post.status === "failed" ? "text-[var(--crimson-dark)]" : "text-[var(--ink-faint)]"}>
+                {post.message ?? (post.error ? `Retrying: ${post.error}` : null)} {ago(post.finishedAt ?? post.startedAt ?? post.createdAt)}
+              </p>
+              {post.url && (
+                <a href={post.url} target="_blank" rel="noreferrer" className={`${styles.link} underline decoration-dotted underline-offset-4`}>
+                  See the post
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

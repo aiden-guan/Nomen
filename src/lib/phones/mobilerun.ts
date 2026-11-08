@@ -1,9 +1,12 @@
 // OWNED BY THE PHONES TRACK (see docs/handoff-dylan.md).
 // Mobilerun cloud phones: hosted Android devices driven by Mobilerun's own phone agent.
 // Checked on 2026-11-07 against https://docs.mobilerun.ai (cloud/quickstart, agent, and the
-// api-reference pages for devices, tasks and credentials); not yet run against the live API.
+// api-reference pages for devices, tasks, files and credentials); not yet run against the live API.
 import { ApiError, requestJson } from "../http";
 import { getSetting } from "../settings";
+
+/** The phone agent's model, for warm-ups and posts. */
+export const AGENT_MODEL = "mobilerun/mobile-agent-fast";
 
 /** Device lifecycle states from `GET /devices` (DeviceInfo.state). */
 export const DEVICE_STATES = ["creating", "assigned", "ready", "rebooting", "migrating", "resetting", "terminated", "maintenance", "stopped", "unknown"] as const;
@@ -58,7 +61,12 @@ export type TaskInput = {
   apps?: string[];
   credentials?: Array<{ packageName: string; credentialNames: string[] }>;
   vpnCountry?: string | null;
+  /** A JSON Schema for the agent's report; it comes back as the task status's `output`. */
+  outputSchema?: Record<string, unknown> | null;
 };
+
+/** `FileInfo` from `GET /devices/{id}/files`. Only the fields Nomen reads are typed. */
+export type DeviceFile = { name: string; size: number; type: string; modifiedAt?: string };
 
 /** A saved login in Mobilerun's credential store, without its field values. */
 export type CredentialName = { packageName: string; credentialName: string };
@@ -86,7 +94,7 @@ export class MobilerunClient {
     if (!key) throw new ApiError("mobilerun", 401, "not_configured", "no Mobilerun API key; add one in Settings");
   }
 
-  private async call<T>(method: "GET" | "POST", path: string, options: { body?: unknown; query?: Record<string, string | undefined>; headers?: Record<string, string>; retries?: number } = {}) {
+  private async call<T>(method: "GET" | "POST" | "DELETE", path: string, options: { body?: unknown; query?: Record<string, string | undefined>; headers?: Record<string, string>; retries?: number } = {}) {
     const query = new URLSearchParams();
     for (const [name, value] of Object.entries(options.query ?? {})) if (value !== undefined && value !== "") query.set(name, value);
     const qs = query.toString() ? `?${query}` : "";
@@ -140,6 +148,36 @@ export class MobilerunClient {
     await this.call<null>("POST", `/devices/${encodeURIComponent(deviceId)}/stop`);
   }
 
+  /**
+   * `POST /devices/{id}/files?path=<folder>` (204, Android phones only): writes `bytes` into the
+   * folder on the phone's shared storage ("/" is its root), under `name`. The body is multipart
+   * form data with a `file` field, so this is a plain fetch rather than `requestJson`, and it is
+   * not retried here: the worker tries a failed upload again on a later tick.
+   */
+  async uploadFile(deviceId: string, input: { folder: string; name: string; bytes: Uint8Array; contentType: string }): Promise<void> {
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array(input.bytes)], { type: input.contentType }), input.name);
+    const url = `${this.base.replace(/\/$/, "")}/devices/${encodeURIComponent(deviceId)}/files?${new URLSearchParams({ path: input.folder })}`;
+    let response: Response;
+    try {
+      response = await fetch(url, { method: "POST", headers: { authorization: `Bearer ${this.key}`, accept: "application/json" }, body: form, signal: AbortSignal.timeout(180_000) });
+    } catch (error) {
+      throw new ApiError("mobilerun", 0, "network_error", error instanceof Error ? error.message : String(error));
+    }
+    if (!response.ok) throw await problemError(response);
+  }
+
+  /** `GET /devices/{id}/files?path=<folder>`: the files in a folder on the phone. A missing folder answers 404. */
+  async listFiles(deviceId: string, folder: string): Promise<DeviceFile[]> {
+    const data = await this.call<{ files?: DeviceFile[] | null }>("GET", `/devices/${encodeURIComponent(deviceId)}/files`, { query: { path: folder } });
+    return data?.files ?? [];
+  }
+
+  /** `DELETE /devices/{id}/files?path=<file>` (204): removes one file from the phone, for good. */
+  async deleteFile(deviceId: string, path: string): Promise<void> {
+    await this.call<null>("DELETE", `/devices/${encodeURIComponent(deviceId)}/files`, { query: { path } });
+  }
+
   /** `POST /tasks` (201). The idempotency key (1-128 chars) makes a retried create return the same task. */
   createTask(input: TaskInput, idempotencyKey: string) {
     return this.call<TaskCreated>("POST", "/tasks", { body: input, headers: { "idempotency-key": idempotencyKey.slice(0, 128) }, retries: 2 });
@@ -167,6 +205,20 @@ export class MobilerunClient {
   }
 }
 
+/** A Mobilerun error answer (`application/problem+json`) as an ApiError, read the way `requestJson` reads one. */
+async function problemError(response: Response) {
+  const text = await response.text().catch(() => "");
+  let body: Record<string, unknown> = {};
+  try {
+    body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    body = { detail: text.slice(0, 300) };
+  }
+  const code = String(body.code ?? body.type ?? response.status);
+  const message = String(body.message ?? body.detail ?? body.title ?? `HTTP ${response.status}`);
+  return new ApiError("mobilerun", response.status, code, message, response.headers.get("x-request-id") ?? undefined);
+}
+
 /**
  * The warm-up brief for a brand-owned account: behave like the brand's social manager browsing its
  * niche. Deliberately passive: no posting, commenting, messaging, or engaging with the brand's own posts.
@@ -180,5 +232,39 @@ export function warmupTask(input: { platform: string; brand: string; niche: stri
     "Like at most 8 videos that are genuinely relevant to those topics. Follow at most 2 creators who post consistently about them.",
     `Never post, comment, send messages, buy anything, change account settings, or interact with ${input.brand}'s own posts.`,
     "When finished, return to the home feed and report how many videos you watched, liked and which creators you followed.",
+  ].join("\n");
+}
+
+/** The posting task's report (`outputSchema`). Mobilerun returns it as the task status's `output`. */
+export const POST_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    posted: { type: "boolean", description: "True only if you tapped Post and TikTok took the video (posted, uploading or under review)." },
+    postUrl: { type: "string", description: "The video's link from Share, then Copy link, or an empty string if you couldn't get it." },
+    aiLabel: { type: "boolean", description: "True if the AI-generated content setting was on when you posted." },
+    reason: { type: "string", description: "If posted is false, what stopped you, in one sentence; otherwise an empty string." },
+  },
+  required: ["posted", "postUrl", "aiLabel", "reason"],
+  additionalProperties: false,
+};
+
+/**
+ * The posting brief: one finished video, already copied onto the phone, posted once from the
+ * brand's own TikTok account with its caption and TikTok's AI-generated label. It runs only when a
+ * person clicks "Post through phone" for that video; the warm-up brief above never posts.
+ */
+export function postTask(input: { brand: string; fileName: string; folder: string; seconds: number | null; caption: string }) {
+  const length = input.seconds ? `, about ${Math.round(input.seconds)} seconds long` : "";
+  return [
+    `You are the social media manager for ${input.brand}, posting one finished video from the brand's own official TikTok account on this phone. Post it exactly once.`,
+    "1. Open TikTok. If it asks you to log in, use the saved credential for this app; if it asks for a code you do not have, stop and report it.",
+    "2. Tap the + (create) button at the bottom of the screen, then Upload. If TikTok asks for access to photos and videos, allow it.",
+    `3. Select only the newest video in the gallery: the file ${input.fileName} in the phone's ${input.folder} folder${length}. Tap Next until you reach the screen with the caption. Do not add sounds, effects, text, stickers or filters, and do not trim the video.`,
+    `4. Replace everything in the caption field with exactly this text:\n${input.caption}`,
+    '5. Open "More options" and turn on "AI-generated content". If you can\'t find it or can\'t turn it on, do not post: stop and report it. If there is a "Disclose post content" setting, turn it on and choose "Your brand".',
+    "6. Tap Post once. Wait until TikTok shows the video as posted, uploading or under review, for up to 3 minutes.",
+    "7. Open the new video on the brand's profile, tap Share, then Copy link. To read the link, paste it into TikTok's search field without searching, note it, then clear the field.",
+    "Never post anything else, comment, send messages, like, follow, buy anything, change account settings, or edit or delete other posts. If anything goes wrong before you tap Post, do not post. If you are not sure whether the video went out, do not post it again: check the brand's profile instead.",
+    "Report whether the video was posted, its link, whether the AI-generated label was on, and what stopped you if it was not posted.",
   ].join("\n");
 }

@@ -65,6 +65,38 @@ create table if not exists phone_parks (
   created_at text not null,
   updated_at text not null
 );
+
+create table if not exists phone_posts (
+  id text primary key,
+  brand_id text not null references brands(id) on delete cascade,
+  creative_id text not null,
+  title text not null,
+  device_id text not null,
+  platform text not null,
+  status text not null,
+  caption text not null,
+  file_name text not null,
+  folder text,
+  video_seconds real,
+  uploaded_at text,
+  task_id text,
+  task_status text,
+  steps integer,
+  post_url text,
+  message text,
+  error text,
+  recording_id text,
+  attempts integer not null default 0,
+  next_check_at text not null,
+  waiting_since text,
+  started_at text,
+  finished_at text,
+  created_at text not null,
+  updated_at text not null
+);
+
+create index if not exists phone_posts_status on phone_posts (status, next_check_at);
+create index if not exists phone_posts_brand on phone_posts (brand_id, created_at);
 `;
 
 let ready = false;
@@ -221,26 +253,35 @@ export function insertSession(input: { brandId: string; deviceId: string; platfo
   })();
 }
 
-/** Moves a session from one of `from` to `to` only if nobody else moved it first. */
-export function claimSession(id: string, from: SessionStatus[], to: SessionStatus, fields: Record<string, unknown> = {}) {
+/** The tables whose rows hold a phone while they run: warm-up sessions and posts. */
+type JobTable = "phone_sessions" | "phone_posts";
+
+/** Moves a row from one of `from` to `to` only if nobody else moved it first. */
+function claimRow(table: JobTable, id: string, from: readonly string[], to: string, fields: Record<string, unknown>) {
   const sets = Object.keys(fields).map((key) => `, ${key} = @${key}`).join("");
   const result = phonesDb()
-    .prepare(`update phone_sessions set status = @to, updated_at = @updated_at${sets} where id = @id and status in (${from.map((_, i) => `@from${i}`).join(",")})`)
+    .prepare(`update ${table} set status = @to, updated_at = @updated_at${sets} where id = @id and status in (${from.map((_, i) => `@from${i}`).join(",")})`)
     .run({ id, to, updated_at: now(), ...Object.fromEntries(from.map((status, i) => [`from${i}`, status])), ...fields });
   return result.changes === 1;
 }
 
-export const updateSession = (id: string, fields: Partial<Omit<SessionRow, "id" | "created_at" | "updated_at">>) => update("phone_sessions", id, fields);
-
-/** Updates a session only while it is still active, so a session the user stopped stays stopped. */
-export function updateActive(id: string, fields: Partial<Omit<SessionRow, "id" | "created_at" | "updated_at">>) {
+/** Updates a row only while it is still active, so one the user stopped stays stopped. */
+function updateActiveRow(table: JobTable, id: string, fields: Record<string, unknown>) {
   const keys = Object.keys(fields);
   const sets = keys.map((key) => `${key} = @${key}`).join(", ");
   const result = phonesDb()
-    .prepare(`update phone_sessions set ${sets}${sets ? ", " : ""}updated_at = @updated_at where id = @id and status in (${ACTIVE_STATUSES.map((_, i) => `@active${i}`).join(",")})`)
+    .prepare(`update ${table} set ${sets}${sets ? ", " : ""}updated_at = @updated_at where id = @id and status in (${ACTIVE_STATUSES.map((_, i) => `@active${i}`).join(",")})`)
     .run({ ...fields, id, updated_at: now(), ...Object.fromEntries(ACTIVE_STATUSES.map((status, i) => [`active${i}`, status])) });
   return result.changes === 1;
 }
+
+/** Moves a session from one of `from` to `to` only if nobody else moved it first. */
+export const claimSession = (id: string, from: SessionStatus[], to: SessionStatus, fields: Record<string, unknown> = {}) => claimRow("phone_sessions", id, from, to, fields);
+
+export const updateSession = (id: string, fields: Partial<Omit<SessionRow, "id" | "created_at" | "updated_at">>) => update("phone_sessions", id, fields);
+
+/** Updates a session only while it is still active, so a session the user stopped stays stopped. */
+export const updateActive = (id: string, fields: Partial<Omit<SessionRow, "id" | "created_at" | "updated_at">>) => updateActiveRow("phone_sessions", id, fields);
 
 export const updateLink = (id: string, fields: Partial<Omit<LinkRow, "id" | "created_at" | "updated_at">>) => update("phone_links", id, fields);
 
@@ -251,11 +292,13 @@ export function dueSessions(at: string, limit: number) {
     .all(...ACTIVE_STATUSES, at, limit) as SessionRow[];
 }
 
-/** Whether another session already holds the phone (a task is being created, queued or running). */
+/**
+ * Whether another session or post already holds the phone (a task is being created, queued or
+ * running). One task runs on a phone at a time.
+ */
 export function deviceBusy(deviceId: string, exceptId: string) {
-  return Boolean(
-    phonesDb().prepare("select 1 from phone_sessions where device_id = ? and id != ? and status in ('starting', 'queued', 'running')").get(deviceId, exceptId),
-  );
+  const holding = (table: JobTable) => `select 1 from ${table} where device_id = @deviceId and id != @exceptId and status in ('starting', 'queued', 'running')`;
+  return Boolean(phonesDb().prepare(`${holding("phone_sessions")} union all ${holding("phone_posts")}`).get({ deviceId, exceptId }));
 }
 
 // --- Parking: a phone whose work is done is parked so a per-minute phone stops billing. --------
@@ -287,11 +330,86 @@ export function updatePark(deviceId: string, fields: Partial<Pick<ParkRow, "due_
 
 export const clearPark = (deviceId: string) => phonesDb().prepare("delete from phone_parks where device_id = ?").run(deviceId);
 
-/** Whether a session holds the phone, or another one is due on it before `until`. */
+/** Whether a session or post holds the phone, or another one is due on it before `until`. */
 export function phoneNeededBefore(deviceId: string, until: string) {
-  return Boolean(
-    phonesDb()
-      .prepare("select 1 from phone_sessions where device_id = ? and (status in ('starting', 'queued', 'running') or (status in ('pending', 'waiting') and next_check_at <= ?))")
-      .get(deviceId, until),
-  );
+  const needing = (table: JobTable) =>
+    `select 1 from ${table} where device_id = @deviceId and (status in ('starting', 'queued', 'running') or (status in ('pending', 'waiting') and next_check_at <= @until))`;
+  return Boolean(phonesDb().prepare(`${needing("phone_sessions")} union all ${needing("phone_posts")}`).get({ deviceId, until }));
 }
+
+// --- Posts through the phone: one finished video, posted by the phone agent in the TikTok app. ----
+
+/** Same lifecycle as a session, ending in posted, failed or cancelled. */
+export type PhonePostStatus = "pending" | "waiting" | "starting" | "queued" | "running" | "posted" | "failed" | "cancelled";
+
+export type PhonePostRow = {
+  id: string;
+  brand_id: string;
+  creative_id: string;
+  title: string;
+  device_id: string;
+  platform: "tiktok";
+  status: PhonePostStatus;
+  /** What the agent types, already one line and labeled AI-generated. */
+  caption: string;
+  /** The cut's name on the phone ("nomen-php_….mp4"). */
+  file_name: string;
+  /** Where on the phone it was copied ("/DCIM/Camera"), once it was. */
+  folder: string | null;
+  video_seconds: number | null;
+  uploaded_at: string | null;
+  task_id: string | null;
+  task_status: string | null;
+  steps: number | null;
+  post_url: string | null;
+  message: string | null;
+  error: string | null;
+  recording_id: string | null;
+  attempts: number;
+  next_check_at: string;
+  waiting_since: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const getPhonePost = (id: string) => phonesDb().prepare("select * from phone_posts where id = ?").get(id) as PhonePostRow | undefined;
+
+export function listPhonePosts(brandId: string, limit = 20) {
+  return phonesDb().prepare("select * from phone_posts where brand_id = ? order by created_at desc, rowid desc limit ?").all(brandId, limit) as PhonePostRow[];
+}
+
+/**
+ * Queues one video to post through the brand's phone, unless it is already on its way or out:
+ * answers "active" or "posted" then. A failed or stopped post can be queued again.
+ */
+export function insertPhonePost(input: { brandId: string; creativeId: string; title: string; deviceId: string; caption: string }): PhonePostRow | "active" | "posted" {
+  const conn = phonesDb();
+  return conn.transaction(() => {
+    const earlier = conn
+      .prepare("select status from phone_posts where creative_id = ? and status not in ('failed', 'cancelled') order by created_at desc, rowid desc limit 1")
+      .get(input.creativeId) as { status: PhonePostStatus } | undefined;
+    if (earlier) return earlier.status === "posted" ? ("posted" as const) : ("active" as const);
+    const id = newId("php");
+    const stamp = now();
+    conn
+      .prepare(
+        `insert into phone_posts (id, brand_id, creative_id, title, device_id, platform, status, caption, file_name, next_check_at, created_at, updated_at)
+         values (?, ?, ?, ?, ?, 'tiktok', 'pending', ?, ?, ?, ?, ?)`,
+      )
+      .run(id, input.brandId, input.creativeId, input.title, input.deviceId, input.caption, `nomen-${id}.mp4`, stamp, stamp, stamp);
+    return getPhonePost(id)!;
+  })();
+}
+
+/** Posts the worker should look at now, oldest first. */
+export function duePhonePosts(at: string, limit: number) {
+  return phonesDb()
+    .prepare(`select * from phone_posts where status in (${ACTIVE_STATUSES.map(() => "?").join(",")}) and next_check_at <= ? order by created_at, rowid limit ?`)
+    .all(...ACTIVE_STATUSES, at, limit) as PhonePostRow[];
+}
+
+export const claimPhonePost = (id: string, from: PhonePostStatus[], to: PhonePostStatus, fields: Record<string, unknown> = {}) => claimRow("phone_posts", id, from, to, fields);
+
+export const updateActivePhonePost = (id: string, fields: Partial<Omit<PhonePostRow, "id" | "created_at" | "updated_at">>) => updateActiveRow("phone_posts", id, fields);

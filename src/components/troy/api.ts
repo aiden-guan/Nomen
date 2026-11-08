@@ -1,4 +1,5 @@
 import type { LoopView as CoreLoopView } from "@/lib/loop";
+import type { phonePosts as corePhonePosts } from "@/lib/phones/service";
 import type { BrandListItem as CoreBrandListItem, BrandView as CoreBrandView, CampaignView as CoreCampaignView, CreativeView as CoreCreativeView, ReferenceView as CoreReferenceView } from "@/lib/views";
 
 // The core track's HTTP API, as this UI uses it. The shapes are the core's own view types
@@ -75,6 +76,19 @@ export function regenerate(creativeId: string, note?: string) {
 }
 
 export type SocialAccountView = { platform: string; name: string; id: string };
+
+/** "Post through phone" (src/lib/phones): whether it can run, what one post costs, and the brand's phone posts. */
+export type PhonePostsView = Awaited<ReturnType<typeof corePhonePosts>>;
+export type PhonePostView = PhonePostsView["posts"][number];
+
+export function phonePosts(brandId: string) {
+  return call<PhonePostsView>(`/api/phones/posts?brandId=${encodeURIComponent(brandId)}`, { cache: "no-store" });
+}
+
+/** Posts one finished, approved video on TikTok through the brand's phone (the worker runs it). */
+export function postThroughPhone(creativeId: string) {
+  return call<PhonePostsView>("/api/phones/posts", { method: "POST", body: JSON.stringify({ creativeId }) });
+}
 
 /** The brand's connected social accounts, read live from Naive (GET /api/brands/[id]/social), with why it failed if it did. */
 export async function socialAccounts(brandId: string): Promise<{ accounts: SocialAccountView[]; error: string | null }> {

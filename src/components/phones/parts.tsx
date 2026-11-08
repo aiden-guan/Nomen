@@ -103,7 +103,8 @@ export function RiskNotice() {
     <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3 text-xs leading-relaxed text-amber-200/90">
       <span className="font-semibold text-amber-200">Account risk.</span> Automated activity can break a platform&apos;s terms of service and put the account at risk,
       including limits or suspension. Only link the brand&apos;s own official accounts. Warm-up only browses and watches the brand&apos;s niche, likes at most 8 videos and
-      follows at most 2 creators; it never posts, comments, messages, buys anything or changes settings.
+      follows at most 2 creators; it never posts, comments, messages, buys anything or changes settings. Posting through the phone is a separate task: it runs only
+      when a person clicks &ldquo;Post through phone&rdquo; for one video in the camp, and posts that one video on TikTok with its caption and the AI-generated label.
     </div>
   );
 }

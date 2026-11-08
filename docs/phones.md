@@ -2,8 +2,9 @@
 
 Nomen can warm up a brand's own new social accounts on a Mobilerun cloud phone before posting
 starts. A warm-up session opens the app on the brand's phone and has Mobilerun's phone agent browse
-the brand's niche the way its social manager would. Phones are optional: campaigns and posting work
-without them.
+the brand's niche the way its social manager would. A person can also post one finished video on
+TikTok through the brand's phone ("Post through phone" in the camp). Phones are optional: campaigns
+and posting through Naive work without them.
 
 ## Rules
 
@@ -13,6 +14,13 @@ without them.
 - **Passive warm-up.** The brief (`warmupTask()` in `src/lib/phones/mobilerun.ts`) browses and
   watches the niche, likes at most 8 videos and follows at most 2 creators. It never posts, comments,
   messages, buys, changes settings or engages with the brand's own posts.
+- **Posting only when a person asks.** Posting through a phone is a separate task (`postTask()` in
+  the same file), not part of the warm-up, whose no-posting rule stays as written. It runs only when
+  a person clicks "Post through phone" for one video in the camp's theatre: never on a schedule, on
+  autopilot or for a whole campaign. It posts that one approved video on the brand's TikTok with its
+  caption, TikTok's AI-generated content label and an #AIgenerated tag. Internal remakes nobody
+  cleared (`postingHold` in `src/lib/publish.ts`) are refused at the click and again before the
+  phone is woken.
 - **The risk is on screen.** The panel always states that automated activity can break a
   platform's terms and put the account at risk.
 - **Keys stay out of the repo.** Use `.env.local` or the Settings page. Logins live in Mobilerun's
@@ -21,19 +29,20 @@ without them.
 ## How it works
 
 ```
-panel ──/api/phones/*──▶ service.ts ──▶ store.ts (phone_* tables)
-                                   └──▶ mobilerun.ts ──▶ api.mobilerun.ai/v1
-worker ──advancePhones() every ~4 s──▶ engine.ts ──▶ same store and client
+panel ──/api/phones/*──────▶ service.ts ──▶ store.ts (phone_* tables)
+camp ───/api/phones/posts──┘           └──▶ mobilerun.ts ──▶ api.mobilerun.ai/v1
+worker ──advancePhones() every ~4 s──▶ engine.ts + posting.ts ──▶ same store and client
 ```
 
 - **Session states.** `pending` (waiting its turn) → `waiting` (the phone is parked or not ready;
   a parked phone is resumed) → `starting` (creating the Mobilerun task) → `queued`/`running` →
   `succeeded`, `failed` or `cancelled`.
-- **One task per phone.** Sessions on the same phone run one after another.
-- **Parking.** Once a session ends (finished, failed, stopped or timed out), the worker parks its
-  phone with `POST /devices/{id}/stop`: the phone keeps its apps and logins and is not billed until
-  a session wakes it again. A phone is left on while another session holds it or is due on it
-  within 5 minutes; the end of that session parks it. A failed park is retried on later ticks (30 s,
+- **One task per phone.** Sessions and posts on the same phone run one after another. A waiting
+  post goes before a waiting warm-up, since a person is waiting for it.
+- **Parking.** Once a session or post ends (finished, failed, stopped or timed out), the worker
+  parks its phone with `POST /devices/{id}/stop`: the phone keeps its apps and logins and is not
+  billed until a session wakes it again. A phone is left on while another session or post holds it
+  or is due on it within 5 minutes; the end of that one parks it. A failed park is retried on later ticks (30 s,
   60 s, … at most 10 minutes apart) and never fails a tick; the first failure puts one warning in
   the activity log. A phone Mobilerun can't park (it answers 404) gets one warning and stays on.
 - **Idempotent ticks.** Each step claims its session with a conditional update. The Mobilerun task
@@ -66,6 +75,60 @@ worker ──advancePhones() every ~4 s──▶ engine.ts ──▶ same store 
   A phone you wake by hand (the panel's Wake button or Mobilerun's dashboard) is billed until you
   park it in Mobilerun's dashboard or the next session on it ends.
 
+## Posting through the phone
+
+"Post through phone" in the camp's theatre queues one finished, approved video for the brand's
+linked phone (`POST /api/phones/posts`). The camp doesn't offer it on the Vercel deployment, where
+phones don't run (their tables live in the local SQLite database). Nothing touches the phone until
+the worker's next tick, which then (`src/lib/phones/posting.ts`):
+
+1. Checks the video may still go out (still approved, not a held remake, the phone and TikTok
+   account still linked), waits for the phone like a session does, and wakes it if it is parked.
+2. Copies the cut onto the phone as `nomen-<post id>.mp4` in `/DCIM/Camera`, or in `/DCIM` on a
+   phone without a Camera folder. Earlier `nomen-*.mp4` files in that folder are deleted first, so
+   the newest video in the gallery is this one; the phone's own files are left alone. The folder is
+   listed afterwards, and a file that didn't arrive whole is copied again.
+3. Creates the posting task with the post's id as its `Idempotency-Key` and an `outputSchema` for
+   the agent's report (`posted`, `postUrl`, `aiLabel`, `reason`). The brief opens TikTok, taps +
+   and Upload, picks the video, types the caption (one line, tagged #AIgenerated), turns on
+   "AI-generated content" (it must not post without it) and, where TikTok offers it, the "Your
+   brand" disclosure, posts once and copies the link. `apps`: TikTok. `credentials`: the saved
+   TikTok login, if any. `vpnCountry`: the brand's, if chosen. Recording is on where the phone
+   supports it. Up to 80 steps and 15 minutes.
+4. Polls the task, records `posted` (with the link, when the agent copied it), `failed` or
+   `cancelled`, logs it, and parks the phone.
+
+Copying and creating the task are retried after errors that can pass (up to 5 tries); the task
+itself runs once. A post that failed, or ended without the agent's report, is never posted again by
+itself, because the video may have gone out: its message says to check the brand's TikTok profile,
+and a person can click again. A video already posted, through the phone or to TikTok through
+Naive, is refused. Cost: up to 80 steps, about 40 credits ($0.40), plus up to 15 minutes of phone
+time.
+
+## One-time phone setup for posting
+
+A person sets up each phone once, before its first post. The phone agent can't do these steps:
+they need your Google and TikTok logins and often a code sent to you.
+
+1. Link the brand's phone and its TikTok account in the Phones panel on the brand's page. A saved
+   login name is optional.
+2. Wake the phone (Wake in the panel, or Mobilerun's dashboard) and open its screen in Mobilerun's
+   dashboard.
+3. Open the Play Store and sign in with a Google account you are happy to keep on a cloud phone.
+4. Install TikTok (`com.zhiliaoapp.musically`) from the Play Store.
+5. Open TikTok and log in to the brand's own official TikTok account, entering any code TikTok
+   sends. The account must be public: TikTok refuses public posts from a private account.
+6. Give TikTok access to all photos and videos: tap +, then Upload, and choose "Allow all", not
+   "Select photos and videos", which hides the videos Nomen copies later. Back out without posting.
+   (Or in Android's Settings: Apps, TikTok, Permissions, Photos and videos, Allow all.)
+7. Optional: save the TikTok login in Mobilerun's credential store and pick it in the panel, so the
+   agent can log back in if TikTok logs out.
+8. Park the phone in Mobilerun's dashboard when you are done: it bills per minute while it is on.
+   Don't run warm-ups while you set it up, because a finished session parks the phone.
+
+Then approve a video and use "Post through phone" in the camp's theatre. Mobilerun's dashboard
+shows the task live and keeps its recording.
+
 ## Mobilerun API used
 
 Checked against docs.mobilerun.ai on 2026-11-07. Base URL `https://api.mobilerun.ai/v1`, with
@@ -78,8 +141,11 @@ Checked against docs.mobilerun.ai on 2026-11-07. Base URL `https://api.mobilerun
 | `POST /devices?deviceType=android_cloud_phone&billing=minute` | New Android cloud phone, with an `Idempotency-Key` per click |
 | `POST /devices/{id}/resume` | Wake a parked (`stopped`) phone (204) |
 | `POST /devices/{id}/stop` | Park a phone once its sessions are over (204; 404 when the phone can't be parked) |
-| `POST /tasks` | Start a warm-up (201 `{ id, status, streamUrl }`) |
-| `GET /tasks/{id}/status` | `{ status, succeeded, message, steps, recordingId, execution.terminationReason }` |
+| `POST /devices/{id}/files?path=<folder>` | Copy a cut onto the phone: multipart form data, field `file`, saved under its file name (204; Android only) |
+| `GET /devices/{id}/files?path=<folder>` | List a folder (`{ path, total, files }`); a missing folder answers 404 |
+| `DELETE /devices/{id}/files?path=<file>` | Delete an earlier post's cut (204) |
+| `POST /tasks` | Start a warm-up or a post (201 `{ id, status, streamUrl }`); a post sends an `outputSchema` (JSON Schema) |
+| `GET /tasks/{id}/status` | `{ status, succeeded, message, output, steps, recordingId, execution.terminationReason }`; `output` is the agent's report when an `outputSchema` was sent |
 | `POST /tasks/{id}/cancel` | Stop a task (`{ cancelled }`) |
 | `GET /credentials` | Saved logins; only `packageName` and `credentialName` are kept |
 
@@ -96,8 +162,11 @@ Checked against docs.mobilerun.ai on 2026-11-07. Base URL `https://api.mobilerun
   timestamps. A scheduled session is unique per brand, platform and day.
 - `phone_parks`: phones waiting to be parked, one row per phone, with when to try next, how many
   tries failed and the last error. A row is removed once the phone is parked or can't be.
+- `phone_posts`: every post through a phone: the video, its title and caption, the file's name and
+  folder on the phone, its status, its Mobilerun task, the post's link and the agent's report.
 
-The tables are created by the module on first use. `brands` is only read.
+The tables are created by the module on first use. `brands`, `campaigns`, `creatives` and `posts`
+are only read (posting reads the video, its cut and its earlier posts).
 
 ## API routes
 
@@ -113,6 +182,8 @@ The tables are created by the module on first use. `brands` is only read.
 | `PUT /api/phones/schedule` | `{ brandId, enabled, days }` |
 | `POST /api/phones/sessions` | Run now (`{ brandId, platform? }`) |
 | `POST /api/phones/sessions/{id}/cancel` | Stop a session |
+| `GET /api/phones/posts?brandId=` | Whether "Post through phone" is offered here and can run now (if not, what to do first), its cost, and the brand's phone posts |
+| `POST /api/phones/posts` | Post one finished, approved video through the brand's phone (`{ creativeId }`) |
 
 ## Running and testing
 

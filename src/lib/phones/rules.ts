@@ -48,6 +48,62 @@ export function taskLimits(minutes: number) {
 /** Rough credit cost: Mobilerun bills about 0.5 credits ($0.005) per agent step. */
 export const estimateCredits = (minutes: number) => Math.round(taskLimits(minutes).maxSteps * 0.5);
 
+/** One post through a phone: enough steps and time to upload, caption, label, post and copy the link. */
+export const POST_LIMITS = { maxSteps: 80, executionTimeout: 900, minutes: 15 };
+export const estimatePostCredits = () => Math.round(POST_LIMITS.maxSteps * 0.5);
+
+const CAPTION_MAX = 2200; // TikTok's caption limit
+const AI_TAG = "#AIgenerated";
+
+/**
+ * The caption the phone agent types: one line, since typing line breaks into the app is
+ * unreliable, and tagged #AIgenerated the way Naive tags the posts it makes.
+ */
+export function phoneCaption(caption: string) {
+  const text = caption.replace(/\s+/g, " ").trim();
+  if (/#aigenerated\b/i.test(text)) return text.slice(0, CAPTION_MAX);
+  return `${text.slice(0, CAPTION_MAX - AI_TAG.length - 1).trimEnd()} ${AI_TAG}`.trim();
+}
+
+const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
+const MAY_BE_OUT = "Check the brand's TikTok profile before posting it again: the video may have gone out.";
+
+/**
+ * What a finished posting task did, from the report its output schema asks for
+ * (`POST_OUTPUT_SCHEMA`). A video the agent says it posted counts as posted even when the task
+ * failed afterwards, so nobody posts it twice; a task that ended without a report may have posted.
+ */
+export function postOutcome(task: Pick<TaskStatus, "status" | "succeeded" | "message" | "execution" | "output">): {
+  status: "posted" | "failed" | "cancelled";
+  url: string | null;
+  /** Worth a warning in the activity log. */
+  warn: boolean;
+  message: string;
+} {
+  const report = (task.output ?? {}) as { posted?: unknown; postUrl?: unknown; aiLabel?: unknown; reason?: unknown };
+  const link = typeof report.postUrl === "string" ? report.postUrl.trim() : "";
+  const url = /^https?:\/\/\S+$/i.test(link) ? link : null;
+  if (report.posted === true) {
+    const notes = [
+      url ? null : "The agent couldn't copy the post's link; the video is on the brand's TikTok profile.",
+      report.aiLabel === false ? "TikTok's AI-generated label may be off: check the post and turn it on." : null,
+    ].filter(Boolean);
+    return { status: "posted", url, warn: report.aiLabel === false, message: ["Posted on TikTok.", ...notes].join(" ") };
+  }
+  if (sessionStatusFor(task) === "cancelled") return { status: "cancelled", url: null, warn: false, message: `Stopped before it finished. ${MAY_BE_OUT}` };
+  const reason = typeof report.reason === "string" ? report.reason.trim() : "";
+  if (report.posted === false) return { status: "failed", url: null, warn: true, message: `Not posted: ${sentence(reason || "the phone agent gave no reason")}` };
+  const why =
+    task.execution?.terminationReason === "execution_timeout"
+      ? "The phone agent ran out of time."
+      : task.execution?.terminationReason === "worker_lost"
+        ? "Mobilerun lost contact with the phone partway through."
+        : task.message?.trim()
+          ? `The phone agent couldn't finish: ${sentence(task.message.trim())}`
+          : "The task failed without a reason from Mobilerun.";
+  return { status: "failed", url: null, warn: true, message: `${why} ${MAY_BE_OUT}` };
+}
+
 /** Which day of the schedule `at` falls in (0-based), or null outside it. */
 export function scheduleDay(schedule: { enabled: boolean; days: number; startedAt: string | null }, at: Date): number | null {
   if (!schedule.enabled || !schedule.startedAt) return null;

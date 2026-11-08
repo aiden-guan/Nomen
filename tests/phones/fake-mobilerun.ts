@@ -4,16 +4,38 @@ import { db, now } from "@/lib/db";
 import { resetSchemaFlag } from "@/lib/phones/store";
 
 type FakeDevice = { id: string; name: string; state: string; type: string; platform: "android"; stateMessage: string; streamUrl: string; createdAt: string; updatedAt: string; assignedAt: null; terminatesAt: null; taskCount: number; activeTaskId: string };
-type FakeTask = { id: string; deviceId: string; status: string; succeeded: boolean | null; message: string | null; steps: number | null; execution?: unknown; recordingId: string | null; body: Record<string, unknown> };
-type Call = { method: string; path: string; query: URLSearchParams; body: Record<string, unknown> | null; headers: Record<string, string> };
+type FakeTask = {
+  id: string;
+  deviceId: string;
+  status: string;
+  succeeded: boolean | null;
+  message: string | null;
+  steps: number | null;
+  execution?: unknown;
+  output?: Record<string, unknown> | null;
+  recordingId: string | null;
+  body: Record<string, unknown>;
+};
+type FakeFile = { name: string; size: number; type: string; bytes: Buffer; modifiedAt: string };
+type Call = { method: string; path: string; query: URLSearchParams; body: Record<string, unknown> | null; headers: Record<string, string>; upload?: { name: string; size: number; type: string } };
+
+/** Folders a fresh Android phone's shared storage has. */
+const DEFAULT_DIRS = ["/", "/DCIM", "/DCIM/Camera", "/Download", "/Movies", "/Pictures"];
+const cleanPath = (path: string) => `/${path.split("/").filter(Boolean).join("/")}`;
+const parentOf = (path: string) => path.replace(/\/[^/]+$/, "") || "/";
 
 export function fakeMobilerun() {
   const devices = new Map<string, FakeDevice>();
   const tasks = new Map<string, FakeTask>();
+  /** Per phone: its folders, and its files by full path. */
+  const dirs = new Map<string, Set<string>>();
+  const files = new Map<string, Map<string, FakeFile>>();
   const idempotent = new Map<string, string>();
   const calls: Call[] = [];
   /** Errors to answer the next matching calls with. */
   const failures: Array<{ method: string; path: RegExp; status: number; body: unknown }> = [];
+  /** Uploads to store cut short (a transfer that broke off but still answered 204). */
+  let truncateUploads = 0;
   let taskSeq = 0;
 
   const json = (status: number, body: unknown) => new Response(body === undefined ? null : JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -24,8 +46,11 @@ export function fakeMobilerun() {
     const method = (init?.method ?? "GET").toUpperCase();
     const path = url.pathname.replace(/^\/v1/, "");
     const headers = Object.fromEntries(Object.entries((init?.headers ?? {}) as Record<string, string>).map(([k, v]) => [k.toLowerCase(), v]));
-    const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
-    calls.push({ method, path, query: url.searchParams, body, headers });
+    const form = init?.body instanceof FormData ? init.body : null;
+    const body = init?.body && !form ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
+    const part = form?.get("file");
+    const upload = part && typeof part === "object" ? { name: part.name, size: part.size, type: part.type, bytes: Buffer.from(await part.arrayBuffer()) } : null;
+    calls.push({ method, path, query: url.searchParams, body, headers, ...(upload ? { upload: { name: upload.name, size: upload.size, type: upload.type } } : {}) });
 
     const failure = failures.findIndex((f) => f.method === method && f.path.test(path));
     if (failure >= 0) {
@@ -65,6 +90,33 @@ export function fakeMobilerun() {
       device.state = "stopped";
       return new Response(null, { status: 204 });
     }
+    if ((match = path.match(/^\/devices\/([^/]+)\/files$/))) {
+      // Android shared storage: `path` is a folder for uploads and listings, a file for deletes.
+      const device = devices.get(match[1]);
+      if (!device) return problem(404, "device not found", "Not Found");
+      const target = url.searchParams.get("path");
+      if (!target) return problem(422, "path is required", "Unprocessable Entity");
+      if (device.state !== "ready") return problem(409, "the device is not running", "Conflict");
+      const known = dirs.get(device.id) ?? new Set(DEFAULT_DIRS);
+      dirs.set(device.id, known);
+      const stored = files.get(device.id) ?? new Map<string, FakeFile>();
+      files.set(device.id, stored);
+      const notFound = () => problem(404, "DEVICE_PATH_NOT_FOUND: no such file or directory", "Not Found");
+      const at = cleanPath(target);
+      if (method === "POST") {
+        if (!upload) return problem(422, "file is required", "Unprocessable Entity");
+        if (!known.has(at)) return notFound();
+        const bytes = truncateUploads-- > 0 ? upload.bytes.subarray(0, Math.floor(upload.size / 2)) : upload.bytes;
+        stored.set(`${at === "/" ? "" : at}/${upload.name}`, { ...upload, bytes, size: bytes.length, modifiedAt: now() });
+        return new Response(null, { status: 204 });
+      }
+      if (method === "GET") {
+        if (!known.has(at)) return notFound();
+        const entries = [...stored.entries()].filter(([full]) => parentOf(full) === at).map(([, file]) => fileInfo(file));
+        return json(200, { path: at, total: entries.length, files: entries });
+      }
+      if (method === "DELETE") return stored.delete(at) ? new Response(null, { status: 204 }) : notFound();
+    }
     if (method === "POST" && path === "/tasks") {
       const key = headers["idempotency-key"];
       if (key && idempotent.has(key)) {
@@ -80,7 +132,7 @@ export function fakeMobilerun() {
     if ((match = path.match(/^\/tasks\/([^/]+)\/status$/)) && method === "GET") {
       const task = tasks.get(match[1]);
       if (!task) return problem(404, "Task not found");
-      return json(200, { status: task.status, succeeded: task.succeeded, message: task.message, output: null, steps: task.steps, recordingId: task.recordingId, execution: task.execution ?? null });
+      return json(200, { status: task.status, succeeded: task.succeeded, message: task.message, output: task.output ?? null, steps: task.steps, recordingId: task.recordingId, execution: task.execution ?? null });
     }
     if ((match = path.match(/^\/tasks\/([^/]+)\/cancel$/)) && method === "POST") {
       const task = tasks.get(match[1]);
@@ -100,6 +152,22 @@ export function fakeMobilerun() {
     }
     return problem(404, `no fake route for ${method} ${path}`);
   });
+
+  /** `FileInfo`, as `GET /devices/{id}/files` lists it. */
+  function fileInfo(file: FakeFile) {
+    const rw = { read: true, write: true, execute: false };
+    return {
+      name: file.name,
+      owner: "media_rw",
+      group: "media_rw",
+      size: file.size,
+      type: "file",
+      permissions: { owner: rw, group: rw, others: { read: true, write: false, execute: false }, special: { setUid: false, setGid: false, sticky: false } },
+      hardLinks: 1,
+      modifiedAt: file.modifiedAt,
+      extendedAttributes: false,
+    };
+  }
 
   function addDevice(input: { id: string; state?: string; name?: string }) {
     const device: FakeDevice = {
@@ -140,13 +208,31 @@ export function fakeMobilerun() {
     finishTask(id: string, outcome: Partial<FakeTask>) {
       Object.assign(tasks.get(id)!, { status: "completed", succeeded: true, ...outcome });
     },
+    /** The next upload answers 204 but only half the file reaches the phone. */
+    truncateNextUpload() {
+      truncateUploads = 1;
+    },
+    /** A file on a phone, by its full path ("/DCIM/Camera/clip.mp4"). */
+    fileAt: (deviceId: string, path: string) => files.get(deviceId)?.get(path),
+    /** Puts a file on a phone, as if someone had saved it there. */
+    putFile(deviceId: string, path: string, bytes = Buffer.from("x")) {
+      const stored = files.get(deviceId) ?? new Map<string, FakeFile>();
+      files.set(deviceId, stored);
+      stored.set(path, { name: path.split("/").pop()!, size: bytes.length, type: "application/octet-stream", bytes, modifiedAt: now() });
+    },
+    /** Removes a folder from a phone's shared storage (a phone whose camera never ran has no DCIM/Camera). */
+    removeDir(deviceId: string, dir: string) {
+      const known = dirs.get(deviceId) ?? new Set(DEFAULT_DIRS);
+      known.delete(dir);
+      dirs.set(deviceId, known);
+    },
   };
 }
 
 /** Empties every table the tests touch and adds one brand. */
 export function resetDb(brands: Array<{ id: string; name: string }> = [{ id: "brand_acme", name: "Acme Skin" }]) {
   const conn = db();
-  for (const table of ["phone_parks", "phone_sessions", "phone_accounts", "phone_links"]) conn.exec(`drop table if exists ${table}`);
+  for (const table of ["phone_posts", "phone_parks", "phone_sessions", "phone_accounts", "phone_links"]) conn.exec(`drop table if exists ${table}`);
   resetSchemaFlag();
   conn.exec("delete from events; delete from brands;");
   for (const brand of brands) {
