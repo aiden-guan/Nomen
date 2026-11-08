@@ -522,3 +522,25 @@ describe("pacing a long voice-over", () => {
     await rm(dir, { recursive: true, force: true });
   }, 30_000);
 });
+
+describe("the first-frame gate", () => {
+  const fake = (text: string, seen: unknown[] = []) =>
+    ({ message: async (body: unknown) => (seen.push(body), { content: [{ type: "text", text }] }) }) as unknown as import("@/lib/naive").NaiveClient;
+
+  it("fails a frame with a phone interface, and passes a clean one", async () => {
+    const { reviewFrame } = await import("@/lib/qc");
+    const input = { image: Buffer.from("x"), creator: "a man in a black hoodie", setting: "a classroom", prompt: "chest-up" };
+    expect(await reviewFrame(fake('{"pass": false, "issues": ["Instagram story UI: clock, reply box"]}'), input)).toEqual({ pass: false, issues: ["Instagram story UI: clock, reply box"] });
+    expect(await reviewFrame(fake('{"pass": true, "issues": []}'), input)).toEqual({ pass: true, issues: [] });
+  });
+
+  it("judges later shots against shot 1's frame, not the prompt's wording", async () => {
+    const { reviewFrame } = await import("@/lib/qc");
+    const seen: Array<{ messages: Array<{ content: Array<{ type: string; text?: string }> }> }> = [];
+    await reviewFrame(fake('{"pass": true, "issues": []}', seen), { image: Buffer.from("a"), identity: Buffer.from("b"), creator: "black hoodie", setting: "x", prompt: "y" });
+    const content = seen[0].messages[0].content;
+    expect(content.filter((c) => c.type === "image")).toHaveLength(2);
+    expect(content.at(-1)?.text).toMatch(/must match it/);
+    expect(content.at(-1)?.text).not.toMatch(/black hoodie/);
+  });
+});

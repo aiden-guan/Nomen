@@ -67,6 +67,50 @@ export async function reviewShot(
 }
 
 /**
+ * The first-frame gate: the still a shot is animated from, checked before the video model runs.
+ * Every defect in it (wrong outfit, a phone interface, garbled text) is copied into a render that
+ * costs dollars and then into every later shot that takes it as its identity; a new still costs cents.
+ */
+export async function reviewFrame(
+  naive: NaiveClient,
+  input: { image: Buffer; creator: string; setting: string; prompt: string; identity?: Buffer | null },
+): Promise<{ pass: boolean; issues: string[] }> {
+  const images = [input.image, ...(input.identity ? [input.identity] : [])].map((image) => ({
+    type: "image",
+    source: { type: "base64", media_type: "image/jpeg", data: image.toString("base64") },
+  }));
+  const reply = await naive.message({
+    model: QC_MODEL,
+    max_tokens: 600,
+    messages: [
+      {
+        role: "user",
+        content: [
+          ...images,
+          {
+            type: "text",
+            text: [
+              "The first image is the opening frame of a vertical UGC-style video shot. A video model will animate it next, so every defect in it ends up in the video.",
+              input.identity
+                ? "The second image is shot 1 of the same video: the person, outfit and room must match it (that matters more than the wording below)."
+                : `The person should be: ${input.creator}`,
+              `The setting should be: ${input.setting}`,
+              `The prompt it was made from:\n${input.prompt.slice(0, 1500)}`,
+              "Fail it only for what a viewer would notice: any phone or app interface (status bar, clock, reply box, buttons, home bar); readable or garbled text, captions, cards or logos; a screen facing the camera; deformed face, eyes, teeth or hands; more than one person; clearly the wrong outfit or setting; a frame that does not look like a real phone photo.",
+              'Answer with only JSON: {"pass": true|false, "issues": ["each defect, concretely, most severe first"]}',
+            ].join("\n"),
+          },
+        ],
+      },
+    ],
+  });
+  const raw = extractJson(reply.content.map((block) => block.text ?? "").join("\n")) as { pass?: unknown; issues?: unknown } | null;
+  if (!raw) throw new ApiError("naive", 502, "qc_unreadable", "the frame check returned no verdict");
+  const issues = Array.isArray(raw.issues) ? raw.issues.filter((issue): issue is string => typeof issue === "string").slice(0, 4) : [];
+  return { pass: raw.pass === true || (raw.pass !== false && issues.length === 0), issues };
+}
+
+/**
  * The cut check: one frame per shot, in order. A different person or place between shots is the
  * clearest tell of AI video, so any shot that does not match shot 1 is reported for a re-render.
  */

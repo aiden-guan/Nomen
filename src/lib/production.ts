@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { promisify } from "node:util";
 import { db, logEvent, newId, now, parse, update } from "./db";
@@ -14,7 +14,7 @@ import type { BrandKit, ProductBrief } from "./creative/types";
 import { download, extractFrames, ffmpegPath, mediaDir, probe, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import type { NaiveClient } from "./naive";
-import { type Continuity, reviewContinuity, reviewShot, type Verdict } from "./qc";
+import { type Continuity, reviewContinuity, reviewFrame, reviewShot, type Verdict } from "./qc";
 import { getBool, getInt, getSetting } from "./settings";
 import { captionFor, type Concept, type Strategy } from "./strategy";
 
@@ -42,6 +42,9 @@ export type ShotState = {
   /** After a failed QC: the frame being replaced, and what was wrong with it. */
   previous_frame_file_id?: string | null;
   frame_fix?: string;
+  /** The first-frame gate: whether this frame was checked, and how many times it was sent back. */
+  frame_gated?: boolean;
+  frame_checks?: number;
   /** A product photo the provider could not fetch: frames use the identity reference only. */
   drop_product_refs?: boolean;
   /** Provider trouble: do not try this shot again before this time. */
@@ -111,6 +114,8 @@ async function readScreenManifest(creativeId: string): Promise<ScreenManifest> {
 }
 
 const MAX_RENDERS = 3;
+/** How many times the first-frame gate may send one shot's frame back before it is used anyway. */
+const FRAME_CHECKS = 2;
 
 /** QC issues about drawn-in text or interface, which an image model copies forward if shown the old frame. */
 const TEXT_DEFECT = /\b(text|captions?|subtitles?|gibberish|garbled|letters|cards?|status bar|screen|monitor|logo|ui|graphics?|overlay|labels?)\b/i;
@@ -191,10 +196,16 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     // Later shots take the first shot's look as their identity reference, so wait for it.
     if (shot.n > 1 && !identityReady(ctx, shots[0])) break;
     await makeFrame(ctx, creative.id, concept, shots, shot);
+    // makeFrame moves the shot on; read its status fresh rather than as the loop narrowed it.
+    const status = (): ShotState["status"] => shot.status;
+    if (status() === "framed") await gateFrame(ctx, creative.id, concept, shot);
     save();
+    // Shot 1's frame was sent back: later shots must wait for the new one to copy.
+    if (shot.n === 1 && status() === "pending") break;
   }
   for (const shot of shots) {
     if (waiting(shot)) continue;
+    if (shot.status === "framed" && shot.frame_gated === false) continue; // its frame is being remade
     if (shot.status === "framed") await submitRender(ctx, shot);
     else if (shot.status === "rendering") await pollRender(ctx, creative.id, shot);
     else if (shot.status === "rendered") await checkQuality(ctx, concept, shot);
@@ -336,6 +347,54 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
       shot.status = "framed";
       shot.error = `first frame skipped: ${message(error)}`;
     }
+  }
+}
+
+/**
+ * The first-frame gate: a vision check of the still before the video model animates it. A new still
+ * costs cents, a render dollars, and shot 1's still becomes every later shot's identity. A check that
+ * cannot run never holds the video up.
+ */
+async function gateFrame(ctx: ProductionContext, creativeId: string, concept: Concept, shot: ShotState) {
+  shot.frame_gated = true;
+  if (shot.frame_skipped || !ctx.naive || ctx.naiveOut() || (shot.frame_checks ?? 0) >= FRAME_CHECKS) return;
+  const dir = mediaDir(creativeId);
+  const image = await frameJpeg(join(dir, `shot${shot.n}-frame.png`));
+  if (!image) return;
+  const identity = shot.n > 1 ? await frameJpeg(join(dir, "shot1-frame.png")) : null;
+  let verdict: { pass: boolean; issues: string[] };
+  try {
+    verdict = await reviewFrame(ctx.naive, { image, identity, creator: concept.creator, setting: concept.setting, prompt: shot.frame_prompt });
+  } catch {
+    return;
+  }
+  if (verdict.pass) return;
+  shot.frame_checks = (shot.frame_checks ?? 0) + 1;
+  const textDefect = TEXT_DEFECT.test(verdict.issues.join(" "));
+  Object.assign(shot, {
+    previous_frame_file_id: textDefect ? null : shot.frame_file_id,
+    frame_fix: cleanFix(verdict.issues.slice(0, 3)),
+    frame_file_id: null,
+    frame_url: null,
+    frame_idem: `${shot.frame_idem.replace(/-gate\d+$/, "")}-gate${shot.frame_checks}`,
+    frame_gated: false,
+    status: "pending",
+  } satisfies Partial<ShotState>);
+  logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}": remaking shot ${shot.n}'s first frame before rendering it (${verdict.issues.join("; ").slice(0, 300)})` });
+}
+
+/** A frame as a JPEG small enough for the vision model, or null when it is not on disk. */
+async function frameJpeg(path: string): Promise<Buffer | null> {
+  const bin = await ffmpegPath();
+  if (!bin || !existsSync(path)) return null;
+  const out = `${path}.check.jpg`;
+  try {
+    await execAsync(bin, ["-hide_banner", "-loglevel", "error", "-y", "-i", path, "-frames:v", "1", "-vf", "scale=540:-2", "-q:v", "4", out]);
+    return await readFile(out);
+  } catch {
+    return null;
+  } finally {
+    await rm(out, { force: true }).catch(() => undefined);
   }
 }
 
