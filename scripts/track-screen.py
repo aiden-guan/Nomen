@@ -447,7 +447,16 @@ def track(spec):
         if quads[i] is None:
             j = min(known, key=lambda k: (abs(k - i), k > i))
             quads[i] = quads[j]
-    return [q / scale for q in quads], shots, n
+    # How sharp the device around the display is in each frame (focus, motion), for the focus match.
+    sharp = []
+    for i, q in enumerate(quads):
+        centre = q.mean(axis=0)
+        box = centre + (q - centre) * 1.4
+        x0, y0 = np.floor(box.min(axis=0)).astype(int)
+        x1, y1 = np.ceil(box.max(axis=0)).astype(int)
+        roi = frames[i][max(0, y0):max(0, y1), max(0, x0):max(0, x1)]
+        sharp.append(float(cv2.Laplacian(roi, cv2.CV_32F).var()) if roi.size > 64 else 0.0)
+    return [q / scale for q in quads], shots, n, sharp
 
 
 def screen_look(frame, quad):
@@ -461,7 +470,48 @@ def screen_look(frame, quad):
     return lo, hi
 
 
-def composite(spec, quads, n):
+def motion_kernel(quad, previous, shutter=0.7):
+    """
+    A line kernel for the blur a phone camera puts on something moving `quad - previous` pixels a
+    frame (the shutter open about 0.7 of the frame time); None when it barely moves.
+    """
+    if previous is None:
+        return None
+    d = (np.asarray(quad) - np.asarray(previous)).mean(axis=0)
+    length = float(np.hypot(*d)) * shutter
+    if length < 1.5:
+        return None
+    size = int(min(61, round(length))) | 1
+    kernel = np.zeros((size, size), np.float32)
+    c = size // 2
+    ux, uy = d / max(1e-6, float(np.hypot(*d)))
+    half = (size - 1) / 2
+    cv2.line(kernel, (int(round(c - ux * half)), int(round(c - uy * half))), (int(round(c + ux * half)), int(round(c + uy * half))), 1.0, 1)
+    total = kernel.sum()
+    return kernel / total if total > 0 else None
+
+
+def focus_sigma(roi, ratio, grid=(0.0, 0.8, 1.2, 1.8, 2.5, 3.5, 5.0, 7.0)):
+    """
+    The blur that brings our screen to the reference's softness at this frame: `ratio` is how sharp
+    the device is now against the sharpest frame of its shot (Laplacian variance); the sigma whose
+    blur lowers our screen's own variance by the same ratio.
+    """
+    if ratio >= 0.85 or roi.size < 256:
+        return 0.0
+    small = cv2.resize(roi, (max(8, roi.shape[1] // 2), max(8, roi.shape[0] // 2)), interpolation=cv2.INTER_AREA)
+    grey = cv2.cvtColor(np.clip(small, 0, 255).astype(np.uint8), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    base = float(cv2.Laplacian(grey, cv2.CV_32F).var()) or 1.0
+    best, gap = 0.0, 1e9
+    for sigma in grid:
+        blurred = cv2.GaussianBlur(grey, (0, 0), sigma / 2) if sigma > 0 else grey
+        r = float(cv2.Laplacian(blurred, cv2.CV_32F).var()) / base
+        if abs(r - ratio) < gap:
+            best, gap = sigma, abs(r - ratio)
+    return best
+
+
+def composite(spec, quads, n, sharp=None):
     W, H = spec["size"]["width"], spec["size"]["height"]
     sw, sh = spec["screen_size"]["width"], spec["screen_size"]["height"]
     src = np.array([[0, 0], [sw, 0], [sw, sh], [0, sh]], np.float64)
@@ -476,8 +526,14 @@ def composite(spec, quads, n):
     grow = float(spec.get("grow", 0.006))
     look = None
     look_shot = -1
+    look_shot_prev = -1
     cut_frames = sorted({int(round((c - spec["start"]) * FPS)) for c in spec.get("cuts", [])})
+    shot_of = lambda i: sum(1 for c in cut_frames if c <= i)
+    peak = {}
+    for i, v in enumerate(sharp or []):
+        peak[shot_of(i)] = max(peak.get(shot_of(i), 0.0), v)
     last_screen = None
+    last_quad = None
     written = 0
     for i, frame in enumerate(base):
         if i >= n:
@@ -489,9 +545,14 @@ def composite(spec, quads, n):
         quad = quads[i]
         frame = erase_text(frame, erase_boxes(spec, i))
         shot = sum(1 for c in cut_frames if c <= i)
-        if shot != look_shot:
-            look = screen_look(frame, quad)
+        # How the phone sees the display right now (lit or not), smoothed over a few frames: our
+        # screen is dark while the reference's is off and lights up when it does.
+        now = screen_look(frame, quad)
+        if shot != look_shot or look is None:
+            look = now
             look_shot = shot
+        elif now is not None:
+            look = (look[0] * 0.75 + now[0] * 0.25, look[1] * 0.75 + now[1] * 0.25)
         centre = quad.mean(axis=0)
         target = centre + (quad - centre) * (1 + grow)
         # Shrink our screen close to the size it lands at first, so the warp does not alias.
@@ -511,7 +572,24 @@ def composite(spec, quads, n):
         warped = cv2.warpPerspective(img, m, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
         alpha = cv2.warpPerspective(np.full(small.shape[:2], 255, np.uint8), m, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
         warped = cv2.GaussianBlur(warped, (0, 0), 0.7)
-        a = (cv2.GaussianBlur(alpha, (0, 0), 0.8).astype(np.float32) / 255.0)[..., None]
+        a = cv2.GaussianBlur(alpha, (0, 0), 0.8).astype(np.float32) / 255.0
+        # Out of focus where the reference is (the camera refocusing as it moves in).
+        if sharp and peak.get(shot, 0) > 0 and i < len(sharp):
+            x0, y0 = np.maximum(0, np.floor(quad.min(axis=0)).astype(int))
+            x1, y1 = np.ceil(quad.max(axis=0)).astype(int)
+            sigma = focus_sigma(warped[y0:y1, x0:x1], sharp[i] / peak[shot])
+            if sigma > 0:
+                warped = cv2.GaussianBlur(warped, (0, 0), sigma)
+                a = cv2.GaussianBlur(a, (0, 0), sigma * 0.6)
+        # The phone's own motion blur: when the display moves fast (a swing, a hand-held jolt), our
+        # screen smears along that motion as the footage around it does, rather than staying crisp.
+        kernel = motion_kernel(quad, last_quad if shot == look_shot_prev else None)
+        if kernel is not None:
+            warped = cv2.filter2D(warped, -1, kernel)
+            a = cv2.filter2D(a, -1, kernel)
+        a = a[..., None]
+        last_quad = quad
+        look_shot_prev = shot
         out = frame.astype(np.float32) * (1 - a) + warped * a
         writer.stdin.write(np.clip(out, 0, 255).astype(np.uint8).tobytes())
         written += 1
@@ -528,11 +606,11 @@ def composite(spec, quads, n):
 
 def main():
     spec = json.load(open(sys.argv[1]))
-    quads, shots, n = track(spec)
+    quads, shots, n, sharp = track(spec)
     if spec.get("quads_out"):
         with open(spec["quads_out"], "w") as f:
             json.dump([[[round(float(v), 2) for v in p] for p in q] for q in quads], f)
-    frames = composite(spec, quads, n)
+    frames = composite(spec, quads, n, sharp)
     print(json.dumps({"ok": True, "frames": frames, "shots": shots}))
 
 

@@ -1281,7 +1281,7 @@ export type RemakeResult = {
 export class OverBudget extends Error {}
 
 type TakeRecord = { key: string; frame_key?: string; frame_tries?: number; frame_fix?: string; frame_done?: boolean; frame_micro?: number; render: RenderRecord; voice?: RenderVoice; failed?: string };
-type ScreenRecord = { key: string; mode?: "track" | "plate"; reason?: string; clip_key?: string; plate?: PlateRecord; plate_key?: string };
+type ScreenRecord = { key: string; mode?: "track" | "plate"; reason?: string; clip_key?: string; plate?: PlateRecord; plate_key?: string; /** The tracker's corner reads and when they were taken: a re-track reuses them. */ anchors?: QuadKey[]; anchor_times?: number[] };
 
 type Manifest = {
   version: 3;
@@ -1984,14 +1984,20 @@ async function filmedMonitor(
     try {
       // One corner read per shot (more in long shots), at most twelve frames per vision call.
       const times = shotReadTimes(layer, o.softCuts ?? o.cuts);
-      const anchors: QuadKey[] = [];
-      for (let i = 0; i < times.length; i += MAX_ANALYSIS_FRAMES) {
+      const kept = rec.anchors && JSON.stringify(rec.anchor_times) === JSON.stringify(times) ? rec.anchors : null;
+      const anchors: QuadKey[] = kept ? [...kept] : [];
+      for (let i = 0; !kept && i < times.length; i += MAX_ANALYSIS_FRAMES) {
         const frames: Array<{ t: number; jpeg: Buffer }> = [];
         for (const t of times.slice(i, i + MAX_ANALYSIS_FRAMES)) {
           const jpeg = await grabJpeg(o.reference, t, 720, o.stageRef).catch(() => null);
           if (jpeg?.length) frames.push({ t, jpeg });
         }
         if (frames.length) anchors.push(...parseQuads(await readScreenCorners(naive, frames, QC_MODEL, o.display?.describe), stage));
+      }
+      if (!kept && anchors.length) {
+        rec.anchors = anchors;
+        rec.anchor_times = times;
+        await work.save();
       }
       if (anchors.length) {
         const out = join(work.dir, `${layer.id}-tracked.mp4`);
