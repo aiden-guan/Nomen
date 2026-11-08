@@ -7,6 +7,7 @@
 //          └─ sanitizeHtml ── no remote or out-of-kit references survive
 //               └─ renderScreen ── headless Chrome (DevTools pipe) screenshots the page at ?t=1.25 ...
 //                    └─ ffmpeg ── 30 fps, a 2.5% push-in ─► 1080x1920 / 1080x960 H.264, no audio
+//                                 (desktop: 1440x900 with no push-in; the filmed edit moves the camera)
 //                         └─ checkScreen ── a vision pass: legible, nothing cut off, on brief, on brand
 //
 // buildScreens runs that for every request, with one rewrite when the check fails.
@@ -51,6 +52,8 @@ const exec = promisify(execFile);
 export const SCREEN_SIZES = {
   full: { width: 1080, height: 1920 },
   half: { width: 1080, height: 960 },
+  /** A monitor's display that filmed_screen photographs with a phone (16:10). */
+  desktop: { width: 1440, height: 900 },
 } as const;
 
 export const SCREEN_FPS = 30;
@@ -67,15 +70,27 @@ const CHROME_PARALLEL = 3;
 const SHOT_TIMEOUT_MS = 30_000;
 
 type Band = { from: number; to: number; why: string };
-export type SafeAreas = { width: number; height: number; noText: Band[]; rightRail: { x: number; from: number; to: number } };
+export type SafeAreas = { width: number; height: number; noText: Band[]; rightRail: { x: number; from: number; to: number } | null };
 
 /**
  * Where text must not go, in the screen's own CSS pixels. Full screen: TikTok's top bar (9%), its
  * caption and buttons (bottom 18%), and the band where the edit burns spoken captions (59-70% of the
  * height, see captions.ts LOOK.caption). Half screen is the bottom half of a split frame, so the
- * same frame bands land at different panel heights.
+ * same frame bands land at different panel heights. A desktop screen sits on a filmed monitor in
+ * the middle of the frame, clear of TikTok's bands; its edges may disappear under the bezel, and
+ * when the photo's monitor sits low, the captions cover the bottom of the screen.
  */
 export function safeAreas(size: ScreenRequest["size"]): SafeAreas {
+  if (size === "desktop") {
+    return {
+      ...SCREEN_SIZES.desktop,
+      noText: [
+        { from: 0, to: 48, why: "the monitor's top bezel and the camera's framing" },
+        { from: 790, to: 900, why: "the bottom bezel, and the spoken captions may sit over the bottom of the screen" },
+      ],
+      rightRail: null,
+    };
+  }
   if (size === "half") {
     return {
       ...SCREEN_SIZES.half,
@@ -306,27 +321,38 @@ export function prepareHtml(html: string, request: Pick<ScreenRequest, "seconds"
 function bandsText(size: ScreenRequest["size"]): string {
   const areas = safeAreas(size);
   const bands = areas.noText.map((b) => `y ${b.from}-${b.to} (${b.why})`).join("; ");
-  const rail = `x > ${areas.rightRail.x} between y ${areas.rightRail.from} and ${areas.rightRail.to} (TikTok's like/comment/share buttons)`;
-  return `No text or key UI in: ${bands}; and ${rail}. Backgrounds, glows and the edges of cards may run under these bands.`;
+  const rail = areas.rightRail ? `; and x > ${areas.rightRail.x} between y ${areas.rightRail.from} and ${areas.rightRail.to} (TikTok's like/comment/share buttons)` : "";
+  return `No text or key UI in: ${bands}${rail}. Backgrounds, glows and the edges of cards may run under these bands.`;
 }
 
 function zonesText(size: ScreenRequest["size"]): string {
+  if (size === "desktop") {
+    return "This is the whole display of a desktop monitor that a phone films from about 60 cm away. In the video the monitor fills about 85% of the phone's width, so this 1440 px screen shows up about 900 px wide in a 1080x1920 frame (0.6x). Put the hero (the command, the panel that matters, the result) in x 140-1300, y 80-760.";
+  }
   return size === "half"
     ? "This panel is the bottom half of a split screen (the presenter is above it). Put a short label or step title in y 30-165 and the hero element (card, terminal, rows, number) in y 390-650."
     : "Put the hero element (card, terminal, app window, big number) in y 200-1110, centred or slightly above centre; a short supporting row may sit in y 1360-1560.";
 }
 
-export function writerSystem(request: Pick<ScreenRequest, "size" | "seconds">): string {
-  const { width, height } = SCREEN_SIZES[request.size] ?? SCREEN_SIZES.full;
+const CANVAS_NAME = { full: "a full vertical phone screen", half: "the bottom half of a split screen", desktop: "a desktop monitor's display, filmed by a phone" } as const;
+
+/** The designer's brief per canvas: vertical graphics are motion design; a desktop screen is a real app on a filmed monitor. */
+function lookText(size: ScreenRequest["size"]): string[] {
+  if (size === "desktop") {
+    return [
+      "TYPE (it is read through a phone camera pointed at a monitor)",
+      "- Nothing under 36 px. Body, rows and code 44-56 px; commands and labels 52-72 px; headlines and key numbers 88-160 px. Set the app as if zoomed to 250-300%: few lines, big text. At most ~25 words of small text on screen.",
+      "- High contrast (light text on dark or dark on light, never mid-grey on grey). Monospace for code and terminals. One accent colour for emphasis.",
+      "",
+      "LOOK",
+      "- It must look like a real screen on a real computer, not a poster, slide or motion-graphic card: a terminal window, a code editor, a browser showing the product's site or dashboard, or the product's own app, with plausible window chrome (a title bar with three small dots, tabs or a sidebar). Use the brand's real colours, fonts, logo and wording from the brand kit (file:// URLs below, exactly as given). If the kit has no font files, use the given system stacks.",
+      "- Copy what the reference showed on its monitor from reference_visual (which app, light or dark, what was on screen), adapted to this product.",
+      "- Fill the display edge to edge: the app's own background, or a desktop background behind one big window covering at least 85% of the screen. One idea per screen: the command being typed, the panel that matters, the result.",
+      "- No captions and no big headline banners floating over the app (the edit adds captions), no lorem ipsum or \"Your text here\".",
+      "- Draw icons as inline SVG or simple shapes; use the kit's logo and icons by their file:// URLs. No emoji (they may not render).",
+    ];
+  }
   return [
-    "You are a senior motion designer and UI designer. You make the on-screen graphics for viral developer-tool and SaaS videos on TikTok and Reels: full-bleed dark or brand-colour backgrounds, one idea per screen, chunky UI cards, a terminal where a command types itself, app windows, step cards (\"01 · Paste into your agent's chat\"), result rows that land one by one, a balance or counter ticking, a progress ring, and bold labels with one highlighted word. You build each graphic as one self-contained HTML document; a headless browser screenshots it at several moments and the frames are cut into a vertical video.",
-    "",
-    "THE CANVAS",
-    `- Exactly ${width}x${height} CSS pixels (${request.size === "half" ? "the bottom half of a split screen" : "a full vertical phone screen"}), screenshotted at device scale 1. html and body are fixed at that size with overflow hidden; build one stage and position everything in px inside it. Never size anything with vh, vw, window.innerHeight or media queries.`,
-    `- ${bandsText(request.size)}`,
-    `- ${zonesText(request.size)}`,
-    "- Keep 64 px side margins for text. Nothing may be cut off by the edges or overflow its card: size boxes for the longest text they will hold (the fully typed command, the final number).",
-    "",
     "TYPE (it is watched on a phone)",
     "- Nothing under 34 px. Body and rows 40-56 px; labels and commands 44-64 px; headlines and key numbers 72-150 px, weight 700-900, letter-spacing -0.02em. At most ~14 words of small text on screen.",
     "- High contrast (light text on dark or dark on light, never mid-grey on grey). Monospace for code and terminals. One accent colour for emphasis; a highlighted word gets an accent pill or a thick underline.",
@@ -336,13 +362,33 @@ export function writerSystem(request: Pick<ScreenRequest, "size" | "seconds">): 
     "- It must look like a designed motion graphic, not a screenshot of a web page: no nav bars, footers, cookie banners, scrollbars, breadcrumbs, lorem ipsum, \"Your text here\", fake browser chrome around everything. Depth comes from soft shadows, 28-48 px rounded corners, a subtle glow or grid behind the hero, and big confident type.",
     "- Use the whole stage: the background runs edge to edge (gradient, glow, grid), the hero fills most of its zone, and on a full screen the lower zone holds a supporting element (a pill, badge or the mascot) so the frame is not top-heavy.",
     "- Draw icons as inline SVG or simple shapes; use the kit's logo and icons by their file:// URLs. No emoji (they may not render).",
+  ];
+}
+
+export function writerSystem(request: Pick<ScreenRequest, "size" | "seconds">): string {
+  const { width, height } = SCREEN_SIZES[request.size] ?? SCREEN_SIZES.full;
+  const desktop = request.size === "desktop";
+  return [
+    desktop
+      ? "You are a senior UI designer. You rebuild real software screens for viral developer-tool and SaaS videos on TikTok and Reels in which a phone films a computer monitor while a voice walks through a setup: the product's own app, a terminal where a command types itself, a code editor, a browser on the product's dashboard. You build what the monitor shows as one self-contained HTML document; a headless browser screenshots it at several moments, the frames are cut into a clip, and the edit puts that clip on a photographed monitor."
+      : "You are a senior motion designer and UI designer. You make the on-screen graphics for viral developer-tool and SaaS videos on TikTok and Reels: full-bleed dark or brand-colour backgrounds, one idea per screen, chunky UI cards, a terminal where a command types itself, app windows, step cards (\"01 · Paste into your agent's chat\"), result rows that land one by one, a balance or counter ticking, a progress ring, and bold labels with one highlighted word. You build each graphic as one self-contained HTML document; a headless browser screenshots it at several moments and the frames are cut into a vertical video.",
+    "",
+    "THE CANVAS",
+    `- Exactly ${width}x${height} CSS pixels (${CANVAS_NAME[request.size] ?? CANVAS_NAME.full}), screenshotted at device scale 1. html and body are fixed at that size with overflow hidden; build one stage and position everything in px inside it. Never size anything with vh, vw, window.innerHeight or media queries.`,
+    `- ${bandsText(request.size)}`,
+    `- ${zonesText(request.size)}`,
+    "- Keep 64 px side margins for text. Nothing may be cut off by the edges or overflow its card: size boxes for the longest text they will hold (the fully typed command, the final number).",
+    "",
+    ...lookText(request.size),
     "",
     "TRUTH",
     "- Every word comes from the product facts, the brand's real UI strings and commands, or the spoken line. Quote commands, URLs and product names exactly. Never invent numbers, prices, customer names, testimonials, features, integrations or UI the facts don't contain; if a number is not in the facts, show none. Sample data (task names, tool names in a list) must be plausible and generic, never claims.",
     "",
     "ANIMATION (deterministic; the page is screenshotted, not played)",
     "- Before your code runs, the page defines: T (the time to draw, in seconds, from ?t=), DURATION, W, H, and helpers clamp(x,a=0,b=1), lerp(a,b,p), prog(a,b) (0 to 1 as T goes from a to b), ease(p) (ease-out cubic), easeInOut(p), typed(text, start, charsPerSecond=16) (the part of text typed by T).",
-    "- Write one render() that sets every element from T and call it at the end of <body>. Arrivals: opacity and a 30-60 px slide or a 0.92-1 scale over 0.25-0.4 s using ease(prog(a, a+0.35)). Typing: typed(cmd, start, 14-18) with a solid block cursor after it. Counters: lerp with ease, formatted the way the product formats money or numbers. Rings: SVG stroke-dashoffset.",
+    desktop
+      ? "- Write one render() that sets every element from T and call it at the end of <body>. Motion is what really happens on a screen: a command types itself (typed(cmd, start, 14-18) with a solid block cursor after it), output lines print one by one, a panel or menu opens, a button highlights as a cursor clicks it, a list fills in, a number ticks (lerp with ease). Things appear the way software shows them, at once or with a 0.1-0.2 s fade; nothing flies in or bounces, and the window itself stays put."
+      : "- Write one render() that sets every element from T and call it at the end of <body>. Arrivals: opacity and a 30-60 px slide or a 0.92-1 scale over 0.25-0.4 s using ease(prog(a, a+0.35)). Typing: typed(cmd, start, 14-18) with a solid block cursor after it. Counters: lerp with ease, formatted the way the product formats money or numbers. Rings: SVG stroke-dashoffset.",
     "- Do not use timers, requestAnimationFrame loops, Date, Math.random, fetch, transitions, or text measurement; CSS @keyframes are allowed (they are frozen at T) but computing from T is preferred.",
     `- Time it to the spoken line (about 2.6 words per second over ${request.seconds} s): the key reveal lands when its words are spoken. Something should change at least every ~1 s while the line runs; the final state is complete by about 80% of DURATION and holds.`,
     "",
@@ -1171,7 +1217,8 @@ export function assembleArgs(input: Encode & { pngs: string[]; starts: number[] 
  * Renders a screen with headless Chrome and ffmpeg. Writes the page to `<workDir>/<name>.html`,
  * serves it to at most 3 Chrome sessions (shared by every render in the process), captures frames
  * at `?t=` and encodes `<workDir>/<name>.mp4`: exactly request.seconds long (rounded to the 30 fps
- * grid), 1080x1920 (full) or 1080x960 (half), H.264 yuv420p, no audio, with a 2.5% push-in. When
+ * grid), 1080x1920 (full), 1080x960 (half) or 1440x900 (desktop), H.264 yuv420p, no audio, with a
+ * 2.5% push-in (none on desktop: the picture on a monitor holds still; the filmed edit moves the camera). When
  * every captured frame is the same picture, the result is a still `<name>.png` (kind "image").
  *
  * Smooth mode (default) captures the keyframes plus frame 0 and the last frame, then bisects every
@@ -1193,7 +1240,7 @@ export async function renderScreen(html: string, states: ScreenState[], request:
   const workDir = resolve(options.workDir);
   const name = safeName(options.name ?? request.id);
   const scale = Math.min(3, Math.max(1, options.scale ?? 1));
-  const pushIn = Math.max(0, Math.min(0.1, options.pushIn ?? PUSH_IN));
+  const pushIn = Math.max(0, Math.min(0.1, options.pushIn ?? (request.size === "desktop" ? 0 : PUSH_IN)));
   const allow = [...(options.allow ?? [FONTS_DIR, BRANDKITS_DIR]), workDir].map((r) => resolve(r));
   const keyframes = parseStates(states, request.seconds);
   const frameDir = join(workDir, `${name}-frames`);
@@ -1333,13 +1380,20 @@ export function checkTimes(seconds: number, states?: ScreenState[]): number[] {
   return [...new Set(times.map((t) => Math.round(Math.max(0, t) * 1000) / 1000))].sort((a, b) => a - b);
 }
 
+/**
+ * How wide the check sees a frame: about as big as a phone shows it. A vertical screen is the whole
+ * picture (half of 1080 px); a desktop screen is a monitor filling most of it, seen a little larger
+ * so the reviewer can still judge its type.
+ */
+const checkWidth = (size: ScreenRequest["size"]) => (size === "desktop" ? 640 : 540);
+
 async function checkFrames(clip: ScreenClip & { states?: ScreenState[]; inspect?: number[] }, request: ScreenRequest): Promise<Buffer[]> {
   const bin = await ffmpegBin();
   if (!bin) throw new Error("ffmpeg is not available");
   const grab = async (at: number | null) => {
     const args = ["-hide_banner", "-loglevel", "error"];
     if (at !== null) args.push("-ss", at.toFixed(3));
-    args.push("-i", clip.path, "-frames:v", "1", "-vf", "scale=540:-2:flags=lanczos", "-q:v", "3", "-f", "mjpeg", "pipe:1");
+    args.push("-i", clip.path, "-frames:v", "1", "-vf", `scale=${checkWidth(request.size)}:-2:flags=lanczos`, "-q:v", "3", "-f", "mjpeg", "pipe:1");
     const { stdout } = await exec(bin, args, { encoding: "buffer", maxBuffer: 16 * 1024 * 1024 });
     return stdout as unknown as Buffer;
   };
@@ -1362,17 +1416,29 @@ export async function checkScreen(naive: Messenger, clip: ScreenClip & { states?
   const frames = await checkFrames(clip, request);
   if (!frames.length) return { pass: false, issues: ["the clip has no readable frames"], score: 1 };
   const colors = (context.kit?.repo?.colors ?? []).slice(0, 8).map((c) => `${c.name} ${c.hex}`).join(", ");
+  const desktop = request.size === "desktop";
+  const where = desktop
+    ? "the display of a desktop monitor that a phone films; in the video the monitor fills about 85% of the phone's width"
+    : request.size === "half"
+      ? "the bottom half of a split screen, under the presenter"
+      : "full screen";
   const rubric = [
-    `These ${frames.length} frame(s), in time order, are from a ${request.seconds} s on-screen graphic for a vertical TikTok${context.product ? ` about ${context.product.name}` : ""}, shown at about phone size (${request.size === "half" ? "the bottom half of a split screen, under the presenter" : "full screen"}).`,
+    `These ${frames.length} frame(s), in time order, are from a ${request.seconds} s on-screen graphic for a vertical TikTok${context.product ? ` about ${context.product.name}` : ""}, shown at about phone size (${where}).`,
     `What it should show: ${request.brief}`,
     `The spoken line it goes with: "${request.line}"`,
     request.reference_visual ? `The viral video it remakes looked like: ${request.reference_visual}` : "",
     colors ? `Brand colours: ${colors}.` : "",
     `Reserved areas (no text there): ${bandsText(request.size)}`,
-    "Critical defects (any one fails it): text too small or too low-contrast to read on a phone; text or UI cut off by the frame or overflowing its box; overlapping text; placeholder text (lorem ipsum, \"Your text\", {{...}}, TODO); broken-image icons, empty boxes or missing-glyph squares; a blank, black or error page; text inside a reserved area; content that contradicts the brief or shows a different product name; it looks like a plain web page screenshot rather than a designed motion graphic.",
+    desktop
+      ? "Critical defects (any one fails it): text too small or too low-contrast to read at this size; text or UI cut off by the edges or overflowing its box; overlapping text; placeholder text (lorem ipsum, \"Your text\", {{...}}, TODO); broken-image icons, empty boxes or missing-glyph squares; a blank, black or error page; text inside a reserved area; content that contradicts the brief or shows a different product name; it looks like a poster, slide or motion-graphic card rather than a real app, terminal, editor or browser window on a computer."
+      : "Critical defects (any one fails it): text too small or too low-contrast to read on a phone; text or UI cut off by the frame or overflowing its box; overlapping text; placeholder text (lorem ipsum, \"Your text\", {{...}}, TODO); broken-image icons, empty boxes or missing-glyph squares; a blank, black or error page; text inside a reserved area; content that contradicts the brief or shows a different product name; it looks like a plain web page screenshot rather than a designed motion graphic.",
     "Not critical (mention, do not fail for it): small spacing or alignment nits, a slightly different layout than the brief describes when the content is right.",
-    "The frames are taken where the screen holds still. The whole picture zooms in slowly (about 2.5% over the clip) on purpose: small differences in size or position between frames are that zoom, not a defect.",
-    "Judge it like a creative director at a top short-form agency: bold, clean, high contrast, one clear idea per screen. Call the screen_verdict tool once.",
+    desktop
+      ? "The frames are taken where the screen holds still."
+      : "The frames are taken where the screen holds still. The whole picture zooms in slowly (about 2.5% over the clip) on purpose: small differences in size or position between frames are that zoom, not a defect.",
+    desktop
+      ? "Judge it like a creative director at a top short-form agency: does it look like the real product on a real screen, with one clear idea and type big enough to read through a phone camera? Call the screen_verdict tool once."
+      : "Judge it like a creative director at a top short-form agency: bold, clean, high contrast, one clear idea per screen. Call the screen_verdict tool once.",
   ]
     .filter(Boolean)
     .join("\n");

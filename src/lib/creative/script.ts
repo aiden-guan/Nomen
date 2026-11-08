@@ -2,7 +2,7 @@ import { ApiError } from "../http";
 import type { NaiveClient } from "../naive";
 import { QC_MODEL } from "../qc";
 import { extractJson } from "../research";
-import { isTall } from "./plan";
+import { isTall, usesCreator } from "./plan";
 import type { BeatJob, CreativeBrief, ProductBrief, ReferenceBreakdown, Script, ScriptBeat } from "./types";
 
 // The script room: a writer remakes a proven viral video for our product, as close to it as the truth allows, a linter
@@ -166,6 +166,7 @@ function writerSystem() {
     "- When the reference shows a graphic (a terminal with a command typing, step cards, a timer, a list of results, an app window, a dashboard), write a `screen` for that beat: the same kind of graphic, built for this product from the brief's real wording, commands and numbers. A screen builder renders it in the brand's colors and fonts. Real photos and screenshots are still best for 'this is the product' beats; screens are best for 'this is what it does' beats.",
     "- Creator beats: the reference's action and expression, kept small and calm (video models distort big gestures): no pointing at the lens, no thumbs up, no fast head turns, no hands near the face.",
     "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; presenter_inset uses inset beats (product graphics full screen, the presenter in a small window; the hook may be a creator beat); talking_head_broll mixes creator, product and inset beats.",
+    "- filmed_screen looks like a phone filming a computer monitor while a voice walks through it: only product beats (no creator), and every beat gets a `screen` that says what the monitor shows at that moment (a terminal, a code editor, a browser or the product's own app, as a real desktop window, with the exact commands and wording from the brief and what types in or appears).",
     "",
     "Call the script tool once with every beat.",
   ].join("\n");
@@ -273,13 +274,14 @@ export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptCo
   const fallbackVisual = ctx.brief.visuals.find((id) => ids.has(id)) ?? ctx.product.visuals[0]?.id ?? null;
   const out: ScriptBeat[] = beats.slice(0, 12).map((beat, i) => {
     let visual: ScriptBeat["visual"] = beat.visual === "product" || beat.visual === "split" || beat.visual === "inset" ? beat.visual : "creator";
-    if (ctx.brief.format === "voiceover_demo" || ctx.brief.format === "text_story") visual = "product";
+    if (ctx.brief.format === "voiceover_demo" || ctx.brief.format === "text_story" || ctx.brief.format === "filmed_screen") visual = "product";
     if (ctx.brief.format === "split_screen") visual = "split";
     // Inset videos may open on the presenter full screen (the hook), then keep them in the window.
     if (ctx.brief.format === "presenter_inset" && !(i === 0 && visual === "creator")) visual = "inset";
     let productVisual = typeof beat.product_visual === "string" && ids.has(beat.product_visual) ? beat.product_visual : null;
     if (visual !== "creator" && !productVisual) productVisual = fallbackVisual;
-    if (visual !== "creator" && !productVisual) visual = "creator"; // no footage at all: the creator carries it
+    // No footage at all: the creator carries it. A filmed screen needs no footage: every beat gets a built screen.
+    if (visual !== "creator" && !productVisual && ctx.brief.format !== "filmed_screen") visual = "creator";
     const seconds = Math.min(8, Math.max(1, Math.round((Number(beat.seconds) || 3) * 2) / 2));
     return {
       n: i + 1,
@@ -361,6 +363,6 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
  * about $0.40 per second to render, so remakes with a presenter stop at 24 s; faceless ones at 40 s.
  */
 export function targetSeconds(reference: Pick<ReferenceBreakdown, "duration">, format: CreativeBrief["format"] = "voiceover_demo") {
-  const cap = format === "talking_head_broll" || format === "split_screen" || format === "presenter_inset" ? 24 : 40;
+  const cap = usesCreator(format) ? 24 : 40;
   return Math.round(Math.min(cap, Math.max(8, reference.duration || 18)));
 }

@@ -469,6 +469,59 @@ describe("screens in the plan", () => {
   });
 });
 
+describe("filmed screen videos", () => {
+  const filmed = { ...brief, format: "filmed_screen" as const, creator: "", setting: "a dim desk at night" };
+  const fctx = { ...ctx, brief: filmed };
+
+  it("is faceless like a voice-over demo: product beats, a voice-over, the 40 s cap", () => {
+    const script = normalizeScript(goodBeats.map((b) => ({ ...b })), fctx);
+    expect(script.beats.every((b) => b.visual === "product")).toBe(true);
+    const plan = planProduction(script, filmed, product);
+    expect(plan.aroll).toEqual([]);
+    expect(plan.voiceover?.text).toContain("nine sign-ups");
+    expect(targetSeconds({ duration: 61 }, "filmed_screen")).toBe(40);
+    expect(conceptFrom(filmed, script, plan, reference, product).format).toBe("filmed screen");
+  });
+
+  it("keeps product beats without footage: every beat is a built screen", () => {
+    const bare = { ...product, visuals: [] };
+    const script = normalizeScript(goodBeats.map((b) => ({ ...b, product_visual: null })), { ...fctx, product: bare });
+    expect(script.beats.every((b) => b.visual === "product")).toBe(true);
+    // A voice-over demo with nothing to show still falls back to the creator, as before.
+    expect(normalizeScript(goodBeats.map((b) => ({ ...b, product_visual: null })), { ...ctx, product: bare, brief: { ...brief, format: "voiceover_demo" } }).beats[0].visual).toBe("creator");
+  });
+
+  it("gives every spoken beat a desktop screen, even where a real screenshot exists", () => {
+    const script = normalizeScript(
+      goodBeats.map((b) => ({ ...b, ...(b.n === 2 ? { screen: "A terminal where `set up https://monid.ai/SKILL.md` types in" } : {}) })),
+      fctx,
+    );
+    const plan = planProduction(script, filmed, product, "", reference.beats);
+    expect(plan.screens?.map((s) => [s.id, s.size])).toEqual([
+      ["b1", "desktop"],
+      ["b2", "desktop"],
+      ["b3", "desktop"],
+      ["b4", "desktop"],
+    ]);
+    expect(plan.screens?.[1].brief).toContain("A terminal where");
+    expect(plan.screens?.[2].brief).toMatch(/computer monitor shows/);
+    expect(plan.broll.every((c) => c.visual_id.startsWith("screen:") && c.motion === "none")).toBe(true);
+  });
+
+  it("films every visual on the plate, and fills the frame without one", () => {
+    const script = normalizeScript(goodBeats.map((b) => ({ ...b })), fctx);
+    const plan = planProduction(script, filmed, product);
+    const visuals = new Map(plan.broll.map((c) => [c.visual_id, { path: `/${c.visual_id}.mp4`, kind: "video" as const }]));
+    const plate = { path: "/plate.png", quad: [{ x: 1, y: 1 }, { x: 9, y: 1 }, { x: 9, y: 6 }, { x: 1, y: 6 }] as const };
+    const assets = { aroll: [], voiceover: { path: "/vo.wav", duration: 18 }, visuals };
+    const timeline = buildTimeline(script, plan, { ...assets, plate: plate as never });
+    expect(timeline.segments).toHaveLength(4);
+    expect(timeline.segments.every((s) => s.layer === "filmed" && s.plate === plate && s.broll?.motion === "none")).toBe(true);
+    expect(timeline.captions.length).toBeGreaterThan(0);
+    expect(buildTimeline(script, plan, assets).segments.every((s) => s.layer === "broll" && !s.plate)).toBe(true);
+  });
+});
+
 describe("the brand kit in the product brief", () => {
   it("puts the brand's own assets first and adds its code facts", async () => {
     const { withBrandKit } = await import("@/lib/creative/product");
@@ -565,6 +618,41 @@ describe("a frame request stuck in flight", () => {
     onFrameInFlight(shot, t0 + 12 * 60_000);
     onFrameInFlight(shot, t0 + 23 * 60_000);
     expect(shot.frame_idem).toBe("crv-shot1-frame-fix1-r2");
+  });
+});
+
+describe("provider trouble while making a filmed screen's plate", () => {
+  it("waits out busy providers and stuck requests, and gives up on credits or a real failure", async () => {
+    const { onPlateError } = await import("@/lib/production");
+    const { newPlateRecord } = await import("@/lib/creative/plate");
+    const { ApiError } = await import("@/lib/http");
+    const t0 = Date.parse("2026-11-08T02:00:00Z");
+
+    const busy = newPlateRecord();
+    expect(onPlateError(busy, new ApiError("naive", 503, "unavailable", "busy"), t0)).toBe(false);
+    expect([busy.status, busy.errors, busy.retry_at]).toEqual(["pending", 1, new Date(t0 + 15_000).toISOString()]);
+    onPlateError(busy, new ApiError("naive", 429, "rate_limited", "slow down"), t0);
+    expect(busy.retry_at).toBe(new Date(t0 + 30_000).toISOString());
+    for (let i = 0; i < 6; i++) onPlateError(busy, new ApiError("naive", 503, "unavailable", "busy"), t0);
+    expect(busy.status).toBe("pending");
+    onPlateError(busy, new ApiError("naive", 503, "unavailable", "busy"), t0); // the ninth: enough waiting
+    expect(busy.status).toBe("fallback");
+
+    const stuck = newPlateRecord();
+    const inFlight = new ApiError("naive", 409, "conflict", "request still in flight");
+    onPlateError(stuck, inFlight, t0);
+    onPlateError(stuck, inFlight, t0 + 9 * 60_000);
+    expect(stuck.tries).toBe(0); // same key, still waiting
+    onPlateError(stuck, inFlight, t0 + 11 * 60_000);
+    expect([stuck.tries, stuck.inflight_since, stuck.notes]).toEqual([1, null, ["image 1: never came back"]]);
+
+    const broke = newPlateRecord();
+    expect(onPlateError(broke, new ApiError("naive", 402, "insufficient_credits", "no credits"), t0)).toBe(true);
+    expect([broke.status, broke.reason]).toEqual(["fallback", "Naive is out of credits"]);
+    const bad = newPlateRecord();
+    onPlateError(bad, new ApiError("naive", 400, "validation_failed", "aspect_ratio not supported"), t0);
+    expect(bad.status).toBe("fallback");
+    expect(bad.reason).toMatch(/aspect_ratio not supported/);
   });
 });
 

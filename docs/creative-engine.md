@@ -69,6 +69,13 @@ These videos are posted by the brand on its own accounts and labeled AI-generate
   - Smooth zoom, pan and scroll motion, using ffmpeg's `perspective` filter.
   - A wide image is shown whole over a blurred copy of itself.
 - **Split screen:** presenter on top, product below.
+- **Filmed screen:** the look of a phone filming a computer monitor (`creative/plate.ts`).
+  - One photo per video, from the image model: a monitor on a desk, its display solid green.
+  - Code finds the display's corners in the green and checks it is one whole, flat screen. A
+    photo that fails gets up to two retries; after that, the screens fill the frame instead.
+  - Each beat's 1440x900 desktop screen is warped into the display, the green is keyed out, and
+    the photo goes back on top so its bezel covers the edges.
+  - The whole picture drifts and turns slightly, like a hand-held phone.
 
 ## Formats
 
@@ -77,6 +84,7 @@ These videos are posted by the brand on its own accounts and labeled AI-generate
 | `talking_head_broll` | the presenter, cut away to the product | the presenter (Veo native audio) | about $0.40 per second |
 | `split_screen` | the presenter on top, the product below | the presenter | about $0.40 per second |
 | `voiceover_demo` | the product only | text-to-speech | cents |
+| `filmed_screen` | a phone filming a monitor that shows the product | text-to-speech | cents, plus one to three photos |
 | `text_story` | the product only, with large text | text-to-speech | cents |
 
 ## Costs
