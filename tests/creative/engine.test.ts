@@ -452,6 +452,12 @@ describe("screens in the plan", () => {
     const plan = planProduction(script, faceless, withPhoto);
     expect(plan.broll.map((c) => c.visual_id)).toEqual(["screen:b1", "s1"]);
     expect(plan.screens?.[0].brief).toContain("the logo card");
+    // In a split panel too, and a banner-shaped image gets a screen whatever the product.
+    const split = { ...brief, format: "split_screen" as const };
+    const banner = { ...withPhoto, kind: "physical" as const, visuals: [...withPhoto.visuals, { id: "k1", kind: "screenshot" as const, url: "/tmp/k1.png", caption: "verbs diagram", source: "brandkit:repo", width: 1920, height: 330 }] };
+    const splitBeat = (n: number, product_visual: string) => ({ ...beat(n, product_visual), visual: "split" as const });
+    expect(planProduction(normalizeScript([splitBeat(1, "p1")], { ...ctx, brief: split, product: withPhoto }), split, withPhoto).broll[0].visual_id).toBe("screen:b1");
+    expect(planProduction(normalizeScript([splitBeat(1, "k1")], { ...ctx, brief: split, product: banner }), split, banner).broll[0].visual_id).toBe("screen:b1");
     // A physical product's photo is the best shot there is: it stays.
     const physical = { ...withPhoto, kind: "physical" as const };
     expect(planProduction(script, faceless, physical).broll[0].visual_id).toBe("p1");
