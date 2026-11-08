@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recorded": true,
-  "recordedAt": "2026-11-08T07:16:23.045Z",
+  "recordedAt": "2026-11-08T07:29:49.466Z",
   "brand": {
     "name": "Monid",
     "domain": "monid.ai",
@@ -40,7 +40,7 @@
     }
   },
   "options": {
-    "concepts": 1,
+    "concepts": 2,
     "shotsPerConcept": 2,
     "secondsPerShot": 8,
     "videoModel": "google/veo-3.1",
@@ -1309,6 +1309,107 @@
   },
   "creatives": [
     {
+      "idx": 0,
+      "concept": {
+        "title": "The actual agent setup nobody shows you",
+        "format": "faceless one-to-one clone",
+        "hook": "Everyone talks about AI agents, but nobody shows you the actual setup that makes it work.",
+        "caption": "The actual Monid setup, start to finish: one balance, one skill file, every tool your agent needs.",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@ai.with.ni/video/7609623318043380999"
+        ],
+        "why": "Built on @ai.with.ni's video from the scouts' research (1.2M views on 12K followers).",
+        "reference": {
+          "id": "ref_35182f2b9b",
+          "url": "https://www.tiktok.com/@ai.with.ni/video/7609623318043380999",
+          "author": "ai.with.ni",
+          "views": 1225093,
+          "followers": 11720,
+          "outlier": 104.5,
+          "format": "faceless one-to-one clone"
+        },
+        "brief": {
+          "title": "The actual agent setup nobody shows you (setup walkthrough)",
+          "reference_id": "ref_119a19b980",
+          "format": "faceless one-to-one clone",
+          "angle": "Everyone talks about agents, but nobody shows the setup that ends per-tool sign-ups: one line, one balance, 12 ranked tool candidates.",
+          "audience": "Agent builders",
+          "hook_plan": "Say: \"Everyone talks about AI agents, but nobody shows you the actual setup that stops you signing up for every API.\" Only 'vibe coding' and 'makes it work' change. Show the finished state in the first frame: the Monid terminal bar `$ set up https://monid.ai/SKILL.md` with the balance readout. Word-by-word captions start with speech at 0.4 s. Second line: \"This is how you set up Monid if you're a complete beginner.\"",
+          "keep": [
+            "Gap-claim hook followed straight away by a 'complete beginner' promise",
+            "Finished result on screen from the first frame",
+            "One instruction per shot, plain ordinals ('The first step', 'The next step', 'Once that's done')",
+            "Hard cut every ~4-12 s, about 8 shots",
+            "Casual, fast voiceover (~245 wpm) with natural fillers ('pretty much', 'you're gonna')",
+            "Word-by-word captions with short emphasized phrases like 'THE FIRST STEP'",
+            "Closing line: comment \"ready\" and I'll show the next part"
+          ],
+          "change": [
+            "Claude Code / VS Code steps become Monid steps: 1) paste `set up https://monid.ai/SKILL.md` into your agent chat or terminal; 2) give it a task, e.g. \"compare openai vs anthropic: positioning, pricing, traction\"; 3) monid.discover() returns 12 candidates ranked by fit and price; 4) monid.run() uses one with no sign-up; 5) the balance ticks down, e.g. $0.0013 from $3.000",
+            "Drop 'only for paying customers'; say you start with $1 in free credit and pay only per call",
+            "Mention that MCP and CLI also work (three ways to connect)",
+            "Phone-filmed monitor becomes real Monid screens and diagrams; no VS Code or Claude UI",
+            "CTA: 'comment \"ready\" and I'll show how to let your agent pick its own tools / contribute your own API'"
+          ],
+          "visuals": [
+            "p1",
+            "k3",
+            "s1",
+            "k1",
+            "s2"
+          ],
+          "creator": "",
+          "setting": "",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "caption": "Your agent shouldn't need a new sign-up for every tool. One line, one balance, pay per call. Comment \"ready\" for part 2. AI-generated video by Monid.",
+          "hashtags": [
+            "#aiagents",
+            "#devtools",
+            "#mcp",
+            "#buildinpublic",
+            "#claudecode"
+          ],
+          "cta": "Comment \"ready\" and start with $1 in free credit at monid.ai",
+          "why": "The reference hit 1,225,093 views on 11,720 followers (104x), with saves about 80% of likes: the step-by-step setup format gets saved. Monid is a setup-first product (one line, then a task), so it fits 8/10. The pain is real: every tool means another sign-up, key and subscription. A faceless voiceover_demo costs almost nothing to render and shows the real product screens.",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 63.2,
+          "beats": [],
+          "review": null
+        },
+        "internal": true,
+        "previous": {
+          "title": "The actual agent setup nobody shows you (setup walkthrough)",
+          "format": "voiceover demo",
+          "hook": "Everyone talks about AI agents, but nobody shows you the actual setup that stops you signing up for every API.",
+          "note": "the first version, before this remake"
+        }
+      },
+      "caption": "The actual Monid setup, start to finish: one balance, one skill file, every tool your agent needs.",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0,
+      "generation": 2,
+      "shots": [],
+      "video": "1.mp4",
+      "poster": "1.png",
+      "analytics": null
+    },
+    {
       "idx": 1,
       "concept": {
         "title": "We gave an agent $3 and one skill file",
@@ -1859,8 +1960,8 @@
           "qc": null
         }
       ],
-      "video": "1.mp4",
-      "poster": "1.png",
+      "video": "2.mp4",
+      "poster": "2.png",
       "analytics": null
     }
   ],
@@ -1868,7 +1969,7 @@
     {
       "s": 0,
       "level": "info",
-      "message": "Campaign started: 1 video, 2 shots each, google/veo-3.1"
+      "message": "Campaign started: 2 videos, 2 shots each, google/veo-3.1"
     },
     {
       "s": 26.9,
@@ -1918,12 +2019,12 @@
     {
       "s": 306.5,
       "level": "info",
-      "message": "Campaign \"No more sign-ups for your agent\": \"We gave an agent $3 and one skill file\" (one-to-one remake). The script room is writing them."
+      "message": "Campaign \"No more sign-ups for your agent\": \"The actual agent setup nobody shows you\" (faceless one-to-one clone), \"We gave an agent $3 and one skill file\" (one-to-one remake). The script room is writing them."
     },
     {
       "s": 380,
       "level": "info",
-      "message": "Scripts ready: \"We gave an agent $3 and one skill file\" 15.6s, critic 8/10. Now producing."
+      "message": "Scripts ready: \"The actual agent setup nobody shows you\" 63.2s; \"We gave an agent $3 and one skill file\" 15.6s, critic 8/10. Now producing."
     },
     {
       "s": 16096.5,
@@ -1964,6 +2065,16 @@
       "s": 16816.5,
       "level": "info",
       "message": "\"We gave an agent $3 and one skill file\" is ready"
+    },
+    {
+      "s": 19223.5,
+      "level": "info",
+      "message": "\"The actual agent setup nobody shows you\": made as a faceless one-to-one clone from @ai.with.ni's video in the research (1.2M views on 12K followers)"
+    },
+    {
+      "s": 19224.5,
+      "level": "info",
+      "message": "\"The actual agent setup nobody shows you\" is ready"
     }
   ],
   "spend": {
