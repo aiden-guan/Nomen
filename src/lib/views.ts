@@ -1,12 +1,14 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { parse, store } from "./db";
-import { type BrandRow, type CampaignOptions, type CampaignRow, defaultOptions } from "./pipeline";
+import { MIN_RELEVANCE } from "./creative/relevance";
+import type { ReferenceBreakdown, ReferenceCandidate } from "./creative/types";
+import { type BrandRow, type CampaignOptions, type CampaignRow, type CreativeState, creativeState, defaultOptions, originOf } from "./pipeline";
 import { mediaRoot } from "./store/sqlite";
 import type { CreativeRow, ShotState } from "./production";
 import type { PostRow } from "./publish";
 import type { Continuity } from "./qc";
-import type { ResearchPack, ResearchPlan } from "./research";
+import type { ResearchPack, ResearchPlan, Video } from "./research";
 import type { Concept, Strategy } from "./strategy";
 
 // What the UI reads. Money leaves the server as dollars; provider ids stay on the server. Each view
@@ -71,7 +73,13 @@ function campaignView(campaign: CampaignRow, runs: RunRow[], creativeRows: Creat
   const research = parse<ResearchPack | null>(campaign.research_json, null);
   const strategy = parse<Strategy | null>(campaign.strategy_json, null);
   const style = parse<{ slug: string | null; version: number | null; skill_md: string; samples: string[] } | null>(campaign.style_json, null);
-  const creatives = creativeRows.filter((c) => !c.rejected).map(creativeView);
+  const state = creativeState(campaign);
+  const videos = new Map((research?.videos ?? []).map((video) => [video.url, video]));
+  const creatives = creativeRows.filter((c) => !c.rejected).map((row) => creativeView(row, videos));
+  // Which of our videos remake which reference: the videos once they exist, the director's briefs before.
+  const uses: ReferenceUse[] = creatives.length
+    ? creatives.map((c) => ({ id: c.concept?.reference?.id ?? c.concept?.brief?.reference_id ?? null, url: c.concept?.reference?.url ?? null, title: c.concept?.title ?? `Video ${c.idx + 1}`, creativeId: c.id }))
+    : (strategy?.campaign.briefs ?? []).map((brief) => ({ id: brief.reference_id || null, url: null, title: brief.title, creativeId: null }));
   return {
     id: campaign.id,
     status: campaign.status,
@@ -84,6 +92,10 @@ function campaignView(campaign: CampaignRow, runs: RunRow[], creativeRows: Creat
     plan: parse<ResearchPlan | null>(campaign.plan_json, null),
     research,
     style: style && { slug: style.slug, version: style.version, skill_md: style.skill_md, samples: style.samples },
+    /** The reference study, step by step (the "style" stage), for a live status line. */
+    study: studyView(state),
+    /** The viral videos the agents studied, are studying, or set aside, with their numbers. */
+    references: referencesView(state, videos, uses),
     strategy,
     runs: runs.map((run) => ({ key: run.key, phase: run.phase, provider: run.provider, endpoint: run.endpoint, status: run.status, error: run.error, cost_micro: run.cost_micro, cost: usd(run.cost_micro) })),
     creatives,
@@ -101,16 +113,24 @@ function campaignView(campaign: CampaignRow, runs: RunRow[], creativeRows: Creat
   };
 }
 
-function creativeView(creative: CreativeRow) {
+function creativeView(creative: CreativeRow, videos: Map<string, Video> = new Map()) {
   const concept = parse<Concept | null>(creative.concept_json, null);
   const shots = parse<ShotState[]>(creative.shots_json, []);
   const hasFinal = stored(creative, "final.mp4", creative.final_key);
+  const ref = concept?.reference;
+  const video = ref ? videos.get(ref.url) : undefined;
   return {
     id: creative.id,
     idx: creative.idx,
     generation: creative.generation,
     status: creative.status,
     concept,
+    /** The viral video this one remakes, with its numbers ("remake of @creator, 1.2M views"). */
+    reference: ref?.url
+      ? { id: ref.id, url: ref.url, author: ref.author, platform: video?.platform ?? null, views: ref.views, followers: ref.followers, outlier: ref.outlier, thumbnail: video?.thumbnail ?? null, format: ref.format }
+      : null,
+    /** The script room's result: length and the critic's last score. */
+    script: concept?.script ? { seconds: concept.script.total_seconds, beats: concept.script.beats.length, critic: concept.script.review?.score ?? null, notes: concept.script.review?.notes ?? [] } : null,
     caption: creative.caption,
     platforms: parse<string[]>(creative.platforms_json, []),
     approved: Boolean(creative.approved),
@@ -129,6 +149,163 @@ function creativeView(creative: CreativeRow) {
       qc: shot.qc,
       error: shot.error,
     })),
+  };
+}
+
+// ---------- the reference study ----------
+
+/** studied: broken down beat by beat · studying: being broken down now · unreadable: the breakdown failed · shortlisted / dropped: by the relevance screen. */
+export type ReferenceStatus = "studied" | "studying" | "unreadable" | "shortlisted" | "dropped";
+
+/** A viral video the agents considered as a model, with its numbers and which of our videos remake it. */
+export type ReferenceView = {
+  url: string;
+  status: ReferenceStatus;
+  platform: string;
+  author: string;
+  thumbnail: string | null;
+  caption: string;
+  views: number;
+  followers: number | null;
+  /** Views per follower: how far it outran its account. */
+  outlier: number | null;
+  likes: number | null;
+  saves: number | null;
+  shares: number | null;
+  comments: number | null;
+  /** Seconds. */
+  duration: number | null;
+  /** competitor, category, adjacent, benchmark or ad: the lane it was found in. */
+  lane: ReferenceCandidate["origin"] | null;
+  /** The ranking's reason: "41x the account's followers, 9% engagement, 23 s". */
+  why: string | null;
+  /** The relevance screen's verdict (0-10) and reason, when it ran. */
+  relevance: number | null;
+  relevanceReason: string | null;
+  /** From the breakdown, once there is one. */
+  id: string | null;
+  format: string | null;
+  hook: { line: string; onScreen: string; mechanic: string } | null;
+  fit: { score: number; reason: string } | null;
+  whyItWorks: string | null;
+  beats: number;
+  error: string | null;
+  /** Where it sits in the funnel and how well it converts, when the reference engine records them. */
+  funnel: "reach" | "convert" | null;
+  conversion: number | null;
+  /** Our videos that remake it (or the director's briefs, before the videos exist). */
+  remadeBy: Array<{ title: string; creativeId: string | null }>;
+};
+
+type ReferenceUse = { id: string | null; url: string | null; title: string; creativeId: string | null };
+
+const MAX_SET_ASIDE = 12;
+
+const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+
+/** The funnel role, read loosely: the reference engine is adding it, and older studies lack it. */
+function funnelOf(...sources: unknown[]): ReferenceView["funnel"] {
+  for (const source of sources) {
+    const record = (source ?? {}) as Record<string, unknown>;
+    const role = record.funnel ?? record.funnel_role ?? record.role;
+    if (role === "reach" || role === "convert") return role;
+  }
+  return null;
+}
+
+function conversionOf(...sources: unknown[]): number | null {
+  for (const source of sources) {
+    const record = (source ?? {}) as Record<string, unknown>;
+    const score = record.score && typeof record.score === "object" ? (record.score as Record<string, unknown>) : {};
+    const value = num(record.conversion_score) ?? num(record.conversion) ?? num(score.conversion);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+export function referencesView(state: CreativeState | null, videos: Map<string, Video>, uses: ReferenceUse[] = []): ReferenceView[] {
+  if (!state) return [];
+  const candidates = new Map((state.candidates ?? []).map((c) => [c.url, c]));
+  const screened = new Map((state.screened ?? []).map((s) => [s.url, s]));
+  const failures = new Map((state.failures ?? []).map((f) => [f.url, f.error]));
+  const out: ReferenceView[] = [];
+  const seen = new Set<string>();
+
+  const add = (url: string, status: ReferenceStatus, breakdown?: ReferenceBreakdown) => {
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    const video = videos.get(url);
+    const candidate = candidates.get(url);
+    const verdict = screened.get(url);
+    const views = breakdown?.views ?? video?.views ?? candidate?.views ?? 0;
+    const followers = breakdown?.followers ?? video?.followers ?? candidate?.followers ?? null;
+    const outlier = breakdown?.outlier ?? candidate?.score.outlier ?? (followers ? Math.round((views / Math.max(followers, 1000)) * 10) / 10 : null);
+    out.push({
+      url,
+      status,
+      platform: breakdown?.platform ?? video?.platform ?? candidate?.platform ?? "tiktok",
+      author: breakdown?.author ?? video?.author ?? candidate?.author ?? "",
+      thumbnail: video?.thumbnail ?? null,
+      caption: (video?.caption ?? "").slice(0, 240),
+      views,
+      followers,
+      outlier,
+      likes: video?.likes ?? null,
+      saves: video?.saves ?? null,
+      shares: video?.shares ?? null,
+      comments: video?.comments ?? null,
+      duration: breakdown?.duration ?? video?.duration ?? null,
+      lane: candidate?.origin ?? (video ? originOf(video) : null),
+      why: candidate?.score.why ?? null,
+      relevance: verdict?.relevance ?? candidate?.relevance ?? null,
+      relevanceReason: verdict?.reason ?? candidate?.relevance_reason ?? null,
+      id: breakdown?.id ?? null,
+      format: breakdown?.format ?? null,
+      hook: breakdown ? { line: breakdown.hook.line, onScreen: breakdown.hook.on_screen_text, mechanic: breakdown.hook.mechanic } : null,
+      fit: breakdown?.fit ?? null,
+      whyItWorks: breakdown?.why_it_works ?? null,
+      beats: breakdown?.beats.length ?? 0,
+      error: failures.get(url) ?? null,
+      funnel: funnelOf(breakdown, candidate),
+      conversion: conversionOf(breakdown, candidate),
+      remadeBy: uses.filter((use) => (breakdown && use.id === breakdown.id) || use.url === url).map(({ title, creativeId }) => ({ title, creativeId })),
+    });
+  };
+
+  for (const breakdown of state.breakdowns ?? []) add(breakdown.url, "studied", breakdown);
+  // Picked and not studied: still being broken down (or retried), or its breakdown failed.
+  for (const url of state.picked ?? []) add(url, state.retry?.includes(url) || !state.breakdowns ? "studying" : "unreadable");
+  for (const url of failures.keys()) add(url, "unreadable");
+  // Then the ones set aside: the shortlist the breakdowns were picked from, and what the screen dropped.
+  let setAside = 0;
+  for (const candidate of state.candidates ?? []) {
+    if (setAside >= MAX_SET_ASIDE) break;
+    const relevance = screened.get(candidate.url)?.relevance ?? candidate.relevance;
+    if (seen.has(candidate.url)) continue;
+    add(candidate.url, relevance !== undefined && relevance < MIN_RELEVANCE ? "dropped" : "shortlisted");
+    setAside++;
+  }
+  for (const verdict of state.screened ?? []) {
+    if (setAside >= MAX_SET_ASIDE) break;
+    if (verdict.relevance >= MIN_RELEVANCE || seen.has(verdict.url) || !videos.has(verdict.url)) continue;
+    add(verdict.url, "dropped");
+    setAside++;
+  }
+  return out;
+}
+
+/** Where the reference study is, for the status line: the product, the screenshots, the screen, the breakdowns. */
+export function studyView(state: CreativeState | null) {
+  if (!state || (!state.product && !state.candidates && !state.breakdowns)) return null;
+  return {
+    product: state.product ? { name: state.product.name, kind: state.product.kind, oneLiner: state.product.one_liner, visuals: state.product.visuals.length, fromKit: state.product.visuals.filter((v) => v.source.startsWith("brandkit:")).length } : null,
+    captured: Boolean(state.captured),
+    screened: state.screened?.length ?? 0,
+    kept: (state.screened ?? []).filter((s) => s.relevance >= MIN_RELEVANCE).length,
+    picked: state.picked?.length ?? 0,
+    studied: state.breakdowns?.length ?? 0,
+    failed: state.failures?.length ?? 0,
+    done: Boolean(state.breakdowns) && !state.retry?.length,
   };
 }
 

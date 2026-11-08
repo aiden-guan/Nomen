@@ -173,6 +173,30 @@ describe.each(BACKENDS)("the pipeline on the %s store", (_name, make) => {
     expect(view.campaign!.creatives[0]).toMatchObject({ approved: true, videoUrl: null });
   });
 
+  it("shows the reference study and which video remakes which reference", async () => {
+    const brandId = await createBrand("monid.ai");
+    const campaignId = await startCampaign(brandId, OPTIONS);
+    const url = "https://www.tiktok.com/@dev/video/1";
+    const video = { platform: "tiktok", url, caption: "", views: 900_000, likes: 50_000, comments: 300, shares: 1_000, saves: 2_000, duration: 19, author: "dev", followers: 9_000, paid: false, thumbnail: "https://cdn.example/1.jpg", media_url: null, source: "tiktok_bench_0" };
+    const reference = { id: "ref_1", url, platform: "tiktok", author: "dev", views: 900_000, followers: 9_000, outlier: 100, duration: 19, format: "talking head", hook: { line: "Stop", on_screen_text: "", visual: "", mechanic: "command" }, beats: [], pacing: { cuts: 3, avg_shot_seconds: 4, words_per_minute: null }, caption_style: "", delivery: "", why_it_works: "fast", fit: { score: 8, reason: "fits" }, transcript: "" };
+    await store().update(
+      "campaigns",
+      { id: campaignId },
+      {
+        stage: "production",
+        research_json: JSON.stringify({ videos: [video], ads: [], reddit: [], seo: { keywords: [] } }),
+        style_json: JSON.stringify({ slug: null, version: null, skill_md: "", samples: [url], picked: [url], breakdowns: [reference], candidates: [{ url, platform: "tiktok", author: "dev", views: 900_000, followers: 9_000, origin: "benchmark", score: { outlier: 100, engagement: 0.06, total: 9, why: "100x" } }] }),
+      },
+    );
+    const concept = { title: "Keys", format: "talking_head_broll", angle: "", platforms: ["tiktok"], hook: "h", creator: "", setting: "", shots: [], reference_images: [], caption: "c", hashtags: [], cta: "", inspired_by: [url], why: "", reference: { id: "ref_1", url, author: "dev", views: 900_000, followers: 9_000, outlier: 100, format: "talking head", hook_mechanic: "command" }, script: { beats: [], total_seconds: 18, review: { score: 8, notes: [], rounds: 1 } } };
+    const id = await insertCreative(campaignId, 0, concept as never);
+    const view = (await brandView(brandId))!;
+    expect(view.campaign!.references).toHaveLength(1);
+    expect(view.campaign!.references[0]).toMatchObject({ status: "studied", lane: "benchmark", thumbnail: "https://cdn.example/1.jpg", likes: 50_000, remadeBy: [{ title: "Keys", creativeId: id }] });
+    expect(view.campaign!.study).toMatchObject({ studied: 1, done: true });
+    expect(view.campaign!.creatives[0]).toMatchObject({ reference: { author: "dev", views: 900_000, thumbnail: "https://cdn.example/1.jpg" }, script: { seconds: 18, critic: 8 } });
+  });
+
   it("runs a tick that finds nothing to do and lets go of the lease", async () => {
     await tick();
     if (store().kind === "convex") expect(await store().lease.acquire("worker", "someone-else", 1000)).toBe(true);
