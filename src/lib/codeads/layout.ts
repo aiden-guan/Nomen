@@ -38,6 +38,7 @@ export type StoryJson = {
   callouts: Array<{ text: string; style: string; t0: number; t1: number; y?: number; pos?: [number, number] }>;
   codead: {
     brand: CodeAdBrand;
+    hero: string;
     nameplate: string;
     poster: string;
     beats: Array<{ id: string; gag: string; t0: number; t1: number; s0: number; s1: number; hit: number; screen: { kind: string; lines?: string[]; image?: string; title?: string }; labels: string[]; label: string }>;
@@ -134,7 +135,7 @@ export function layoutStory(story: CodeAdStory, voiced: Voiced, brand: CodeAdBra
       order,
       words,
       callouts,
-      codead: { brand, nameplate: story.nameplate, poster: story.poster, beats: codeBeats },
+      codead: { brand, hero: story.hero ?? "geek", nameplate: story.nameplate, poster: story.poster, beats: codeBeats },
     },
     notes,
   };

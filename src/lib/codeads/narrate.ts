@@ -21,11 +21,18 @@ import type { CodeAdBeat, Voiced } from "./types";
 
 export const SR = 44100;
 
-/** ElevenLabs "Adam" (ED Studio's narrator for meme and exaggerated build videos), as Nomen's text-to-speech model reads him. */
-export const ADAM = { voiceId: "pNInz6obpgDQGcFmaJgB", model: "eleven_v3", settings: { stability: 0.0, similarity_boost: 0.8 } };
+/**
+ * ElevenLabs "Adam", ED Studio's narrator. The default is his crisp read (eleven_multilingual_v2 at speed 1.12, ED Studio's
+ * first settings: about 3 words a second before any stretch); ADAM_V3 is the dramatic eleven_v3 read with audio tags
+ * ([shouting]) that ED Studio's meme reels use, slower (about 2.1 words a second).
+ */
+export const ADAM = { voiceId: "pNInz6obpgDQGcFmaJgB", model: "eleven_multilingual_v2", settings: { stability: 0.35, similarity_boost: 0.8, style: 0.45, use_speaker_boost: true, speed: 1.12 } };
+export const ADAM_V3 = { voiceId: "pNInz6obpgDQGcFmaJgB", model: "eleven_v3", settings: { stability: 0.0, similarity_boost: 0.8 } };
+/** Models that read ElevenLabs audio tags ("[excited]"); any other reads them aloud, so they are dropped first. */
+const TAG_MODELS = /^eleven_v[34]/;
 
 export type Narrator =
-  | { kind: "eleven"; monid: MonidRunner; voiceId?: string; model?: string; settings?: Record<string, number> }
+  | { kind: "eleven"; monid: MonidRunner; voiceId?: string; model?: string; settings?: Record<string, number | boolean> }
   | { kind: "scratch"; voice?: string; rate?: number };
 
 export type NarrateOptions = {
@@ -179,9 +186,9 @@ export function wavBytes(x: Float32Array, rate = SR): Buffer {
 /** One beat's clip on this machine, made (and paid for) once: kept as "<prefix>/voice/<provider>-<id>-<hash>.<ext>". */
 async function clip(beat: CodeAdBeat, options: NarrateOptions): Promise<{ path: string; text: string; spend: number; fresh: boolean }> {
   const { narrator, files, prefix, dir } = options;
-  const text = beat.say.trim();
   if (narrator.kind === "eleven") {
-    const voiceId = narrator.voiceId ?? ADAM.voiceId, model = narrator.model ?? ADAM.model, settings = narrator.settings ?? ADAM.settings;
+    const voiceId = narrator.voiceId ?? ADAM.voiceId, model = narrator.model ?? ADAM.model, settings = narrator.settings ?? (model === ADAM_V3.model ? ADAM_V3.settings : ADAM.settings);
+    const text = TAG_MODELS.test(model) ? beat.say.trim() : untag(beat.say);
     const key = `${prefix}/voice/eleven-${beat.id}-${hash([voiceId, model, settings, text])}.mp3`;
     if (await files.exists(key)) return { path: await files.localPath(key), text, spend: 0, fresh: false };
     const speak = (body: Record<string, unknown>) => runToEnd(narrator.monid, "elevenlabs", "/text-to-speech", { body }, { pollMs: 1000, timeoutMs: 5 * 60_000 });
@@ -198,6 +205,7 @@ async function clip(beat: CodeAdBeat, options: NarrateOptions): Promise<{ path: 
     await files.putFile(key, local, "audio/mpeg");
     return { path: await files.localPath(key), text, spend: runCostMicro(done), fresh: true };
   }
+  const text = beat.say.trim();
   const voice = narrator.voice ?? "Eddy (English (US))", rate = narrator.rate ?? 240;
   const spoken = untag(text);
   const key = `${prefix}/voice/scratch-${beat.id}-${hash([voice, rate, spoken])}.aiff`;
@@ -214,7 +222,8 @@ async function clip(beat: CodeAdBeat, options: NarrateOptions): Promise<{ path: 
  */
 export async function narrate(beats: CodeAdBeat[], options: NarrateOptions): Promise<{ voiced: Voiced; voicePath: string; spendMicro: number; tempo: number; fresh: number }> {
   await mkdir(options.dir, { recursive: true });
-  const lead = options.lead ?? 0.06, gap = options.gap ?? 0.05, tail = options.tail ?? 1.4;
+  // tight joins between beats keep the pace up; the tail holds the ending (the url on the wall screen) to read
+  const lead = options.lead ?? 0.04, gap = options.gap ?? 0.03, tail = options.tail ?? 1.25;
   const clips = [];
   let spendMicro = 0, fresh = 0;
   for (const beat of beats) {

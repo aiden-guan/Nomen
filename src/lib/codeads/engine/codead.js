@@ -1,4 +1,4 @@
-// Nomen's code-ad scene: ED Studio's build genre (docs/BUILD.md in ED Studio: Gary the Builder, one gliding camera take,
+// Nomen's code-ad scene: ED Studio's build genre (docs/BUILD.md in ED Studio: one gliding camera take,
 // hard impact kicks, analytic FX, one word of narration at a time + callouts), compiled from a list of beats instead of a
 // hand-written shots.js. story.codead (src/lib/codeads/layout.ts) carries, per beat: its gag, its absolute times (t0..t1,
 // speech s0..s1, the hit word's time) and what the wall screen shows. Every frame is a pure function of t (deterministic:
@@ -18,7 +18,7 @@
 //   idle       Gary just reacts (smiles, looks around)
 import * as THREE from 'three';
 import { clamp, lerp, easeIO, easeOut } from './core.js';
-import { makeToon } from './build/toon.js';
+import { makeToon, makeShades } from './build/toon.js';
 import { makeFX, makeDizzy } from './build/fx.js';
 import { pop, drop, squash, wobble, easeOutBack } from './build/anim.js';
 import { planRail, makeRail } from './build/rail.js';
@@ -28,8 +28,15 @@ import { makeAgent, makeCrate, makeBox, makeBigButton } from './props.js';
 import { drawScreen } from './screen.js';
 
 const PI = Math.PI;
-/** Gary the Builder, the series look (ED Studio docs/BUILD.md: "Gary is the builder in every build video"). */
-const GARY = { shirt: 0x2bb3a3, pants: 0x34495e, hair: 0x6b3f22, hairStyle: 'tuft', hat: 'hardhat' };
+/**
+ * The lead: a software developer (ED Studio's build reels cast Gary the Builder; a hard hat makes no sense at a laptop).
+ * story.codead.hero picks one; they rotate between videos. geek: a heavyset dev in a hoodie, round glasses, headphones
+ * round his neck, a neckbeard. mogger: a sharp, handsome dev in a black tee, a quiff, a strong jaw, a watch.
+ */
+const HEROES = {
+  geek: { look: { skin: 0xf1c7a5, shirt: 0x46506a, pants: 0x262a33, shoes: 0xe9e9e9, hair: 0x4a3122, beard: 0x4a3122, hairStyle: 'mop', build: 'heavy', glasses: 'round', hood: true, headphones: true }, beard: 0.13, mouth: 'smile', eyes: 'open', brows: 0, nameplate: 'DEV · FOUNDER' },
+  mogger: { look: { skin: 0xd9a47a, shirt: 0xeceff3, pants: 0x2e3542, shoes: 0x16181d, hair: 0x22160f, hairStyle: 'quiff', build: 'fit', jaw: true, watch: true, browW: 1.3 }, shades: true, beard: 0, mouth: 'smirk', eyes: 'cool', brows: -0.25, nameplate: 'DEV · FOUNDER' },
+};
 const G = { x: D.gary[0], z: D.gary[1] };
 const HEAD_Y = 1.12;   // a toon's head centre above its feet
 const u01 = (t, a, b) => clamp((t - a) / Math.max(1e-6, b - a));
@@ -63,8 +70,10 @@ export async function build(studio, story) {
   scene.background = new THREE.Color(0x2a303b);
   camera.far = 60; camera.near = 0.05;
 
-  const set = buildDevOffice(studio, { brand, logo, nameplate: A.nameplate, poster: A.poster });
-  const gary = makeToon(GARY); scene.add(gary.root);
+  const hero = HEROES[A.hero] || HEROES.geek;
+  const set = buildDevOffice(studio, { brand, logo, nameplate: A.nameplate || hero.nameplate, poster: A.poster });
+  const gary = makeToon({ ...hero.look, accent: colors.accent }); scene.add(gary.root);
+  if (hero.shades) { const sh = makeShades(0.062, 0.085); gary.head.add(sh); sh.position.set(0, 0.235, 0.262); sh.rotation.x = -0.38; sh.visible = true; }   // pushed up on his head
   const fx = makeFX(scene), dizzy = makeDizzy(scene);
   const beats = A.beats.map((b, i) => ({ ...b, i, labels: (b.labels || []).filter(Boolean) }));
   const END = story.duration;
@@ -213,7 +222,7 @@ export async function build(studio, story) {
   const explodes = beats.filter((b) => b.gag === 'explode'), zaps = beats.filter((b) => b.gag === 'zap'), shows = beats.filter((b) => b.gag === 'show');
   function garyPose(t) {
     const b = beatAt(t), h = t - b.hit, lt = t - b.t0;
-    const p = { x: G.x, y: 0, z: G.z, rotY: 0, t, lean: 0.04, eyes: 'open', mouth: 'smile', brows: 0, look: [0, 0], head: { x: 0.04 * Math.sin(t * 1.3), y: 0.08 * Math.sin(t * 0.7), z: 0.03 * Math.sin(t * 0.9) }, armL: { x: 0.05, z: 0.18, el: 0.25 }, armR: { x: 0.05, z: 0.18, el: 0.25 } };
+    const p = { x: G.x, y: 0, z: G.z, rotY: 0, t, lean: 0.04, eyes: hero.eyes, mouth: hero.mouth, beard: hero.beard, brows: hero.brows, look: [0, 0], head: { x: 0.04 * Math.sin(t * 1.3), y: 0.08 * Math.sin(t * 0.7), z: 0.03 * Math.sin(t * 0.9) }, armL: { x: 0.05, z: 0.18, el: 0.25 }, armR: { x: 0.05, z: 0.18, el: 0.25 } };
     const breathe = 1 + 0.012 * Math.sin(t * 2.4); p.squash = [1, breathe];
     const typing = () => { const s = Math.sin(t * 23); p.lean = 0.16; p.head = { x: 0.26, y: 0.05 * Math.sin(t * 3), z: 0 }; p.eyes = 'open'; p.look = [0, -0.6]; p.brows = -0.7; p.mouth = 'flat'; p.armL = { x: -1.05 + 0.1 * s, z: 0.22, el: 0.55 }; p.armR = { x: -1.05 - 0.1 * s, z: 0.22, el: 0.55 }; };
     switch (b.gag) {
@@ -232,11 +241,11 @@ export async function build(studio, story) {
         else { p.hairUp = Math.max(0, 1 - (h - 0.55) / 2.5); p.eyes = 'spiral'; p.mouth = 'wavy'; p.armR = { x: 0.1, z: 0.3, el: 0.4 }; }
         break;
       case 'money':
-        if (t > Math.min(b.hit, b.s0 + 0.3) - 0.2) { const j = Math.abs(Math.sin(t * 11)); p.y = 0.05 * j; p.eyes = 'wide'; p.mouth = 'scream'; p.brows = 1; p.armL = { x: -2.4 + 0.3 * Math.sin(t * 13), z: 0.35, el: 0.3 }; p.armR = { x: -2.4 - 0.3 * Math.sin(t * 13), z: 0.35, el: 0.3 }; p.head = { x: -0.35, y: 0.15 * Math.sin(t * 5), z: 0 }; }
+        if (t > Math.min(b.hit, b.s0 + 0.3) - 0.2) { p.eyes = 'wide'; p.mouth = 'o'; p.brows = 0.9; p.armL = { x: -2.5 + 0.2 * Math.sin(t * 9), z: 0.4, el: 0.5 }; p.armR = { x: -2.5 - 0.2 * Math.sin(t * 9), z: 0.4, el: 0.5 }; p.head = { x: -0.32, y: 0.1 * Math.sin(t * 4), z: 0 }; }
         break;
       case 'deliver': {
         const look = clamp(u01(t, b.hit - 0.6, b.hit - 0.3));
-        p.head = { x: lerp(0, -0.15, look) + (h > 0 ? 0.2 : 0), y: lerp(0, 0.55, look), z: 0 }; p.eyes = h < 0.6 ? 'wide' : 'open'; p.mouth = h < 0 ? 'o' : h < 0.6 ? 'scream' : 'grin'; p.brows = h < 0.6 ? 0.9 : 0.2;
+        p.head = { x: lerp(0, -0.15, look) + (h > 0 ? 0.2 : 0), y: lerp(0, 0.55, look), z: 0 }; p.eyes = h < 0.6 ? 'wide' : 'open'; p.mouth = h < 0.6 ? 'o' : 'grin'; p.brows = h < 0.6 ? 0.7 : 0.2;
         if (h > 0 && h < 0.6) p.squash = squash(t, b.hit, 0.2);
         break;
       }
@@ -262,7 +271,7 @@ export async function build(studio, story) {
     // aftermath: an explosion or a zap leaves Gary charred for a while
     for (const e of [...explodes, ...zaps]) { const a = t - e.hit; if (a >= 0 && a < 5) { const c = (e.gag === 'explode' ? 0.85 : 0.45) * (1 - clamp((a - 0.4) / 4.2)); p.char = Math.max(p.char || 0, c); if (e.gag === 'explode' && a < 1.1) { p.hairUp = Math.max(p.hairUp || 0, 1 - a / 1.6); p.hatLift = Math.max(p.hatLift || 0, clamp(1 - Math.abs(a - 0.5) / 0.55)); } } }
     // a blink every few seconds (never on a gag face)
-    if (p.eyes === 'open' && (t % 3.7) < 0.12) p.eyes = 'closed';
+    if ((p.eyes === 'open' || p.eyes === 'cool') && (t % 3.7) < 0.12) p.eyes = 'closed';
     // under a pile until the next beat knocks it off
     for (const P of piles) if (!P.purchases && t >= P.b.hit && t < P.clear + 0.3) { p.eyes = 'spiral'; if (t > P.clear) { const k = u01(t, P.clear, P.clear + 0.3); p.squash = [1 - 0.1 * (1 - k), 1 + 0.2 * Math.sin(k * PI)]; } }
     return p;

@@ -1,5 +1,5 @@
-// Code ads: fast, narrated, joke-dense 15-30 s ads made entirely in code, in ED Studio's build genre (Gary the Builder in a
-// 3D dollhouse office, one gliding camera take, one spoken word at a time, yellow term callouts, a synthesized score).
+// Code ads: fast, narrated, product-first 15-30 s ads made entirely in code, in ED Studio's build genre (a cartoon developer
+// in a 3D dollhouse office, one gliding camera take, one spoken word at a time, yellow term callouts, a synthesized score).
 //
 //   CreativeBrief (format "code_ad") ─► story.ts (the model writes a CodeAdStory from the brief, the product and a viral
 //   reference in any niche) ─► narrate.ts (one voice clip per beat, word times) ─► layout.ts (story.json for the page)
@@ -53,14 +53,20 @@ export type CodeAdBeat = {
   callouts: CodeAdCallout[];
 };
 
+/** The developer on screen: a heavyset dev in a hoodie and glasses, or a sharp, handsome one. They rotate between videos. */
+export const HEROES = ["geek", "mogger"] as const;
+export type Hero = (typeof HEROES)[number];
+
 export type CodeAdStory = {
+  /** Who plays the developer (engine/codead.js HEROES). */
+  hero?: Hero;
   /**
    * The viral video this ad borrows its concept from (any niche: an engineering explainer, a money story, a sim), and
    * how: its premise and hook mechanic, and how they carry this product. The words are never theirs.
    */
   concept: { reference_id: string; premise: string; mechanic: string; adaptation: string };
   beats: CodeAdBeat[];
-  /** On Gary's desk: "GARY · FOUNDER". */
+  /** On the developer's desk: "DEV · FOUNDER". */
   nameplate: string;
   /** The poster on the office wall: the brand's own tagline. */
   poster: string;

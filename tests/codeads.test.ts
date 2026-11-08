@@ -84,7 +84,7 @@ describe("the code-ad story", () => {
 
   it("flags what a person would catch: invented numbers, no product, ad copy, repeats, length", () => {
     const story = normalizeStory(raw, ctx);
-    expect(lintStory(story, ctx)).toEqual([expect.stringMatching(/38 words is too short for 24 s/)]);
+    expect(lintStory(story, ctx)).toEqual([expect.stringMatching(/38 words is too short for 24 s/), expect.stringMatching(/1 lines carry audio tags/)]);
     const bad: CodeAdStory = {
       ...story,
       beats: [
@@ -122,7 +122,7 @@ describe("the format in the pipeline", () => {
     expect(FORMATS).toContain("code_ad");
     const strategy = normalizeStrategy({ campaign: { briefs: [{ ...brief }] } }, { concepts: 1, shotsPerConcept: 1, secondsPerShot: 4, videoModel: "x" }, { referenceIds: ["ref_x"], visualIds: [] });
     expect(strategy.campaign.briefs![0].format).toBe("code_ad");
-    expect(targetSeconds({ duration: 54 }, "code_ad")).toBe(27);
+    expect(targetSeconds({ duration: 54 }, "code_ad")).toBe(24);
     expect(targetSeconds({ duration: 12 }, "code_ad")).toBe(18);
     const script = storyScript(normalizeStory(raw, ctx));
     const plan = planProduction(script, brief, product);

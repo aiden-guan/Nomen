@@ -302,6 +302,7 @@ export async function renderVideo(adDir: string, chrome: string, out: string, op
 export async function contactSheet(stills: string[], out: string, cols = 6): Promise<string> {
   const ffmpeg = await ffmpegPath();
   if (!ffmpeg) throw new Error("ffmpeg is needed for a contact sheet");
+  cols = Math.max(2, cols);   // xstack needs 2+ inputs: a single still gets a black neighbour
   const rows = Math.ceil(stills.length / cols);
   const inputs = stills.flatMap((path) => ["-i", path]);
   const scaled = stills.map((_, i) => `[${i}:v]scale=270:480[s${i}]`).join(";");

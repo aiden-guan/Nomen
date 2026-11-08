@@ -26,9 +26,17 @@ import { findChrome } from "../creative/screens";
 import type { BrandKit, ProductBrief } from "../creative/types";
 import { buildCues } from "./cues";
 import { layoutStory, type StoryJson } from "./layout";
-import { type Narrator, narrate } from "./narrate";
+import { ADAM_V3, type Narrator, narrate } from "./narrate";
 import { contactSheet, renderStills, renderVideo, runQc } from "./render";
-import type { CodeAdBrand, CodeAdStory } from "./types";
+import { type CodeAdBrand, type CodeAdStory, HEROES, type Hero } from "./types";
+
+/** The developer a story plays with: its own pick, else a rotation keyed on the video (geek, mogger, geek…). */
+export function heroFor(story: CodeAdStory, key: string): Hero {
+  if (story.hero && HEROES.includes(story.hero)) return story.hero;
+  let h = 0;
+  for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return HEROES[h % HEROES.length];
+}
 
 const SYNTH = resolve(process.cwd(), "src/lib/codeads/synth.py");
 
@@ -69,10 +77,19 @@ export async function brandFor(input: { name: string; site: string; kit: BrandKi
     if (forDark && !onDark) (await copyFile(logo.path, join(input.dir, target)), (onDark = `/ad/${target}`));
     if (!forDark && !onLight) (await copyFile(logo.path, join(input.dir, target)), (onLight = `/ad/${target}`));
   }
-  if (!onDark && !onLight && input.logoPath && existsSync(input.logoPath)) {
-    const target = `logo${extname(input.logoPath).toLowerCase()}`;
-    await copyFile(input.logoPath, join(input.dir, target));
-    onLight = `/ad/${target}`;
+  // no logo in the kit: a product visual that is the logo (the analyst captions them "… logo …"), downloaded if remote
+  const logoVisual = input.product.visuals.find((v) => v.kind === "photo" && /\blogo\b/i.test(v.caption));
+  const fallback = input.logoPath ?? logoVisual?.url ?? null;
+  if (!onDark && !onLight && fallback) {
+    try {
+      const ext = (extname(/^https?:/.test(fallback) ? new URL(fallback).pathname : fallback).toLowerCase() || ".png").slice(0, 5);
+      const target = `logo${ext}`;
+      if (/^https?:/.test(fallback)) await download(fallback, join(input.dir, target));
+      else if (existsSync(fallback)) await copyFile(fallback, join(input.dir, target));
+      if (existsSync(join(input.dir, target))) onLight = `/ad/${target}`;
+    } catch {
+      // no logo: the brand card shows the name and the url
+    }
   }
   const font = (input.kit?.assets ?? []).find((a) => a.kind === "font" && /\.(woff2?|ttf|otf)$/i.test(a.path) && existsSync(a.path));
   let fontUrl: string | null = null;
@@ -209,7 +226,7 @@ export async function prepareAd(input: MakeCodeAdInput): Promise<{ story: StoryJ
   const brand = await brandFor({ name: input.brandName, site: input.site, kit: input.kit, product: input.product, dir, logoPath: input.logoPath });
   const images = await visualFiles(input.story, input.product, dir, files);
   const voice = await narrate(input.story.beats, { narrator: input.narrator, files, prefix, dir, targetSeconds: input.targetSeconds, log: input.log });
-  const { story, notes } = layoutStory(input.story, voice.voiced, brand, images, { fps: input.fps ?? 60, motionBlur: input.blur ?? 2 });
+  const { story, notes } = layoutStory({ ...input.story, hero: heroFor(input.story, prefix) }, voice.voiced, brand, images, { fps: input.fps ?? 60, motionBlur: input.blur ?? 2 });
   await writeFile(join(dir, "story.json"), JSON.stringify(story));
   await writeFile(join(dir, "cues.json"), JSON.stringify(buildCues(story, input.brandName)));
   return { story, notes, spendMicro: voice.spendMicro };
@@ -313,7 +330,8 @@ async function runCodeAd(ctx: ProductionContext, creative: CreativeRow, concept:
   const site = story.url || brand?.domain || "";
   const dir = join(scratchDir(), `codead-${creative.id}`);
   const voice = process.env.NOMEN_CODEAD_VOICE === "scratch" || !ctx.monid ? "scratch" : "eleven";
-  const narrator: Narrator = voice === "eleven" && ctx.monid ? { kind: "eleven", monid: ctx.monid } : { kind: "scratch" };
+  // Adam's crisp read by default; NOMEN_CODEAD_NARRATOR=v3 for ED Studio's dramatic eleven_v3 read
+  const narrator: Narrator = voice === "eleven" && ctx.monid ? { kind: "eleven", monid: ctx.monid, ...(process.env.NOMEN_CODEAD_NARRATOR === "v3" ? { model: ADAM_V3.model, settings: ADAM_V3.settings } : {}) } : { kind: "scratch" };
   log(`making it: ${story.beats.length} beats, ${narrator.kind === "eleven" ? "ElevenLabs narrator" : "scratch narrator"}, rendering locally`);
   try {
     const made = await makeCodeAd({
@@ -327,8 +345,8 @@ async function runCodeAd(ctx: ProductionContext, creative: CreativeRow, concept:
       files: store().files,
       dir,
       chrome: findChrome()!,
-      // the format's promise: 15-30 s; the narrator is sped up (at most 1.3x) toward it
-      targetSeconds: Math.min(28, Math.max(15, concept.script?.total_seconds ?? 24)),
+      // the format's promise: fast, 15-25 s; the narrator is sped up (at most 1.3x) toward it
+      targetSeconds: Math.min(24, Math.max(15, concept.script?.total_seconds ?? 22)),
       naive: ctx.naive && !ctx.naiveOut() ? ctx.naive : null,
       log,
     });

@@ -10,26 +10,29 @@ import { extractJson } from "../research";
 import { BANNED } from "../creative/script";
 import type { BeatJob, CreativeBrief, ProductBrief, ReferenceBreakdown, Script, ScriptBeat } from "../creative/types";
 import { norm, untag } from "./layout";
-import { CALLOUT_STYLES, type CalloutStyle, type CodeAdBeat, type CodeAdStory, GAGS, type Gag, SCREEN_KINDS, type ScreenKind } from "./types";
+import { CALLOUT_STYLES, type CalloutStyle, type CodeAdBeat, type CodeAdStory, GAGS, type Gag, HEROES, type Hero, SCREEN_KINDS, type ScreenKind } from "./types";
 
-/** Words per second the narrator comes out at: Adam on eleven_v3 reads ~2.1/s, sped up at most 1.3x (the Naïve sample: 85 words ran 29.5 s). */
-export const WPS = 2.75;
+/**
+ * Words per second the narration comes out at: Adam's crisp read (eleven_multilingual_v2, speed 1.12) is about 3 words a
+ * second and is sped up at most 1.3x to fit; the writer budgets 3.2 so the ad lands at the target with room to breathe.
+ */
+export const WPS = 3.2;
 const PASS = 8;
 
 export type CodeAdContext = { product: ProductBrief; brief: CreativeBrief; reference: ReferenceBreakdown; targetSeconds: number; site?: string };
 
 const GAG_MENU: Record<Gag, string> = {
-  hack: "Gary types furiously at his laptop; the wall screen types the beat's terminal or chat lines. Setups: the naive way of doing the job.",
-  explode: "the laptop blows up on the hit word (smoke, sparks, debris); Gary is blasted, charred, X eyes, hat off. A crash, a broken build, a bad deploy.",
-  bury: "an avalanche of cardboard boxes printed with `labels` (TABS, API KEYS, INVOICES) buries Gary to the nose; spiral eyes, dizzy stars. Too much work, too many tools.",
-  zap: "Gary touches the power strip: x-ray flicker, sparks, hair stands up. An integration that bites, a key that leaks.",
-  money: "banknotes pour out of the wall screen and fly away while Gary grabs at them screaming; what the money bought (`labels`, 1-3: YACHT, ADS) arrives in printed boxes beside him. Costs, a surprise bill, spending gone wrong.",
-  deliver: "the brand's crate (its colour and logo) drops in front of the desk and bursts open; the brand's little agent robot hops out with `labels[0]` on its sign. The product's entrance: use it on the beat that says 'So you use <product>'.",
+  hack: "the developer types fast at his laptop; the wall screen types the beat's terminal or chat lines. Setups, and the old way of doing the job.",
+  explode: "the laptop blows up on the hit word (smoke, sparks, debris); the developer is charred for a moment. A crash, a broken build, a bad deploy.",
+  bury: "a pile of cardboard boxes printed with `labels` (TABS, API KEYS, INVOICES) drops on the developer; dizzy stars. Too much work, too many tools.",
+  zap: "the developer touches the power strip: an x-ray flicker, sparks. An integration that bites, a key that leaks.",
+  money: "banknotes pour out of the wall screen while the developer reaches for them; what the money went on (`labels`, 1-3: API KEYS, SEATS) arrives in printed boxes beside him. Costs, a surprise bill, subscriptions.",
+  deliver: "the brand's crate (its colour and logo) drops beside the desk and bursts open; the brand's agent robot hops out with `labels[0]` on its sign. The product's entrance: the beat that says 'So you use <product>'.",
   team: "more agent robots pop in, one per label in `labels` (2-5 short roles: EMAIL, VIDEO, ADS), and get to work around the office. Several agents, scale, parallel work.",
-  approve: "a big button pops up on the desk; Gary slams it on the hit. labels[0] is the button: APPROVE (green) or DENY (red). Approvals, permissions, budgets, guardrails.",
-  show: "the camera pushes in on the wall screen showing a real product visual (screen kind image) or the logo; Gary presents it like a weatherman. 'This is what it looks like.'",
-  celebrate: "confetti, Gary jumps with his arms up, the robots spin. The payoff.",
-  idle: "Gary just reacts. Use rarely: every beat should show something happening.",
+  approve: "a big button pops up on the desk; the developer slams it on the hit. labels[0] is the button: APPROVE (green) or DENY (red). Approvals, permissions, budgets, guardrails.",
+  show: "the camera frames the wall screen showing a real product visual (screen kind image) or the logo; the developer steps aside and presents it. 'This is what it looks like.'",
+  celebrate: "confetti, the developer throws his arms up, the robots spin. The payoff.",
+  idle: "the developer just reacts. Use rarely: every beat should show something happening.",
 };
 
 const SCREEN_MENU: Record<ScreenKind, string> = {
@@ -38,7 +41,7 @@ const SCREEN_MENU: Record<ScreenKind, string> = {
   image: "a real product visual: set visual_id to an id from <visuals>.",
   logo: "the brand card: logo, name and url.",
   error: "a red failure card: lines[0] is the title (2-3 words), lines[1] one short detail. Explode and zap beats switch to it on the hit by themselves.",
-  dashboard: "a list of agents working, one per line (at most 22 characters each), with progress bars.",
+  dashboard: "a list of agents or tools working, one per line (at most 22 characters each), with progress bars.",
   none: "keep whatever the screen showed before.",
 };
 
@@ -47,7 +50,7 @@ const TOOL = {
   description: "Record the code ad, beat by beat.",
   input_schema: {
     type: "object",
-    required: ["concept", "nameplate", "poster", "url", "beats"],
+    required: ["concept", "hero", "nameplate", "poster", "url", "beats"],
     properties: {
       concept: {
         type: "object",
@@ -59,7 +62,8 @@ const TOOL = {
           adaptation: { type: "string", description: "How this ad carries that concept for the product, in one or two sentences." },
         },
       },
-      nameplate: { type: "string", description: "Gary's nameplate on the desk, 2-4 words in caps, e.g. 'GARY · FOUNDER' or 'GARY · SOLO DEV'." },
+      hero: { type: "string", enum: [...HEROES], description: "Who plays the developer: geek (a heavyset dev in a hoodie, glasses and headphones) or mogger (a sharp, handsome dev in a black tee). Pick the one the story fits; he is never named." },
+      nameplate: { type: "string", description: "The developer's nameplate on the desk, 2-4 words in caps, e.g. 'DEV · FOUNDER' or 'SOLO DEV'." },
       poster: { type: "string", description: "The poster on the office wall: the brand's own tagline, verbatim from the brief's claims, at most 7 words." },
       url: { type: "string", description: "The site the viewer goes to, as said and shown at the end, e.g. 'usenaive.ai'." },
       beats: {
@@ -68,11 +72,11 @@ const TOOL = {
           type: "object",
           required: ["id", "say", "gag", "hit", "labels", "screen", "callouts"],
           properties: {
-            id: { type: "string", description: "A short slug: hook, fail, fix, approvals, end." },
-            say: { type: "string", description: "Exactly what the narrator says. At most one audio tag ([shouting], [excited], [whispers], [sarcastic]) at the start of a payoff line, with one CAPS word." },
+            id: { type: "string", description: "A short slug: hook, problem, fix, approvals, end." },
+            say: { type: "string", description: "Exactly what the narrator says, 5-12 words. No audio tags, no stage directions." },
             gag: { type: "string", enum: [...GAGS] },
             hit: { type: "string", description: "The word of `say` the gag lands on, spelled as in the line." },
-            labels: { type: "array", items: { type: "string" }, description: "See the gag menu: box labels (bury), what the money bought (money), agent roles (deliver, team), the button (approve). Caps, 1-2 words each. Empty otherwise." },
+            labels: { type: "array", items: { type: "string" }, description: "See the gag menu: box labels (bury), what the money went on (money), agent roles (deliver, team), the button (approve). Caps, 1-2 words each. Empty otherwise." },
             screen: {
               type: "object",
               required: ["kind"],
@@ -90,7 +94,7 @@ const TOOL = {
                 required: ["at", "text", "style"],
                 properties: {
                   at: { type: "string", description: "A word of `say`, spelled as in the line: the callout pops on it." },
-                  text: { type: "string", description: "Caps. term/stamp: 1-3 words; label/money: up to 4 words; sfx: one comic word (BOOM, ZAP)." },
+                  text: { type: "string", description: "Caps. term/stamp: 1-3 words; label/money: up to 4 words; sfx: one short word." },
                   style: { type: "string", enum: [...CALLOUT_STYLES] },
                   until: { type: "string", description: "Optional: a later word of the line it stays up until." },
                 },
@@ -106,30 +110,32 @@ const TOOL = {
 function writerSystem(target: number) {
   const words = Math.round(target * WPS);
   return [
-    "You write code ads: 15-30 second vertical ads made entirely in code (3D animation rendered by a browser, no camera, no AI video), in the style of a viral 3D explainer series. A fast, funny narrator talks to the viewer as 'you' and tells a tiny story. On screen, Gary the Builder, a big-headed cartoon developer in a yellow hard hat, acts it out at his standing desk in a 3D office with a big wall screen behind him and his laptop in front of him. One spoken word at a time sits in the middle of the frame, and short callouts pop in: a yellow TERM for each of the product's feature names, orange labels for facts, green money, red stamps.",
+    "You write code ads: 15-25 second vertical ads made entirely in code (3D animation rendered by a browser, no camera, no AI video). A fast, confident narrator talks to the viewer as 'you'. On screen, a cartoon software developer acts it out at his standing desk in a 3D office, with a big wall screen behind him (what the computer shows), his laptop in front of him, and the brand's little agent robots on the floor. One spoken word at a time sits in the middle of the frame, and short callouts pop in: a yellow TERM for each of the product's feature names, orange labels for facts, green money, red stamps.",
     "",
-    "The concept comes from the viral reference video below, which can be in any niche (an engineering explainer, a money story, a life hack, a simulation). Take its premise, its hook mechanic and its escalation, and carry them into this product's world: Gary does the job the naive way, it fails in a big, physical, funny way that hurts him, and the product is the fix. Never reuse the reference's words, jokes, people or claims.",
+    "The concept comes from the viral reference video below, which can be in any niche (an engineering explainer, a money story, a life hack, a simulation). Take its premise, its hook mechanic and its escalation, and carry them into this product's world: the developer hits a real problem, and the product is the fix. Never reuse the reference's words, jokes, people or claims.",
     "",
-    "The formula (the build genre, cut to ad length):",
-    "1. Hook, beat 1, spoken over action from the first frame: the dumbest possible version of the job, second person, one breath. 'You give an AI agent your credit card and one instruction: make money.'",
-    "2. The failure, 1-2 beats: it goes wrong physically and Gary pays for it (explode, bury, zap, money), with a one-line roast.",
-    "3. The fix, 2-3 beats: 'So you use <product>.' The product arrives (deliver), then one feature per beat: its real name from the brief as a term callout, one plain sentence on what it does, a quick joke. Show it (approve, team, show, hack).",
-    "4. The payoff and the ask, the last beat: a callback to the hook, then one concrete step with the url, e.g. 'Pick a template at usenaive.ai.' Put the url in a label callout on its word (or on the last word).",
-    `Length: about ${target} seconds, so ${words - 8}-${words + 6} words in all, in 5-8 beats of 5-18 words each. Every beat changes what is on screen.`,
+    "The tone: a sharp dev-tool launch video. Confident, quick and product-first: the product is the hero, it is named early, and every beat after the problem sells one real thing it does. Humor is light and dry: at most one small wink in the whole ad, said straight. No slapstick lines, no roasts, no yelling, no absurd purchases, animals or 'Congratulations' formula. The problem is a real developer pain, shown plainly (too many API keys, a surprise bill, a script that breaks, an agent with no phone or no rules).",
+    "",
+    "The structure:",
+    "1. Hook, beat 1, from the first frame: the pain, the dare or the promise in one quick line, second person.",
+    "2. The problem, 1 beat: what goes wrong, shown on screen (bury, money, explode or zap).",
+    "3. The fix, 3-4 beats: 'So you use <product>.' It arrives (deliver), then one feature per beat: its real name from the brief as a term callout and one plain sentence on what it does. Show it (show, team, approve, hack). Real numbers and the offer from the brief go in label or money callouts.",
+    "4. The ask, the last beat: one concrete step with the url (and the offer, when the brief has one). Put the url in a label callout on its word (or on the last word).",
+    `The pace: fast. About ${target} seconds, so ${words - 8}-${words + 4} words in all, in 6-8 short beats of 5-12 words. Short sentences. Every beat changes what is on screen.`,
     "",
     "Gags (what happens on screen; each beat has exactly one, landing on its hit word):",
     ...GAGS.map((g) => `- ${g}: ${GAG_MENU[g]}`),
-    "Use each failure gag at most once, deliver exactly once, and end on celebrate (or show). Never the same gag twice in a row.",
+    "Use one problem gag, deliver exactly once, and end on celebrate (or show). Never the same gag twice in a row.",
     "",
     "The wall screen (what the computer shows, readable on a phone: few, short lines):",
     ...SCREEN_KINDS.map((k) => `- ${k}: ${SCREEN_MENU[k]}`),
     "Prefer real product visuals (image) on the beats that name a feature, when <visuals> has one that shows it. Use the product's real commands and UI words from the brief.",
     "",
-    "Callouts: 1-2 per beat, never more than 3. A term on every feature beat (the feature's real name). `at` and `until` must be words of `say` exactly as spoken. Show what the callouts name: a thing the line jokes about is on screen (as a box label, a robot's role, a wall screen).",
+    "Callouts: 1-2 per beat, never more than 3. A term on every feature beat (the feature's real name). `at` and `until` must be words of `say` exactly as spoken. Show what the callouts name: a thing the line mentions is on screen (as a box label, a robot's role, a wall screen).",
     "",
-    "Truth: every claim about the product, and every number, price or name of a feature, comes from the product brief (claims, features, proof, offer, code). Gary's failures may exaggerate, but give them no numbers. No personal history ('I've used it for months'), no results nobody measured, no competitors' names, no real people. Nothing crude.",
+    "Truth: every claim about the product, and every number, price or name of a feature, comes from the product brief (claims, features, proof, offer, code). The problem may be stated plainly but gets no invented numbers. No personal history ('I've used it for months'), no results nobody measured, no competitors' names, no real people. Nothing crude.",
     "",
-    "The narrator: punchy, deadpan, fast. Short sentences. Contrast is the joke: calm setups, then a payoff line yelled with an audio tag ([shouting] or [excited]) and one CAPS word, on 1-2 beats only. No ad-copy words (game changer, revolutionize, unlock, elevate, seamless, effortless, supercharge, streamline, leverage, all-in-one, cutting-edge, solution), no em dashes, no emojis.",
+    "The narrator reads plainly and fast: no audio tags, no stage directions. No ad-copy words (game changer, revolutionize, unlock, elevate, seamless, effortless, supercharge, streamline, leverage, all-in-one, cutting-edge, solution), no em dashes, no emojis.",
     "",
     "Call the code_ad tool once.",
   ].join("\n");
@@ -236,7 +242,8 @@ export function normalizeStory(raw: unknown, ctx: CodeAdContext): CodeAdStory {
       adaptation: clean((r.concept as Record<string, unknown> | undefined)?.adaptation),
     },
     beats,
-    nameplate: clean(r.nameplate, 22).toUpperCase() || "GARY · FOUNDER",
+    ...(HEROES.includes(r.hero as Hero) ? { hero: r.hero as Hero } : {}),
+    nameplate: clean(r.nameplate, 22).toUpperCase() || "DEV · FOUNDER",
     poster: clean(r.poster, 60) || ctx.product.claims[0] || ctx.product.one_liner,
     url,
   };
@@ -270,11 +277,11 @@ export function lintStory(story: CodeAdStory, ctx: CodeAdContext): string[] {
   if (!story.beats.some((b) => b.callouts.some((c) => c.style === "term"))) issues.push("no term callout names a feature");
   for (const [i, b] of story.beats.entries()) {
     const n = untag(b.say).split(/\s+/).filter(Boolean).length;
-    if (n > 20) issues.push(`beat ${i + 1} is ${n} words: split it`);
+    if (n > 14) issues.push(`beat ${i + 1} is ${n} words: keep beats to 5-12 for the pace`);
     if (i > 0 && b.gag === story.beats[i - 1].gag) issues.push(`beats ${i} and ${i + 1} play the same gag (${b.gag})`);
   }
-  const tagged = story.beats.filter((b) => /\[(shouting|excited)\]/i.test(b.say)).length;
-  if (tagged > 3) issues.push(`${tagged} yelled lines: keep it to 1-2`);
+  const tagged = story.beats.filter((b) => /\[[a-z]+\]/i.test(b.say)).length;
+  if (tagged) issues.push(`${tagged} lines carry audio tags: the narrator reads plainly`);
   if (ctx.brief.role === "convert" && story.url && !text.includes(story.url.toLowerCase().split(".")[0])) issues.push("a convert ad must end on the site");
   return issues;
 }
@@ -333,9 +340,9 @@ export async function writeCodeAd(naive: NaiveClient, ctx: CodeAdContext): Promi
 
   const issues = lintStory(story, ctx);
   const system = [
-    "You are the creative director of a viral 3D explainer channel that now makes 15-30 second ads for developer tools. You check a code ad's script before it is animated.",
-    "Score it on: the hook (would it stop the scroll in the first second?), comedy (big physical failures that hurt Gary, a roast, a callback), clarity (after one watch, does a stranger know what the product does and why they'd want it?), truth (every product claim and number is in the brief), the concept (it carries the reference's premise and hook mechanic without its words), pacing (every beat shows something new; the right length) and the ending (a payoff, then one clear step with the url).",
-    "Also check it renders: one gag per beat from the menu, hit words and callout anchors that are words of the line, short screen lines, at most 1-2 yelled lines.",
+    "You are the creative director of a viral 3D explainer channel that now makes 15-25 second ads for developer tools. You check a code ad's script before it is animated.",
+    "Score it on: the hook (would it stop the scroll in the first second?), selling (the product is named early and every beat after the problem shows one real thing it does), clarity (after one watch, does a stranger know what the product does and why they'd want it?), taste (at most one light, dry wink; fail slapstick, roasts, yelling, absurd props or anything cringe), truth (every product claim and number is in the brief), the concept (it carries the reference's premise and hook mechanic without its words), pace (short beats, every one shows something new, the right length) and the ending (one clear step with the url).",
+    "Also check it renders: one gag per beat from the menu, hit words and callout anchors that are words of the line, short screen lines, no audio tags.",
     `If the score is below ${PASS}, write the complete revised code ad that fixes every problem, by the writer's rules:\n\n${writerSystem(ctx.targetSeconds)}`,
   ].join("\n");
   const content = `${contextBlock(ctx)}\n\n<code_ad>\n${JSON.stringify(story)}\n</code_ad>\n\nAutomatic checks found: ${issues.length ? issues.join("; ") : "nothing"}.\n\nCall the code_ad_review tool once.`;
