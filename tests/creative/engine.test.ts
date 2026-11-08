@@ -674,3 +674,22 @@ describe("busy provider errors in screen failures", () => {
     expect(busyError("screen b3: the check failed twice")).toBe(false);
   });
 });
+
+describe("the product analyst when the model's tool call is malformed", () => {
+  it("asks again for plain JSON instead of failing the study", async () => {
+    const { analyzeProduct } = await import("@/lib/creative/product");
+    const { ApiError } = await import("@/lib/http");
+    const calls: Array<{ tools?: unknown }> = [];
+    const naive = {
+      message: async (body: { tools?: unknown }) => {
+        calls.push(body);
+        if (body.tools) throw new ApiError("naive", 502, "bad_tool_call", "the model returned a malformed tool call");
+        return { content: [{ type: "text", text: '{"name":"Mobilerun","one_liner":"Cloud phones your AI agent can drive.","kind":"software","audience":"devs","problem":"","aha":"","features":[],"claims":[],"proof":[],"objections":[],"offer":"","voice":"plain","look":"","images":[]}' }] };
+      },
+    };
+    const pack = { domain: "mobilerun.ai", brand: { name: "Mobilerun", description: "", slogan: "", industry: "", images: [] }, seo: { keywords: [] }, reddit: [], site_excerpt: "Cloud phones for agents." };
+    const brief = await analyzeProduct(naive as never, pack as never, "/tmp/nomen-product-test");
+    expect(calls).toHaveLength(2);
+    expect(brief.one_liner).toBe("Cloud phones your AI agent can drive.");
+  });
+});

@@ -152,17 +152,25 @@ async function analyzeSite(naive: NaiveClient, pack: ResearchPack, workDir: stri
         images.length ? `You were shown ${images.length} images from the site, numbered from 0.` : "No images were available.",
       ].join("\n\n"),
     });
-    const reply = await naive.message({
-      model: QC_MODEL,
-      max_tokens: 3000,
-      system: [
-        "You are the product analyst for a short-form video team. Writers will script ads from your brief alone, so it must be accurate, concrete and in the buyer's words.",
-        "Only state what the site, the product's code and the images support. Never invent numbers, features, customers, prices or results; leave a field short or empty rather than guess. When the code shows the real commands or screens, use them in aha, features and how_to_show_it.",
-        "Write like a person explaining it to a friend, not like the site's marketing. Call the product_brief tool once.",
-      ].join("\n"),
-      messages: [{ role: "user", content }],
-      tools: [BRIEF_TOOL],
-    });
+    const system = [
+      "You are the product analyst for a short-form video team. Writers will script ads from your brief alone, so it must be accurate, concrete and in the buyer's words.",
+      "Only state what the site, the product's code and the images support. Never invent numbers, features, customers, prices or results; leave a field short or empty rather than guess. When the code shows the real commands or screens, use them in aha, features and how_to_show_it.",
+      "Write like a person explaining it to a friend, not like the site's marketing. Call the product_brief tool once.",
+    ].join("\n");
+    let reply;
+    try {
+      reply = await naive.message({ model: QC_MODEL, max_tokens: 3000, system, messages: [{ role: "user", content }], tools: [BRIEF_TOOL] });
+    } catch (error) {
+      // Naive's proxy sometimes rejects the model's tool call as malformed, and retrying the same request
+      // fails the same way (the mobilerun.ai study failed six times in a row): ask for plain JSON instead.
+      if (!(error instanceof ApiError && /malformed tool call/i.test(error.message))) throw error;
+      reply = await naive.message({
+        model: QC_MODEL,
+        max_tokens: 3000,
+        system: system.replace("Call the product_brief tool once.", "Answer with only one JSON object, no other text."),
+        messages: [{ role: "user", content: [...content, { type: "text", text: `Answer with only a JSON object with these fields: ${Object.keys(BRIEF_TOOL.input_schema.properties).join(", ")} (features: [{name, what_it_does, how_to_show_it}]; images: [{index, shows_product, caption}]).` }] }],
+      });
+    }
     const call = reply.content.find((block) => block.type === "tool_use" && block.name === BRIEF_TOOL.name);
     const raw = (call?.input ?? extractJson(reply.content.map((block) => block.text ?? "").join("\n"))) as Partial<RawBrief> | null;
     if (!raw) throw new ApiError("naive", 502, "brief_unreadable", "the product analyst returned no brief");
