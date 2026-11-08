@@ -67,6 +67,7 @@ describe("the tour", () => {
     expect(by.findings.body).toContain('Format checks found that 3D "what if" simulation shorts are breaking out and brainrot memes break out on tiny accounts.');
     expect(by.tent.body).toContain("a code ad (3D animation) and three brainrot meme videos.");
     expect(by.workshop.body).toContain("the 3D ad is animated in code");
+    expect(tourSteps({ ...recording, creatives: recording.creatives.map((c) => ({ ...c, concept: c.concept && { ...c.concept, format: "organic talking head" } })) }).find((s) => s.key === "workshop")!.body).toContain("an original on the research's best formula, with an AI creator");
     expect(by[`video-${videos[0].idx}`].body).toBe("Code ad (3D animation). Reason 1 from the research.");
     expect(by[`video-${videos[0].idx}`].title).toBe(`Video 1: ${videos[0].concept?.title}`);
   });

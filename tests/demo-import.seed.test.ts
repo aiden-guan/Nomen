@@ -39,6 +39,8 @@ type Entry = {
   made_at?: string;
   /** A planned video this one remade: it becomes that video's next generation. */
   replaces?: string;
+  /** A newer cut of an existing video (its id): only its file and poster change, its concept stays. */
+  recut?: string;
   /** Why this video, in the research's words (the War tent shows it); defaults to its reference's numbers. */
   why?: string;
   /** A reference found outside the campaign's research (a style scrape): added to its research first, marked as hand-added. */
@@ -56,6 +58,17 @@ describe.skipIf(!manifest)("import side-session videos into a campaign for its d
     const entries = JSON.parse(readFileSync(manifest!, "utf8")) as Entry[];
     for (const entry of entries) {
       expect(existsSync(entry.file), `missing ${entry.file}`).toBe(true);
+      if (entry.recut) {
+        const [row] = await store().find<CreativeRow>("creatives", { id: entry.recut }, { limit: 1 });
+        expect(row, `no video ${entry.recut}`).toBeTruthy();
+        await store().files.putFile(`${row.id}/final.mp4`, entry.file, "video/mp4");
+        const frame = entry.poster ?? join(tmpdir(), `${row.id}-poster.png`);
+        if (!entry.poster) execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-ss", "1", "-i", entry.file, "-frames:v", "1", "-vf", "scale=540:-2", frame]);
+        await store().files.putFile(`${row.id}/shot0-frame.png`, frame, "image/png");
+        await save("creatives", row.id, { final_key: `${row.id}/final.mp4`, poster_url: `/api/media/${row.id}/shot0-frame.png` });
+        console.log(`${row.id}  new cut from ${entry.file}`);
+        continue;
+      }
       const [campaign] = await store().find<{ id: string; brand_id: string; research_json: string | null }>("campaigns", { id: entry.campaign }, { limit: 1 });
       expect(campaign, `no campaign ${entry.campaign}`).toBeTruthy();
       if (entry.reference_add) {

@@ -56,9 +56,10 @@ function formatList(formats: string[]) {
 /** How a video of this format is made, in a phrase. */
 function making(format: string, brand: string) {
   if (/code ad|3d|animation/i.test(format)) return "the 3D ad is animated in code";
-  if (/brainrot|meme/i.test(format)) return "the meme is generated shot by shot and cut";
+  if (/brainrot|meme/i.test(format)) return "the meme is generated shot by shot";
   if (/faceless/i.test(format)) return `the faceless clone keeps its original's footage and sound, with ${brand} in the caption`;
   if (/remake|clone/i.test(format)) return "the remake is filmed again with an AI presenter, line for line";
+  if (/organic|talking head/i.test(format)) return "the organic one is an original on the research's best formula, with an AI creator";
   return `the ${format} is filmed and cut`;
 }
 
@@ -118,7 +119,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
   if (tl.style && script.style) {
     steps.push({
       key: "oracle",
-      title: "The format study",
+      title: "Studying the viral references",
       body: `The oracle breaks the ${plural(script.style.samples, "best outlier video")} down beat by beat (transcript, cuts and frames), so each new video copies what made its original work.`,
       at: tl.style[0],
       hold: tl.style[1] + SHOWN,
@@ -141,7 +142,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
   steps.push({
     key: "workshop",
     title: "The workshop",
-    body: `Each video is made its own way: ${list([...new Set(formats.map((f) => making(f, brand)))])}. Quality control checks every one.`,
+    body: `Each video is made its own way: ${[...new Set(formats.map((f) => making(f, brand)))].join("; ")}. Quality control checks every one.`,
     at: tl.production[0],
     hold: tl.review - 0.5,
     station: "workshop",

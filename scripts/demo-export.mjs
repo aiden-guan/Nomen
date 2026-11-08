@@ -31,8 +31,8 @@ Options
   --db <path>    the core's database, for the campaign's full event log
                  (default $NOMEN_DB_PATH or data/nomen.db, if present; else the API's latest 60)
   --campaign <id> record this campaign of the brand instead of its latest
-  --only <ids>   record only these videos (creative ids, comma-separated). Lines about the others
-                 are dropped or trimmed. A kept video remade after its first version (its concept's
+  --only <ids>   record only these videos (creative ids, comma-separated), in that order. Lines
+                 about the others are dropped or trimmed. A kept video remade after its first version (its concept's
                  \`previous\`) keeps its new production lines; the first version's are dropped.
 `;
 
@@ -100,8 +100,12 @@ const view = await api(`/api/brands/${encodeURIComponent(listed.id)}${flags.camp
 if (flags.campaign && view.campaign?.id !== flags.campaign) fail(`--campaign: ${flags.campaign} is not one of ${listed.domain}'s campaigns.`);
 const campaign = view.campaign;
 if (!campaign) fail(`${listed.domain} has no campaign yet.`);
-const only = flags.only ? new Set(String(flags.only).split(",").map((x) => x.trim()).filter(Boolean)) : null;
-const finished = campaign.creatives.filter((c) => c.status === "ready" && (!only || only.has(c.id))).sort((a, b) => a.idx - b.idx);
+// With --only, the recording plays the videos in the order they are listed.
+const onlyOrder = flags.only ? String(flags.only).split(",").map((x) => x.trim()).filter(Boolean) : null;
+const only = onlyOrder ? new Set(onlyOrder) : null;
+const finished = campaign.creatives
+  .filter((c) => c.status === "ready" && (!only || only.has(c.id)))
+  .sort((a, b) => (onlyOrder ? onlyOrder.indexOf(a.id) - onlyOrder.indexOf(b.id) : a.idx - b.idx));
 if (only) for (const wantedId of only) if (!campaign.creatives.some((c) => c.id === wantedId)) fail(`--only: no video ${wantedId} in ${listed.domain}'s latest campaign.`);
 if (!finished.length) fail(`${listed.domain}'s latest campaign has no finished videos yet (it is at ${campaign.stage}, ${campaign.status}).`);
 const unfinished = campaign.creatives.filter((c) => (!only || only.has(c.id)) && c.status !== "ready").length;
@@ -191,7 +195,8 @@ for (const [i, creative] of finished.entries()) {
   const posted = campaign.posts.find((p) => p.creativeId === creative.id && p.analytics);
   const analytics = posted ? Object.fromEntries(Object.entries(posted.analytics).filter(([, v]) => typeof v === "number")) : null;
   creatives.push({
-    idx: creative.idx,
+    // Listed with --only, the videos are numbered in that order.
+    idx: onlyOrder ? creatives.length : creative.idx,
     concept: creative.concept,
     caption: creative.caption ?? "",
     platforms: creative.platforms ?? [],

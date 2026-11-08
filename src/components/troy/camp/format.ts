@@ -62,11 +62,15 @@ export const LANE_NAMES: Record<string, string> = {
   ad: "a live ad",
 };
 
-/** "Remake of @creator, 1.2M views" for a video that remakes a reference. */
-export function remakeLine(reference: { author: string; views: number; outlier: number | null; paidAd?: boolean } | null | undefined) {
+/** How a video relates to its reference: an organic video is an original its reference inspired. */
+export const referenceVerb = (reference: { format?: string | null } | null | undefined) => (/organic/i.test(reference?.format ?? "") ? "Inspired by" : "Remake of");
+
+/** "Remake of @creator, 1.2M views" for a video that remakes a reference ("Inspired by" for an organic one). */
+export function remakeLine(reference: { author: string; views: number; outlier: number | null; paidAd?: boolean; format?: string | null } | null | undefined) {
   if (!reference?.author) return null;
   const who = `@${reference.author.replace(/^@/, "")}`;
+  const verb = referenceVerb(reference);
   // Ad libraries publish no view counts: a paid ad's proof is that it kept running.
-  if (reference.paidAd && !reference.views) return `Remake of ${who}'s paid ad (views unknown)`;
-  return `Remake of ${who}, ${compact(reference.views)} views${reference.outlier ? ` (${reference.outlier >= 10 ? Math.round(reference.outlier) : reference.outlier.toFixed(1)}× followers)` : ""}`;
+  if (reference.paidAd && !reference.views) return `${verb} ${who}'s paid ad (views unknown)`;
+  return `${verb} ${who}, ${compact(reference.views)} views${reference.outlier ? ` (${reference.outlier >= 10 ? Math.round(reference.outlier) : reference.outlier.toFixed(1)}× followers)` : ""}`;
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { CreativeView, ReferenceView } from "../api";
 import styles from "../troy.module.css";
 import type { CampActions } from "./Camp";
-import { money, platformName } from "./format";
+import { money, platformName, referenceVerb } from "./format";
 import { InternalBadge, RemakeOf, RoleBadge } from "./References";
 import { crispIfTiny } from "./StationPanel";
 
@@ -128,7 +128,7 @@ export function Screening({
             )}
             {creative.reference && (
               <section className="mt-4">
-                <h3 className={`${styles.pixel} mb-1.5 text-[11px] uppercase tracking-wider text-[var(--ink-faint)]`}>Remake of</h3>
+                <h3 className={`${styles.pixel} mb-1.5 text-[11px] uppercase tracking-wider text-[var(--ink-faint)]`}>{referenceVerb(creative.reference)}</h3>
                 <RemakeOf creative={creative} reference={references.find((r) => r.url === creative.reference?.url) ?? null} />
               </section>
             )}

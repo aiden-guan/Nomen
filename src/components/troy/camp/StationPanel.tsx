@@ -399,6 +399,7 @@ function Tent({ view, focus }: { view: BrandView; focus: string | null }) {
             {strategy.audience.length > 0 && <Row label="For">{strategy.audience.map((a) => a.name).join(", ")}</Row>}
           </dl>
         </Section>
+        <div ref={conceptsRef} className="scroll-mt-3" />
         <Section title={`Videos · ${concepts.length} of ${briefs.length} scripted`}>
           <ol className="space-y-3.5">
             {briefs.map((brief, i) => {
