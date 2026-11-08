@@ -9,17 +9,21 @@ import type { CreativeRow, ShotState } from "./production";
 import type { PostRow } from "./publish";
 import type { Continuity } from "./qc";
 import type { ResearchPack, ResearchPlan, Video } from "./research";
+import { getSetting } from "./settings";
 import type { Concept, Strategy } from "./strategy";
 
 // What the UI reads. Money leaves the server as dollars; provider ids stay on the server. Each view
 // is one read of the store (a snapshot), so the camp's polling costs one round trip on Convex.
 
 export const VEO_USD_PER_SECOND = 0.4; // measured on Naive: an 8 s google/veo-3.1 render cost $3.20
+export const KLING_USD_PER_SECOND = 0.168; // Kling 3.0 on Monid at 1080p with audio: $1.68 for 10 s
 
 export const usd = (micro: number) => Math.round(micro) / 1_000_000;
 
-export function estimateUsd(options: CampaignOptions) {
+export function estimateUsd(options: CampaignOptions, engine = getSetting("presenter_engine")) {
   const seconds = options.concepts * options.shotsPerConcept * options.secondsPerShot;
+  // Kling renders each shot about a second longer than its line (the edit trims it).
+  if (engine !== "naive") return Math.round((seconds + options.concepts * options.shotsPerConcept) * KLING_USD_PER_SECOND * 100) / 100;
   return options.videoModel === "google/veo-3.1" ? Math.round(seconds * VEO_USD_PER_SECOND * 100) / 100 : null;
 }
 

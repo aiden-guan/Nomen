@@ -21,6 +21,10 @@ export const DEFAULTS = {
   qc_max_retries: "2",
   autopilot: "false",
   warmup_minutes: "12",
+  /** Who renders presenter shots: Kling 3.0 on Monid with its own voice ("kling-3.0"), or the Naive video model ("naive", video_model). */
+  presenter_engine: "kling-3.0",
+  /** The finish on the final render: a touch of contrast, sharpening and grain, and the voice chain with loudness ("on" or "off", to A/B). */
+  finish: "on",
 } as const;
 
 export type SettingKey = keyof typeof DEFAULTS;

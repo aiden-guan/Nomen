@@ -157,12 +157,60 @@ function pronoun(creator: string) {
   return "They";
 }
 
-const CAMERA =
-  "The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens.";
-const CALM =
-  "Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking.";
-const SAFE =
+export const SAFE =
   "Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.";
+
+/** How every presenter prompt ends: video models draw words they are not told to leave out. */
+export const NO_TEXT = "No subtitles, no on-screen text.";
+
+const ARC_WORDS: Record<string, string> = { laughs: "a short genuine laugh", laugh: "a short genuine laugh", sighs: "a small sigh", sigh: "a small sigh", whispers: "dropping to a whisper", whisper: "dropping to a whisper" };
+
+/**
+ * A line's audio tags as an emotion arc in words, for a video model that voices the line itself:
+ * ["[excited]", "[smug]", "[laughs]"] → "excited at the start, then smug, then a short genuine laugh at the end".
+ */
+export function emotionArc(tags: string[]): string {
+  const moods = tags
+    .flatMap((t) => t.split(/[\],[;]+/))
+    .map((t) => t.replace(/[^\p{L}\s-]/gu, "").trim().toLowerCase())
+    .filter(Boolean)
+    .map((t) => ARC_WORDS[t] ?? t)
+    .filter((t, i, all) => all.indexOf(t) === i)
+    .slice(0, 4);
+  if (!moods.length) return "relaxed and natural";
+  if (moods.length === 1) return moods[0];
+  return moods.map((m, i) => (i === 0 ? `${m} at the start` : i === moods.length - 1 ? `then ${m} at the end` : `then ${m}`)).join(", ");
+}
+
+/**
+ * The talking-head recipe that won the head-to-head (Kling 3.0 voicing the line itself): a real
+ * creator talking into a propped-up phone, one gentle action, hands down, the body mostly still,
+ * nothing about the person's looks (the first frame carries the face), ending on the no-text line.
+ */
+export function creatorDirection(input: { who: "She" | "He" | "They"; arc: string; action?: string; line?: string; listening?: boolean; green?: boolean }): string {
+  const { who } = input;
+  const s = (verb: string) => (who === "They" ? verb : `${verb}s`);
+  return [
+    input.listening
+      ? `${who} ${s("listen")} and ${s("react")} like a real creator watching a clip: a small nod, a raised eyebrow, a half-smile, mouth closed, not speaking.`
+      : `${who} ${s("talk")} straight into the camera like a real TikTok creator: ${input.arc}.`,
+    input.action ? `One gentle action: ${input.action.replace(/\.$/, "")}.` : "",
+    `Natural micro-expressions, eyebrow raises, small head tilts, natural blinking, eye contact with the lens${input.listening ? "." : ", mouth movements that match every word."}`,
+    "Hands relaxed and mostly below the frame, the body mostly still; no pointing, no thumbs-up, no head turns past a slight angle.",
+    `Real phone-camera look: natural daylight, slight sensor noise, no studio lighting, no music.${input.green ? " The background stays one flat chroma-key green." : ""}`,
+    input.line && !input.listening ? `${who} ${s("say")}: "${input.line}"` : "",
+    NO_TEXT,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** The first frame's recipe: the phone propped at eye level an arm's length away, mid-sentence, a lived-in real place. */
+export const FRAME_LOOK =
+  "Vertical 9:16 candid photo, filmed by a phone propped up at eye level about an arm's length away: chest-up, centred, looking into the lens, mouth slightly open mid-sentence. Natural daylight, natural skin texture with pores, slight grain, imperfect real-world lighting. No text anywhere.";
+
+/** The camera holds still, as a phone propped up on a desk does. */
+const CAMERA_STILL = "The camera is propped up and stays still apart from a very slight natural shake; never an arm's-length selfie, no arm reaching toward the lens.";
 
 function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product: ProductBrief, delivery: string): ARollShot {
   const who = pronoun(brief.creator);
@@ -170,41 +218,47 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
   const directions = beats
     .filter((beat) => beat.visual !== "product")
     .map((beat) => presenterOnly(beat.direction))
-    .filter(Boolean)
-    .join(" Then ");
+    .filter(Boolean);
   const voice = presenterOnly(delivery);
   const holdsProduct = product.kind === "physical" && beats.some((beat) => beat.visual === "creator" && /hold|show|pick up|bottle|box|pack/i.test(beat.direction));
   const productLine = holdsProduct && product.look ? ` ${who} holds the product steadily at chest height, label toward the camera: ${product.look}.` : "";
   const seconds = snapSeconds(beats.reduce((sum, beat) => sum + speakSeconds(beat), 0));
+  // The line's emotion arc: the script's tags per beat, else the reference's delivery notes.
+  const tags = beats.map((beat) => beat.emotion ?? "").filter(Boolean);
+  const arc = tags.length ? emotionArc(tags) : voice.replace(/\.$/, "").toLowerCase() || "relaxed and natural";
+  // One gentle action per take: the first direction's first sentence that is not a big gesture.
+  const action =
+    directions
+      .flatMap((d) => d.split(/(?<=[.!?])\s+/))
+      .map((s) => s.trim().replace(/[.!?]+$/, "").replace(/^then\s+/i, ""))
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+      .find((s) => s && !/\b(point\w*|thumbs?|waves?|turns? (?:away|around)|spins?)\b/i.test(s)) ?? "";
   return {
     n,
     beats: beats.map((beat) => beat.n),
     seconds,
     line,
+    pose: action,
     frame_prompt: [
       // Name the look and say nothing about phones or apps: image models draw what a prompt names,
       // even after "no".
-      "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed.",
+      FRAME_LOOK,
       `${lookOnly(brief.creator)}.`,
-      `${lookOnly(brief.setting)}.`,
+      `A lived-in real place: ${lookOnly(brief.setting) || "their own room, with everyday things around"}.`,
       productLine.trim(),
-      "Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+      "Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. A plain full-bleed photograph with nothing drawn or written over it.",
     ]
       .filter(Boolean)
       .join(" "),
+    // The first frame carries the face, the outfit and the place: the video prompt only says what
+    // happens, in the recipe that won the head-to-head (Veo takes it as well).
     video_prompt: [
-      "Vertical 9:16 smartphone video, UGC style.",
-      CAMERA,
-      `${lookOnly(brief.creator)}, in ${lookOnly(brief.setting)}.`,
-      "A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind.",
-      directions ? `${directions}.` : "",
+      "A single full-frame shot of the presenter only: no split screen, no inset, no on-screen graphics or cards.",
       productLine.trim(),
-      line ? `${who} says, in a natural, conversational voice${voice ? ` with this delivery: ${voice}` : ""}: "${line}"` : `${who} reacts silently.`,
-      "The voice is the same in every shot of this video: same person, same pitch, same energy.",
-      "Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends.",
-      CALM,
-      "Audio: voice close to the microphone, quiet room tone, no music.",
+      CAMERA_STILL,
       SAFE,
+      // Last, as in the head-to-head: the direction, then the line, then the no-text line.
+      creatorDirection({ who, arc, action, line, listening: !line }),
     ]
       .filter(Boolean)
       .join(" "),

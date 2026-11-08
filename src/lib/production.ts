@@ -32,6 +32,8 @@ export type ShotState = {
   n: number;
   frame_prompt: string;
   prompt: string;
+  /** The shot's one gentle action: a later shot's frame is shot 1's still re-posed to it (plan.ts). */
+  pose?: string;
   seconds: number;
   status: "pending" | "framed" | "rendering" | "rendered" | "passed" | "failed";
   provider: "naive" | "monid" | null;
@@ -214,6 +216,7 @@ export async function insertCreative(campaignId: string, idx: number, concept: C
     n: i + 1,
     frame_prompt: shot.frame_prompt,
     prompt: shot.video_prompt,
+    ...(shot.pose !== undefined ? { pose: shot.pose } : {}),
     seconds: shot.seconds,
     status: "pending",
     provider: null,
@@ -389,9 +392,14 @@ async function makeFrame(ctx: ProductionContext, creativeId: string, concept: Co
   const identity = shot.previous_frame_file_id ?? (shot.n === 1 ? null : identityOf(first));
   const products = shot.drop_product_refs ? [] : concept.reference_images;
   const references = (identity ? [identity, ...products.slice(0, 2)] : products.slice(0, 3)).filter((ref): ref is string => Boolean(ref));
-  let prompt = identity
-    ? `${shot.frame_prompt}\nThe first reference image is the same video: keep the exact same person, face, hair, outfit, location and lighting.`
-    : shot.frame_prompt;
+  // A later shot is shot 1's still re-posed: the edit names only the new pose, never a new place,
+  // so the set never changes between takes (concepts from before poses re-describe the frame).
+  const repose = identity && shot.n > 1 && shot.pose !== undefined && !shot.previous_frame_file_id;
+  let prompt = repose
+    ? `The first reference image is shot 1 of this video. Make the same photo again: the same person (face, hair, skin, outfit), the same place, the same light and the same camera framing, with nothing new in the room. Only the pose and expression change: ${shot.pose || "a natural mid-sentence expression, looking into the lens"}.`
+    : identity
+      ? `${shot.frame_prompt}\nThe first reference image is the same video: keep the exact same person, face, hair, outfit, location and lighting.`
+      : shot.frame_prompt;
   if (shot.frame_fix) prompt += `\nA reviewer rejected the previous version of this frame. Fix exactly this: ${shot.frame_fix}`;
   // House rules for every frame, whatever the concept says: these are what make AI video look fake.
   prompt +=
@@ -516,7 +524,10 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
     shot.error ??= "render failed repeatedly";
     return;
   }
-  if (ctx.naive && !ctx.naiveOut() && !shot.force_monid) {
+  // Kling 3.0 voicing the line itself is the presenter engine (it won the head-to-head); the Naive
+  // video model is the alternative (presenter_engine "naive"), and Kling stays its fallback.
+  const kling = getSetting("presenter_engine") !== "naive" && Boolean(ctx.monid);
+  if (ctx.naive && !ctx.naiveOut() && !shot.force_monid && !kling) {
     try {
       const job = await ctx.naive.generateVideo(
         {
@@ -553,23 +564,24 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
       }
     }
   }
-  if (!monidVideoEnabled(ctx)) {
+  if (!kling && !monidVideoEnabled(ctx)) {
     shot.status = "failed";
     shot.error = "Naive is out of credits and the Monid video fallback is off";
     return;
   }
   const resolution = getSetting("monid_video_resolution");
-  const duration = Math.max(3, Math.min(15, shot.seconds));
+  // About a second longer than the line needs: the edit trims each take to its best part.
+  const duration = Math.max(3, Math.min(15, Math.ceil(shot.seconds + (kling ? 1 : 0))));
   const prompt = shot.prompt.slice(0, 3000);
   const firstFrame = shot.frame_url && !shot.text_only;
   try {
     const run = await ctx.monid!.run(
       "kling",
       firstFrame ? "/v1/video/kling-3.0-i2v" : "/v1/video/kling-3.0-t2v",
-      { body: firstFrame ? { prompt, media: [{ type: "first_frame", url: shot.frame_url }], resolution, duration, audio: "native" } : { prompt, resolution, aspect_ratio: "9:16", duration, audio: "native" } },
+      { body: firstFrame ? { prompt, media: [{ type: "first_frame", url: shot.frame_url }], resolution, duration, audio: "native", multi_shot: false } : { prompt, resolution, aspect_ratio: "9:16", duration, audio: "native" } },
     );
     Object.assign(shot, { monid_run_id: run.runId, job_id: null, provider: "monid", status: "rendering", renders: shot.renders + 1, submit_errors: 0 });
-    await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Shot ${shot.n} is rendering on Monid (Kling 3.0) because Naive is unavailable` });
+    if (!kling) await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Shot ${shot.n} is rendering on Monid (Kling 3.0) because Naive is unavailable` });
     if (TERMINAL.has(run.status)) await finishMonid(run, shot);
   } catch (error) {
     if (error instanceof ApiError && error.retryable && shot.submit_errors < MAX_SUBMIT_ERRORS) backoff(shot);
@@ -949,7 +961,7 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
   }
 
   const timeline = buildTimeline(script, plan, { aroll, voiceover, visuals, plate }, (segments) => chunkCaptions(segments, 3));
-  await renderTimeline(timeline, finalPath, { workDir: join(dir, "edit") });
+  await renderTimeline(timeline, finalPath, { workDir: join(dir, "edit"), finish: getSetting("finish") !== "off" });
 }
 
 /** Text-to-speech through Naive, saved as a local file for the edit. */
