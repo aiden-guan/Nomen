@@ -30,6 +30,7 @@ Options
   --id <slug>    the recording's folder name (default: from the domain, like monid-ai)
   --db <path>    the core's database, for the campaign's full event log
                  (default $NOMEN_DB_PATH or data/nomen.db, if present; else the API's latest 60)
+  --campaign <id> record this campaign of the brand instead of its latest
   --only <ids>   record only these videos (creative ids, comma-separated). Lines about the others
                  are dropped or trimmed. A kept video remade after its first version (its concept's
                  \`previous\`) keeps its new production lines; the first version's are dropped.
@@ -95,7 +96,8 @@ const listing = await api("/api/brands");
 const brands = Array.isArray(listing) ? listing : (listing.brands ?? []);
 const listed = brands.find((b) => b.id === target || b.domain === wanted);
 if (!listed) fail(`No brand "${target}" on ${from}. Brands there: ${brands.map((b) => b.domain).join(", ") || "none"}.`);
-const view = await api(`/api/brands/${encodeURIComponent(listed.id)}`);
+const view = await api(`/api/brands/${encodeURIComponent(listed.id)}${flags.campaign ? `?campaign=${encodeURIComponent(flags.campaign)}` : ""}`);
+if (flags.campaign && view.campaign?.id !== flags.campaign) fail(`--campaign: ${flags.campaign} is not one of ${listed.domain}'s campaigns.`);
 const campaign = view.campaign;
 if (!campaign) fail(`${listed.domain} has no campaign yet.`);
 const only = flags.only ? new Set(String(flags.only).split(",").map((x) => x.trim()).filter(Boolean)) : null;
@@ -250,7 +252,8 @@ const events = recordedOnly(rows)
 function recordedOnly(lines) {
   if (!only) return lines;
   const kept = campaign.creatives.filter((c) => only.has(c.id));
-  const dropped = campaign.creatives.filter((c) => !only.has(c.id)).map((c) => c.concept?.title).filter(Boolean);
+  // A left-out video goes by its title and, if it was remade, by its first version's title too.
+  const dropped = campaign.creatives.filter((c) => !only.has(c.id)).flatMap((c) => [c.concept?.title, c.concept?.previous?.title]).filter(Boolean);
   const scriptsAt = lines.find((l) => /^Scripts ready/.test(l.message))?.ts ?? null;
   const out = [];
   for (const line of lines) {

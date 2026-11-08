@@ -39,6 +39,8 @@ type Entry = {
   made_at?: string;
   /** A planned video this one remade: it becomes that video's next generation. */
   replaces?: string;
+  /** A reference found outside the campaign's research (a style scrape): added to its research first, marked as hand-added. */
+  reference_add?: { url: string; author: string; views: number; followers: number; caption: string; platform?: "tiktok" | "instagram" };
 };
 
 type Researched = { url: string; author?: string; views?: number; followers?: number | null; caption?: string; platform?: string };
@@ -54,6 +56,15 @@ describe.skipIf(!manifest)("import side-session videos into a campaign for its d
       expect(existsSync(entry.file), `missing ${entry.file}`).toBe(true);
       const [campaign] = await store().find<{ id: string; brand_id: string; research_json: string | null }>("campaigns", { id: entry.campaign }, { limit: 1 });
       expect(campaign, `no campaign ${entry.campaign}`).toBeTruthy();
+      if (entry.reference_add) {
+        const research = parse<Record<string, unknown> & { videos?: Researched[] }>(campaign.research_json, {});
+        if (!(research.videos ?? []).some((v) => v.url === entry.reference_add!.url)) {
+          const add = entry.reference_add;
+          research.videos = [...(research.videos ?? []), { platform: add.platform ?? "tiktok", url: add.url, author: add.author, views: add.views, followers: add.followers, caption: add.caption, likes: 0, comments: 0, shares: 0, saves: 0, duration: null, paid: false, thumbnail: null, media_url: null, source: "format_evidence" } as unknown as Researched];
+          await save("campaigns", entry.campaign, { research_json: JSON.stringify(research) });
+          campaign.research_json = JSON.stringify(research);
+        }
+      }
       const pool = parse<{ videos?: Researched[] }>(campaign.research_json, {}).videos ?? [];
       const ref = pool.find((v) => v.url === entry.reference);
       expect(ref, `${entry.reference} is not in ${entry.campaign}'s research`).toBeTruthy();

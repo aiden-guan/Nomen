@@ -57,15 +57,27 @@ export async function brandList() {
   });
 }
 
-export async function brandView(brandId: string) {
+/** A brand and its latest campaign, or the campaign `campaignId` names (the demo exporter records an older one). */
+export async function brandView(brandId: string, campaignId?: string | null) {
   const snapshot = await store().brandSnapshot(brandId);
   if (!snapshot) return null;
   const brand = snapshot.brand as unknown as BrandRow;
   const campaigns = snapshot.campaigns as unknown as CampaignRow[];
   const profile = parse<ResearchPack["brand"] | null>(brand.profile_json, null);
+  let chosen = campaigns[0];
+  let runs = snapshot.runs as unknown as RunRow[];
+  let creatives = snapshot.creatives as unknown as CreativeRow[];
+  let posts = snapshot.posts as unknown as PostRow[];
+  const asked = campaignId ? campaigns.find((c) => c.id === campaignId) : undefined;
+  if (asked && asked.id !== campaigns[0]?.id) {
+    chosen = asked;
+    runs = await store().find<RunRow>("monid_runs", { campaign_id: asked.id }, { order: [["created_at", "asc"]] });
+    creatives = await store().find<CreativeRow>("creatives", { campaign_id: asked.id }, { order: [["idx", "asc"], ["generation", "asc"]] });
+    posts = creatives.length ? await store().find<PostRow>("posts", { creative_id: { in: creatives.map((c) => c.id) } }, { order: [["created_at", "asc"]] }) : [];
+  }
   return {
     brand: { id: brand.id, name: brand.name, domain: brand.domain, url: brand.url, profile, connected: Boolean(brand.social_activated) },
-    campaign: campaigns[0] ? campaignView(campaigns[0], snapshot.runs as unknown as RunRow[], snapshot.creatives as unknown as CreativeRow[], snapshot.posts as unknown as PostRow[]) : null,
+    campaign: chosen ? campaignView(chosen, runs, creatives, posts) : null,
     campaigns: campaigns.map((c) => ({ id: c.id, status: c.status, stage: c.stage, created_at: c.created_at })),
     events: snapshot.events,
   };
