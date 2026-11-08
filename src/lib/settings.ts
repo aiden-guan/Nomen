@@ -8,7 +8,7 @@ export const DEFAULTS = {
   naive_base_url: "https://api.vetta.sh",
   monid_base_url: "https://api.monid.ai",
   mobilerun_base_url: "https://api.mobilerun.ai/v1",
-  strategist_agent: "nomen-strategist",
+  strategist_agent: "nomen-director",
   planner_model: "anthropic/claude-haiku-5.5",
   video_model: "google/veo-3.1",
   video_seconds: "8",
