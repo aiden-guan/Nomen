@@ -7,16 +7,18 @@ import type { Tour } from "./useTour";
 /** Narrower than this, the gap in the top bar can't hold the card: it goes just under the bar. */
 const MIN_GAP = 300;
 
-type Place = { left: number; right: number; top: number };
+/** The bar's gap (its left edge, and its right edge from the window's right), where it is, and just under the bar. */
+type Place = { left: number; right: number; top: number; below: number; width: number };
 
 /**
  * The tour's caption: where the replay is, what happens there, and the presenter's arrows. On wide
- * screens it sits in the top bar's empty stretch, between the replay buttons and the campaign's
- * steps, and tells the camp how far down it reaches (`onBottom`) so the camera frames the camp below
- * it. While a video plays it moves into the screening room's margin beside the video when there is
- * room there, so it covers none of it.
+ * screens it sits in the top bar, between the replay buttons and the spend (the demo's bar has no
+ * campaign steps: the tour walks them), stopping short of an open station panel (`clear`), and
+ * tells the camp how far down it reaches (`onBottom`) so the camera frames the camp below it. While
+ * a video plays it moves into the screening room's margin beside the video when there is room
+ * there, so it covers none of it.
  */
-export function TourCard({ tour, wide, screening, onBottom }: { tour: Tour; wide: boolean; screening: boolean; onBottom?: (bottom: number) => void }) {
+export function TourCard({ tour, wide, screening, clear = 0, onBottom }: { tour: Tour; wide: boolean; screening: boolean; clear?: number; onBottom?: (bottom: number) => void }) {
   const step = tour.step;
   const [place, setPlace] = useState<Place | null>(null);
   const [beside, setBeside] = useState<number | null>(null);
@@ -37,9 +39,7 @@ export function TourCard({ tour, wide, screening, onBottom }: { tour: Tour; wide
         .filter((box) => box.width > 0 && box.left >= controls.right - 1)
         .map((box) => box.left);
       const end = after.length ? Math.min(...after) : window.innerWidth;
-      const left = Math.round(controls.right + 16);
-      const right = Math.round(window.innerWidth - end + 16);
-      setPlace(window.innerWidth - left - right >= MIN_GAP ? { left, right, top: Math.round(controls.top) } : { left: 16, right: 16, top: Math.round(controls.bottom + 12) });
+      setPlace({ left: Math.round(controls.right + 16), right: Math.round(window.innerWidth - end + 16), top: Math.round(controls.top), below: Math.round(controls.bottom + 12), width: window.innerWidth });
     };
     measure();
     // Again once the bar's fonts and the campaign's steps have settled.
@@ -94,10 +94,20 @@ export function TourCard({ tour, wide, screening, onBottom }: { tour: Tour; wide
   if (!step) return null;
   const n = tour.index + 1;
   const last = n >= tour.steps.length;
-  const style = !wide ? { left: 12, right: 12, top: 64 } : beside !== null ? { left: beside, right: 16, bottom: 16 } : place ? { left: place.left, right: place.right, top: place.top } : { left: 16, right: 16, top: 76 };
+  // An open station panel holds the right side below the bar: the card stops short of it. Where
+  // that leaves the bar's gap too narrow, the card goes just under the bar instead.
+  const clearRight = clear ? clear + 16 : 16;
+  const inBar = place && place.width - place.left - Math.max(place.right, clearRight) >= MIN_GAP;
+  const style = !wide
+    ? { left: 12, right: 12, top: 64 }
+    : beside !== null
+      ? { left: beside, right: 16, bottom: 16 }
+      : place && inBar
+        ? { left: place.left, right: Math.max(place.right, clearRight), top: place.top }
+        : { left: 16, right: clearRight, top: place?.below ?? 76 };
   return (
     <div className={`pointer-events-none absolute z-50 flex ${wide && beside === null ? "justify-start" : "justify-center"}`} style={style}>
-      <section ref={card} key={step.key} aria-label="Tour" aria-live="polite" className={`${styles.box} ${styles.enter} pointer-events-auto w-full max-w-[640px] px-3.5 pb-2.5 pt-2`}>
+      <section ref={card} key={step.key} aria-label="Tour" aria-live="polite" className={`${styles.box} ${styles.enter} pointer-events-auto w-full max-w-[960px] px-3.5 pb-2.5 pt-2`}>
         <div className="flex items-center gap-2.5">
           <span className={`${styles.pixel} shrink-0 text-[12px] text-[var(--crimson)]`}>
             {n}/{tour.steps.length}

@@ -758,7 +758,7 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
         <Screening videos={finishedVideos} references={campaign?.references ?? []} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} arrows={!tour.on} />
       )}
 
-      {arrived && demo && tour.on && <TourCard tour={tour} wide={wide} screening={Boolean(screening)} onBottom={setTourBottom} />}
+      {arrived && demo && tour.on && <TourCard tour={tour} wide={wide} screening={Boolean(screening)} clear={panel && wide && !screening ? 440 : 0} onBottom={setTourBottom} />}
 
       {demo && player.notice && (
         <p role="status" className={`${styles.boxSoft} ${styles.enter} absolute left-1/2 top-[76px] z-30 -translate-x-1/2 px-3 py-1.5 text-[13px]`}>
@@ -847,7 +847,8 @@ function TopBar({
       )}
 
       {demo && <DemoControls player={demo} />}
-      {campaign && (
+      {/* The demo's tour card takes this stretch of the bar and walks the steps itself. */}
+      {campaign && !demo && (
         <nav aria-label="Campaign progress" className="pointer-events-auto ml-auto hidden items-center gap-1 lg:flex">
           {STEP_NAMES.map((name, i) => {
             const state = stateFor(i);
@@ -868,14 +869,14 @@ function TopBar({
           })}
         </nav>
       )}
-      {campaign && (
+      {campaign && !demo && (
         <span className={`${styles.pixel} pointer-events-auto ml-auto whitespace-nowrap text-[13px] text-[var(--ink-soft)] lg:hidden`}>
           {current + 1}/6 · {STEP_NAMES[current]}
         </span>
       )}
 
       {campaign && (
-        <span className={`${styles.pixel} pointer-events-auto hidden shrink-0 text-[13px] text-[var(--ink-soft)] sm:inline`} title={`Naive ${money(campaign.spend.naive)} · Monid ${money(campaign.spend.monid)}${campaign.estimateUsd ? ` · video budget about ${money(campaign.estimateUsd)}` : ""}`}>
+        <span className={`${styles.pixel} pointer-events-auto hidden shrink-0 text-[13px] text-[var(--ink-soft)] sm:inline ${demo ? "ml-auto" : ""}`} title={`Naive ${money(campaign.spend.naive)} · Monid ${money(campaign.spend.monid)}${campaign.estimateUsd ? ` · video budget about ${money(campaign.estimateUsd)}` : ""}`}>
           {money(spend)} spent
         </span>
       )}
