@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recorded": true,
-  "recordedAt": "2026-11-08T08:34:32.367Z",
+  "recordedAt": "2026-11-08T08:50:07.386Z",
   "brand": {
     "name": "Monid",
     "domain": "monid.ai",
@@ -514,16 +514,6 @@
           "metric": null
         },
         {
-          "title": "You'll be upset you didn't know Monid sooner",
-          "format": "code ad (3D animation)",
-          "reference_id": "ref_b2013465b6",
-          "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation, on the hook of @hannahlearnsstuff's \"upset I didn't know sooner\" (1.9M views on 1K followers).",
-          "hook_plan": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation, on the hook of @hannahlearnsstuff's \"upset I didn't know sooner\" (1.9M views on 1K followers).",
-          "audience": "",
-          "role": "reach",
-          "metric": null
-        },
-        {
           "title": "i let my agent cook with one balance (it got greedy)",
           "format": "brainrot meme",
           "reference_id": "ref_c64c533a71",
@@ -532,9 +522,19 @@
           "audience": "",
           "role": "reach",
           "metric": null
+        },
+        {
+          "title": "A sign-up per API vs one balance",
+          "format": "code ad (3D animation)",
+          "reference_id": "ref_da97474993",
+          "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
+          "hook_plan": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
+          "audience": "",
+          "role": "reach",
+          "metric": null
         }
       ],
-      "objective": "Get developers building agents to try the one-line setup (`set up https://monid.ai/SKILL.md`) and claim the $1 free credit, by testing 3 formats the research backs: one-to-one remake, code ad (3D animation), brainrot meme.",
+      "objective": "Get developers building agents to try the one-line setup (`set up https://monid.ai/SKILL.md`) and claim the $1 free credit, by testing 3 formats the research backs: one-to-one remake, brainrot meme, code ad (3D animation).",
       "posting_plan": {
         "notes": "Label every video AI-generated. Use only site facts: 2900+ tools, 97+ providers, $0.0013 example call, $1 free credit. Pin a comment with the one-line setup. Reply to 'ready' comments with the next step. Answer spend-control questions plainly: pay per call from one balance, no subscriptions.",
         "cadence": "Post 3-4 times a week across the two formats: the walkthrough and the explainer, then iterate on whichever earns more saves and comments.",
@@ -1066,40 +1066,6 @@
           }
         },
         {
-          "title": "You'll be upset you didn't know Monid sooner",
-          "format": "code ad (3D animation)",
-          "hook": "You'll be upset you didn't know Monid sooner.",
-          "caption": "One balance, one skill file, every tool your agent needs. Start with one dollar in free credit at monid.ai.",
-          "platforms": [
-            "tiktok",
-            "instagram",
-            "youtube"
-          ],
-          "inspired_by": [
-            "https://www.tiktok.com/@hannahlearnsstuff/video/7702124151561063710"
-          ],
-          "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation, on the hook of @hannahlearnsstuff's \"upset I didn't know sooner\" (1.9M views on 1K followers).",
-          "reference": {
-            "id": "ref_b2013465b6",
-            "url": "https://www.tiktok.com/@hannahlearnsstuff/video/7702124151561063710",
-            "author": "hannahlearnsstuff",
-            "views": 1903312,
-            "followers": 1049,
-            "outlier": 1814.4,
-            "format": "code ad (3D animation)"
-          },
-          "brief": {
-            "format": "code ad (3D animation)",
-            "role": "reach",
-            "title": "You'll be upset you didn't know Monid sooner"
-          },
-          "script": {
-            "total_seconds": 26.5,
-            "beats": [],
-            "review": null
-          }
-        },
-        {
           "title": "i let my agent cook with one balance (it got greedy)",
           "format": "brainrot meme",
           "hook": "POV: you told your agent to go crazy",
@@ -1129,6 +1095,40 @@
           },
           "script": {
             "total_seconds": 30.6,
+            "beats": [],
+            "review": null
+          }
+        },
+        {
+          "title": "A sign-up per API vs one balance",
+          "format": "code ad (3D animation)",
+          "hook": "Every API your agent needs is another sign-up, another key.",
+          "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@cluelyextras/video/7544005050146770189"
+          ],
+          "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
+          "reference": {
+            "id": "ref_da97474993",
+            "url": "https://www.tiktok.com/@cluelyextras/video/7544005050146770189",
+            "author": "cluelyextras",
+            "views": 628239,
+            "followers": 2969,
+            "outlier": 211.6,
+            "format": "code ad (3D animation)"
+          },
+          "brief": {
+            "format": "code ad (3D animation)",
+            "role": "reach",
+            "title": "A sign-up per API vs one balance"
+          },
+          "script": {
+            "total_seconds": 26.7,
             "beats": [],
             "review": null
           }
@@ -1744,55 +1744,6 @@
       "analytics": null
     },
     {
-      "idx": 2,
-      "concept": {
-        "title": "You'll be upset you didn't know Monid sooner",
-        "format": "code ad (3D animation)",
-        "hook": "You'll be upset you didn't know Monid sooner.",
-        "caption": "One balance, one skill file, every tool your agent needs. Start with one dollar in free credit at monid.ai.",
-        "platforms": [
-          "tiktok",
-          "instagram",
-          "youtube"
-        ],
-        "inspired_by": [
-          "https://www.tiktok.com/@hannahlearnsstuff/video/7702124151561063710"
-        ],
-        "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation, on the hook of @hannahlearnsstuff's \"upset I didn't know sooner\" (1.9M views on 1K followers).",
-        "reference": {
-          "id": "ref_b2013465b6",
-          "url": "https://www.tiktok.com/@hannahlearnsstuff/video/7702124151561063710",
-          "author": "hannahlearnsstuff",
-          "views": 1903312,
-          "followers": 1049,
-          "outlier": 1814.4,
-          "format": "code ad (3D animation)"
-        },
-        "brief": {
-          "format": "code ad (3D animation)",
-          "role": "reach"
-        },
-        "script": {
-          "total_seconds": 26.5,
-          "beats": [],
-          "review": null
-        }
-      },
-      "caption": "One balance, one skill file, every tool your agent needs. Start with one dollar in free credit at monid.ai.",
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "youtube"
-      ],
-      "qcScore": null,
-      "cost": 0.33,
-      "generation": 1,
-      "shots": [],
-      "video": "2.mp4",
-      "poster": "2.png",
-      "analytics": null
-    },
-    {
       "idx": 3,
       "concept": {
         "title": "i let my agent cook with one balance (it got greedy)",
@@ -1835,6 +1786,55 @@
       ],
       "qcScore": null,
       "cost": 2.49,
+      "generation": 1,
+      "shots": [],
+      "video": "2.mp4",
+      "poster": "2.png",
+      "analytics": null
+    },
+    {
+      "idx": 4,
+      "concept": {
+        "title": "A sign-up per API vs one balance",
+        "format": "code ad (3D animation)",
+        "hook": "Every API your agent needs is another sign-up, another key.",
+        "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@cluelyextras/video/7544005050146770189"
+        ],
+        "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
+        "reference": {
+          "id": "ref_da97474993",
+          "url": "https://www.tiktok.com/@cluelyextras/video/7544005050146770189",
+          "author": "cluelyextras",
+          "views": 628239,
+          "followers": 2969,
+          "outlier": 211.6,
+          "format": "code ad (3D animation)"
+        },
+        "brief": {
+          "format": "code ad (3D animation)",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 26.7,
+          "beats": [],
+          "review": null
+        }
+      },
+      "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0.12,
       "generation": 1,
       "shots": [],
       "video": "3.mp4",
@@ -1911,7 +1911,7 @@
     {
       "s": 307,
       "level": "info",
-      "message": "The creative director chose 3 videos, each on what the research found: \"We gave an agent $3 and one skill file\" (one-to-one remake: The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s); \"You'll be upset you didn't know Monid sooner\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation, on the hook of @hannahlearnsstuff's \"upset I didn't know sooner\" (1.9M views on 1K followers)); \"i let my agent cook with one balance (it got greedy)\" (brainrot meme: Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers))"
+      "message": "The creative director chose 3 videos, each on what the research found: \"We gave an agent $3 and one skill file\" (one-to-one remake: The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s); \"i let my agent cook with one balance (it got greedy)\" (brainrot meme: Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers)); \"A sign-up per API vs one balance\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance)"
     },
     {
       "s": 380,
@@ -1959,16 +1959,6 @@
       "message": "\"We gave an agent $3 and one skill file\" is ready"
     },
     {
-      "s": 21909.5,
-      "level": "info",
-      "message": "\"You'll be upset you didn't know Monid sooner\": made as a code ad (3D animation) from @hannahlearnsstuff's video in the research (1.9M views on 1K followers)"
-    },
-    {
-      "s": 21910.5,
-      "level": "info",
-      "message": "\"You'll be upset you didn't know Monid sooner\" is ready"
-    },
-    {
       "s": 24486.5,
       "level": "info",
       "message": "\"i let my agent cook with one balance (it got greedy)\": made as a brainrot meme from @phamhacks's video in the research (2.3M views on 5K followers)"
@@ -1977,6 +1967,16 @@
       "s": 24487.5,
       "level": "info",
       "message": "\"i let my agent cook with one balance (it got greedy)\" is ready"
+    },
+    {
+      "s": 25275.5,
+      "level": "info",
+      "message": "\"A sign-up per API vs one balance\": made as a code ad (3D animation) from @cluelyextras's video in the research (628K views on 3K followers)"
+    },
+    {
+      "s": 25276.5,
+      "level": "info",
+      "message": "\"A sign-up per API vs one balance\" is ready"
     }
   ],
   "spend": {

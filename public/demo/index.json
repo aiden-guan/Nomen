@@ -2,14 +2,14 @@
   "version": 1,
   "scripts": [
     {
-      "id": "usenaive-ai",
-      "domain": "usenaive.ai",
-      "name": "Naïve"
-    },
-    {
       "id": "monid-ai",
       "domain": "monid.ai",
       "name": "Monid"
+    },
+    {
+      "id": "usenaive-ai",
+      "domain": "usenaive.ai",
+      "name": "Naïve"
     }
   ]
 }
