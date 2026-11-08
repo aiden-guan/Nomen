@@ -1,8 +1,9 @@
-import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { fakeNaive, NAIVE_BASE, postOut } from "./fake-naive";
+import { fakeNaive, liveAnalytics, NAIVE_BASE, postOut } from "./fake-naive";
 
 // One autopilot cycle on a copy of a real database, with Naive faked at the network: a brand's
 // campaign finishes, its video is scheduled and posted, its stats come in, and the next campaign
@@ -23,9 +24,12 @@ describe.skipIf(!source || !brandId || !campaignId)("autopilot on a copy of a re
   const dir = mkdtempSync(join(tmpdir(), "nomen-sim-"));
   const fake = fakeNaive();
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    // SQLite's own backup, so writes still in the source's WAL file are in the copy too.
     const copy = join(dir, "sim.db");
-    copyFileSync(source, copy);
+    const original = new Database(source, { readonly: true, fileMustExist: true });
+    await original.backup(copy);
+    original.close();
     process.env.NOMEN_DB_PATH = copy;
     globalThis.__nomenDb = undefined;
     globalThis.__nomenStore = undefined;
@@ -57,8 +61,11 @@ describe.skipIf(!source || !brandId || !campaignId)("autopilot on a copy of a re
     vi.setSystemTime(started);
 
     // The brand's accounts are connected (faked), autopilot is on with automatic posting, and the
-    // campaign's last video is done: anything still rendering in the copy is marked failed.
+    // campaign's last video is done: anything still rendering in the copy is marked failed, and
+    // posts the copy already has are cleared, so the cycle starts from a campaign just finished.
     await store().update("brands", { id: brandId }, { identity_id: "idn_sim", social_activated: 1 });
+    await store().remove("posts", { brand_id: brandId });
+    await store().update("creatives", { campaign_id: campaignId }, { approved: 0 });
     await saveLoop(brandId, { ...DEFAULT_LOOP, enabled: true, weekly_budget_micro: 200 * M, cadence_days: 1, autopost: true });
     await store().update("creatives", { campaign_id: campaignId, status: { in: ["queued", "producing"] } }, { status: "failed", error: "simulation: still rendering on the live server" });
     await store().update("campaigns", { id: campaignId }, { status: "running", stage: "production", error: null });
@@ -73,13 +80,18 @@ describe.skipIf(!source || !brandId || !campaignId)("autopilot on a copy of a re
     expect(fake.calls(/\/social\/posts$/, "POST")[0].body).toMatchObject({ ai_generated: true });
     await advanceLoop(new Date());
 
-    // 2. The last post goes out at its slot; a few minutes later its stats come in.
+    // 2. The last post goes out at its slot (its first analytics carry the link); its numbers grow.
     const last = queued.map((p) => Date.parse(p.scheduled_at)).sort().at(-1)!;
+    const link = "https://www.tiktok.com/@naive.sim/video/1";
     vi.setSystemTime(last + 5 * 60_000);
-    for (const post of fake.state.posts.values()) postOut(post, `https://www.tiktok.com/@naive.sim/video/${post.id}`);
+    for (const post of fake.state.posts.values()) postOut(post);
+    fake.state.analytics = liveAnalytics(link, [{ at: new Date(last + 5 * 60_000).toISOString(), views: 0 }]);
     await advancePosts();
-    fake.state.analytics = { data: { tiktok: { analytics: { videoViews: 18_400, likeCount: 960, commentsCount: 41, shareCount: 77 } }, youtube: { analytics: { views: 2_100, likes: 64, comments: 5 } } } };
-    vi.setSystemTime(last + 10 * 60_000);
+    fake.state.analytics = liveAnalytics(link, [
+      { at: new Date(last + 5 * 60_000).toISOString(), views: 0 },
+      { at: new Date(last + 40 * 60_000).toISOString(), views: 18_400, likes: 960, comments: 41, shares: 77, saves: 12 },
+    ]);
+    vi.setSystemTime(last + 40 * 60_000);
     await advancePosts();
     const posted = await store().find<{ status: string; analytics_json: string | null }>("posts", { brand_id: brandId });
     expect(posted.every((p) => p.status === "posted" && p.analytics_json)).toBe(true);
@@ -101,7 +113,7 @@ describe.skipIf(!source || !brandId || !campaignId)("autopilot on a copy of a re
     const message = String(fake.state.sessions[0]?.message ?? "");
     const past = JSON.parse(message.match(/<past_results>\n(.*)\n<\/past_results>/s)?.[1] ?? "[]") as Array<Record<string, unknown>>;
     expect(past.length).toBe(ready.length);
-    expect(past[0]).toMatchObject({ status: "posted", stats: { views: 20_500, likes: 1_024, comments: 46, shares: 77 } });
+    expect(past[0]).toMatchObject({ status: "posted", url: link, stats: { views: 18_400, likes: 960, comments: 41, shares: 77, saves: 12 } });
 
     const log = (await store().events({ brand_id: brandId, limit: 40 })).reverse().filter((e) => e.ts >= started.toISOString());
     const out = process.env.NOMEN_SIM_OUT;

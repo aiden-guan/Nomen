@@ -99,7 +99,50 @@ export function fakeNaive() {
   return { state, fetchStub, calls: (route: RegExp, method?: string) => state.calls.filter((c) => route.test(c.path) && (!method || c.method === method)) };
 }
 
-/** Moves a post on, as Naive would once the network confirms it. */
-export function postOut(post: FakePost, url: string) {
-  Object.assign(post, { status: "posted", url, posted_at: new Date().toISOString() });
+/** Moves a post on, as Naive would once the network confirms it. Like the live API, the post read carries no link. */
+export function postOut(post: FakePost) {
+  Object.assign(post, { status: "posted", posted_at: new Date().toISOString() });
+}
+
+/**
+ * A post's analytics in the shape Naive returned live on 2026-11-08 (bundle.social's, trimmed): the
+ * post with each network's permalink, the network's own post, and one snapshot of lifetime totals
+ * per refresh. Every read Naive makes forces a new snapshot.
+ */
+export function liveAnalytics(permalink: string, snapshots: Array<{ at: string; views: number; likes?: number; comments?: number; shares?: number; saves?: number }>) {
+  const externalId = permalink.split("/").pop();
+  return {
+    object: "social_analytics",
+    identity_id: "idn_naive",
+    resource_id: "spo_1",
+    platform: "tiktok",
+    data: {
+      post: {
+        id: "spo_1",
+        status: "POSTED",
+        data: { TIKTOK: { type: "VIDEO", text: "Three steps to a running company.", uploadIds: ["upl_1"], isAiGenerated: true } },
+        externalData: { TIKTOK: { id: externalId, permalink, status: "PUBLISH_COMPLETE" } },
+        retryCount: 0,
+      },
+      profilePost: { id: "pp_1", socialAccountId: "acc_tt", externalId, permalink, type: "POST", internal: true },
+      items: snapshots.map((s, i) => ({
+        id: `snap_${i}`,
+        profilePostId: "pp_1",
+        impressions: s.views,
+        impressionsUnique: s.views,
+        views: s.views,
+        viewsUnique: s.views,
+        likes: s.likes ?? 0,
+        dislikes: 0,
+        comments: s.comments ?? 0,
+        shares: s.shares ?? 0,
+        saves: s.saves ?? 0,
+        forced: true,
+        createdAt: s.at,
+        updatedAt: s.at,
+        deletedAt: null,
+        raw: null,
+      })),
+    },
+  };
 }
