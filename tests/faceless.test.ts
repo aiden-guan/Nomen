@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { editFfmpeg } from "@/lib/creative/edit";
-import { balanceLines, burnedInText, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, staticCaption, wordCaptions } from "@/lib/creative/remake";
+import { balanceLines, burnedInText, overlayLines, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, staticCaption, wordCaptions } from "@/lib/creative/remake";
 import { readScreenCorners } from "@/lib/creative/clone";
 import { beatsOfWords, fitSegments, freshVoiceArgs, PHONE_EQ, soundArgs, timeOurLines, timeOurWords, wordsFromSegments } from "@/lib/creative/dub";
 import { referenceFrameNote } from "@/lib/creative/screens";
@@ -290,6 +290,12 @@ describe("faceless remakes: a static premise caption", () => {
     const ad = staticCaption(read, { caption_style: "No word-by-word speech captions." }, [{ on_screen_text: "1. As" }, { on_screen_text: "" }], 60);
     expect(ad.captions.present).toBe(false);
     expect(ad.texts).toEqual([]);
+  });
+
+  it("keeps a reworded caption on as many lines as the original", () => {
+    const lines = overlayLines("my agent calls me when the tests on real phones are done", balanceLines(premise, 3));
+    expect(lines).toHaveLength(3);
+    expect(lines.join(" ")).toBe("my agent calls me when the tests on real phones are done");
   });
 
   it("balances a line into a given number of lines", () => {

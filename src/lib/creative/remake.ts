@@ -748,7 +748,8 @@ export function overlayLines(ours: string, reference: string[]): string[] {
       if (to > from) lines.push(words.slice(from, to).join(" "));
       from = to;
     });
-    if (lines.length) return lines;
+    // A caption reworded almost throughout piles into one line: then it is balanced instead.
+    if (lines.length && (lines.length >= refLines.length || words.length < refLines.length * 2)) return lines;
   }
   const count = clamp(refLines.length, 1, words.length);
   const total = words.join(" ").length;

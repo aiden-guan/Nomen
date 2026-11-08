@@ -225,13 +225,23 @@ def erase_boxes(spec, i, scale=(1.0, 1.0)):
     return out
 
 
-def exclusion(spec, shape, scale):
-    """exclude(i) for track_run: a mask of frame i's caption boxes at the tracking scale."""
+def exclusion(spec, frames, scale):
+    """
+    exclude(i) for track_run: frame i's burned-in caption pixels at the tracking scale. Only the
+    caption's own bright pixels (white letters, white boxes) and a margin around them: the scene
+    between and around them (a phone's keys under a caption) keeps its features.
+    """
+    grow = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+
     def exclude(i):
-        mask = np.zeros(shape, np.uint8)
+        frame = frames[i]
+        mask = np.zeros(frame.shape, np.uint8)
         for x, y, w, h, _ in erase_boxes(spec, i, scale):
-            mask[max(0, y):y + h, max(0, x):x + w] = 255
-        return mask
+            x0, y0 = max(0, x), max(0, y)
+            roi = frame[y0:y + h, x0:x + w]
+            if roi.size:
+                mask[y0:y + h, x0:x + w] = np.where(roi > 185, 255, 0).astype(np.uint8)
+        return cv2.dilate(mask, grow)
     return exclude
 
 
@@ -382,11 +392,16 @@ def track(spec):
         snapped, moved = snap(f0, q0)
         report["anchor"] = f0
         report["sides_snapped"] = moved
-        exclude = exclusion(spec, frames[0].shape, scale) if spec.get("erase") else None
+        exclude = exclusion(spec, frames, scale) if spec.get("erase") else None
         tracked, shares, problem, held = track_span(frames, f0, snapped, s0, s1, exclude)
         report["inliers"] = round(float(np.mean(shares)), 3) if shares else None
         if held:
             report["held"] = held
+        # The flow broke partway (the display switching on, a smear): the frames it followed keep
+        # their corners and the rest hold the nearest followed ones, unless it followed too little.
+        if problem and len(tracked) >= max(8, 0.5 * (s1 - s0)) and not (shares and np.mean(shares) < 0.5):
+            report["partial"] = f"{problem}; held the nearest tracked corners for {s1 - s0 - len(tracked)} frames"
+            problem = None
         if problem or (shares and np.mean(shares) < 0.5):
             report["fallback"] = problem or "the flow did not agree on one plane"
             series = interpolate(mine, s1 - s0) if len(mine) > 1 else [q0] * (s1 - s0)

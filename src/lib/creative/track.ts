@@ -97,7 +97,7 @@ export type TrackSpec = {
   quads_out?: string;
 };
 
-export type TrackShot = { from: number; to: number; anchors: number; anchor?: number; sides_snapped?: number; inliers?: number | null; fallback?: string; residual_px?: number[] };
+export type TrackShot = { from: number; to: number; anchors: number; anchor?: number; sides_snapped?: number; inliers?: number | null; fallback?: string; partial?: string; residual_px?: number[] };
 export type TrackReport = { ok: boolean; frames: number; shots: TrackShot[] };
 
 /** The spec as the script reads it (corner points as [x, y] pairs). */
