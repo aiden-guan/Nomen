@@ -11,14 +11,17 @@ import { type BattlePlan, type Company } from "../scenes/battle";
 import { type Land, LAND_RADIUS, type LandId, LANDS, ROME_LINES, romePoint, STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
-import { DEMO_ID, type PublishMode } from "./demo";
+import { DEMO_ID, demoCreativeId, type PublishMode } from "./demo";
 import { AgentCard } from "./AgentCard";
 import { Dispatches } from "./Dispatches";
 import { Icon } from "./ui";
 import { ago, money } from "./format";
 import { Screening } from "./Screening";
 import { StationPanel } from "./StationPanel";
+import type { TourStep } from "./tour";
+import { TourCard } from "./TourCard";
 import { type DemoPlayer, useDemo } from "./useDemo";
+import { useTour } from "./useTour";
 import { useReducedMotion, useWide } from "../hooks";
 
 export type Engine = { stage: Stage; baker: Baker; landing: LandingScene; camp: CampScene };
@@ -92,6 +95,25 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const [screening, setScreening] = useState<string | null>(null);
   // The demo replays a campaign on a clock (./demo.ts) instead of reading the API.
   const player = useDemo(demo, arrived);
+  // The presenter's tour of the replay (camp/tour.ts): each step opens what it is about.
+  const [tourCamera, setTourCamera] = useState<"world" | null>(null);
+  const [tourFocus, setTourFocus] = useState<string | null>(null);
+  const scriptRef = useRef(player.script);
+  scriptRef.current = player.script;
+  const applyStep = useCallback(
+    (step: TourStep | null) => {
+      setAgentId(null);
+      setSelected(step?.station ?? null);
+      setTourCamera(step?.camera ?? null);
+      setTourFocus(step?.focus ?? null);
+      takeCamera(false);
+      const script = scriptRef.current;
+      setScreening(step?.video !== undefined && script ? demoCreativeId(script, step.video) : null);
+    },
+    [takeCamera],
+  );
+  const tour = useTour({ enabled: demo, arrived, player, apply: applyStep });
+  const presenter = useMemo(() => (tour.on ? { ...player, next: tour.next, back: tour.back, restart: tour.restart } : player), [tour.on, tour.next, tour.back, tour.restart, player]);
   const view = demo ? player.view : liveView;
   const plan = useMemo(() => derive(view), [view]);
   const campaign = view?.campaign ?? null;
@@ -263,11 +285,13 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         : wide
           ? selected
             ? e.camp.focus(selected, ins)
-            : e.camp.camera(ins)
+            : tourCamera === "world"
+              ? e.camp.world(ins)
+              : e.camp.camera(ins)
           : e.camp.focus(shown, ins);
-      e.stage.look(target, reduced ? 0 : sailing ? Math.max(duration, 1.4) : duration, easeInOutCubic);
+      e.stage.look(target, reduced ? 0 : sailing ? Math.max(duration, 1.4) : tourCamera === "world" ? Math.max(duration, 1.6) : duration, easeInOutCubic);
     },
-    [engine, insets, selected, wide, shown, reduced, agentId, following, panel, battling, voyage],
+    [engine, insets, selected, wide, shown, reduced, agentId, following, panel, battling, voyage, tourCamera],
   );
   useEffect(() => {
     if (arrived) frameCamera(1);
@@ -565,7 +589,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
 
   return (
     <>
-      <TopBar view={view} spend={spend} visible={arrived} onSelect={openStation} selected={selected} demo={demo ? player : undefined} home={home} />
+      <TopBar view={view} spend={spend} visible={arrived} onSelect={openStation} selected={selected} demo={demo ? presenter : undefined} home={home} />
 
       {lines.map((line) => (
         <SpeechBubble key={line.key} engine={engine} id={line.id} text={line.text} seconds={line.seconds} />
@@ -648,6 +672,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
           error={actionError}
           actions={actions}
           demo={demo ? { recorded: Boolean(player.script?.recorded) } : null}
+          focus={tour.on ? tourFocus : null}
           onAgent={(id) => {
             setAgentId(id);
             setFollowing(true);
@@ -676,15 +701,17 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         />
       )}
 
-      {arrived && !hinted && !agentId && !selected && !battling && (
+      {arrived && !hinted && !agentId && !selected && !battling && !tour.on && (
         <p role="status" className={`${styles.boxSoft} ${styles.rise} pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 px-3 py-1.5 text-[12px] ${wide ? "bottom-5" : "top-[64px]"}`}>
           <span className={`${styles.pixel} text-[var(--crimson)]`}>Tip </span>Click any soldier to follow them. Scroll or pinch to zoom, drag to look around.
         </p>
       )}
 
       {arrived && screening && finishedVideos.length > 0 && (
-        <Screening videos={finishedVideos} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} />
+        <Screening videos={finishedVideos} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} arrows={!tour.on} />
       )}
+
+      {arrived && demo && tour.on && <TourCard tour={tour} wide={wide} right={panel && wide && !screening ? 440 : 0} screening={Boolean(screening)} scoreboard={wide && battling && !panel} />}
 
       {demo && player.notice && (
         <p role="status" className={`${styles.boxSoft} ${styles.enter} absolute left-1/2 top-[76px] z-30 -translate-x-1/2 px-3 py-1.5 text-[13px]`}>
@@ -934,7 +961,7 @@ function StationTag({
           )}
           {compact ? null : bubble ? (
             // A fresh dispatch replaces the status line for a few seconds.
-            <span key={bubble.id} className={`${styles.fadeIn} mt-1 line-clamp-2 block text-[12px] leading-snug`} style={{ color: tone }} role="status">
+            <span key={bubble.id} className={`${styles.fadeIn} mt-1 line-clamp-2 text-[12px] leading-snug`} style={{ color: tone }} role="status">
               › {bubble.text}
             </span>
           ) : (

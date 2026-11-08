@@ -251,9 +251,12 @@ export function landFor(runKey: string): LandId {
   if (runKey === "brand" || runKey === "site") return "site";
   if (runKey === "similar") return "similarweb";
   if (runKey.startsWith("seo")) return "ahrefs";
+  // The scouting sweep's runs ("scout_tiktok_0") go where the source they scout is.
+  if (runKey.startsWith("scout_")) return landFor(runKey.slice("scout_".length));
   if (runKey.startsWith("tiktok")) return "tiktok";
-  if (runKey === "reels") return "instagram";
-  if (runKey === "shorts") return "youtube";
+  // Numbered and conversion searches ("reels_0", "reels_conv_0", "shorts_1") too.
+  if (runKey.startsWith("reels")) return "instagram";
+  if (runKey.startsWith("shorts")) return "youtube";
   if (runKey.startsWith("meta_ads")) return "metaads";
   if (runKey === "reddit") return "reddit";
   if (runKey === "aeo_chatgpt") return "chatgpt";

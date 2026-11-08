@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BrandView } from "../api";
-import { advance, approveAll, type DemoScript, type DemoState, finished, freshState, jump, loadDemoScript, type PublishMode, publish, replay } from "./demo";
+import { advance, approveAll, type DemoScript, type DemoState, finished, freshState, jump, loadDemoScript, type PublishMode, publish, replay, seek } from "./demo";
 
 export type DemoPlayer = {
   script: DemoScript | null;
   view: BrandView | null;
   playing: boolean;
+  /** Seconds on the demo clock. */
+  t: number;
   /** Autoplay approves and posts the videos itself instead of waiting at the review. */
   auto: boolean;
   done: boolean;
@@ -20,6 +22,11 @@ export type DemoPlayer = {
   approve: (idx: number, value: boolean) => void;
   approveAll: () => void;
   publish: (mode: PublishMode) => void;
+  /** For the tour: put the clock at a time, stop it at one (null: no stop), start it, post everything. */
+  seek: (t: number) => void;
+  holdAt: (t: number | null) => void;
+  play: () => void;
+  postAll: () => void;
 };
 
 const TICK_MS = 250;
@@ -43,6 +50,8 @@ export function useDemo(enabled: boolean, arrived: boolean): DemoPlayer {
   playingRef.current = playing;
   const autoRef = useRef(auto);
   autoRef.current = auto;
+  // Where a tour step stops the clock, if one does.
+  const holdRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -68,7 +77,7 @@ export function useDemo(enabled: boolean, arrived: boolean): DemoPlayer {
       last = now;
       if (!playingRef.current) return;
       setState((current) => {
-        const next = advance(script, current, dt, autoRef.current);
+        const next = advance(script, current, dt, autoRef.current, holdRef.current ?? Number.POSITIVE_INFINITY);
         // Waiting at the review changes nothing: keep the same state so nothing re-renders.
         return next.t === current.t && next.approved === current.approved && next.publish === current.publish ? current : next;
       });
@@ -88,6 +97,7 @@ export function useDemo(enabled: boolean, arrived: boolean): DemoPlayer {
       next: () => script && setState((s) => jump(script, s, 1)),
       back: () => script && setState((s) => jump(script, s, -1)),
       restart: () => {
+        holdRef.current = null;
         setState(freshState());
         setPlaying(true);
       },
@@ -99,6 +109,12 @@ export function useDemo(enabled: boolean, arrived: boolean): DemoPlayer {
       approve: (idx: number, value: boolean) => setState((s) => ({ ...s, approved: { ...s.approved, [idx]: value } })),
       approveAll: () => script && setState((s) => approveAll(script, s)),
       publish: (mode: PublishMode) => script && setState((s) => publish(script, s, mode)),
+      seek: (t: number) => script && setState((s) => seek(script, s, t)),
+      holdAt: (t: number | null) => {
+        holdRef.current = t;
+      },
+      play: () => setPlaying(true),
+      postAll: () => script && setState((s) => publish(script, approveAll(script, s), "now")),
     }),
     [script],
   );
@@ -133,5 +149,5 @@ export function useDemo(enabled: boolean, arrived: boolean): DemoPlayer {
   // clock only runs once the column has arrived.
   const view = useMemo(() => (enabled && script ? replay(script, state) : null), [enabled, script, state]);
   const done = script ? finished(script, state) : false;
-  return { script, view, playing, auto, done, notice, ...controls };
+  return { script, view, playing, t: state.t, auto, done, notice, ...controls };
 }

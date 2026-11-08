@@ -256,6 +256,7 @@ describe("dispatches", () => {
       ["Format study ready (skill nomen-style-acme@1)", "oracle"],
       ["The strategist is writing the brand brief and 4 concepts", "tent"],
       ['Campaign "The Afternoon Swap": 4 concepts, now producing', "tent"],
+      ['The creative director chose 3 videos, each on what the research found: "I told Naïve" (faceless clone: one silent desk shot pulled 407K views)', "tent"],
       ['QC sent "Blind taste test" shot 1 back (6/10): the label is garbled', "workshop"],
       ["Shot 2 is rendering on Monid (Kling 3.0) because Naive is unavailable", "workshop"],
       ['"The 3pm slump swap" is ready (QC 8/10)', "workshop"],

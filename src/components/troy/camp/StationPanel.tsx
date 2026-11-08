@@ -32,6 +32,7 @@ export function StationPanel({
   error,
   actions,
   demo,
+  focus,
   onAgent,
   onStation,
   onClose,
@@ -46,6 +47,8 @@ export function StationPanel({
   actions: CampActions;
   /** Set in the demo camp: whether it replays a recorded campaign or the made-up sample. */
   demo: { recorded: boolean } | null;
+  /** The demo tour's pointer: "concepts" scrolls the war tent to its concepts once they are in. */
+  focus?: string | null;
   onAgent: (id: string) => void;
   onStation: (id: StationId) => void;
   onClose: () => void;
@@ -135,7 +138,7 @@ export function StationPanel({
 
         {id === "scouts" && <Scouts view={view} />}
         {id === "oracle" && <Oracle view={view} state={state.state} />}
-        {id === "tent" && <Tent view={view} />}
+        {id === "tent" && <Tent view={view} focus={focus ?? null} />}
         {id === "workshop" && <Workshop view={view} busy={busy} actions={actions} />}
         {id === "theatre" && <Theatre view={view} busy={busy} actions={actions} />}
         {id === "agora" && <Agora view={view} />}
@@ -292,8 +295,18 @@ function Oracle({ view, state }: { view: BrandView; state: string }) {
   );
 }
 
-function Tent({ view }: { view: BrandView }) {
+function Tent({ view, focus }: { view: BrandView; focus: string | null }) {
   const strategy = view.campaign?.strategy;
+  const conceptsRef = useRef<HTMLDivElement>(null);
+  const planned = Boolean(strategy);
+  useEffect(() => {
+    const mark = conceptsRef.current;
+    if (focus !== "concepts" || !planned || !mark) return;
+    // The panel's own scrolling box (scrollIntoView would scroll the page too).
+    let box = mark.parentElement;
+    while (box && !(box.scrollHeight > box.clientHeight && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) box = box.parentElement;
+    if (box) box.scrollTo({ top: box.scrollTop + mark.getBoundingClientRect().top - box.getBoundingClientRect().top - 8, behavior: "smooth" });
+  }, [focus, planned]);
   if (!strategy) {
     return (
       <Section title="Battle plan">
@@ -315,6 +328,7 @@ function Tent({ view }: { view: BrandView }) {
           </dl>
         </Parchment>
       </Section>
+      <div ref={conceptsRef} className="scroll-mt-3" />
       <Section title={`Concepts · ${strategy.campaign.concepts.length}`}>
         <ol className="space-y-2">
           {strategy.campaign.concepts.map((concept, i) => (
@@ -323,7 +337,15 @@ function Tent({ view }: { view: BrandView }) {
               <span className="min-w-0 text-[13px]">
                 <span className="block font-semibold leading-snug">{concept.title}</span>
                 <span className="mt-0.5 block text-[12px] leading-snug text-[var(--ink-soft)]">{quote(concept.hook)}</span>
-                {concept.angle && (
+                {concept.format && <span className="mt-1 block text-[11px] uppercase tracking-wide text-[var(--ink-faint)]">{concept.format}</span>}
+                {/* What the research found that made the director pick this video. */}
+                {concept.why && (
+                  <span className="mt-1 block text-[12px] leading-snug">
+                    <span className={`${styles.pixel} text-[var(--crimson)]`}>Why </span>
+                    {concept.why}
+                  </span>
+                )}
+                {concept.angle && concept.angle !== concept.why && (
                   <span className="mt-1.5 inline-block">
                     <Chip tone="teal">{concept.angle}</Chip>
                   </span>

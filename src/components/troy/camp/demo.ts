@@ -216,7 +216,7 @@ export function approveAll(script: DemoScript, state: DemoState): DemoState {
 }
 
 /** Moves the clock on. Autoplay approves each video, then posts them, as a person would. */
-export function advance(script: DemoScript, state: DemoState, dt: number, auto: boolean): DemoState {
+export function advance(script: DemoScript, state: DemoState, dt: number, auto: boolean, hold = Number.POSITIVE_INFINITY): DemoState {
   const tl = timeline(script);
   let next: DemoState = { ...state, t: state.t + dt };
   if (auto && !next.publish && next.t >= tl.review) {
@@ -228,7 +228,20 @@ export function advance(script: DemoScript, state: DemoState, dt: number, auto: 
     next = { ...next, approved };
     if (next.t >= tl.review + 3 + videos.length * 0.9) next = publish(script, next, "now");
   }
-  return { ...next, t: Math.min(next.t, limit(script, next, auto)) };
+  // A tour step's hold stops the clock (one already passed leaves it where it is).
+  return { ...next, t: Math.min(next.t, limit(script, next, auto), Math.max(hold, state.t)) };
+}
+
+/**
+ * Puts the clock at `t`, as the tour does: before the review nothing is approved or posted yet,
+ * and before the videos went out they are not out.
+ */
+export function seek(script: DemoScript, state: DemoState, t: number): DemoState {
+  const tl = timeline(script);
+  const at = Math.max(0, Math.min(t, limit(script, state, false)));
+  if (at < tl.review) return { ...state, t: at, approved: {}, publish: null };
+  if (state.publish && at <= state.publish.at) return { ...state, t: at, publish: null };
+  return { ...state, t: at };
 }
 
 /** Skips to the next stage, or back to the start of this one (or the one before). */
@@ -428,6 +441,9 @@ function dailySlot(from: number, day: number) {
   return slot.toISOString();
 }
 
+/** The id a replayed video goes by in the camp (its creative in the replayed view). */
+export const demoCreativeId = (script: DemoScript, idx: number) => `crv_${scriptKey(script)}_${idx}`;
+
 const keys = new WeakMap<DemoScript, string>();
 /** A short id for the brand, so cached posters never mix two scripts. */
 function scriptKey(script: DemoScript) {
@@ -547,10 +563,11 @@ export async function loadDemoScript(site: string | null): Promise<DemoScript> {
   try {
     const index = await fetch("/demo/index.json", { cache: "no-cache" });
     if (!index.ok) return SAMPLE;
-    const list = ((await index.json()) as { scripts?: Array<{ id: string; domain: string }> }).scripts ?? [];
+    // A recording answers to its domain and to any other name it lists (naive.ai for usenaive.ai).
+    const list = ((await index.json()) as { scripts?: Array<{ id: string; domain: string; aliases?: string[] }> }).scripts ?? [];
     const checked = site ? normalizeSite(site) : null;
     const wanted = checked && "domain" in checked ? checked.domain : null;
-    const entry = list.find((s) => wanted && s.domain === wanted) ?? list[0];
+    const entry = list.find((s) => wanted && (s.domain === wanted || s.aliases?.includes(wanted))) ?? list[0];
     if (!entry || !/^[a-z0-9][a-z0-9-]*$/.test(entry.id)) return SAMPLE;
     const base = `/demo/${entry.id}/`;
     const response = await fetch(`${base}script.json`, { cache: "no-cache" });

@@ -252,6 +252,11 @@ describe("loading a recording", () => {
     expect(loaded.creatives[1].poster).toBe("/demo/acme/2.jpg");
   });
 
+  it("finds a recording by another name it answers to", async () => {
+    serve({ "/demo/index.json": { scripts: [{ id: "other", domain: "other.example" }, { id: "acme", domain: "acme.example", aliases: ["acme.ai"] }] }, "/demo/acme/script.json": recording });
+    expect((await loadDemoScript("www.acme.ai")).brand.name).toBe("Acme");
+  });
+
   it("plays the newest recording for any other website, and the sample if that one is broken", async () => {
     serve({ "/demo/index.json": { scripts: [{ id: "acme", domain: "acme.example" }] }, "/demo/acme/script.json": recording });
     expect((await loadDemoScript("someone-else.com")).brand.name).toBe("Acme");

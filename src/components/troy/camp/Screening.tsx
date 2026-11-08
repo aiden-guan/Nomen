@@ -20,6 +20,7 @@ export function Screening({
   actions,
   busy,
   wide,
+  arrows = true,
 }: {
   videos: CreativeView[];
   id: string;
@@ -28,6 +29,8 @@ export function Screening({
   actions: CampActions;
   busy: string | null;
   wide: boolean;
+  /** ← and → step between the videos (the demo's tour takes those keys while it runs). */
+  arrows?: boolean;
 }) {
   const index = Math.max(0, videos.findIndex((v) => v.id === id));
   const creative = videos[index];
@@ -51,7 +54,7 @@ export function Screening({
         event.preventDefault();
         event.stopPropagation();
         onClose();
-      } else if ((event.key === "ArrowRight" || event.key === "ArrowLeft") && videos.length > 1 && !(event.target instanceof HTMLInputElement)) {
+      } else if (arrows && (event.key === "ArrowRight" || event.key === "ArrowLeft") && videos.length > 1 && !(event.target instanceof HTMLInputElement)) {
         event.preventDefault();
         event.stopPropagation();
         step(event.key === "ArrowRight" ? 1 : -1);
@@ -59,7 +62,7 @@ export function Screening({
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [index, videos, onPick, onClose]);
+  }, [index, videos, onPick, onClose, arrows]);
 
   if (!creative) return null;
   const concept = creative.concept;
@@ -75,7 +78,7 @@ export function Screening({
       className={`${styles.overlay} absolute inset-0 z-40 flex items-center justify-center p-4`}
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div className={`${styles.box} ${styles.enter} flex max-h-full min-h-0 overflow-hidden ${wide ? "flex-row" : "w-full max-w-[460px] flex-col"}`}>
+      <div data-screening-box className={`${styles.box} ${styles.enter} flex max-h-full min-h-0 overflow-hidden ${wide ? "flex-row" : "w-full max-w-[460px] flex-col"}`}>
         <div className={`relative shrink-0 bg-[#120c08] ${wide ? "" : "mx-auto"}`} style={{ height, aspectRatio: "9 / 16" }}>
           {creative.videoUrl ? (
             <video ref={videoRef} key={creative.id} src={creative.videoUrl} poster={creative.posterUrl ?? undefined} controls autoPlay playsInline className="size-full bg-black object-contain outline-none" />

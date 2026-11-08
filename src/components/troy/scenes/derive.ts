@@ -506,6 +506,8 @@ function editorTask(creative: CreativeView) {
 export function stationForEvent(message: string, stage: string): StationId {
   const m = message.toLowerCase();
   if (m.startsWith("campaign started")) return "scouts";
+  // The director's picks quote the research ("one silent desk shot…"): they are the war tent's.
+  if (m.startsWith("the creative director")) return "tent";
   // Rendering talk first: Monid is also the video fallback, so "monid" alone can't mean research.
   if (/\bshot\b|render|\bqc\b|kling|veo|naive is out/.test(m) && !/ready for review/.test(m)) return "workshop";
   if (/ready for review|approved/.test(m)) return "theatre";
