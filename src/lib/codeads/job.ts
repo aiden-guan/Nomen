@@ -327,7 +327,8 @@ async function runCodeAd(ctx: ProductionContext, creative: CreativeRow, concept:
       files: store().files,
       dir,
       chrome: findChrome()!,
-      targetSeconds: concept.script?.total_seconds ?? 24,
+      // the format's promise: 15-30 s; the narrator is sped up (at most 1.3x) toward it
+      targetSeconds: Math.min(28, Math.max(15, concept.script?.total_seconds ?? 24)),
       naive: ctx.naive && !ctx.naiveOut() ? ctx.naive : null,
       log,
     });
