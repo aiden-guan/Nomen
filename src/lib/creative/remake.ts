@@ -869,7 +869,7 @@ type Manifest = {
   persona_file?: string;
   persona_path?: string;
   shots: Record<string, ShotRecord>;
-  graphics?: { key: string; clips: Array<{ id: string; kind: "video" | "image"; path: string }>; failures: Array<{ id: string; error: string }> };
+  graphics?: { key: string; clips: Array<{ id: string; kind: "video" | "image"; path: string }>; failures: Array<{ id: string; error: string; retryable?: boolean }> };
   cost_micro: number;
 };
 
@@ -1027,13 +1027,26 @@ export async function remakeVideo(client: RemakeClient, input: RemakeInput): Pro
   const graphicsKey = hash(plan.graphics.map((g) => g.request));
   const graphicsJob = (async () => {
     if (!plan.graphics.length) return;
-    if (manifest.graphics?.key === graphicsKey) return;
+    // Built graphics and real failures are kept; a graphic that failed only because the model was
+    // busy is built again on the next run (the first live remake lost 3 of 4 graphics that way).
+    const before = manifest.graphics?.key === graphicsKey ? manifest.graphics : { key: graphicsKey, clips: [], failures: [] };
+    const settled = new Set([...before.clips.filter((clip) => existsSync(clip.path)).map((clip) => clip.id), ...before.failures.filter((f) => !f.retryable).map((f) => f.id)]);
+    const requests = plan.graphics.map((g) => g.request).filter((request) => !settled.has(request.id));
+    if (!requests.length) return;
     const build =
       input.buildGraphics ??
       ((requests: ScreenRequest[], dir: string) => buildScreens(naive, requests, { product: input.product, kit: input.kit, style: input.breakdown.format }, { workDir: dir, render: { pushIn: 0 }, keepFailed: true }));
-    say(`Building ${plan.graphics.length} graphics in the reference's places`);
-    const result = await build(plan.graphics.map((g) => g.request), join(workDir, "graphics"));
-    manifest.graphics = { key: graphicsKey, clips: result.clips.map(({ id, kind, path }) => ({ id, kind, path })), failures: result.failures.map(({ id, error }) => ({ id, error })) };
+    say(`Building ${requests.length} graphics in the reference's places`);
+    const result = await build(requests, join(workDir, "graphics"));
+    const rebuilt = new Set(requests.map((request) => request.id));
+    manifest.graphics = {
+      key: graphicsKey,
+      clips: [...before.clips.filter((clip) => !rebuilt.has(clip.id)), ...result.clips.map(({ id, kind, path }) => ({ id, kind, path }))],
+      failures: [
+        ...before.failures.filter((f) => !rebuilt.has(f.id)),
+        ...result.failures.map((f) => ({ id: f.id, error: f.error, ...((f as { retryable?: boolean }).retryable ? { retryable: true } : {}) })),
+      ],
+    };
     await save();
   })();
   // Never left unhandled while the frames run; awaited (and its error rethrown) before the cut.

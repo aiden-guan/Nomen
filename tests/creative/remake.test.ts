@@ -531,7 +531,10 @@ describe.skipIf(!ffmpeg)("remakeVideo (fake Naive)", () => {
     expect(result.duration).toBeGreaterThan(5.9);
     expect(out.duration).toBeCloseTo(result.duration, 0);
     const manifest = JSON.parse(await readFile(join(dir, "work", "manifest.json"), "utf8"));
-    expect(manifest.shots["1"]).toMatchObject({ frame_tries: 2, frame_done: true, renders: 1 });
+    // Frames are cleaned in parallel, so whichever is checked first is the one sent back.
+    const records = Object.values(manifest.shots) as Array<{ frame_tries: number; frame_done: boolean; renders: number }>;
+    expect(records.every((r) => r.frame_done && r.renders === 1)).toBe(true);
+    expect(records.map((r) => r.frame_tries).sort()).toEqual([2, ...records.slice(1).map(() => 1)].sort());
     expect(manifest.graphics.clips).toHaveLength(1);
 
     // Set NOMEN_REMAKE_KEEP=/some/dir to keep the cut for a look.
