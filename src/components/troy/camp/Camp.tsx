@@ -5,7 +5,7 @@ import { type BrandView, campaignAction, connectLink, type CreativeView, getBran
 import type { Baker } from "../engine/baker";
 import { easeInOutCubic, type Stage } from "../engine/stage";
 import type { CampScene } from "../scenes/camp";
-import { derive, stationForEvent, stationOf } from "../scenes/derive";
+import { activeStation, derive, stationForEvent } from "../scenes/derive";
 import { STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
@@ -83,18 +83,19 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   }, [brandId, demo]);
 
   // --- The world follows the data. ------------------------------------------------------------
+  // This runs before the column arrives too: the first plan is who marches out of the horse.
   useEffect(() => {
     const e = engine.current;
-    if (!e || !view || !arrived) return;
+    if (!e || !view) return;
     e.camp.apply(plan);
-  }, [engine, view, plan, arrived]);
+  }, [engine, view, plan]);
 
-  // Messengers ride when work changes hands.
+  // The courier rides when work changes hands.
   const lastStage = useRef<number | null>(null);
   const lastReady = useRef<number | null>(null);
   useEffect(() => {
     const e = engine.current;
-    const stageIndex = campaign?.stageIndex;
+    const stageIndex = campaign ? STATIONS.findIndex((s) => s.id === activeStation(campaign)) : undefined;
     if (!e || !arrived || stageIndex === undefined || stageIndex < 0) return;
     if (lastStage.current !== null && stageIndex > lastStage.current) {
       e.camp.dispatch(STATIONS[lastStage.current].id, STATIONS[Math.min(5, stageIndex)].id);
@@ -134,7 +135,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const wide = useWide();
   const reduced = useReducedMotion();
   const [focused, setFocused] = useState<StationId | null>(null);
-  const current = stationOf(campaign?.stage ?? "research");
+  const current = activeStation(campaign);
   const shown = selected ?? focused ?? current;
   const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: selected && wide ? 440 : 0 }), [selected, wide]);
   const frameCamera = useCallback(
@@ -332,7 +333,7 @@ function TopBar({
   const campaign = view?.campaign ?? null;
   const plan = useMemo(() => derive(view), [view]);
   const stateFor = (i: number) => plan.stations[STATIONS[i].id].state;
-  const current = Math.max(0, campaign?.stageIndex ?? 0);
+  const current = Math.max(0, STATIONS.findIndex((s) => s.id === activeStation(campaign)));
   return (
     <header
       className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 px-4 pb-6 pt-4 sm:gap-5 sm:px-6 ${visible ? styles.fadeIn : "opacity-0"}`}
@@ -342,17 +343,19 @@ function TopBar({
         Nomen
       </a>
       {view && (
-        <div className={`${styles.boxSoft} pointer-events-auto flex min-w-0 items-center gap-2.5 px-3 py-1.5`}>
+        <div className={`${styles.boxSoft} pointer-events-auto flex min-w-0 items-center gap-2.5 px-2 py-1.5 sm:px-3`} title={`${view.brand.name} · ${view.brand.domain}`}>
           {view.brand.profile?.logo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={view.brand.profile.logo} alt="" className="size-6 shrink-0 object-contain" />
           ) : (
             <span className={`${styles.pixel} grid size-6 shrink-0 place-items-center bg-[var(--sand)] text-xs`}>{view.brand.name[0]}</span>
           )}
-          <span className="min-w-0">
+          {/* On phones the name would truncate to a letter or two: the logo stands in for it there. */}
+          <span className="hidden min-w-0 sm:block">
             <span className="block truncate text-sm font-semibold leading-tight">{view.brand.name}</span>
             <span className="block truncate text-[11px] leading-tight text-[var(--ink-soft)]">{view.brand.domain}</span>
           </span>
+          <span className="sr-only sm:hidden">{view.brand.name}</span>
         </div>
       )}
 
@@ -378,7 +381,7 @@ function TopBar({
         </nav>
       )}
       {campaign && (
-        <span className={`${styles.pixel} pointer-events-auto ml-auto text-[13px] text-[var(--ink-soft)] lg:hidden`}>
+        <span className={`${styles.pixel} pointer-events-auto ml-auto whitespace-nowrap text-[13px] text-[var(--ink-soft)] lg:hidden`}>
           {current + 1}/6 · {STEP_NAMES[current]}
         </span>
       )}
@@ -416,7 +419,7 @@ function DemoControls({ player }: { player: DemoPlayer }) {
       <button type="button" className={styles.iconButton} onClick={player.next} aria-label="Skip to the next step" title="Skip to the next step (→). At the review this approves and posts every video.">
         <PixelIcon name="skip" />
       </button>
-      <button type="button" className={`${styles.iconButton} hidden sm:inline-grid`} onClick={player.restart} aria-label="Replay from the start" title="Replay from the start (R)">
+      <button type="button" className={`${styles.iconButton} ${styles.wideOnly}`} onClick={player.restart} aria-label="Replay from the start" title="Replay from the start (R)">
         <PixelIcon name="restart" />
       </button>
     </div>
@@ -489,7 +492,8 @@ function StationTag({
   useLayoutEffect(() => {
     const e = engine.current;
     if (!e || !emoteRef.current) return;
-    return e.stage.anchor(emoteRef.current, () => ({ x: station.x - 4, y: station.y - 4, z: 34 }));
+    // Up and to the right of the island, clear of the tower, the shrine and the screen.
+    return e.stage.anchor(emoteRef.current, () => ({ x: station.x + 26, y: station.y - 26, z: 38 }));
   }, [engine, station, bubble]);
   const segments = 8;
   const filled = plan.progress === null ? 0 : Math.round(plan.progress * segments);

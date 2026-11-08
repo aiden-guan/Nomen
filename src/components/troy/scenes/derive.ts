@@ -1,7 +1,7 @@
 import type { BrandView, CampaignView, CreativeView, RunView } from "../api";
 import type { Act } from "../engine/jobs";
 import type { StationId } from "./layout";
-import { DESK_SLOTS, EDITOR_OFFSET, SPOTS, WATCH_DROP } from "./stations";
+import { DESK_SLOTS, EDITOR_OFFSET, SPOTS, WATCH_DROP, type Waypoint } from "./stations";
 
 // From the campaign the core track reports to what the camp shows: each station's state and
 // status line, and every agent's post and activity. Pure, so it is easy to test.
@@ -32,9 +32,11 @@ export type AgentPlan = {
   z: number;
   dir: number;
   sort?: number;
-  /** Out of the camp (a scout on a run): walk to the edge and fade out. */
+  /** Points to pass on the way to the post (up a ladder, onto a step), relative to the island. */
+  via?: Waypoint[];
+  /** Out of the camp (a scout on a run): ride off along the trail. */
   away?: boolean;
-  /** Bringing something back: arrives from the island's edge carrying a scroll. */
+  /** Back from a run: rides in, and carries the scroll case to the basket (or comes back empty). */
   returning?: "scroll" | "empty";
   state: "idle" | "working" | "done" | "failed";
 };
@@ -87,9 +89,22 @@ export function stationOf(stage: string): StationId {
   return ORDER[Math.max(0, index)];
 }
 
+/**
+ * The station that has the work now. While posts go out the core keeps the stage at "review", but
+ * the review is over by then: the agora has the work.
+ */
+function currentIndex(campaign: CampaignView) {
+  return campaign.status === "publishing" ? 5 : Math.max(0, campaign.stageIndex);
+}
+
+/** The station the campaign is at (for the top bar and for following it on narrow screens). */
+export function activeStation(campaign: CampaignView | null): StationId {
+  return campaign ? ORDER[currentIndex(campaign)] : "scouts";
+}
+
 function stationState(campaign: CampaignView | null, index: number): StationState {
   if (!campaign) return "waiting";
-  const current = Math.max(0, campaign.stageIndex);
+  const current = currentIndex(campaign);
   if (index === 1 && current > 1 && !campaign.style) return "skipped";
   if (index < current) return "done";
   if (index > current) return "waiting";
@@ -178,12 +193,16 @@ export function derive(view: BrandView | null): CampPlan {
     const posted = posts.filter((p) => p.status === "posted").length;
     const scheduled = posts.filter((p) => p.status === "scheduled" || p.status === "pending" || p.status === "processing").length;
     if (campaign?.status === "publishing") set("agora", `Posting · ${posted} out, ${scheduled} queued`, posts.length ? posted / posts.length : 0);
-    else if (campaign?.status === "live") set("agora", `${posted} posted · ${scheduled} scheduled`, posts.length ? posted / posts.length : 1);
+    else if (campaign?.status === "live") set("agora", scheduled ? `${posted} posted · ${scheduled} scheduled` : `${plural(posted, "video")} posted`, posts.length ? posted / posts.length : 1);
     else set("agora", "Waiting for your approval");
-    if (campaign?.status === "publishing" || campaign?.status === "live") stations.agora.state = "working";
+    // Live with posts still on the calendar is still work; everything out is done.
+    if (campaign?.status === "publishing" || campaign?.status === "live") stations.agora.state = campaign.status === "live" && !scheduled ? "done" : "working";
   }
 
   // --- Agents --------------------------------------------------------------------------------
+  // Everyone the campaign will need is in the camp from the start (they march in with the column)
+  // and stays: they walk between their posts and their places at rest, so nobody pops in or out.
+  // Only scouts come and go, one per research source.
   const agents: AgentPlan[] = [];
   const scouting = states[0] === "working";
   agents.push({
@@ -194,8 +213,20 @@ export function derive(view: BrandView | null): CampPlan {
     look: 0,
     act: scouting ? "lookout" : "stand",
     ...SPOTS.lookout,
+    via: SPOTS.lookoutClimb,
     sort: 1,
     state: scouting ? "working" : "idle",
+  });
+  agents.push({
+    id: "courier",
+    station: "scouts",
+    role: "Courier",
+    task: "Rides each finished piece of work on to the next station",
+    look: 3,
+    act: "stand",
+    ...SPOTS.courier,
+    z: 0,
+    state: "idle",
   });
   let queued = 0;
   runs.forEach((run, i) => agents.push(scoutPlan(run, i, () => queued++)));
@@ -209,7 +240,7 @@ export function derive(view: BrandView | null): CampPlan {
     look: 4,
     act: style === "working" ? "watch" : style === "done" ? "stand" : "sit",
     ...SPOTS.watcher,
-    z: 0,
+    via: SPOTS.watcherSteps,
     state: style === "working" ? "working" : style === "done" ? "done" : "idle",
   });
 
@@ -237,17 +268,20 @@ export function derive(view: BrandView | null): CampPlan {
     state: strat === "working" ? "working" : "idle",
   });
 
+  // One desk and one editor per planned video, set up before the concepts arrive.
   const desks: DeskPlan[] = [];
-  creatives.slice(0, DESK_SLOTS.length).forEach((creative, slot) => {
-    const state = creative.status === "producing" ? 1 : creative.status === "ready" ? 2 : creative.status === "failed" ? 3 : 0;
-    desks.push({ slot, creativeId: creative.id, state, title: creative.concept?.title ?? `Video ${creative.idx + 1}` });
+  const planned = campaign ? Math.min(DESK_SLOTS.length, Math.max(creatives.length, campaign.options.concepts ?? 0)) : 0;
+  for (let slot = 0; slot < planned; slot++) {
+    const creative = creatives[slot] as CreativeView | undefined;
+    const state = !creative ? 0 : creative.status === "producing" ? 1 : creative.status === "ready" ? 2 : creative.status === "failed" ? 3 : 0;
+    desks.push({ slot, creativeId: creative?.id ?? "", state, title: creative?.concept?.title ?? `Video ${slot + 1}` });
     const desk = DESK_SLOTS[slot];
     agents.push({
-      id: `editor:${creative.idx}`,
+      id: `editor:${slot}`,
       station: "workshop",
       role: "Editor",
-      task: editorTask(creative),
-      look: creative.idx % 6,
+      task: creative ? editorTask(creative) : "Waiting at the desk for a concept from the war tent",
+      look: slot % 6,
       act: state === 1 ? "type" : "sit",
       x: desk.x + EDITOR_OFFSET.x,
       y: desk.y + EDITOR_OFFSET.y,
@@ -255,36 +289,62 @@ export function derive(view: BrandView | null): CampPlan {
       dir: EDITOR_OFFSET.dir,
       state: state === 1 ? "working" : state === 2 ? "done" : state === 3 ? "failed" : "idle",
     });
-  });
+  }
   const producing = creatives.filter((c) => c.status === "producing");
   const framing = producing.some((c) => c.shots.some((s) => s.status === "pending"));
-  if (framing) {
-    agents.push({ id: "painter", station: "workshop", role: "Painter", task: "Painting the first frame of each shot so the product looks right", look: 2, act: "paint", ...SPOTS.painter, z: 0, state: "working" });
-  }
+  agents.push({
+    id: "painter",
+    station: "workshop",
+    role: "Painter",
+    task: framing ? "Painting the first frame of each shot so the product looks right" : "Waiting at the easel for shots to paint",
+    look: 2,
+    act: framing ? "paint" : "stand",
+    ...SPOTS.painter,
+    z: 0,
+    state: framing ? "working" : "idle",
+  });
   const checkingIndex = creatives.findIndex((c) => c.shots.some((s) => s.status === "rendered"));
-  if (checkingIndex >= 0 && checkingIndex < DESK_SLOTS.length) {
-    const desk = DESK_SLOTS[checkingIndex];
-    agents.push({ id: "inspector", station: "workshop", role: "Inspector", task: "Checking every frame for warped hands, wrong labels and garbled text", look: 3, act: "inspect", x: desk.x + 9, y: desk.y - 2, z: 0, dir: 3, state: "working" });
-  }
+  const checked = checkingIndex >= 0 && checkingIndex < DESK_SLOTS.length ? DESK_SLOTS[checkingIndex] : null;
+  agents.push({
+    id: "inspector",
+    station: "workshop",
+    role: "Inspector",
+    task: checked ? "Checking every frame for warped hands, wrong labels and garbled text" : "Waiting for a rendered shot to check",
+    look: 3,
+    act: checked ? "inspect" : "stand",
+    ...(checked ? { x: checked.x + 9, y: checked.y - 2, dir: 3 } : SPOTS.inspector),
+    z: 0,
+    state: checked ? "working" : "idle",
+  });
 
+  // The audience waits by the theatre and takes its seats when there is a cut to watch.
   const reviewing = (campaign?.stageIndex ?? 0) >= 4 && ready.length > 0;
-  if (reviewing) {
-    SPOTS.audience.slice(0, Math.min(4, Math.max(2, ready.length))).forEach((spot, i) => {
-      agents.push({ id: `audience:${i}`, station: "theatre", role: "Audience", task: "Watching the cut", look: (i + 2) % 6, act: "watch", x: spot.x, y: spot.y, z: (spot.z ?? 0) - WATCH_DROP + 1.2, dir: spot.dir, sort: 0, state: "working" });
-    });
-  }
+  const seated = reviewing ? Math.min(SPOTS.audience.length, Math.max(2, ready.length)) : 0;
+  SPOTS.audience.forEach((spot, i) => {
+    const base = { id: `audience:${i}`, station: "theatre" as const, role: "Audience", look: (i + 2) % 6 };
+    if (i < seated) {
+      agents.push({ ...base, task: "Watching the cut", act: "watch", x: spot.x, y: spot.y, z: (spot.z ?? 0) - WATCH_DROP + 1.2, dir: spot.dir, sort: 0, via: [{ x: spot.x + 7, y: spot.y + 7, z: 0 }], state: "working" });
+    } else {
+      const rest = SPOTS.audienceRest[i];
+      agents.push({ ...base, task: reviewing ? "Saving a seat" : "Waiting for the first cut", act: "stand", x: rest.x, y: rest.y, z: 0, dir: rest.dir, state: "idle" });
+    }
+  });
 
-  const posting = campaign?.status === "publishing" || campaign?.status === "live";
+  const posts = campaign?.posts ?? [];
+  const onTheWay = posts.some((p) => p.status === "scheduled" || p.status === "pending" || p.status === "processing");
+  const posting = campaign?.status === "publishing" || (campaign?.status === "live" && onTheWay);
+  const allOut = campaign?.status === "live" && !onTheWay;
   agents.push({
     id: "herald",
     station: "agora",
     role: "Herald",
-    task: posting ? "Announcing each video on the brand's own accounts" : "Waiting for approved videos",
+    task: posting ? "Announcing each video on the brand's own accounts" : allOut ? "Announced every video" : "Waiting for approved videos",
     look: 1,
     act: posting ? "herald" : "stand",
     ...SPOTS.herald,
+    via: SPOTS.heraldSteps,
     sort: 1,
-    state: posting ? "working" : "idle",
+    state: posting ? "working" : allOut ? "done" : "idle",
   });
 
   // --- Props ---------------------------------------------------------------------------------

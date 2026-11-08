@@ -3,11 +3,14 @@ import type { StationId } from "./layout";
 // What stands on each island, relative to the island's centre (world units), and where the
 // agents work. Props are their own sprites so figures can walk in front of and behind them.
 
-export type PropId = "tower" | "basket" | "signpost" | "shrine" | "pavilion" | "maptable" | "desk" | "easel" | "reels" | "tier" | "screen" | "podium" | "banner" | "olive" | "amphora" | "campfire";
+export type PropId = "tower" | "basket" | "signpost" | "shrine" | "pavilion" | "maptable" | "desk" | "easel" | "reels" | "tier" | "screen" | "podium" | "banner" | "olive" | "amphora" | "campfire" | "rail";
 
 export type Placement = { prop: PropId; x: number; y: number; v?: number; key?: string; sort?: number };
 
 export type Spot = { x: number; y: number; z?: number; dir: number };
+
+/** A point on the way to a post (relative to the island), with the act and heading for that leg. */
+export type Waypoint = { x: number; y: number; z: number; act?: "climb" | "march"; dir?: number };
 
 /** Desk slots in the workshop. Desks face the camera; the editor sits at EDITOR_OFFSET from it. */
 export const DESK_SLOTS: Array<{ x: number; y: number }> = [
@@ -22,12 +25,18 @@ export const DESK_SLOTS: Array<{ x: number; y: number }> = [
 /** Where an editor sits relative to their desk (on the stool, in front of the screen). */
 export const EDITOR_OFFSET = { x: 4.95, y: 4.95, dir: 5 };
 
+/** Where the hitching rail stands on the scouts' island (it runs along y, horses on its -x side). */
+export const STABLE = { x: -30, y: 5 };
+
 export const PROPS: Record<StationId, Placement[]> = {
   scouts: [
     { prop: "tower", x: -16, y: -14 },
-    { prop: "signpost", x: 22, y: -22 },
+    // Beside the road to the oracle, not on it.
+    { prop: "signpost", x: 20, y: -30 },
     { prop: "basket", x: 8, y: 8, v: 0, key: "basket" },
-    { prop: "olive", x: -32, y: 22, v: 1 },
+    // The stable: scouts take a horse here and ride off along the trail (left).
+    { prop: "rail", x: STABLE.x, y: STABLE.y },
+    { prop: "olive", x: -6, y: -38, v: 1 },
     { prop: "amphora", x: 30, y: 8 },
   ],
   oracle: [
@@ -68,6 +77,11 @@ export const PROPS: Record<StationId, Placement[]> = {
 /** Named places where agents stand or sit (relative to the island centre). */
 export const SPOTS = {
   lookout: { x: -16, y: -14, z: 25.1, dir: 1 },
+  /** Up the ladder on the tower's +y face, then across the platform. */
+  lookoutClimb: [
+    { x: -16, y: -3.6, z: 0, dir: 6 },
+    { x: -16, y: -5, z: 24.8, act: "climb", dir: 6 },
+  ] as Waypoint[],
   queue: (i: number): Spot => ({ x: -2 + (i % 3) * 5, y: 6 + Math.floor(i / 3) * 6 - (i % 3) * 2, dir: 6 }),
   basket: { x: 12, y: 14, dir: 5 },
   /** Where scouts leave the island (toward the outside of the camp) and come back. */
@@ -76,7 +90,12 @@ export const SPOTS = {
     { x: -42, y: -6, dir: 3 },
     { x: -16, y: 38, dir: 2 },
   ] as Spot[],
-  watcher: { x: 0.5, y: -8, dir: 4 },
+  /** On the shrine's floor (its top step is at z 2.8), facing the television. */
+  watcher: { x: 0.5, y: -8, z: 2.8, dir: 4 },
+  watcherSteps: [
+    { x: 9, y: -4, z: 0, dir: 4 },
+    { x: 5, y: -5, z: 2.8, dir: 4 },
+  ] as Waypoint[],
   general: { x: 1, y: 9, dir: 0 },
   scribe: { x: 15, y: -2, dir: 2 },
   painter: { x: 24.5, y: -24, dir: 4 },
@@ -89,7 +108,39 @@ export const SPOTS = {
     { x: 1.8, y: 3.6, z: 3.6, dir: 5 },
   ] as Spot[],
   herald: { x: -6, y: -6, z: 5.1, dir: 1 },
+  /** Onto the podium by its step on the +x side. */
+  heraldSteps: [
+    { x: 4, y: -6, z: 0, dir: 4 },
+    { x: 0.6, y: -6, z: 2.2, dir: 4 },
+  ] as Waypoint[],
+  /** Where the courier waits between dispatches: by the stable, near his horse. */
+  courier: { x: -14, y: 28, dir: 4 },
+  /** The inspector's place in the workshop while no shot is in quality check. */
+  inspector: { x: 14, y: 22, dir: 5 },
+  /** Where the audience waits, standing, until there is a cut to watch. */
+  audienceRest: [
+    { x: 28, y: -2, dir: 5 },
+    { x: 22, y: 4, dir: 5 },
+    { x: 32, y: 6, dir: 5 },
+    { x: 26, y: 11, dir: 5 },
+  ] as Spot[],
 };
+
+
+/**
+ * Horses tied at the rail, facing it (+x, heads over the rail toward the island), and where a rider
+ * stands to mount each one. The last stall is the courier's, so dispatches never wait behind the
+ * research.
+ */
+export const STALLS = [-16, -8, 0, 8, 16].map((dy) => ({
+  horse: { x: STABLE.x - 7, y: STABLE.y + dy, dir: 0 },
+  mount: { x: STABLE.x - 12, y: STABLE.y + dy + 2.8, dir: 0 },
+}));
+export const COURIER_STALL = STALLS.length - 1;
+
+/** Past the rail's end, on the trail: everyone going to or from the horses passes here. */
+export const STABLE_GATE = { x: STABLE.x - 4, y: STABLE.y + 24 };
+
 
 /** Seated spectators sit this far below the seat top (their feet rest on the step below). */
 export const WATCH_DROP = 2.4;

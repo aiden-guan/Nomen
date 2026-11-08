@@ -28,6 +28,8 @@ export type Entity = {
   tick?: (dt: number, time: number) => void | "remove";
   /** Priority for baking this entity's sprites. */
   priority?: number;
+  /** The last sprite drawn, shown again while the next frame is still baking (no flicker). */
+  drawn?: Baked;
 };
 
 export type CameraTarget = { x: number; y: number; zoom: number };
@@ -96,14 +98,22 @@ export class Stage {
   }
 
   add<T extends Entity>(entity: T): T {
-    this.entities.push(entity);
+    if (!this.entities.includes(entity)) this.entities.push(entity);
+    this.removed.delete(entity);
     return entity;
   }
 
   remove(entity: Entity) {
     const index = this.entities.indexOf(entity);
     if (index >= 0) this.entities.splice(index, 1);
+    this.removed.add(entity);
   }
+
+  has(entity: Entity) {
+    return this.entities.includes(entity);
+  }
+
+  private readonly removed = new Set<Entity>();
 
   /** Keeps an HTML element positioned over a world point (CSS transform, set every frame). */
   anchor(el: HTMLElement, at: () => { x: number; y: number; z: number } | null, dx = 0, dy = 0) {
@@ -201,9 +211,12 @@ export class Stage {
       }
     }
     this.onFrame?.(dt, this.time);
-    for (let i = this.entities.length - 1; i >= 0; i--) {
-      const entity = this.entities[i];
-      if (entity.tick && entity.tick(dt, this.time) === "remove") this.entities.splice(i, 1);
+    // A tick may add or remove other entities, so remove by identity, never by a stale index,
+    // and skip anything removed earlier in this frame.
+    this.removed.clear();
+    for (const entity of [...this.entities]) {
+      if (this.removed.has(entity)) continue;
+      if (entity.tick && entity.tick(dt, this.time) === "remove") this.remove(entity);
     }
     this.shake = Math.max(0, this.shake - dt * 3);
   }
@@ -266,7 +279,10 @@ export class Stage {
       ctx.drawImage(this.shadowSprite, Math.round(ox + (sx - r) * px), Math.round(oy + (gy - r * 0.45) * px), Math.round(r * 2 * px), Math.round(r * 0.9 * px));
     }
     if (entity.job) {
-      const baked = this.baker.get(entity.job, entity.priority ?? 0);
+      // A frame that is not baked yet keeps the previous one on screen instead of a blank.
+      const fresh = this.baker.get(entity.job, entity.priority ?? 0);
+      if (fresh) entity.drawn = fresh;
+      const baked = fresh ?? entity.drawn;
       if (baked) {
         const left = sx - (entity.flip ? baked.w - baked.ax : baked.ax);
         const top = sy - baked.ay;

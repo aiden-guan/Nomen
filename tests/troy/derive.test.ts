@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type BrandView, normalizeSite } from "@/components/troy/api";
-import { derive, stationForEvent, stationOf } from "@/components/troy/scenes/derive";
+import { activeStation, derive, stationForEvent, stationOf } from "@/components/troy/scenes/derive";
 import { normalizeDomain } from "@/lib/pipeline";
 
 // The camp is a picture of the core's BrandView. These tests pin what each station shows for
@@ -66,7 +66,26 @@ describe("the camp before and during research", () => {
     const plan = derive(view(null));
     expect(Object.values(plan.stations).map((s) => s.state)).toEqual(["waiting", "waiting", "waiting", "waiting", "waiting", "waiting"]);
     expect(plan.desks).toEqual([]);
-    expect(plan.agents.map((a) => a.id)).toEqual(["lookout", "watcher", "general", "scribe", "herald"]);
+    // Everyone the camp has is there from the start; only scouts (one per run) come and go.
+    expect(plan.agents.map((a) => a.id)).toEqual(["lookout", "courier", "watcher", "general", "scribe", "painter", "inspector", "audience:0", "audience:1", "audience:2", "audience:3", "herald"]);
+  });
+
+  it("sets up a desk and an editor for every planned video before the concepts arrive", () => {
+    const plan = derive(view({}));
+    expect(plan.desks).toEqual([0, 1, 2, 3].map((slot) => ({ slot, creativeId: "", state: 0, title: `Video ${slot + 1}` })));
+    const editors = plan.agents.filter((a) => a.id.startsWith("editor:"));
+    expect(editors.map((a) => a.id)).toEqual(["editor:0", "editor:1", "editor:2", "editor:3"]);
+    expect(editors.every((a) => a.act === "sit" && a.state === "idle")).toBe(true);
+    // The painter, the inspector and the audience wait at their places.
+    expect(plan.agents.find((a) => a.id === "painter")).toMatchObject({ act: "stand", state: "idle" });
+    expect(plan.agents.find((a) => a.id === "inspector")).toMatchObject({ act: "stand", state: "idle" });
+    expect(plan.agents.filter((a) => a.id.startsWith("audience:")).every((a) => a.act === "stand")).toBe(true);
+  });
+
+  it("sends the lookout up the tower's ladder and the herald up the podium's step", () => {
+    const plan = derive(view({}));
+    expect(plan.agents.find((a) => a.id === "lookout")?.via?.some((w) => w.act === "climb")).toBe(true);
+    expect(plan.agents.find((a) => a.id === "herald")?.via?.length).toBeGreaterThan(0);
   });
 
   it("counts sources and posts one scout per run", () => {
@@ -145,7 +164,44 @@ describe("the camp through the pipeline", () => {
       { creativeId: "crv_0", url: "https://x/p.jpg", video: null, title: "Concept 0" },
       { creativeId: "crv_1", url: null, video: "/api/media/crv_1/final.mp4", title: "Concept 1" },
     ]);
-    expect(plan.agents.filter((a) => a.station === "theatre")).toHaveLength(2);
+    // Two videos to watch: two spectators take their seats, the other two wait by the theatre.
+    const audience = plan.agents.filter((a) => a.station === "theatre");
+    expect(audience).toHaveLength(4);
+    expect(audience.filter((a) => a.act === "watch")).toHaveLength(2);
+    expect(audience.filter((a) => a.act === "stand")).toHaveLength(2);
+  });
+
+  it("hands the work to the agora while posts go out, though the core still says review", () => {
+    const plan = derive(
+      view({
+        stage: "review",
+        stageIndex: 4,
+        status: "publishing",
+        creatives: [creative(0, "ready", ["passed"], { approved: true })] as never,
+        posts: [{ id: "p1", creativeId: "crv_0", platforms: ["tiktok"], scheduledAt: null, status: "pending", error: null, analytics: null }] as never,
+      }),
+    );
+    expect(plan.stations.theatre).toMatchObject({ state: "done", status: "1 video approved" });
+    expect(plan.stations.agora.state).toBe("working");
+    expect(plan.agents.find((a) => a.id === "herald")?.act).toBe("herald");
+    expect(activeStation(view({ stage: "review", stageIndex: 4, status: "publishing" }).campaign)).toBe("agora");
+    expect(activeStation(view({ stage: "review", stageIndex: 4, status: "review" }).campaign)).toBe("theatre");
+  });
+
+  it("marks the agora done once every video is out", () => {
+    const plan = derive(
+      view({
+        stage: "live",
+        stageIndex: 5,
+        status: "live",
+        posts: [
+          { id: "p1", creativeId: "crv_0", platforms: ["tiktok"], scheduledAt: null, status: "posted", error: null, analytics: null },
+          { id: "p2", creativeId: "crv_1", platforms: ["tiktok"], scheduledAt: null, status: "posted", error: null, analytics: null },
+        ] as never,
+      }),
+    );
+    expect(plan.stations.agora).toMatchObject({ state: "done", status: "2 videos posted", progress: 1 });
+    expect(plan.agents.find((a) => a.id === "herald")).toMatchObject({ act: "stand", state: "done" });
   });
 
   it("sends the herald out while posting", () => {

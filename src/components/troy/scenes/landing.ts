@@ -1,11 +1,10 @@
 import type { Baker } from "../engine/baker";
 import { LEAF_STEPS, PLANK_FROM, PLANK_STEPS, type Job } from "../engine/jobs";
-import { exitPath, HORSE, PLANK_REST } from "../engine/models/horse";
+import { HORSE, PLANK_REST } from "../engine/models/horse";
 import { type Entity, Stage } from "../engine/stage";
-import { makeWalker, type Point, smoothPath, type Walker } from "../engine/walker";
 
-// The landing: the horse on its island. `open()` plays the doors, the gangplank and then an
-// endless column of soldiers marching out toward the camp.
+// The landing: the horse on its island. `open()` plays the doors and the gangplank; then the
+// camp's agents march out one by one (the camp decides who, see CampScene.nextRecruit).
 
 /** Seconds the full opening takes (doors, plank, settle). */
 export const OPEN_SECONDS = 2.6;
@@ -15,6 +14,17 @@ export type LandingEvents = {
   onPlankDown?: () => void;
 };
 
+/** Seconds between two soldiers stepping out of the door. */
+const SPACING = 0.36;
+/**
+ * A knock from inside: two taps, each jolting the closed doors outward and letting them fall back.
+ * The jolt moves the closed doors' own sprite (no other frame), so nothing re-shades or flickers.
+ */
+const KNOCK_TAPS = [0, 0.19];
+const KNOCK_SECONDS = 0.34;
+/** How far (world units, outward along +y) a tap pushes the doors. */
+const KNOCK_JOLT = 0.7;
+
 export class LandingScene {
   readonly island: Entity;
   readonly body: Entity;
@@ -23,13 +33,12 @@ export class LandingScene {
   private opening = -1;
   private streaming = false;
   private streamTimer = 0;
-  private spawned = 0;
   private knockTimer = 6;
-  private knock = 0;
+  /** Seconds since the current knock started, or -1. */
+  private knock = -1;
   private plankDown = false;
-  private readonly marchers = new Set<Walker>();
-  /** Where marching soldiers head once they reach the sand (set by the camp). */
-  destination: (index: number) => Point[] = defaultDestination;
+  /** Sends the next soldier out of the door; false when nobody is waiting (set by the camp). */
+  recruit: (() => boolean) | null = null;
 
   constructor(
     private readonly stage: Stage,
@@ -54,9 +63,9 @@ export class LandingScene {
     return Promise.all(jobs.map(([job, priority]) => baker.request(job, priority)));
   }
 
-  /** Ready when the horse can be shown (island and body baked). */
+  /** Ready when the horse can be shown: island, body and the closed doors (or the lit doorway would show). */
   ready(baker: Baker) {
-    return Promise.all([baker.request({ k: "horse-island" }, 10), baker.request({ k: "horse-body" }, 10)]);
+    return Promise.all([baker.request({ k: "horse-island" }, 10), baker.request({ k: "horse-body" }, 10), baker.request({ k: "horse-leaves", s: 0 }, 10)]);
   }
 
   /** Ready when the whole opening can play without a missing frame. */
@@ -66,21 +75,24 @@ export class LandingScene {
 
   /** A small rattle of the doors, as if someone inside knocked. */
   rattle() {
-    if (this.opening < 0) this.knock = 0.45;
+    if (this.opening < 0 && this.knock < 0) this.knock = 0;
   }
 
   open() {
     if (this.opening >= 0) return;
     this.opening = 0;
-    this.knock = 0;
+    this.knock = -1;
+    this.leaves.y = 0;
   }
 
   /** Opens instantly (for visitors coming straight to the camp, or reduced motion). */
   openNow() {
     this.opening = OPEN_SECONDS;
+    this.leaves.y = 0;
     this.leaves.job = { k: "horse-leaves", s: LEAF_STEPS };
     this.plank.job = { k: "horse-plank", s: PLANK_STEPS };
     this.plankDown = true;
+    this.streaming = true;
   }
 
   /** Closes the horse again (back to the landing). */
@@ -88,19 +100,15 @@ export class LandingScene {
     this.opening = -1;
     this.streaming = false;
     this.plankDown = false;
-    this.knock = 0;
+    this.knock = -1;
+    this.leaves.y = 0;
     this.leaves.job = { k: "horse-leaves", s: 0 };
     this.plank.job = null;
-    for (const walker of this.marchers) this.stage.remove(walker);
-    this.marchers.clear();
   }
 
+  /** Lets the camp's agents march out (once the plank is down). */
   startStream() {
     this.streaming = true;
-  }
-
-  stopStream() {
-    this.streaming = false;
   }
 
   get isOpen() {
@@ -108,18 +116,20 @@ export class LandingScene {
   }
 
   private tick(dt: number) {
-    // Idle knock: every few seconds the doors jiggle.
+    // Idle knock: every few seconds someone inside knocks twice and the doors give a little.
     if (this.opening < 0) {
       this.knockTimer -= dt;
       if (this.knockTimer <= 0) {
         this.knockTimer = 7 + Math.random() * 5;
-        this.knock = 0.45;
+        this.rattle();
       }
-      if (this.knock > 0) {
-        this.knock = Math.max(0, this.knock - dt);
-        const wobble = Math.abs(Math.sin(this.knock * 38)) * (this.knock / 0.45);
-        this.leaves.job = { k: "horse-leaves", s: Math.round(wobble * 1.4) };
-      } else this.leaves.job = { k: "horse-leaves", s: 0 };
+      this.leaves.job = { k: "horse-leaves", s: 0 };
+      this.leaves.y = 0;
+      if (this.knock >= 0) {
+        this.knock += dt;
+        this.leaves.y = knockJolt(this.knock) * KNOCK_JOLT;
+        if (this.knock >= KNOCK_SECONDS) this.knock = -1;
+      }
       return;
     }
 
@@ -137,48 +147,11 @@ export class LandingScene {
       }
     }
 
-    if (this.streaming) {
+    // The camp's agents step out one at a time, as long as anyone is waiting.
+    if (this.streaming && this.plankDown) {
       this.streamTimer -= dt;
-      if (this.streamTimer <= 0) {
-        this.streamTimer = 0.34 + Math.random() * 0.12;
-        this.spawn();
-      }
+      if (this.streamTimer <= 0 && this.recruit?.()) this.streamTimer = SPACING;
     }
-  }
-
-  private spawn() {
-    const index = this.spawned++;
-    const out = exitPath();
-    const onward = this.destination(index);
-    const path = [...out, ...smoothPath([out[out.length - 1], ...onward], 5).slice(1)];
-    const walker = makeWalker({
-      look: index % 6,
-      path,
-      speed: 24,
-      onArrive: (w) => {
-        // Join the camp: dissolve into the island grain by grain.
-        let t = 0;
-        w.act = "stand";
-        w.tick = (dt) => {
-          t += dt;
-          w.reveal = Math.max(0, 1 - t / 0.7);
-          if (t < 0.7) return undefined;
-          this.marchers.delete(w);
-          return "remove";
-        };
-      },
-    });
-    // Step out of the dark: fade in over the first stride.
-    walker.alpha = 0;
-    const baseTick = walker.tick!;
-    walker.tick = (dt, time) => {
-      walker.alpha = Math.min(1, (walker.alpha ?? 0) + dt * 4);
-      // No blob shadow while on the plank (it would float under the walkway).
-      walker.shadow = walker.z < 1 ? 5 : 0;
-      return baseTick(dt, time);
-    };
-    this.marchers.add(walker);
-    this.stage.add(walker);
   }
 
   private dust() {
@@ -198,14 +171,14 @@ function countReady(baker: Baker) {
   return n;
 }
 
-/** Without a camp, marchers fan out toward the lower left and leave the page. */
-function defaultDestination(index: number): Point[] {
-  const spread = ((index * 37) % 9) - 4;
-  return [
-    { x: 6 + spread * 3, y: 92, z: 0 },
-    { x: -20 + spread * 8, y: 170, z: 0 },
-    { x: -40 + spread * 12, y: 320, z: 0 },
-  ];
+/** How far out (0..1) the doors are `t` seconds into a knock: a jolt per tap that settles back. */
+export function knockJolt(t: number) {
+  let v = 0;
+  for (const at of KNOCK_TAPS) {
+    const d = t - at;
+    if (d >= 0 && d < 0.1) v = Math.max(v, 1 - d / 0.1);
+  }
+  return v;
 }
 
 /** A puff of sand: a few pixels that drift outward, rise a little and fade. */

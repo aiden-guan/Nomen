@@ -108,8 +108,10 @@ describe("the review and posting", () => {
     expect(done.campaign).toMatchObject({ stage: "live", status: "live" });
     expect(done.campaign!.posts.every((p) => p.status === "posted" && p.analytics)).toBe(true);
     expect(done.events.map((e) => e.message)).toEqual(expect.arrayContaining(["Queued 4 posts to go out now", "Post submitted: tiktok, instagram", "4 of 4 videos are ready for review"]));
+    // While they go out the agora works; once all are out it is done.
+    expect(derive(replay(SAMPLE, { ...sent, t: P + 5 })).stations).toMatchObject({ theatre: { state: "done" }, agora: { state: "working" } });
     const plan = derive(done);
-    expect(plan.stations.agora.state).toBe("working");
+    expect(plan.stations.agora.state).toBe("done");
     expect(plan.stations.theatre.state).toBe("done");
   });
 

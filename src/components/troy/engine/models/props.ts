@@ -501,23 +501,28 @@ function flame(heat: number) {
   };
 }
 
-/** A small chestnut riding horse with a rider seat, galloping along +x. `f` is the stride 0..5. */
+/**
+ * A small chestnut riding horse with a rider seat, galloping along +x. `f` is the stride 0..5, or
+ * -1 for a horse standing still (tied at the stable, or waiting for its rider).
+ */
 export function mount(m: Model, f: number) {
-  const phase = (f / 6) * Math.PI * 2;
-  const bob = Math.sin(phase * 2) * 0.35;
+  const still = f < 0;
+  const phase = still ? 0 : (f / 6) * Math.PI * 2;
+  const bob = still ? 0 : Math.sin(phase * 2) * 0.35;
   m.with(translate(0, 0, bob), () => {
     m.ellipsoid(0, 0, 9, 6.2, 2.5, 2.9, { mat: coat });
-    m.with(mul(translate(5.2, 0, 11.4), rotY(-0.75 + Math.sin(phase) * 0.1)), () => {
+    // Standing, the neck rises forward from the chest and the head hangs at rest; the tail hangs.
+    m.with(mul(translate(still ? 4.6 : 5.2, 0, 11.4), rotY(still ? 0.32 : -0.75 + Math.sin(phase) * 0.1)), () => {
       m.box(0, 0, 2.4, 1.6, 1.4, 3.2, { mat: coat });
-      m.box(1.4, 0, 5.4, 3, 1.25, 1.35, { mat: coat, rot: rotY(1.1) });
+      m.box(1.4, 0, 5.4, 3, 1.25, 1.35, { mat: coat, rot: rotY(still ? 0.62 : 1.1) });
       m.box(-0.6, 0, 3.4, 0.9, 0.5, 3.4, { mat: solid(R.hair, 0.6, 0) });
       for (const y of [-0.7, 0.7]) m.box(0, y, 6.6, 0.3, 0.25, 0.7, { mat: coat });
     });
-    m.capsule([-5.8, 0, 10], [-8.4, 0, 6.6 + Math.sin(phase) * 0.8], 0.6, { mat: solid(R.hair, 0.5, 0) });
+    m.capsule([-5.8, 0, 10], still ? [-6.8, 0, 5.2] : [-8.4, 0, 6.6 + Math.sin(phase) * 0.8], 0.6, { mat: solid(R.hair, 0.5, 0) });
     // Saddle cloth.
     m.box(-0.4, 0, 11.2, 2.6, 2.75, 0.5, { mat: solid(R.crimson, 0.4, 0) });
   });
-  // Gallop: legs swing in a rotary pattern.
+  // Gallop: legs swing in a rotary pattern. Standing: straight down.
   const legs: Array<[number, number, number]> = [
     [4.2, 1.1, 0],
     [4.2, -1.1, 0.5],
@@ -525,14 +530,26 @@ export function mount(m: Model, f: number) {
     [-4, -1.1, 2.9],
   ];
   for (const [x, y, offset] of legs) {
-    const a = Math.sin(phase + offset) * 0.6;
+    const a = still ? 0 : Math.sin(phase + offset) * 0.6;
     const hip: [number, number, number] = [x, y, 8 + bob];
     const knee: [number, number, number] = [x + Math.sin(a) * 3.6, y, 8 + bob - Math.cos(a) * 3.6];
-    const hoofLift = Math.max(0, Math.sin(phase + offset + 1.2)) * 1.6;
+    const hoofLift = still ? 0 : Math.max(0, Math.sin(phase + offset + 1.2)) * 1.6;
     const hoof: [number, number, number] = [knee[0] + Math.sin(a * 0.4) * 3.4, y, Math.max(0.5, knee[2] - 3.4 + hoofLift)];
     m.capsule(hip, knee, 0.7, { mat: coat });
     m.capsule(knee, hoof, 0.5, { mat: coat });
   }
+}
+
+/** The scouts' stable: a hitching rail along y between two posts, with a water trough on its +x side. */
+export const RAIL = { half: 18 };
+
+export function hitchingRail(m: Model) {
+  const wood = solid(R.woodDark, 0.5, 0);
+  for (const y of [-RAIL.half, RAIL.half]) m.box(0, y, 3.4, 0.7, 0.7, 3.4, { mat: wood });
+  m.box(0, 0, 6.2, 0.45, RAIL.half + 0.6, 0.45, { mat: solid(R.wood, 0.3, 0) });
+  // A trough under the horses' heads, on the far side of the rail from them.
+  m.box(3.2, 0, 1.3, 1.6, RAIL.half - 3, 1.3, { mat: solid(R.woodDark, 0.9, 0) });
+  m.box(3.2, 0, 2.5, 1.1, RAIL.half - 3.5, 0.15, { mat: solid(R.water, 0.6, 0) });
 }
 
 function coat(h: HitInfo, out: ShadeOut) {

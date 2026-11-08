@@ -129,7 +129,9 @@ export function useDemo(enabled: boolean, arrived: boolean): DemoPlayer {
     return () => window.removeEventListener("keydown", onKey);
   }, [enabled, arrived, script, controls]);
 
-  const view = useMemo(() => (enabled && arrived && script ? replay(script, state) : null), [enabled, arrived, script, state]);
+  // The camp needs the cast before the column marches in, so the view exists from the start; the
+  // clock only runs once the column has arrived.
+  const view = useMemo(() => (enabled && script ? replay(script, state) : null), [enabled, script, state]);
   const done = script ? finished(script, state) : false;
   return { script, view, playing, auto, done, notice, ...controls };
 }

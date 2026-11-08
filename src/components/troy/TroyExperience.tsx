@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiFailure, type BrandListItem, listBrands, normalizeSite, startCampaign } from "./api";
 import { Baker } from "./engine/baker";
-import { easeInOutCubic, Stage } from "./engine/stage";
+import { easeInOutCubic, easeInOutSine, Stage } from "./engine/stage";
 import { pixelFont } from "./fonts";
 import { CampScene } from "./scenes/camp";
 import { LandingScene, OPEN_SECONDS } from "./scenes/landing";
@@ -16,7 +16,7 @@ import styles from "./troy.module.css";
 type View = "landing" | "camp";
 type Phase = "loading" | "idle" | "submitting" | "opening" | "marching";
 
-export function TroyExperience({ initialView, brandId: initialBrandId, cost, demoOnly = false }: { initialView: View; brandId?: string; cost?: string; demoOnly?: boolean }) {
+export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly = false }: { initialView: View; brandId?: string; demoOnly?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const formAnchorRef = useRef<HTMLDivElement>(null);
@@ -47,6 +47,8 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
     const stage = new Stage(canvas, baker);
     const landing = new LandingScene(stage, {});
     const camp = new CampScene(stage, landing);
+    // The soldiers who march out of the horse are the camp's agents, in the order the camp needs them.
+    landing.recruit = () => camp.nextRecruit();
     engine.current = { stage, baker, landing, camp };
     stage.onResize = () => frame(engine.current, viewRef.current, false);
     if (initialView === "camp") {
@@ -102,6 +104,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
       setArrived(false);
       setPhase("idle");
       e.landing.reset();
+      e.camp.reset();
       e.camp.show(false);
       frame(e, "landing", true);
     } else if (pathname?.startsWith("/camp/") && viewRef.current === "landing") {
@@ -241,9 +244,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
               </button>
             </div>
             <p id="troy-site-hint" className="mt-4 text-center text-[13px] leading-relaxed text-[var(--ink-soft)]">
-              Inside: an army of agents that researches your market, writes the strategy, films the ads and posts them.
-              {cost && <span className="mt-1 block text-[12px] text-[var(--ink-faint)]">Each campaign: {cost}.</span>}
-              {demoOnly && <span className="mt-1 block text-[12px] text-[var(--ink-faint)]">This is the demo: the camp replays a finished campaign, so nothing is spent.</span>}
+              {demoOnly && <span className="block text-[12px] text-[var(--ink-faint)]">This is the demo: the camp replays a finished campaign, so nothing is spent.</span>}
               <a href={demoOnly ? "/camp/demo" : "/demo"} className={`${styles.link} ${styles.pixel} mt-2 inline-block text-[13px] underline decoration-dotted underline-offset-4`}>
                 {demoOnly ? "Or skip straight to the camp →" : "Or try the demo, which spends nothing →"}
               </a>
@@ -255,7 +256,8 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost, dem
         </div>
       )}
 
-      {engineReady && view === "camp" && brandId && <Camp brandId={brandId} arrived={arrived} engine={engine} home={home} />}
+      {/* The camp mounts as the doors open, so its agents are ready to march out when the plank lands. */}
+      {engineReady && brandId && (view === "camp" || phase === "opening" || phase === "marching") && <Camp brandId={brandId} arrived={arrived} engine={engine} home={home} />}
 
       <p className="sr-only" aria-live="polite">
         {phase === "opening" ? "The gates are opening. Your agents are on their way." : ""}
@@ -288,11 +290,16 @@ export function landingCamera(stage: Stage) {
   return { x: 0, y: top - (topPx - height / 2) / zoom, zoom };
 }
 
-/** Doors, plank, the column of soldiers and the walk to the camp. Returns a cancel function. */
+/** Seconds the camera takes to follow the column from the horse down to the camp. */
+const FOLLOW_SECONDS = 6.5;
+
+/**
+ * Doors, plank, and the camp's agents marching out and down to their posts, with the camera
+ * following them. Returns a cancel function.
+ */
 function march(e: { stage: Stage; landing: LandingScene; camp: CampScene }, brandId: string, reduced: boolean, toCamp: () => void, arrived: () => void) {
   const { stage, landing, camp } = e;
   camp.prepare(brandId);
-  landing.destination = (index) => camp.marchRoute(index);
   if (reduced) {
     landing.openNow();
     camp.show(true);
@@ -301,16 +308,20 @@ function march(e: { stage: Stage; landing: LandingScene; camp: CampScene }, bran
     arrived();
     return () => undefined;
   }
+  camp.beginEntrance();
   landing.open();
+  const plankDown = OPEN_SECONDS * 0.885 * 1000;
   const timers = [
-    setTimeout(() => landing.startStream(), OPEN_SECONDS * 1000 - 150),
-    // Follow the column down to the camp once a few soldiers are out.
+    // The road to the camp appears as the plank lands, and the first soldier steps out.
+    setTimeout(() => {
+      camp.show(true);
+      landing.startStream();
+    }, plankDown),
+    // Follow the column down to the camp.
     setTimeout(() => {
       toCamp();
-      camp.show(true);
-      stage.look(camp.camera(), 3.2, easeInOutCubic, arrived);
-    }, OPEN_SECONDS * 1000 + 2300),
-    setTimeout(() => landing.stopStream(), OPEN_SECONDS * 1000 + 9000),
+      stage.look(camp.camera(), FOLLOW_SECONDS, easeInOutSine, arrived);
+    }, plankDown + 700),
   ];
   return () => timers.forEach(clearTimeout);
 }

@@ -2,7 +2,7 @@
 
 Troy is the pixel-art front door of Nomen. `/` is a white page with a Trojan horse and one box:
 the company's website. Submitting it starts a real campaign; the horse's doors open, a gangplank
-drops and an endless column of hoplites marches out to the camp. `/camp/[brandId]` is the camp:
+drops and the campaign's agents march out, one by one, down to their posts in the camp. `/camp/[brandId]` is the camp:
 the campaign's agents, one island per pipeline stage, doing the work the core track reports.
 
 ## Who owns what
@@ -139,20 +139,50 @@ layout so `/` and `/camp/*` never render it.
 `done`, `failed`, `skipped`, or `yours` when the campaign waits on the user), a one-line status and
 progress, and every agent's post and activity:
 
-- **Scouts:** one per research source. They queue while it is pending, walk off the island while
-  it runs, and come back with a scroll when it finishes (or empty-handed when it fails). The lookout
-  stays on the tower.
-- **Oracle:** watches the top videos on a CRT during the format study.
+- **Scouts:** one per research source. They queue while it is pending. When it runs, the scout
+  takes a horse from the stable and gallops off the edge of the world along the trail (on foot when
+  all four scout horses are out). When it finishes, the scout rides back with a scroll case, ties
+  the horse up and drops the case in the basket, which fills case by case; one whose source failed
+  comes back empty-handed. Then the scout marches back into the horse. The lookout climbs the
+  tower's ladder and keeps watch.
+- **Oracle:** watches the top videos on a CRT from the shrine's floor during the format study.
 - **War tent:** the strategist points at the map while the strategy is written, and a scribe
   takes notes.
-- **Workshop:** one desk per video. The CRT is blue while a shot renders, green when the video is
-  ready and red when it failed. The painter works the easel while first frames are made, and the
-  inspector visits the desk whose shot is in QC.
-- **Theatre:** finished videos play on the screen as pixelated frames, with an audience.
-- **Agora:** the herald trumpets while posts go out.
+- **Workshop:** one desk and one editor per planned video, set up before the concepts arrive. The
+  CRT is blue while a shot renders, green when the video is ready and red when it failed. The
+  painter works the easel while first frames are made, and the inspector walks to the desk whose
+  shot is in QC.
+- **Theatre:** finished videos play on the screen as pixelated frames. The audience waits beside
+  the theatre and takes its seats when there is a cut to watch.
+- **Agora:** the herald climbs the podium and trumpets while posts go out. While the core says
+  "publishing" (its stage is still "review"), the theatre is done and the agora has the work; once
+  every post is out the agora is done too.
 
-A messenger rides along the sandbars when work changes hands (each stage change, each finished
-video). New event lines flash in the station's label with a pop-up emote.
+A courier with a horse of his own rides each piece of work along the sandbars when it changes
+hands (each stage change, each finished video), then rides back to the stable. New event lines
+flash in the station's label with a pop-up emote beside the island.
+
+### Agents are people
+
+Everyone in the plan is a figure that moves through the world; nobody appears or dissolves in the
+open (`scenes/camp.ts`, tested in `tests/troy/camp.test.ts`):
+
+- **The march.** Submitting the box mounts the camp while the doors open, so its first plan is
+  known when the plank lands. The soldiers that step out of the horse are those agents, in plan
+  order (scouts first); each walks the sandbars to its station (`travel()` in `scenes/layout.ts`
+  routes through each island's hub) and on to its post, and the camera follows the column down.
+  Opening a camp directly (or with reduced motion) places everyone at once, appearing with the
+  islands.
+- **Later.** An agent that joins later (a scout for a new source) comes out of the horse the same
+  way; one the plan drops marches back up the plank into it. Posts that move (the inspector, the
+  audience) are walked to; posts off the ground are climbed to (`via` waypoints: the tower's
+  ladder, the podium's step, the shrine's floor).
+- **Off the map.** Riders vanish only once they are off the screen on the trail, and come back
+  from beyond its edge.
+
+The knock on the closed doors (every few seconds, and while the campaign starts) jolts the closed
+doors' own sprite outward and back, twice. It never swaps frames, so nothing re-shades or flickers;
+and the stage keeps the last drawn sprite of anything whose next frame is still baking.
 
 ## The art
 
@@ -184,8 +214,9 @@ an activity, add an `Act` and its pose in `poseFor()`.
 Measured in headless Chromium at 1440×900, 2x (software rendering, so real GPUs do better):
 - **Landing:** the website box appears about 0.5 s after load, and the horse about 1 s after load
   in dev mode.
-- **Frame time:** a median of 16.7 ms and a 95th percentile of 16.8 ms through the door opening
-  and the march.
+- **Frame time:** a median of 16.7 ms and a 95th percentile of 16.8 ms (slowest frame 33.4 ms)
+  over the first 25 s after pressing the button: the doors, the column marching into the camp,
+  the camera following it, and the first scouts riding out.
 - **Bake cost:** the horse body takes about 250 ms and a soldier frame about 5 ms, all in workers.
 
 ## Tests
@@ -197,7 +228,11 @@ npx vitest run tests/troy
 They cover:
 - the plan for every campaign state and event routing;
 - that the website box accepts exactly what the server's `normalizeDomain` accepts;
-- deterministic baking and the door timeline;
+- deterministic baking, the door timeline and the knock;
+- the roads, and the stable and waiting places standing on sand;
+- the agents as people, on the real scene with a stubbed canvas: the column reaching every post,
+  scouts riding out and back and filling the basket, the courier, agents marching home, and that
+  nobody fades out anywhere but the horse's doorway;
 - the gate and the demo-only switch;
 - the demo's clock: the review that waits, posting now or one a day, autoplay, skips, where event
   lines land, and loading recordings.

@@ -264,6 +264,13 @@
   outline-offset: 2px;
 }
 
+/* Hidden on phones. A module class, because .iconButton's display beats Tailwind's `hidden`. */
+@media (max-width: 639.98px) {
+  .wideOnly {
+    display: none;
+  }
+}
+
 /* A little pop-up over a station when something happens there, like a game's emote. */
 .emote {
   display: grid;

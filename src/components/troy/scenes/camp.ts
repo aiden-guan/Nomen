@@ -1,27 +1,64 @@
-import { ACT_FRAMES, ACT_RATE, dirFor, type Job, RIDER_FRAMES } from "../engine/jobs";
+import { type Act, ACT_FRAMES, ACT_RATE, dirFor, type Job, RIDER_FRAMES } from "../engine/jobs";
+import { exitPath } from "../engine/models/horse";
 import { SCREEN } from "../engine/models/props";
 import type { CameraTarget, Entity, Stage } from "../engine/stage";
 import { projectX, projectY } from "../engine/tracer";
-import { makeWalker, type Point, type Walker } from "../engine/walker";
+import type { Point } from "../engine/walker";
 import type { AgentPlan, CampPlan } from "./derive";
 import type { LandingScene } from "./landing";
-import { CAMP_CENTER, ISLAND_RADIUS, road, sandbars, STATION, type StationId, STATIONS } from "./layout";
-import { DESK_SLOTS, PROPS, SPOTS } from "./stations";
+import { CAMP_CENTER, hub, ISLAND_RADIUS, type Node, sandbars, STATION, type StationId, STATIONS, TRAIL, travel } from "./layout";
+import { COURIER_STALL, DESK_SLOTS, PROPS, SPOTS, STABLE_GATE, STALLS, type Waypoint } from "./stations";
 
 // The camp: station islands, their furniture and the agents, below the horse. This file owns the
 // world; Camp.tsx owns the HTML around it and feeds it plans derived from the live campaign.
+//
+// Agents are people, not icons: each one comes out of the horse and walks the sandbars to its
+// station, walks between its posts as the plan changes, climbs up to the tower or the podium, and
+// goes back into the horse when it is no longer needed. Scouts take a horse from the stable and
+// ride off the edge of the world along the trail, then ride back with a scroll case and drop it in
+// the basket. A courier rides each finished piece of work to the next station. Nobody appears or
+// dissolves in the open.
+
+/** World units per second. */
+const SPEED = { column: 34, walk: 17, home: 26, run: 38, ride: 58, courier: 64 };
+
+/** A point to move to, with the act and heading for the leg that ends there. */
+type Step = Point & { act?: Act; dir?: number };
+
+type Figure = Entity & { look: number; act: Act; dir: number };
 
 type Agent = {
   plan: AgentPlan;
-  entity: Walker;
-  mode: "posted" | "walking" | "leaving" | "away";
+  entity: Figure;
+  /** Where the figure is: waiting to come out of the horse, on the move, at its post, off the map, or back inside the horse. */
+  where: "queued" | "moving" | "posted" | "out" | "home";
+  /** A sequence (a walk, a ride) is running; `settle` decides what is next when it ends. */
+  busy: boolean;
+  /** The island (or the horse) the figure is on, for routing. */
+  node: Node;
+  /** Steps that took the figure up to its post (a ladder, a step), walked back down to leave. */
+  up: Step[] | null;
+  /** The plan took this agent away: it goes back into the horse. */
+  dismissed: boolean;
+  /** Scouts: this run is over for them (the case is in the basket, or they came back empty). */
+  finished: boolean;
+  /** Scouts: the scroll case is in the basket. */
+  delivered: boolean;
+  /** The stall whose horse this agent is riding, while mounted. */
+  stall: number | null;
+  /** Out on a run on foot (every horse was out). */
+  onFoot: boolean;
+  /** Off the map: when the rider left the visible world. */
+  outSince: number;
   phase: number;
-  /** A scout that already brought its scroll back stays off duty. */
-  delivered?: boolean;
+  /** For queued agents: their place in the column (sideways offset on the sandbars). */
+  lane: number;
 };
 
+type Stall = { steed: Entity; rider: Agent | null };
+
 export type CampEvents = {
-  /** A messenger reached a station. */
+  /** The courier reached a station with work for it. */
   onArrive?: (station: StationId) => void;
 };
 
@@ -31,14 +68,22 @@ export class CampScene {
   private readonly keyed = new Map<string, Entity>();
   private readonly desks = new Map<number, Entity & { state: number }>();
   private readonly agents = new Map<string, Agent>();
+  /** Agents waiting to come out of the horse, in order. */
+  private readonly column: Agent[] = [];
+  private readonly stalls: Stall[] = [];
+  private readonly dispatches: Array<{ from: StationId; to: StationId }> = [];
   private readonly posters = new Map<string, HTMLCanvasElement | null>();
   private posterList: CampPlan["posters"] = [];
   private showing = false;
   private revealT = 0;
-  private readonly barCount = sandbars().length;
+  private readonly barCount = sandbars().length + 1;
   private time = 0;
   private tvOn = false;
   private planned = false;
+  /** The column is marching in from the horse: the first plan queues everyone instead of placing them. */
+  private entering = false;
+  private brandId: string | null = null;
+  private recruited = 0;
   events: CampEvents = {};
 
   constructor(
@@ -46,6 +91,7 @@ export class CampScene {
     private readonly landing: LandingScene,
   ) {
     sandbars().forEach((_, i) => this.grounds.push(stage.add({ x: 0, y: 0, z: 0, ground: true, job: { k: "bar", i }, reveal: 0, priority: 5 - i * 0.1 })));
+    this.grounds.push(stage.add({ x: 0, y: 0, z: 0, ground: true, job: { k: "trail" }, reveal: 0, priority: 4.3 }));
     STATIONS.forEach((s, i) => this.grounds.push(stage.add({ x: s.x, y: s.y, z: 0, ground: true, job: { k: "island", id: s.id }, reveal: 0, priority: 5 - i * 0.1 })));
     for (const station of STATIONS) {
       for (const placement of PROPS[station.id]) {
@@ -62,15 +108,48 @@ export class CampScene {
         if (placement.key) this.keyed.set(`${station.id}:${placement.key}`, entity);
       }
     }
+    // Horses tied at the scouts' rail; they leave with a rider and come back with one.
+    const scouts = STATION.scouts;
+    for (const stall of STALLS) {
+      const steed = stage.add({ x: scouts.x + stall.horse.x, y: scouts.y + stall.horse.y, z: 0, shadow: 8, job: { k: "steed", dir: stall.horse.dir }, reveal: 0, priority: 4 });
+      this.props.push(steed);
+      this.stalls.push({ steed, rider: null });
+    }
     // The theatre screen shows finished videos, drawn over the screen prop.
     const screen = this.keyed.get("theatre:screen")!;
     stage.add({ x: screen.x, y: screen.y, z: 0, sort: 0.5, paint: (ctx, sx, sy, px) => this.paintScreen(ctx, sx, sy, px) });
     stage.add({ x: 0, y: 0, z: 0, tick: (dt) => this.tick(dt) });
   }
 
-  /** Starts baking the camp so it is ready when the column arrives. */
-  prepare(_brandId: string) {
+  /** Starts baking the camp so it is ready when the column arrives, and forgets another brand's camp. */
+  prepare(brandId: string) {
+    if (this.brandId !== null && this.brandId !== brandId) this.reset();
+    this.brandId = brandId;
     for (const entity of [...this.grounds, ...this.props]) if (entity.job) void this.stage.baker.request(entity.job, 5);
+  }
+
+  /** The column is about to march out of the horse: everyone in the first plan walks in. */
+  beginEntrance() {
+    if (!this.planned) this.entering = true;
+  }
+
+  /** Clears every agent, desk and errand (a different camp, or back to the landing). */
+  reset() {
+    for (const agent of this.agents.values()) this.stage.remove(agent.entity);
+    this.agents.clear();
+    this.column.length = 0;
+    this.dispatches.length = 0;
+    for (const desk of this.desks.values()) this.stage.remove(desk);
+    this.desks.clear();
+    for (const stall of this.stalls) {
+      stall.rider = null;
+      this.stage.add(stall.steed);
+    }
+    this.timers.length = 0;
+    this.planned = false;
+    this.entering = false;
+    this.recruited = 0;
+    this.brandId = null;
   }
 
   show(visible: boolean) {
@@ -110,22 +189,29 @@ export class CampScene {
     return { x: s.x, y: s.y, z: 0 };
   }
 
-  /** The way a soldier from the horse walks to its post, with a little lane offset. */
-  marchRoute(index: number): Point[] {
-    const station = STATIONS[index % STATIONS.length];
-    const lane = ((index * 7) % 5) - 2;
-    const points = road("scouts", station.id).map((p, i, all) => (i === all.length - 1 ? p : { x: p.x + lane * 1.6, y: p.y - lane * 1.6, z: 0 }));
-    const angle = index * 2.39996;
-    const r = ISLAND_RADIUS * (0.25 + ((index * 13) % 7) / 24);
-    const end = { x: station.x + Math.cos(angle) * r, y: station.y + Math.sin(angle) * r * 0.8, z: 0 };
-    return [{ x: lane * 1.4, y: 70, z: 0 }, ...points.slice(0, -1), end];
+  /** How many agents are still waiting to come out of the horse. */
+  get waiting() {
+    return this.column.length;
+  }
+
+  /**
+   * Sends the next agent in the column out of the horse (the landing calls this while the doors
+   * are open). Returns false when nobody is waiting.
+   */
+  nextRecruit(): boolean {
+    const agent = this.column.shift();
+    if (!agent) return false;
+    this.arrive(agent);
+    return true;
   }
 
   /** Applies a plan: posts every agent, sets screens, baskets and reels. */
   apply(plan: CampPlan) {
-    const first = !this.planned;
+    const instantly = !this.planned && !this.entering;
     this.planned = true;
     for (const [key, value] of Object.entries(plan.props)) {
+      // The basket fills as scouts actually drop their scroll cases in it (see updateBasket).
+      if (key === "basket") continue;
       for (const station of STATIONS) {
         const entity = this.keyed.get(`${station.id}:${key}`);
         if (entity?.job?.k === "prop") entity.job = { ...entity.job, v: value };
@@ -135,7 +221,7 @@ export class CampScene {
     this.posterList = plan.posters;
     for (const poster of plan.posters) this.loadPoster(poster.creativeId, poster.url, poster.video);
 
-    // Desks: one per video, appearing as the strategy hands out concepts.
+    // Desks: one per planned video, set up with the camp.
     const workshop = STATION.workshop;
     const live = new Set<number>();
     for (const desk of plan.desks) {
@@ -143,7 +229,8 @@ export class CampScene {
       let entity = this.desks.get(desk.slot);
       if (!entity) {
         const slot = DESK_SLOTS[desk.slot];
-        entity = Object.assign(this.stage.add({ x: workshop.x + slot.x, y: workshop.y + slot.y, z: 0, job: null as Job | null, reveal: first ? 1 : 0, priority: 4 }), { state: desk.state });
+        // Set up with the workshop's island, grain by grain (see tick).
+        entity = Object.assign(this.stage.add({ x: workshop.x + slot.x, y: workshop.y + slot.y, z: 0, job: null as Job | null, reveal: 0, priority: 4 }), { state: desk.state });
         this.desks.set(desk.slot, entity);
       }
       entity.state = desk.state;
@@ -159,215 +246,582 @@ export class CampScene {
     const seen = new Set<string>();
     for (const agentPlan of plan.agents) {
       seen.add(agentPlan.id);
-      this.post(agentPlan, first);
+      this.post(agentPlan, instantly);
     }
     for (const [id, agent] of this.agents) {
-      if (!seen.has(id) && agent.mode !== "leaving") this.dismiss(agent);
+      if (seen.has(id) || agent.dismissed) continue;
+      agent.dismissed = true;
+      const queued = this.column.indexOf(agent);
+      if (queued >= 0) {
+        // Still inside the horse: it simply stays there.
+        this.column.splice(queued, 1);
+        this.agents.delete(id);
+      } else this.settle(agent);
     }
+    this.updateBasket();
   }
 
-  /** A messenger rides from one station to another along the sandbars. */
+  /** The courier carries work from one station to the next (each stage change, each finished video). */
   dispatch(from: StationId, to: StationId) {
     if (from === to) return;
-    const path = road(from, to).map((p, i, all) => {
-      // Start and end at the edge of the islands, not in the middle of their furniture.
-      if (i === 0 || i === all.length - 1) {
-        const other = i === 0 ? all[1] : all[all.length - 2];
-        const dx = other.x - p.x;
-        const dy = other.y - p.y;
-        const len = Math.hypot(dx, dy) || 1;
-        return { x: p.x + (dx / len) * (ISLAND_RADIUS * 0.55), y: p.y + (dy / len) * (ISLAND_RADIUS * 0.55), z: 0 };
-      }
-      return p;
-    });
-    let travelled = 0;
-    let leg = 0;
-    const rider: Entity = { x: path[0].x, y: path[0].y, z: 0, shadow: 9, alpha: 0, job: null, priority: 3, sort: 2 };
-    let fading = -1;
-    rider.tick = (dt) => {
-      if (fading >= 0) {
-        fading += dt;
-        rider.alpha = Math.max(0, 1 - fading * 2.5);
-        return fading > 0.4 ? "remove" : undefined;
-      }
-      rider.alpha = Math.min(1, (rider.alpha ?? 0) + dt * 3);
-      let step = 52 * dt;
-      while (step > 0 && leg < path.length - 1) {
-        const b = path[leg + 1];
-        const dx = b.x - rider.x;
-        const dy = b.y - rider.y;
-        const left = Math.hypot(dx, dy);
-        const move = Math.min(left, step);
-        if (left > 0.001) {
-          rider.x += (dx / left) * move;
-          rider.y += (dy / left) * move;
-          rider.job = { k: "rider", look: 0, dir: dirFor(dx, dy), f: Math.floor((travelled / 7) % RIDER_FRAMES) };
-        }
-        travelled += move;
-        step -= move;
-        if (move >= left) leg++;
-      }
-      if (leg >= path.length - 1) {
-        fading = 0;
-        this.events.onArrive?.(to);
-      }
-    };
-    this.stage.add(rider);
+    const last = this.dispatches[this.dispatches.length - 1];
+    if (last && last.from === from && last.to === to) return;
+    // A long backlog only delays the picture: keep the latest few.
+    if (this.dispatches.length >= 3) this.dispatches.shift();
+    this.dispatches.push({ from, to });
+    const courier = this.agents.get("courier");
+    if (courier) this.settle(courier);
   }
+
+  // --- Agents: what each one does next ----------------------------------------------------------
 
   private post(plan: AgentPlan, instantly: boolean) {
-    const station = STATION[plan.station];
-    const target: Point = { x: station.x + plan.x, y: station.y + plan.y, z: plan.z };
     let agent = this.agents.get(plan.id);
-
     if (!agent) {
-      // A scout already out on a run, or one that came back before we were watching, is not drawn.
-      if (plan.away || (plan.returning && instantly)) {
-        this.agents.set(plan.id, { plan, entity: this.idleWalker(plan, target), mode: "away", phase: Math.random() * 10, delivered: Boolean(plan.returning) });
-        return;
-      }
-      const entity = this.idleWalker(plan, target);
-      entity.reveal = instantly ? 1 : 0;
-      entity.alpha = 1;
-      this.stage.add(entity);
-      agent = { plan, entity, mode: "posted", phase: Math.random() * 10 };
+      agent = this.create(plan);
       this.agents.set(plan.id, agent);
-      if (plan.returning) this.returnFromEdge(agent, target);
+      if (instantly) this.place(agent);
+      else {
+        agent.lane = (((this.recruited++ * 7) % 5) - 2) * 1.7;
+        this.column.push(agent);
+      }
       return;
     }
-
     const previous = agent.plan;
     agent.plan = plan;
+    if (agent.dismissed) agent.dismissed = false;
+    // A scout whose run starts over (the demo stepping back) is a scout again.
+    if (previous.returning && !plan.returning) {
+      agent.finished = false;
+      agent.delivered = false;
+    }
+    if (agent.where !== "queued") this.settle(agent);
+  }
+
+  private create(plan: AgentPlan): Agent {
+    const entity: Figure = { x: 0, y: 0, z: 0, look: plan.look, act: plan.act, dir: plan.dir, sort: plan.sort ?? 0, shadow: 5, priority: 3, job: null };
+    return { plan, entity, where: "queued", busy: false, node: "horse", up: null, dismissed: false, finished: false, delivered: false, stall: null, onFoot: false, outSince: 0, phase: Math.random() * 10, lane: 0 };
+  }
+
+  /** Puts an agent straight at its post (opening a camp directly, not through the march). */
+  private place(agent: Agent) {
+    const plan = agent.plan;
+    if (plan.returning) {
+      // Came back before we were watching: already home.
+      agent.finished = true;
+      agent.delivered = plan.returning === "scroll";
+      agent.where = "home";
+      return;
+    }
     if (plan.away) {
-      if (agent.mode === "posted" || agent.mode === "walking") this.leaveCamp(agent);
+      const stall = this.freeStall(agent);
+      if (stall >= 0) {
+        this.stalls[stall].rider = agent;
+        this.stage.remove(this.stalls[stall].steed);
+        agent.stall = stall;
+      }
+      agent.where = "out";
+      agent.node = "scouts";
+      agent.outSince = this.time - 10;
       return;
     }
-    if (plan.returning && agent.delivered) return;
-    if (agent.mode === "away" && plan.returning) {
-      this.returnFromEdge(agent, target);
+    const post = this.postPoint(plan);
+    // Appears with its island, grain by grain (see tick).
+    Object.assign(agent.entity, { x: post.x, y: post.y, z: post.z, dir: plan.dir, act: plan.act, reveal: 0, alpha: 1 });
+    agent.entity.shadow = post.z < 1 ? 5 : 0;
+    agent.up = plan.via ? this.viaSteps(plan) : null;
+    agent.node = plan.station;
+    agent.where = "posted";
+    this.stage.add(agent.entity);
+  }
+
+  /** Decides what an agent does next, once it is free. */
+  private settle(agent: Agent) {
+    if (agent.busy) return;
+    const plan = agent.plan;
+    if (agent.where === "queued") return;
+
+    if (agent.dismissed) {
+      if (agent.where === "home") this.agents.delete(plan.id);
+      else if (agent.where === "out") this.rideBack(agent);
+      else this.goHome(agent);
       return;
     }
-    if (agent.mode === "away") {
-      agent.entity.x = target.x;
-      agent.entity.y = target.y;
-      agent.entity.z = target.z;
-      agent.entity.reveal = 0;
-      agent.entity.alpha = 1;
-      this.stage.add(agent.entity);
-      agent.mode = "posted";
+    // Back inside the horse but needed again: out it comes.
+    if (agent.where === "home") {
+      if (plan.returning && agent.finished) return;
+      agent.where = "queued";
+      this.column.push(agent);
       return;
     }
-    const moved = Math.hypot(agent.entity.x - target.x, agent.entity.y - target.y) > 1.5 || Math.abs(agent.entity.z - target.z) > 0.5;
-    if (moved && agent.mode !== "walking") this.walkTo(agent, target);
-    else if (!moved && previous.act !== plan.act) agent.entity.act = plan.act;
+
+    if (plan.id === "courier" && this.dispatches.length) {
+      this.courierRun(agent);
+      return;
+    }
+
+    if (plan.id.startsWith("scout:")) {
+      if (plan.away) {
+        if (agent.where !== "out") this.rideOut(agent);
+        return;
+      }
+      if (plan.returning) {
+        if (agent.finished) return this.goHome(agent);
+        if (agent.where === "out") return this.rideBack(agent);
+        // The run ended before this scout even left: out and straight back.
+        return this.rideOut(agent);
+      }
+      if (agent.where === "out") return this.rideBack(agent);
+    }
+
+    if (agent.where === "out") return this.rideBack(agent);
+    if (this.atPost(agent)) {
+      agent.where = "posted";
+      agent.entity.dir = plan.dir;
+      agent.entity.act = plan.act;
+      return;
+    }
+    this.toPost(agent);
   }
 
-  private idleWalker(plan: AgentPlan, at: Point): Walker {
-    const walker = makeWalker({ look: plan.look, path: [at, at], act: plan.act, priority: 3 });
-    walker.dir = plan.dir;
-    walker.sort = plan.sort ?? 0;
-    walker.shadow = at.z > 2 ? 0 : 5;
-    walker.tick = () => undefined;
-    walker.job = { k: "soldier", look: plan.look, act: plan.act, dir: plan.dir, f: 0 };
-    return walker;
+  /** Out of the horse, down the plank and along the sandbars to the post. */
+  private arrive(agent: Agent) {
+    const e = agent.entity;
+    const out = exitPath();
+    Object.assign(e, { x: out[0].x, y: out[0].y, z: out[0].z, alpha: 0, reveal: 1, act: "march" as Act });
+    this.stage.add(e);
+    const route = travel("horse", agent.plan.station, agent.lane).slice(1);
+    const steps: Step[] = [...out.slice(1), ...route, ...this.approach(agent.plan)];
+    agent.node = agent.plan.station;
+    this.run(
+      agent,
+      steps,
+      SPEED.column,
+      () => {
+        agent.up = agent.plan.via ? this.viaSteps(agent.plan) : null;
+      },
+      "march",
+      "in",
+    );
   }
 
-  private walkTo(agent: Agent, target: Point) {
-    agent.mode = "walking";
-    Object.assign(agent.entity, { path: [{ x: agent.entity.x, y: agent.entity.y, z: agent.entity.z }, target], leg: 0, travelled: 0, arrived: false, act: "march", speed: 18 });
-    agent.entity.onArrive = () => {
-      agent.mode = "posted";
-      agent.entity.tick = () => undefined;
-      agent.entity.dir = agent.plan.dir;
-      agent.entity.act = agent.plan.act;
-    };
-    agent.entity.tick = (dt) => {
-      stepOn(agent.entity, dt);
-      return undefined;
-    };
-  }
-
-  private leaveCamp(agent: Agent) {
-    const station = STATION[agent.plan.station];
-    const exit = { x: station.x + agent.plan.x, y: station.y + agent.plan.y, z: 0 };
-    this.walkTo(agent, exit);
-    agent.entity.onArrive = () => {
-      agent.mode = "away";
-      this.fadeOut(agent.entity, () => undefined);
-    };
-  }
-
-  private returnFromEdge(agent: Agent, target: Point) {
-    const station = STATION[agent.plan.station];
-    const index = [...agent.plan.id].reduce((n, c) => n + c.charCodeAt(0), 0);
-    const exit = SPOTS.exits[index % SPOTS.exits.length];
-    agent.delivered = true;
-    agent.entity.x = station.x + exit.x;
-    agent.entity.y = station.y + exit.y;
-    agent.entity.z = 0;
-    agent.entity.alpha = 0;
-    agent.entity.reveal = 1;
-    const carrying = agent.plan.returning === "scroll";
-    agent.mode = "walking";
-    Object.assign(agent.entity, { path: [{ x: agent.entity.x, y: agent.entity.y, z: 0 }, target], leg: 0, travelled: 0, arrived: false, act: carrying ? "carry" : "march", speed: 16 });
-    agent.entity.onArrive = () => {
-      // Drop the scroll in the basket, then head off duty.
-      agent.entity.act = "stand";
-      agent.entity.dir = 5;
-      setTimeout(() => {
-        agent.mode = "leaving";
-        this.fadeOut(agent.entity, () => {
-          this.stage.remove(agent.entity);
-          agent.mode = "away";
-        });
-      }, 900);
-    };
-    agent.entity.tick = (dt) => {
-      agent.entity.alpha = Math.min(1, (agent.entity.alpha ?? 0) + dt * 3);
-      stepOn(agent.entity, dt);
-      return undefined;
-    };
-    if (!this.stage.entities.includes(agent.entity)) this.stage.add(agent.entity);
-  }
-
-  private dismiss(agent: Agent) {
-    agent.mode = "leaving";
-    this.fadeOut(agent.entity, () => {
-      this.stage.remove(agent.entity);
-      this.agents.delete(agent.plan.id);
+  /** Walks to the post: down from where it was, along the roads if it is on another island, up to it. */
+  private toPost(agent: Agent) {
+    const plan = agent.plan;
+    const far = agent.node !== plan.station;
+    const steps: Step[] = [...this.descend(agent)];
+    if (far) steps.push(...travel(agent.node, plan.station));
+    steps.push(...this.approach(plan));
+    agent.node = plan.station;
+    this.run(agent, steps, far ? SPEED.home : SPEED.walk, () => {
+      agent.up = plan.via ? this.viaSteps(plan) : null;
     });
   }
 
-  private fadeOut(entity: Entity, done: () => void) {
-    let t = 0;
-    entity.tick = (dt) => {
-      t += dt;
-      entity.reveal = Math.max(0, 1 - t / 0.6);
-      if (t >= 0.6) {
-        done();
-        return "remove";
-      }
-      return undefined;
+  /** Back along the sandbars, up the plank and into the horse. */
+  private goHome(agent: Agent) {
+    const steps: Step[] = [...this.descend(agent), ...travel(agent.node, "horse"), ...exitPath().reverse()];
+    agent.node = "horse";
+    this.run(
+      agent,
+      steps,
+      SPEED.home,
+      () => {
+        this.stage.remove(agent.entity);
+        agent.where = "home";
+      },
+      "march",
+      "home",
+    );
+  }
+
+  /** A scout takes a horse from the stable and gallops off along the trail. */
+  private rideOut(agent: Agent) {
+    const stall = agent.stall ?? this.freeStall(agent);
+    if (stall < 0) {
+      // Every horse is out: run for it, along the trail on foot.
+      agent.onFoot = true;
+      agent.node = "scouts";
+      this.run(agent, [...this.descend(agent), this.gate(), TRAIL.b], SPEED.run, () => this.offTheMap(agent), "march", undefined, true);
+      return;
+    }
+    agent.onFoot = false;
+    this.stalls[stall].rider = agent;
+    agent.stall = stall;
+    agent.node = "scouts";
+    this.run(agent, this.toStall(agent, stall), SPEED.walk, () => {
+      this.mount(agent, stall, () => {
+        this.ride(agent, [this.gate(), TRAIL.b], SPEED.ride, 0, () => this.offTheMap(agent));
+      });
+    });
+  }
+
+  /** Off the edge of the world: hidden until the plan brings it back. */
+  private offTheMap(agent: Agent) {
+    agent.outSince = this.time;
+    agent.where = "out";
+    this.stage.remove(agent.entity);
+    // The run may already be over: look again once the rider has been gone a moment.
+    this.later(0.85, () => this.settle(agent));
+  }
+
+  /** A scout gallops back in along the trail, unsaddles at the stable and takes the case to the basket. */
+  private rideBack(agent: Agent) {
+    const plan = agent.plan;
+    // Stay out a moment at least, so a quick run still reads as a trip.
+    const wait = 0.8 - (this.time - agent.outSince);
+    if (wait > 0) {
+      agent.busy = true;
+      this.later(wait, () => {
+        agent.busy = false;
+        this.settle(agent);
+      });
+      return;
+    }
+    // Always from beyond the edge of the screen as it is now (the camera may have moved).
+    const from = this.offscreenOnTrail();
+    const carrying = !agent.dismissed && plan.returning === "scroll";
+    Object.assign(agent.entity, { x: from.x, y: from.y, z: 0, alpha: 1, reveal: 1 });
+    this.stage.add(agent.entity);
+    agent.where = "moving";
+    agent.node = "scouts";
+    const basket = { ...this.rel("scouts", SPOTS.basket.x, SPOTS.basket.y, 0), dir: SPOTS.basket.dir };
+    const deliver = () => {
+      agent.busy = true;
+      agent.entity.act = "stand";
+      this.later(0.7, () => {
+        agent.delivered = true;
+        agent.finished = true;
+        this.updateBasket();
+        agent.busy = false;
+        this.settle(agent);
+      });
     };
+    if (agent.onFoot || agent.stall === null) {
+      // Back on foot: straight to the basket (or home, empty-handed).
+      agent.onFoot = false;
+      if (carrying) return this.run(agent, [this.gate(), basket], SPEED.run, deliver, "carry");
+      if (plan.returning && !agent.dismissed) agent.finished = true;
+      return this.run(agent, [this.gate()], SPEED.run, () => undefined);
+    }
+    const stall = agent.stall;
+    const at = STALLS[stall];
+    const horse = { ...this.rel("scouts", at.horse.x, at.horse.y, 0), dir: at.horse.dir };
+    this.ride(agent, [this.gate(), horse], SPEED.ride, carrying ? 1 : 0, () => {
+      this.dismount(agent, carrying, () => {
+        if (agent.dismissed) return this.settle(agent);
+        if (!carrying) {
+          if (agent.plan.returning) agent.finished = true;
+          return this.settle(agent);
+        }
+        // Into the basket with it.
+        agent.entity.act = "carry";
+        this.run(agent, [this.gate(), basket], SPEED.walk, deliver, "carry");
+      });
+    });
+  }
+
+  /** The courier saddles up, rides to where the work is, then on to the station that needs it. */
+  private courierRun(agent: Agent) {
+    const stall = agent.stall ?? this.freeStall(agent);
+    // The courier's horse is his alone, so it is always in when he is.
+    if (stall < 0) return;
+    this.stalls[stall].rider = agent;
+    agent.stall = stall;
+    agent.node = "scouts";
+    this.run(agent, this.toStall(agent, stall), SPEED.walk, () => this.mount(agent, stall, () => this.courierLeg(agent)));
+  }
+
+  private courierLeg(agent: Agent) {
+    const job = this.dispatches.shift();
+    const stall = agent.stall!;
+    if (!job) {
+      // Nothing more to carry: back to the stable, unsaddle, back to the post.
+      const at = STALLS[stall];
+      const steps: Step[] = [...travel(agent.node, "scouts"), this.gate(), { ...this.rel("scouts", at.horse.x, at.horse.y, 0), dir: at.horse.dir }];
+      agent.node = "scouts";
+      this.ride(agent, steps, SPEED.courier, 1, () => this.dismount(agent, false, () => this.settle(agent)));
+      return;
+    }
+    // Out of the stable by the gate the first time, then straight on from wherever the last job ended.
+    const steps: Step[] = [...(this.atStable(agent) ? [this.gate()] : []), ...travel(agent.node, job.from)];
+    agent.node = job.from;
+    this.ride(agent, steps, SPEED.courier, 1, () =>
+      this.pause(agent, 0.35, () => {
+        agent.node = job.to;
+        this.ride(agent, travel(job.from, job.to).slice(1), SPEED.courier, 1, () => {
+          this.events.onArrive?.(job.to);
+          this.pause(agent, 0.6, () => this.courierLeg(agent));
+        });
+      }),
+    );
+  }
+
+  /** Swaps the walker for a rider on the stall's horse, standing a moment before moving off. */
+  private mount(agent: Agent, stall: number, then: () => void) {
+    const at = STALLS[stall];
+    const steed = this.stalls[stall].steed;
+    this.stage.remove(steed);
+    const e = agent.entity;
+    Object.assign(e, { x: steed.x, y: steed.y, z: 0, dir: at.horse.dir, shadow: 9 });
+    e.job = { k: "rider", look: e.look, dir: e.dir, f: -1, c: agent.plan.id === "courier" ? 1 : 0 };
+    agent.busy = true;
+    this.later(0.35, () => {
+      agent.busy = false;
+      then();
+    });
+  }
+
+  /** Ties the horse back at its stall and steps down beside it. */
+  private dismount(agent: Agent, carrying: boolean, then: () => void) {
+    const stall = agent.stall!;
+    const at = STALLS[stall];
+    const e = agent.entity;
+    agent.busy = true;
+    e.job = { k: "rider", look: e.look, dir: at.horse.dir, f: -1, c: carrying ? 1 : agent.plan.id === "courier" ? 1 : 0 };
+    this.later(0.3, () => {
+      const steed = this.stalls[stall].steed;
+      this.stalls[stall].rider = null;
+      agent.stall = null;
+      this.stage.add(steed);
+      const spot = this.rel("scouts", at.mount.x, at.mount.y, 0);
+      Object.assign(e, { x: spot.x, y: spot.y, z: 0, dir: at.mount.dir, shadow: 5, act: carrying ? "carry" : "stand" });
+      e.job = { k: "soldier", look: e.look, act: e.act, dir: e.dir, f: 0 };
+      agent.busy = false;
+      then();
+    });
+  }
+
+  private pause(agent: Agent, seconds: number, then: () => void) {
+    agent.busy = true;
+    this.later(seconds, () => {
+      agent.busy = false;
+      then();
+    });
+  }
+
+  // --- Moving -------------------------------------------------------------------------------------
+
+  /** Walks a figure through steps; when it gets there, `done` runs and the agent settles. */
+  private run(agent: Agent, steps: Step[], speed: number, done: () => void, act: Act = "march", door?: "in" | "home", leaving = false) {
+    agent.busy = true;
+    agent.where = "moving";
+    const e = agent.entity;
+    this.stage.add(e);
+    let leg = 0;
+    let travelled = 0;
+    e.tick = (dt) => {
+      // Stepping out of the dark doorway.
+      if (door !== "home" && (e.alpha ?? 1) < 1) e.alpha = Math.min(1, (e.alpha ?? 0) + dt * 4);
+      let remaining = speed * dt;
+      let legAct: Act = act;
+      while (remaining > 0 && leg < steps.length) {
+        const b = steps[leg];
+        legAct = b.act ?? act;
+        const dx = b.x - e.x;
+        const dy = b.y - e.y;
+        const dz = b.z - e.z;
+        // Walk facing the way you go; on a ladder, face the ladder.
+        if (b.act === "climb" && b.dir !== undefined) e.dir = b.dir;
+        else if (Math.hypot(dx, dy) > 0.05) e.dir = dirFor(dx, dy);
+        const left = Math.hypot(dx, dy, dz);
+        if (left <= remaining) {
+          e.x = b.x;
+          e.y = b.y;
+          e.z = b.z;
+          remaining -= left;
+          travelled += left;
+          leg++;
+        } else {
+          const k = remaining / left;
+          e.x += dx * k;
+          e.y += dy * k;
+          e.z += dz * k;
+          travelled += remaining;
+          remaining = 0;
+        }
+      }
+      // Back up the plank: fade into the dark of the doorway.
+      if (door === "home" && e.z > 40 && leg >= steps.length - 1) e.alpha = Math.max(0, (e.alpha ?? 1) - dt * 5);
+      e.shadow = e.z < 1 ? 5 : 0;
+      e.act = legAct;
+      const frames = ACT_FRAMES[legAct];
+      e.job = { k: "soldier", look: e.look, act: legAct, dir: e.dir, f: frames > 1 ? Math.floor((travelled / 14) * frames) % frames : 0 };
+      const gone = leaving && leg >= steps.length - 1 && this.offscreen(e);
+      if (leg >= steps.length || gone) {
+        const last = steps[steps.length - 1];
+        if (last?.dir !== undefined && !gone) e.dir = last.dir;
+        e.tick = undefined;
+        agent.busy = false;
+        agent.where = "posted";
+        done();
+        // `done` may have sent the agent off the map, or started its next errand.
+        if (!agent.busy && (agent.where as Agent["where"]) !== "out") this.settle(agent);
+      }
+    };
+  }
+
+  /** Gallops a rider through steps. `carry` 1 holds the scroll case. Stops early once it leaves the screen on the trail. */
+  private ride(agent: Agent, steps: Step[], speed: number, carry: number, done: () => void) {
+    agent.busy = true;
+    agent.where = "moving";
+    const e = agent.entity;
+    const leaving = steps[steps.length - 1] === TRAIL.b;
+    this.stage.add(e);
+    let leg = 0;
+    let travelled = 0;
+    e.shadow = 9;
+    e.tick = (dt) => {
+      let remaining = speed * dt;
+      while (remaining > 0 && leg < steps.length) {
+        const b = steps[leg];
+        const dx = b.x - e.x;
+        const dy = b.y - e.y;
+        const left = Math.hypot(dx, dy);
+        if (left > 0.05) e.dir = dirFor(dx, dy);
+        if (left <= remaining) {
+          e.x = b.x;
+          e.y = b.y;
+          remaining -= left;
+          travelled += left;
+          leg++;
+          if (leg === steps.length && b.dir !== undefined) e.dir = b.dir;
+        } else {
+          e.x += (dx / left) * remaining;
+          e.y += (dy / left) * remaining;
+          travelled += remaining;
+          remaining = 0;
+        }
+      }
+      e.job = { k: "rider", look: e.look, dir: e.dir, f: Math.floor((travelled / 7) % RIDER_FRAMES), c: carry };
+      const gone = leaving && leg >= 1 && this.offscreen(e);
+      if (leg >= steps.length || gone) {
+        e.tick = undefined;
+        if (!gone) e.job = { k: "rider", look: e.look, dir: e.dir, f: -1, c: carry };
+        agent.busy = false;
+        done();
+        // `done` may have sent the agent off the map, or started its next errand.
+        if (!agent.busy && (agent.where as Agent["where"]) !== "out") this.settle(agent);
+      }
+    };
+  }
+
+  // --- Places ----------------------------------------------------------------------------------
+
+  /** On foot to the stall's mounting spot, around the end of the rail. */
+  private toStall(agent: Agent, stall: number): Step[] {
+    const steps: Step[] = [...this.descend(agent)];
+    if (agent.node !== "scouts") steps.push(...travel(agent.node, "scouts"));
+    const at = STALLS[stall];
+    steps.push(this.gate(), this.rel("scouts", at.mount.x, at.mount.y, 0));
+    return steps;
+  }
+
+  private gate(): Point {
+    return this.rel("scouts", STABLE_GATE.x, STABLE_GATE.y, 0);
+  }
+
+  private atStable(agent: Agent) {
+    const s = STATION.scouts;
+    return agent.node === "scouts" && agent.entity.x - s.x < STABLE_GATE.x + 2;
+  }
+
+  private rel(station: StationId, x: number, y: number, z: number): Point {
+    const s = STATION[station];
+    return { x: s.x + x, y: s.y + y, z };
+  }
+
+  private postPoint(plan: AgentPlan): Point {
+    return this.rel(plan.station, plan.x, plan.y, plan.z);
+  }
+
+  private viaSteps(plan: AgentPlan): Step[] {
+    return (plan.via ?? []).map((w: Waypoint) => ({ ...this.rel(plan.station, w.x, w.y, w.z), act: w.act, dir: w.dir }));
+  }
+
+  /** From the island's hub up to the post: any waypoints (ladder, step), then the post itself. */
+  private approach(plan: AgentPlan): Step[] {
+    return [...this.viaSteps(plan), { ...this.postPoint(plan), dir: plan.dir }];
+  }
+
+  /** Back down the way the figure came up (down the ladder, off the podium), or out of the stable. */
+  private descend(agent: Agent): Step[] {
+    const up = agent.up;
+    agent.up = null;
+    if (!up?.length) return this.atStable(agent) ? [this.gate()] : [];
+    const steps: Step[] = [];
+    for (let i = up.length - 1; i >= 0; i--) {
+      const leg = up[i + 1];
+      steps.push({ x: up[i].x, y: up[i].y, z: up[i].z, act: leg?.act, dir: leg?.act ? leg.dir : undefined });
+    }
+    return steps;
+  }
+
+  private atPost(agent: Agent) {
+    const p = this.postPoint(agent.plan);
+    const e = agent.entity;
+    return agent.node === agent.plan.station && this.stage.has(e) && Math.hypot(e.x - p.x, e.y - p.y) < 0.6 && Math.abs(e.z - p.z) < 0.4;
+  }
+
+  /** A stall with its horse in, for this rider (the courier has his own). */
+  private freeStall(agent: Agent) {
+    if (agent.plan.id === "courier") return this.stalls[COURIER_STALL].rider ? -1 : COURIER_STALL;
+    return this.stalls.findIndex((s, i) => i !== COURIER_STALL && !s.rider);
+  }
+
+  private offscreen(e: Entity) {
+    const { width, height } = this.stage.size;
+    const s = this.stage.toScreen(e.x, e.y, e.z);
+    const margin = 48;
+    return s.x < -margin || s.x > width + margin || s.y < -margin || s.y > height + margin;
+  }
+
+  /** The first point along the trail that is off the screen (where a rider coming back appears). */
+  private offscreenOnTrail(): Point {
+    for (let t = 0.1; t <= 1; t += 0.05) {
+      const p = { x: TRAIL.a.x + (TRAIL.b.x - TRAIL.a.x) * t, y: TRAIL.a.y + (TRAIL.b.y - TRAIL.a.y) * t, z: 0 };
+      if (this.offscreen(p)) return p;
+    }
+    return TRAIL.b;
+  }
+
+  private updateBasket() {
+    const scouts = [...this.agents.values()].filter((a) => a.plan.id.startsWith("scout:"));
+    const delivered = scouts.filter((a) => a.delivered).length;
+    const basket = this.keyed.get("scouts:basket");
+    if (basket?.job?.k === "prop") basket.job = { ...basket.job, v: scouts.length ? Math.round((delivered / scouts.length) * 7) : 0 };
+  }
+
+  private readonly timers: Array<{ at: number; run: () => void }> = [];
+
+  /** Runs `run` after `seconds` of scene time (paused with the scene, unlike setTimeout). */
+  private later(seconds: number, run: () => void) {
+    this.timers.push({ at: this.time + seconds, run });
   }
 
   private tick(dt: number) {
     this.time += dt;
     this.revealTick(dt);
+    for (let i = this.timers.length - 1; i >= 0; i--) {
+      if (this.timers[i].at > this.time) continue;
+      const [timer] = this.timers.splice(i, 1);
+      timer.run();
+    }
     // Animate agents that are at their posts.
     for (const agent of this.agents.values()) {
-      if (agent.mode !== "posted") continue;
-      const act = agent.entity.act;
+      if (agent.where !== "posted" || agent.busy) continue;
+      const e = agent.entity;
+      const act = e.act;
       const frames = ACT_FRAMES[act];
       const f = frames > 1 ? Math.floor((this.time + agent.phase) / ACT_RATE[act]) % frames : 0;
-      agent.entity.job = { k: "soldier", look: agent.plan.look, act, dir: agent.entity.dir, f };
-      if (agent.entity.reveal !== undefined && agent.entity.reveal < 1) agent.entity.reveal = Math.min(1, agent.entity.reveal + dt * 2);
+      e.job = { k: "soldier", look: e.look, act, dir: e.dir, f };
+      if ((e.reveal ?? 1) < 1 && this.revealT > 0.6) e.reveal = Math.min(1, (e.reveal ?? 0) + dt * 1.6);
     }
     // Desk screens: a working screen scrolls through four frames.
     const phase = Math.floor(this.time / 0.22) % 4;
     for (const desk of this.desks.values()) {
       desk.job = { k: "prop", id: "desk", v: desk.state * 4 + (desk.state === 1 ? phase : 0) };
-      if (desk.reveal !== undefined && desk.reveal < 1) desk.reveal = Math.min(1, desk.reveal + dt * 1.5);
+      if (desk.reveal !== undefined && desk.reveal < 1 && this.revealT > 0.5) desk.reveal = Math.min(1, desk.reveal + dt * 1.5);
     }
     // Banners wave; the oracle's television flickers while it studies.
     const wave = Math.floor(this.time / 0.18) % 4;
@@ -454,36 +908,4 @@ export class CampScene {
   }
 }
 
-/** Advances a walker-shaped entity along its path (shared by re-posted agents). */
-function stepOn(entity: Walker, dt: number) {
-  let remaining = entity.speed * dt;
-  while (remaining > 0 && entity.leg < entity.path.length - 1) {
-    const b = entity.path[entity.leg + 1];
-    const dx = b.x - entity.x;
-    const dy = b.y - entity.y;
-    const dz = b.z - entity.z;
-    const left = Math.hypot(dx, dy, dz);
-    if (left <= remaining) {
-      entity.x = b.x;
-      entity.y = b.y;
-      entity.z = b.z;
-      remaining -= left;
-      entity.travelled += left;
-      entity.leg++;
-    } else {
-      const k = remaining / left;
-      entity.x += dx * k;
-      entity.y += dy * k;
-      entity.z += dz * k;
-      entity.travelled += remaining;
-      remaining = 0;
-    }
-    if (Math.hypot(dx, dy) > 0.01) entity.dir = dirFor(dx, dy);
-  }
-  const frames = ACT_FRAMES[entity.act];
-  entity.job = { k: "soldier", look: entity.look, act: entity.act, dir: entity.dir, f: Math.floor((entity.travelled / 14) * frames) % frames };
-  if (entity.leg >= entity.path.length - 1 && !entity.arrived) {
-    entity.arrived = true;
-    entity.onArrive?.(entity);
-  }
-}
+export { hub };

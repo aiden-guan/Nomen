@@ -18,7 +18,7 @@ export type Look = {
   cape: boolean;
 };
 
-export type Hold = "spear" | "scroll" | "magnifier" | "brush" | "trumpet" | "spyglass" | "point" | "none";
+export type Hold = "spear" | "scroll" | "case" | "magnifier" | "brush" | "trumpet" | "spyglass" | "point" | "none";
 
 export type Pose = {
   /** Heading in radians around z: 0 faces +x. */
@@ -198,6 +198,13 @@ export function soldierInto(m: Model, pose: Pose, l: Look) {
         m.frustum(handR[0] + 1.45, handR[1] - 0.3, 20.4, 0.7, 0.05, 1.4, { mat: solid(R.bronze, 1.2, 0) });
       } else if (pose.hold === "scroll") {
         m.cylinder((handL[0] + handR[0]) / 2 + 0.3, 0, (handL[2] + handR[2]) / 2 + 0.6, 0.8, 2.6, { mat: solid(R.cream, 0.6, 0), rot: rotX(Math.PI / 2) });
+      } else if (pose.hold === "case") {
+        // A leather scroll case held across the body, the rolled papyrus showing at both ends.
+        const cx = (handL[0] + handR[0]) / 2 + 0.3;
+        const cz = (handL[2] + handR[2]) / 2 + 0.9;
+        m.cylinder(cx, 0, cz, 1.05, 2.4, { mat: solid(R.woodDark, 0.9, 0), rot: rotX(Math.PI / 2) });
+        m.cylinder(cx, 0, cz, 1.12, 0.35, { mat: solid(R.bronze, 1.4, 0), rot: rotX(Math.PI / 2) });
+        for (const y of [-2.75, 2.75]) m.cylinder(cx, y, cz, 0.85, 0.5, { mat: solid(R.cream, 1.4, 0), rot: rotX(Math.PI / 2) });
       } else if (pose.hold === "magnifier") {
         m.capsule([handR[0], handR[1], handR[2]], [handR[0] + 1.6, handR[1], handR[2] + 1.6], 0.3, { mat: solid(R.woodDark, 0.5, 0) });
         m.cylinder(handR[0] + 2.5, handR[1], handR[2] + 2.5, 1.5, 0.25, { mat: lensMat, rot: rotY(Math.PI / 2 - 0.5) });

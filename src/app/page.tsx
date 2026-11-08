@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { TroyExperience } from "@/components/troy/TroyExperience";
-import { defaultOptions } from "@/lib/pipeline";
 import { liveEnabled } from "@/lib/live";
-import { loadSettings } from "@/lib/settings";
-import { estimateUsd } from "@/lib/views";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +18,5 @@ export const metadata: Metadata = {
  */
 export default async function LandingPage() {
   if (!liveEnabled()) redirect("/demo");
-  await loadSettings();
-  const options = defaultOptions();
-  const estimate = estimateUsd(options);
-  const cost = `${options.concepts} videos × ${options.shotsPerConcept} shots × ${options.secondsPerShot}s on ${options.videoModel}${estimate ? `, about $${estimate.toFixed(2)} of video` : ""}`;
-  return <TroyExperience initialView="landing" cost={cost} />;
+  return <TroyExperience initialView="landing" />;
 }
