@@ -740,10 +740,18 @@ async function cutFinal(ctx: ProductionContext, creative: CreativeRow, concept: 
  * one that failed only because the model was busy is tried again on a later tick. Returns true while
  * screens are still to come, so the edit waits for them.
  */
+/**
+ * A provider's "busy" answer, from its text: the screen builder reports some failures as text only
+ * (the first Naive run lost 3 of 6 screens to "at capacity" that way).
+ */
+export const busyError = (error: string) => /at capacity|rate.?limit|too many requests|timed? ?out/i.test(error);
+
 async function ensureScreens(ctx: ProductionContext, creativeId: string, concept: Concept): Promise<boolean> {
   // Only the screens the manifest has no answer for yet, so a re-planned video builds just its new ones.
   const done: ScreenManifest = (await readScreenManifest(creativeId)) ?? { clips: [], failures: [], attempts: {} };
-  const known = new Set([...done.clips, ...done.failures].map((entry) => entry.id));
+  // A failure that was only a busy model is tried again, up to SCREEN_TRIES, recorded ones included.
+  const retryLater = (f: { id: string; error: string }) => busyError(f.error) && (done.attempts?.[f.id] ?? 0) < SCREEN_TRIES;
+  const known = new Set([...done.clips, ...done.failures.filter((f) => !retryLater(f))].map((entry) => entry.id));
   const requests = (concept.plan?.screens ?? []).filter((request) => !known.has(request.id));
   if (!requests.length || !ctx.product || !ctx.naive || ctx.naiveOut()) return false;
   // Built in scratch space; the finished clips are kept under "crv_…/screens/<name>".
@@ -755,7 +763,8 @@ async function ensureScreens(ctx: ProductionContext, creativeId: string, concept
     const product = await withLocalVisuals(ctx.product);
     const result = await buildScreens(ctx.naive, requests, { product, kit: ctx.kit ?? null, style: concept.reference?.format }, { workDir });
     const attempts = { ...done.attempts };
-    const later = result.failures.filter((f) => f.retryable && (attempts[f.id] = (attempts[f.id] ?? 0) + 1) < SCREEN_TRIES);
+    const later = result.failures.filter((f) => (f.retryable || busyError(f.error)) && (attempts[f.id] = (attempts[f.id] ?? 0) + 1) < SCREEN_TRIES);
+    const rebuilt = new Set(requests.map((request) => request.id));
     const kept = await Promise.all(
       result.clips.map(async ({ id, kind, path }) => {
         const key = fileKey(creativeId, `screens/${basename(path)}`);
@@ -765,7 +774,7 @@ async function ensureScreens(ctx: ProductionContext, creativeId: string, concept
     );
     const manifest: ScreenManifest = {
       clips: [...done.clips, ...kept],
-      failures: [...done.failures, ...result.failures.filter((f) => !later.includes(f)).map(({ id, error }) => ({ id, error }))],
+      failures: [...done.failures.filter((f) => !rebuilt.has(f.id)), ...result.failures.filter((f) => !later.includes(f)).map(({ id, error }) => ({ id, error }))],
       attempts,
     };
     await writeScreenManifest(creativeId, manifest);

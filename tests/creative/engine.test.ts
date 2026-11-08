@@ -665,3 +665,12 @@ describe("the presenter's look in prompts", () => {
     expect(lookOnly("Bright kitchen, morning light; app screenshots float behind her.")).toBe("Bright kitchen, morning light");
   });
 });
+
+describe("busy provider errors in screen failures", () => {
+  it("are recognised from their text", async () => {
+    const { busyError } = await import("@/lib/production");
+    expect(busyError("naive: the service is at capacity")).toBe(true);
+    expect(busyError("naive: rate limited")).toBe(true);
+    expect(busyError("screen b3: the check failed twice")).toBe(false);
+  });
+});
