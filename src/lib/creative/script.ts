@@ -93,7 +93,12 @@ const SCRIPT_TOOL = {
             line: { type: "string", description: "Exactly what is said out loud. Empty for a silent beat." },
             on_screen_text: { type: "string", description: "Large text on screen (the hook, a label), max 8 words, or empty. Not a caption of the line." },
             visual: { type: "string", enum: ["creator", "product", "split", "inset"] },
-            product_visual: { type: ["string", "null"], description: "A visual id from the list for product and split beats; null for creator beats." },
+            product_visual: { type: ["string", "null"], description: "A visual id from the list for product, split and inset beats; null for creator beats." },
+            screen: {
+              type: "string",
+              description:
+                "Product, split and inset beats: the on-screen graphic to build for this beat, in plain words, whenever the reference shows a UI, terminal, card, timer, list or app window (or no real visual fits): what it shows, the exact text and commands from the brief, and how it moves (text types in, rows appear one by one, a number ticks down). Empty when a real visual is right.",
+            },
             direction: {
               type: "string",
               description:
@@ -157,7 +162,8 @@ function writerSystem() {
     "- If the reference doesn't use them, avoid ad-copy and AI phrases: game changer, revolutionize, unlock, elevate, seamless, effortless, say goodbye to, introducing, look no further, next level, supercharge, streamline, empower, leverage, dive in, whether you're, must-have, all-in-one, cutting-edge, transform, journey, innovative, solution. No em dashes, no emojis.",
     "",
     "Showing the product:",
-    "- Real footage of the product exists only as the listed visuals (ids like p1, s2). Every beat where the reference cuts away to a product, a screen or a demo shows this product's best-matching visual. If the reference never cuts away, still show the product on the beat that names what it does.",
+    "- Real footage of the product exists only as the listed visuals (ids like p1, s2, k3). Every beat where the reference cuts away to a product, a screen or a demo shows this product's best-matching visual. If the reference never cuts away, still show the product on the beat that names what it does.",
+    "- When the reference shows a graphic (a terminal with a command typing, step cards, a timer, a list of results, an app window, a dashboard), write a `screen` for that beat: the same kind of graphic, built for this product from the brief's real wording, commands and numbers. A screen builder renders it in the brand's colors and fonts. Real photos and screenshots are still best for 'this is the product' beats; screens are best for 'this is what it does' beats.",
     "- Creator beats: the reference's action and expression, kept small and calm (video models distort big gestures): no pointing at the lens, no thumbs up, no fast head turns, no hands near the face.",
     "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; presenter_inset uses inset beats (product graphics full screen, the presenter in a small window; the hook may be a creator beat); talking_head_broll mixes creator, product and inset beats.",
     "",
@@ -284,6 +290,7 @@ export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptCo
       visual,
       product_visual: visual === "creator" ? null : productVisual,
       direction: clean(beat.direction),
+      ...(visual !== "creator" && typeof beat.screen === "string" && beat.screen.trim() ? { screen: beat.screen.trim().slice(0, 600) } : {}),
     };
   });
   return { beats: out, total_seconds: out.reduce((sum, beat) => sum + beat.seconds, 0), review: null };

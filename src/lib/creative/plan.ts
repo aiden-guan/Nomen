@@ -1,4 +1,4 @@
-import type { ARollShot, BRollClip, CreativeBrief, EditTimeline, ProductBrief, ProductionPlan, ProductVisual, Script, ScriptBeat } from "./types";
+import type { ARollShot, BRollClip, CreativeBrief, EditTimeline, ProductBrief, ProductionPlan, ProductVisual, ReferenceBeat, ScreenRequest, Script, ScriptBeat } from "./types";
 
 // The shot planner: turns a script into what gets rendered (A-roll shots of the creator, real
 // product visuals for B-roll, or a voice-over) and, once those exist, into the edit timeline.
@@ -15,22 +15,39 @@ export const isTall = (visual: Pick<ProductVisual, "width" | "height">) => Boole
 
 const usesCreator = (format: CreativeBrief["format"]) => format === "talking_head_broll" || format === "split_screen" || format === "presenter_inset";
 
-export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief, delivery = ""): ProductionPlan {
+export const screenVisualId = (requestId: string) => `screen:${requestId}`;
+
+export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief, delivery = "", referenceBeats: ReferenceBeat[] = []): ProductionPlan {
   const visuals = new Map(product.visuals.map((v) => [v.id, v]));
   const broll: BRollClip[] = [];
+  const screens: ScreenRequest[] = [];
   let photoTurn = 0;
-  for (const beat of script.beats) {
-    if (beat.visual === "creator" || !beat.product_visual) continue;
-    const visual = visuals.get(beat.product_visual);
-    if (!visual) continue;
+  script.beats.forEach((beat, i) => {
+    if (beat.visual === "creator") return;
+    // A built screen wins over a still: it shows what the product does, the way the reference did.
+    if (beat.screen) {
+      const request: ScreenRequest = {
+        id: `b${beat.n}`,
+        brief: beat.screen,
+        line: beat.line,
+        seconds: beat.seconds,
+        reference_visual: [referenceBeats[i]?.visual, referenceBeats[i]?.on_screen_text ? `on-screen text: "${referenceBeats[i]!.on_screen_text}"` : ""].filter(Boolean).join("; "),
+        size: beat.visual === "split" ? "half" : "full",
+      };
+      screens.push(request);
+      broll.push({ beat: beat.n, visual_id: screenVisualId(request.id), motion: "none" });
+      return;
+    }
+    const visual = beat.product_visual ? visuals.get(beat.product_visual) : undefined;
+    if (!visual) return;
     broll.push({ beat: beat.n, visual_id: visual.id, motion: motionFor(visual, beat, photoTurn++) });
-  }
+  });
 
   if (!usesCreator(brief.format)) {
     const text = script.beats.map((beat) => beat.line).filter(Boolean).join(" ");
-    return { format: brief.format, aroll: [], broll, voiceover: text ? { text, voice: "" } : null };
+    return { format: brief.format, aroll: [], broll, voiceover: text ? { text, voice: "" } : null, screens };
   }
-  return { format: brief.format, aroll: groupShots(script).map((beats, i) => arollShot(i + 1, beats, brief, product, delivery)), broll, voiceover: null };
+  return { format: brief.format, aroll: groupShots(script).map((beats, i) => arollShot(i + 1, beats, brief, product, delivery)), broll, voiceover: null, screens };
 }
 
 function motionFor(visual: ProductVisual, beat: ScriptBeat, turn: number): BRollClip["motion"] {
@@ -206,7 +223,8 @@ export function buildTimeline(
     const time = times.get(beat.n);
     if (!time) continue;
     const clip = motion.get(beat.n);
-    const visual = clip ? assets.visuals.get(clip.visual_id) : beat.product_visual ? assets.visuals.get(beat.product_visual) : undefined;
+    // A screen that failed to build falls back to the beat's real visual, if it has one.
+    const visual = (clip ? assets.visuals.get(clip.visual_id) : undefined) ?? (beat.product_visual ? assets.visuals.get(beat.product_visual) : undefined);
     const noCreator = plan.aroll.length === 0;
     const shown: { path: string; kind: "image" | "video" } | null = visual ?? (noCreator ? lastVisual : null);
     if (shown && (beat.visual !== "creator" || noCreator)) {

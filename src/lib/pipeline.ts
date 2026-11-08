@@ -451,7 +451,7 @@ async function scriptRoom(campaign: CampaignRow, naive: NaiveClient, product: Pr
     pending.map(async (brief) => {
       const reference = breakdowns.find((b) => b.id === brief.reference_id) ?? breakdowns[0];
       const script = await writeScript(naive, { product, brief, reference: reference ?? emptyReference(), targetSeconds: reference ? targetSeconds(reference, brief.format) : 18 });
-      const plan = planProduction(script, brief, product, reference?.delivery ?? "");
+      const plan = planProduction(script, brief, product, reference?.delivery ?? "", reference?.beats ?? []);
       return conceptFrom(brief, script, plan, reference, product);
     }),
   );

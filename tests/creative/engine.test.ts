@@ -418,3 +418,23 @@ describe("the viral benchmark lane", () => {
     expect(pickForBreakdown(ranked, 2).map((c) => c.origin).sort()).toEqual(["benchmark", "category"]);
   });
 });
+
+describe("screens in the plan", () => {
+  it("turns screen briefs into screen jobs that stand in as B-roll, styled after the reference beat", () => {
+    const withScreen = normalizeScript(
+      goodBeats.map((b) => ({ ...b, ...(b.n === 2 ? { screen: "A dark terminal where `set up https://monid.ai/SKILL.md` types in" } : {}) })),
+      ctx,
+    );
+    const plan = planProduction(withScreen, brief, product, "", reference.beats);
+    expect(plan.screens).toEqual([
+      { id: "b2", brief: "A dark terminal where `set up https://monid.ai/SKILL.md` types in", line: goodBeats[1].line, seconds: 6, reference_visual: "dashboard", size: "full" },
+    ]);
+    expect(plan.broll.find((c) => c.beat === 2)).toEqual({ beat: 2, visual_id: "screen:b2", motion: "none" });
+    expect(plan.broll.find((c) => c.beat === 3)?.visual_id).toBe("s1"); // a real visual where no screen was asked for
+  });
+
+  it("drops a screen brief on a creator beat", () => {
+    const script = normalizeScript([{ n: 1, job: "hook", seconds: 3, line: "hi", on_screen_text: "", visual: "creator", product_visual: null, direction: "", screen: "a card" }], ctx);
+    expect(script.beats[0].screen).toBeUndefined();
+  });
+});

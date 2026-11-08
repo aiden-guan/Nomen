@@ -179,6 +179,11 @@ export type ScriptBeat = {
   visual: "creator" | "product" | "split" | "inset";
   /** ProductVisual id for "product" and "split" beats. */
   product_visual: string | null;
+  /**
+   * A screen to build for this beat instead of (or when there is no) fitting real visual: what the
+   * graphic shows, in plain words, styled like the reference's matching beat. Built by the screen builder.
+   */
+  screen?: string;
   /** Creator: expression and small action. Product: the motion ("slow scroll down", "push in on the label"). */
   direction: string;
 };
@@ -216,6 +221,8 @@ export type ProductionPlan = {
   broll: BRollClip[];
   /** voiceover_demo: the line read by text-to-speech instead of a rendered creator. */
   voiceover: { text: string; voice: string } | null;
+  /** Screens the screen builder renders before the edit; their clips are B-roll visual ids `screen:<id>`. */
+  screens?: ScreenRequest[];
 };
 
 // ---------- the edit ----------
