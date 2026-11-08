@@ -1005,10 +1005,13 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
   await renderTimeline(timeline, finalPath, { workDir: join(dir, "edit"), finish: getSetting("finish") !== "off" });
 }
 
-/** The two small sound effects every organic video shares, made once and kept in the store. */
+/**
+ * The two small sound effects every organic video shares, made once and kept in the store, each at
+ * its own level under the voice (at 0.35 the first cut's pop hit the limiter, as loud as her voice).
+ */
 const SFX = {
-  whoosh: { key: "sound/whoosh", prompt: "A soft quick airy whoosh for a cut in a social video, subtle, clean, no music", seconds: 1 },
-  pop: { key: "sound/pop", prompt: "A short crisp pop sound effect, like a bubble popping or a notification pop, clean and clearly audible, no music", seconds: 1 },
+  whoosh: { key: "sound/whoosh", prompt: "A soft quick airy whoosh for a cut in a social video, subtle, clean, no music", seconds: 1, level: 0.22 },
+  pop: { key: "sound/pop", prompt: "A short crisp pop sound effect, like a bubble popping or a notification pop, clean and clearly audible, no music", seconds: 1, level: 0.15 },
 } as const;
 /** A generated sound quieter than this (peak, dB) is near silence: the first pop came back at -48. */
 const AUDIBLE_DB = -30;
@@ -1060,7 +1063,7 @@ async function soundFor(ctx: ProductionContext, creativeId: string, sound: NonNu
       effects[name] = await kept(effect.key, `the ${name} sound`, () => naive.generateSoundEffect({ prompt: effect.prompt, duration_seconds: effect.seconds }, `organic-sfx-${name}-${hash(effect.prompt)}`));
     }
   }
-  const sfx = soundCues(timeline).flatMap((cue) => (effects[cue.kind] ? [{ at: cue.at, path: effects[cue.kind]! }] : []));
+  const sfx = soundCues(timeline).flatMap((cue) => (effects[cue.kind] ? [{ at: cue.at, path: effects[cue.kind]!, level: SFX[cue.kind].level }] : []));
   return { ...(music ? { music: { path: music } } : {}), ...(sfx.length ? { sfx } : {}) };
 }
 
