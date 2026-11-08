@@ -270,7 +270,9 @@ export type VideoFormat =
   /** No face: a phone filming a computer monitor while a voice walks through the product (the screen-walkthrough look). */
   | "filmed_screen"
   /** The reference itself, one to one: its footage re-performed by our people, its music, its layout and graphic places, our product facts (internal only). */
-  | "remake";
+  | "remake"
+  /** A deliberately terrible, so-cringe-it's-funny AI meme ad: original characters, meme text, bass-boosted sound, the product as the punchline (creative/brainrot.ts; held until cleared). */
+  | "brainrot";
 
 /** The creative director's brief for one video: which viral video it remakes and what changes for this product. */
 /** What a video is judged on once posted: reach videos on attention, convert videos on action. */

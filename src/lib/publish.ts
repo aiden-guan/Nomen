@@ -86,12 +86,13 @@ export async function connectedAccounts(brandId: string): Promise<SocialAccount[
  */
 export function postingHold(concept: Partial<Pick<Concept, "internal" | "cleared" | "brief" | "format">> | null): string | null {
   if (!concept) return "the video's concept is unreadable, so it can't be checked for posting";
-  return isInternal(concept) && !concept.cleared?.at ? "internal remake: not cleared for posting" : null;
+  if (!isInternal(concept) || concept.cleared?.at) return null;
+  return concept.brief?.format === "brainrot" ? "brainrot ad: not cleared for posting" : "internal remake: not cleared for posting";
 }
 
 /** An internal video: a one-to-one remake of a real creator's video (cleared or not). */
 export function isInternal(concept: Partial<Pick<Concept, "internal" | "brief" | "format">> | null | undefined): boolean {
-  return Boolean(concept && (concept.internal === true || (concept.format as string | undefined) === "remake" || concept.brief?.format === "remake"));
+  return Boolean(concept && (concept.internal === true || (concept.format as string | undefined) === "remake" || concept.brief?.format === "remake" || concept.brief?.format === "brainrot"));
 }
 
 /** Clears one internal video for posting: an explicit decision by a named person, kept on the video and logged. */

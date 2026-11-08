@@ -33,7 +33,7 @@ export function screenFromLine(line: string, still?: { caption: string }, deskto
 
 export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief, delivery = "", referenceBeats: ReferenceBeat[] = []): ProductionPlan {
   // A one-to-one remake plans its own shots from the reference's frames (creative/remake.ts).
-  if (brief.format === "remake") return { format: "remake", aroll: [], broll: [], voiceover: null, screens: [] };
+  if (brief.format === "remake" || brief.format === "brainrot") return { format: brief.format, aroll: [], broll: [], voiceover: null, screens: [] };
   const visuals = new Map(product.visuals.map((v) => [v.id, v]));
   const filmed = brief.format === "filmed_screen";
   const broll: BRollClip[] = [];
