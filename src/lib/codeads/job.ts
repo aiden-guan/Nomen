@@ -183,10 +183,10 @@ const VERDICT_TOOL = {
 /** The QC pass every video gets, for a code ad: a vision model reads a frame sheet against the story. */
 export async function reviewCodeAd(naive: Pick<NaiveClient, "message">, input: { sheet: Buffer; times: number[]; story: CodeAdStory; brand: string }): Promise<Verdict> {
   const rubric = [
-    `This is a frame sheet (left to right, top to bottom, at ${input.times.map((t) => `${t.toFixed(1)} s`).join(", ")}) from a 3D cartoon ad for ${input.brand}, made in code: a narrator, Gary (a big-headed cartoon developer in a yellow hard hat) in a 3D office with a wall screen, one spoken word at a time in the middle of the frame, coloured callouts.`,
+    `This is a frame sheet (left to right, top to bottom, at ${input.times.map((t) => `${t.toFixed(1)} s`).join(", ")}) from a 3D cartoon ad for ${input.brand}, made in code: a narrator, a big-headed cartoon software developer in a 3D office with a wall screen, one spoken word at a time in the middle of the frame, coloured callouts.`,
     `The story, beat by beat: ${JSON.stringify(input.story.beats.map((b) => ({ say: b.say, gag: b.gag, screen: b.screen, callouts: b.callouts.map((c) => c.text) })))}`,
-    "Fail it for: broken rendering (black or blank frames, objects through Gary or the desk, things floating), text a viewer cannot read (the caption or a callout over Gary's face, cut off, illegible wall screen when it matters), the product's name or logo wrong or missing, a frame where nothing shows what the line says, anything off-brand or crude.",
-    "By design: the callouts sit in the lower third, over the desk; banknotes, boxes or confetti may cover Gary for a moment during their gag. Do not fail it for its cartoon style, the robots or the jokes: they are the format. Call the qc_verdict tool once.",
+    "Fail it for: broken rendering (black or blank frames, objects through the developer or the desk, things floating), text a viewer cannot read (the caption or a callout over the developer's face, cut off, illegible wall screen when it matters), the product's name or logo wrong or missing, a frame where nothing shows what the line says, anything off-brand or crude.",
+    "By design: the callouts sit in the lower third, over the desk; banknotes, boxes or confetti may cover the developer for a moment during their gag. Do not fail it for its cartoon style, the robots or the jokes: they are the format. Call the qc_verdict tool once.",
   ].join("\n");
   const content = [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: input.sheet.toString("base64") } }, { type: "text", text: rubric }];
   const reply = await naive.message({ model: QC_MODEL, max_tokens: 1500, messages: [{ role: "user", content }], tools: [VERDICT_TOOL] });
@@ -243,7 +243,7 @@ export async function makeCodeAd(input: MakeCodeAdInput): Promise<MadeCodeAd> {
   log(`sound: ${synthLog.match(/integrated[^\n]*/i)?.[0]?.trim() ?? "mixed"}`);
 
   const qcLines = await runQc(dir, input.chrome).catch((error: unknown) => [`(the face check did not run: ${error instanceof Error ? error.message : String(error)})`]);
-  if (qcLines.length) notes.push(`${qcLines.length} moments with Gary's face under text (first: ${qcLines[0]})`);
+  if (qcLines.length) notes.push(`${qcLines.length} moments with the developer's face under text (first: ${qcLines[0]})`);
   const silent = join(dir, "silent.mp4");
   const started = Date.now();
   const warnings = await renderVideo(dir, input.chrome, silent, { fps: input.fps ?? 60, blur: input.blur ?? 2, to: story.duration });

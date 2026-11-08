@@ -2,8 +2,9 @@
 
 A code ad is a 15-30 second vertical ad made entirely in code: a Three.js scene that headless Chrome renders frame by
 frame, a synthesized score and foley, a narrator, and ffmpeg. No camera, no AI video. It is ED Studio's build genre
-(Dylan's other project: Gary the Builder, one gliding camera take, one spoken word at a time, yellow term callouts),
-cut to ad length and pointed at a product. The creative director picks it like any other format (`code_ad`).
+(Dylan's other project: one gliding camera take, one spoken word at a time, yellow term callouts), cut to ad length and
+pointed at a product, with a cartoon software developer in the lead instead of ED Studio's Gary the Builder. The creative
+director picks it like any other format (`code_ad`).
 
 ```
 CreativeBrief (format "code_ad")
@@ -27,21 +28,32 @@ one narrated line, one gag landing on one word, one picture on the office's wall
 
 | Gag | On screen | For |
 | - | - | - |
-| `hack` | Gary types; the wall screen types the beat's terminal or chat | setups |
-| `explode` | the laptop blows up; Gary charred, X eyes, hat off | a crash, a bad deploy |
-| `bury` | labelled boxes bury Gary to the nose; dizzy stars | too much work, too many tools |
+| `hack` | the developer types; the wall screen types the beat's terminal or chat | setups |
+| `explode` | the laptop blows up; the developer is charred for a moment | a crash, a bad deploy |
+| `bury` | labelled boxes drop on the developer; dizzy stars | too much work, too many tools |
 | `zap` | the power strip: x-ray flicker, sparks | an integration that bites |
 | `money` | banknotes pour out of the screen | costs, a surprise bill |
 | `deliver` | the brand's crate drops and bursts; its agent robot hops out | the product's entrance |
 | `team` | more robots pop in, one per role, and roam | several agents, scale |
-| `approve` | a big button pops up; Gary slams it | approvals, budgets, guardrails |
+| `approve` | a big button pops up; the developer slams it | approvals, budgets, guardrails |
 | `show` | the camera pushes in on a real product screenshot | "this is what it looks like" |
-| `celebrate` | confetti, Gary jumps | the payoff |
+| `celebrate` | confetti, the developer throws his arms up | the payoff |
 
 Wall screens: `terminal`, `chat`, `image` (a real product visual by id), `logo`, `error`, `dashboard`.
 Callouts: `term` (yellow, the feature's real name), `label`, `money`, `stamp`, `sfx`.
 
-**The frame.** The wall screen holds the top third, Gary's face sits at about 40 %, the one spoken word at 52 % (on his
+**The cast.** The lead is a software developer, two looks that rotate between videos (the writer picks one, else the
+job alternates): `geek`, a heavyset dev in a hoodie with round glasses, headphones round his neck and a short beard,
+and `mogger`, a sharp dev in a white tee with a quiff, a watch and shades pushed up on his head. ED Studio's Gary the
+Builder (a hard hat) made no sense at a laptop (Dylan, after the first sample).
+
+**The tone.** Product-first, like a sharp dev-tool launch video: the product is named early and every beat after the
+problem shows one real thing it does. At most one light, dry wink per ad; no slapstick lines, roasts, yelling or absurd
+props (the first sample's "yacht and a llama" read as cringe). The narrator is Adam's crisp read
+(eleven_multilingual_v2 at speed 1.12, about 3 words a second, sped up at most 1.3x); ED Studio's dramatic eleven_v3
+read with audio tags is still there (`NOMEN_CODEAD_NARRATOR=v3`). Ads aim at 18-24 seconds in 6-8 beats of 5-12 words.
+
+**The frame.** The wall screen holds the top third, the developer's face sits at about 40 %, the one spoken word at 52 % (on his
 chin, as in ED Studio's face shots) and the callouts in the lower third over the desk (ED Studio stacks them above the
 faces; here that is where the screen is). A beat whose screen carries the point is framed to show the whole screen;
 each framing holds until its gag has landed. The frame check found these rules: in the first Naïve render the
@@ -55,7 +67,7 @@ it works) and keeps its premise, hook mechanic and escalation, never its words: 
 video becomes "You give an AI agent your credit card and one instruction: make money", then the product is the fix.
 ED Studio's own build reels are built the same way on @wemakebuild's "How a ___ Becomes a ___" engineering videos.
 
-The formula (ED Studio `docs/BUILD.md`, cut down): a hook spoken on frame 1, 1-2 failure beats that hurt Gary, "So you
+The formula (ED Studio `docs/BUILD.md`, cut down and calmed down): a hook spoken on frame 1, one problem beat, "So you
 use <product>" and its entrance, one feature per beat named by a term callout, a payoff with one step and the url.
 Claims and numbers come from the product brief only; the linter flags any number that is not in it.
 
@@ -64,7 +76,7 @@ Claims and numbers come from the product brief only; the linter flags any number
 Vendored into `src/lib/codeads/engine/` (browser modules, served to headless Chrome) and `src/lib/codeads/`:
 
 - `engine/core.js`: the renderer (bloom, grade, grain, tone mapping), deterministic timeline helpers, seeded random.
-- `engine/build/`: `toon.js` (Gary and his faces), `fx.js` (analytic particles: sparks, smoke, dust, confetti,
+- `engine/build/`: `toon.js` (the toon rig and its faces; Nomen added glasses, builds, hair, a hoodie, headphones), `fx.js` (analytic particles: sparks, smoke, dust, confetti,
   banknotes), `anim.js` (pop, drop, squash, wobble), `rail.js` (one gliding camera take: `planRail`), `cuts.js`
   (`makeKick`, the frame-relative impact shake), `captions.js` (one word at a time + callouts; font paths changed).
 - `engine/fonts/`: Fredoka 600/700 (OFL) and Luckiest Guy (Apache 2.0), from `@fontsource`.

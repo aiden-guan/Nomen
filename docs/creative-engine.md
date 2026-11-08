@@ -107,7 +107,7 @@ lip-sync. What made it look real is the prompt recipe in `plan.ts`:
 | `filmed_screen` | a phone filming a monitor that shows the product | text-to-speech | cents, plus one to three photos |
 | `text_story` | the product only, with large text | text-to-speech | cents |
 | `remake` | the reference itself, one to one: our people, our graphics, its layout, cuts and music | our people (Kling 3.0's own voice) over the reference's music | about $0.17 per second of the reference plus about $0.30, internal only |
-| `code_ad` | a 3D cartoon ad made in code: Gary the Builder in a dev office, the product as the fix, its feature names popping on screen (ED Studio's build genre; docs/code-ads.md) | a narrator (ElevenLabs on Monid, or a free scratch voice) over a synthesized score and foley | cents; renders locally only (headless Chrome with WebGL) |
+| `code_ad` | a 3D cartoon ad made in code: a cartoon developer in a dev office, the product as the fix, its feature names popping on screen (ED Studio's build genre; docs/code-ads.md) | a narrator (ElevenLabs on Monid, or a free scratch voice) over a synthesized score and foley | cents; renders locally only (headless Chrome with WebGL) |
 
 ## One-to-one remakes (`remake`)
 
