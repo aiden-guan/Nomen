@@ -120,13 +120,18 @@ const CRITIC_TOOL = {
     properties: {
       scores: {
         type: "object",
-        required: ["sounds_human", "hook", "product_clarity", "fidelity_to_reference", "specificity"],
+        required: ["sounds_human", "hook", "product_clarity", "fidelity_to_reference", "specificity", "does_its_job"],
         properties: {
           sounds_human: { type: "integer", description: "1-10: would a real creator say every line out loud like this?" },
           hook: { type: "integer", description: "1-10: does beat 1 keep the reference's hook (its words and mechanic) and stop the scroll as well?" },
           product_clarity: { type: "integer", description: "1-10: after watching, does a stranger know what the product is and why they'd want it?" },
           fidelity_to_reference: { type: "integer", description: "1-10: how close is it to the reference: same hook, beats, timing, wording, shots and delivery, changed only where the product requires it?" },
           specificity: { type: "integer", description: "1-10: concrete details from the brief instead of generic claims?" },
+          does_its_job: {
+            type: "integer",
+            description:
+              "1-10, by the brief's role. convert: the reference's selling beats survive (problem, proof, objection, offer) with true facts, and it ends on one clear call to action a viewer could follow. reach: it is as watchable and shareable as the reference, with no hard sell bolted on.",
+          },
         },
       },
       score: { type: "integer", description: "Overall 1-10. 8+ means ready to film." },
@@ -168,6 +173,10 @@ function writerSystem() {
     "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; presenter_inset uses inset beats (product graphics full screen, the presenter in a small window; the hook may be a creator beat); talking_head_broll mixes creator, product and inset beats.",
     "- filmed_screen looks like a phone filming a computer monitor while a voice walks through it: only product beats (no creator), and every beat gets a `screen` that says what the monitor shows at that moment (a terminal, a code editor, a browser or the product's own app, as a real desktop window, with the exact commands and wording from the brief and what types in or appears).",
     "",
+    "The video's job (the creative brief's role):",
+    "- convert: this video is judged on clicks and sign-ups, not views. Keep every selling beat of the reference (its problem, demo or proof, the objection it answers, its offer and its call to action) in the same order and the same sentence shapes, filled with the product brief's real problem, proof, objections and offer. End on one call to action, the creative brief's cta, said the way the reference says its own. If the reference never asks, add the ask to its last beat in its voice, without adding a beat. Never invent a discount, price, deadline or guarantee.",
+    "- reach: this video is judged on views and shares. Keep the reference's ending; any ask stays soft (follow, comment, share), with no price or hard sell the reference does not have.",
+    "",
     "Call the script tool once with every beat.",
   ].join("\n");
 }
@@ -189,10 +198,14 @@ function contextBlock(ctx: ScriptContext) {
       delivery: reference.delivery,
       caption_style: reference.caption_style,
       why_it_works: reference.why_it_works,
+      ...(reference.anatomy ? { how_it_sells: reference.anatomy } : {}),
     })}\n</reference>`,
-    `Target length: about ${ctx.targetSeconds} seconds. Format: ${brief.format}.`,
+    `Target length: about ${ctx.targetSeconds} seconds. Format: ${brief.format}. Role: ${roleOf(brief)} (judged on ${(brief.metric ?? (roleOf(brief) === "convert" ? "link_clicks" : "views")).replace(/_/g, " ")}).`,
   ].join("\n\n");
 }
+
+/** Briefs written before campaigns were planned as a mix are reach videos. */
+const roleOf = (brief: CreativeBrief) => brief.role ?? "reach";
 
 export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promise<Script> {
   const reply = await naive.message({
@@ -228,6 +241,7 @@ async function critique(naive: NaiveClient, ctx: ScriptContext, script: Script, 
   const system = [
     "You are a short-form creative director who has watched ten thousand TikToks. You check remakes of viral videos before anything is filmed. The goal is a remake so close to the reference that it earns the same retention, adapted to a new product.",
     "Compare the script to the reference beat by beat. Fail: beats that drift from the reference (different order, timing, jobs or shots), a hook that changed more than it had to, lines rewritten into different words when the reference's wording could have stayed, anything that sounds like an ad instead of the reference's voice, product beats whose visual doesn't match the words, claims or numbers not in the product brief, any personal-history claim (past use, personal results, reviews) carried over from the reference, and lines too long to say in their beat's seconds.",
+    "Also judge the video's job (the role at the end of the brief). A convert video that drops the reference's problem, proof or offer beats, or ends without one clear call to action, fails: it will get views and no sign-ups. A reach video with a hard sell the reference does not have fails too.",
     "If the overall score is below 8, write the complete revised script that fixes every problem, following the same rules as the writer (replicate the reference as closely as possible, swap only what must change for this product, keep every claim true to the brief, fit each line in its seconds).",
   ].join("\n");
   const content = `${contextBlock(ctx)}\n\n<script>\n${JSON.stringify(script.beats)}\n</script>\n\nAutomatic checks found: ${issues.length ? issues.join("; ") : "nothing"}.`;
@@ -355,8 +369,18 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
     if (cutaways > ours + 1) issues.push(`the reference cuts away ${cutaways} times, this script shows the product ${ours} times`);
   }
   if (Math.abs(script.total_seconds - ctx.targetSeconds) > 4) issues.push(`total ${script.total_seconds}s vs the reference's ${ctx.targetSeconds}s`);
+
+  // A convert video is judged on clicks: it has to ask for one, in a cta beat or at the very end.
+  if (roleOf(ctx.brief) === "convert") {
+    const last = script.beats[script.beats.length - 1];
+    const asks = script.beats.some((beat) => beat.job === "cta") || (last !== undefined && ASK.test(`${last.line} ${last.on_screen_text}`));
+    if (!asks) issues.push(`a convert video must end on a call to action (the brief's "${ctx.brief.cta || "cta"}"): no beat asks the viewer to act`);
+  }
   return issues;
 }
+
+/** Words that ask a viewer to take a step. */
+const ASK = /\blink\b|\bbio\b|sign ?up|\btry\b|download|\bget\b|\bstart\b|\bfree\b|\bcode\b|\bshop\b|\bbuy\b|\bjoin\b|install|\bcomment\b|check (?:it )?out|go to|head to|\btap\b|\bclick\b|\bgrab\b/i;
 
 /**
  * How long the remake should run: the reference's own length, capped for render cost. A face costs

@@ -1,5 +1,5 @@
 import type { ResearchPack } from "./research";
-import type { CreativeBrief, ProductBrief, ProductionPlan, ReferenceBreakdown, Script, VideoFormat } from "./creative/types";
+import type { CreativeBrief, FunnelRole, ProductBrief, ProductionPlan, ReferenceBreakdown, Script, SuccessMetric, VideoFormat } from "./creative/types";
 
 // The strategist's contract: the JSON Schema Naive enforces on the session, and the types it fills.
 
@@ -20,6 +20,9 @@ export type Concept = {
   cta: string;
   inspired_by: string[];
   why: string;
+  /** Its job in the campaign and the number it is judged on (from the brief). */
+  role?: FunnelRole;
+  metric?: SuccessMetric;
   /** Creative engine: the director's brief, the script room's script and the shot plan behind this video. */
   brief?: CreativeBrief;
   script?: Script;
@@ -49,6 +52,9 @@ export type Strategy = {
 export const FORMATS: VideoFormat[] = ["talking_head_broll", "split_screen", "presenter_inset", "voiceover_demo", "filmed_screen", "text_story"];
 
 export const PLATFORMS = ["tiktok", "instagram", "youtube", "x", "facebook", "linkedin", "threads"] as const;
+
+/** The numbers each funnel job is judged on; the first is the default. */
+export const METRICS: Record<FunnelRole, SuccessMetric[]> = { reach: ["views", "shares", "saves"], convert: ["link_clicks", "sign_ups", "purchases"] };
 
 const str = { type: "string" };
 const strs = { type: "array", items: str };
@@ -92,10 +98,20 @@ export const STRATEGY_SCHEMA = {
           type: "array",
           items: {
             type: "object",
-            required: ["title", "reference_id", "format", "angle", "audience", "hook_plan", "keep", "change", "visuals", "creator", "setting", "platforms", "caption", "hashtags", "cta", "why"],
+            required: ["title", "reference_id", "role", "metric", "format", "angle", "audience", "hook_plan", "keep", "change", "visuals", "creator", "setting", "platforms", "caption", "hashtags", "cta", "why"],
             properties: {
               title: str,
               reference_id: { type: "string", description: "The id of the reference video this one remakes (from <references>)." },
+              role: {
+                type: "string",
+                enum: ["reach", "convert"],
+                description: "This video's job: reach (get the product seen and shared) or convert (make viewers click, sign up or buy). With 2+ videos, at least one of each.",
+              },
+              metric: {
+                type: "string",
+                enum: [...METRICS.reach, ...METRICS.convert],
+                description: "The number this video is judged on: views, shares or saves for reach; link_clicks, sign_ups or purchases for convert.",
+              },
               format: { type: "string", enum: [...FORMATS] },
               angle: str,
               audience: str,
@@ -108,8 +124,11 @@ export const STRATEGY_SCHEMA = {
               platforms: { type: "array", items: { type: "string", enum: [...PLATFORMS] } },
               caption: str,
               hashtags: strs,
-              cta: str,
-              why: { type: "string", description: "Why this reference and format will work for this product and buyer, citing the reference's numbers." },
+              cta: {
+                type: "string",
+                description: "convert: one concrete action true to the product brief's offer ('get the $1 free credit, link in bio'). reach: a soft ask (follow, comment, share) or ''.",
+              },
+              why: { type: "string", description: "Why this reference and format will work for this product and buyer, citing the reference's numbers or conversion evidence." },
             },
           },
         },
@@ -131,9 +150,13 @@ export function referenceDigest(breakdowns: ReferenceBreakdown[]) {
     url: ref.url,
     platform: ref.platform,
     author: ref.author,
-    views: ref.views,
+    // An ad library publishes no views: say so rather than show a flop.
+    views: ref.origin === "ad" ? "unknown (paid ad)" : ref.views,
     followers: ref.followers,
     views_per_follower: ref.outlier,
+    role: ref.role ?? "reach",
+    conversion_evidence: ref.conversion ? `${ref.conversion.score}/10${ref.conversion.signals.length ? `: ${ref.conversion.signals.join(", ")}` : ""}` : "none recorded",
+    ...(ref.anatomy ? { how_it_sells: ref.anatomy } : {}),
     seconds: ref.duration,
     format: ref.format,
     hook: ref.hook,
@@ -157,16 +180,19 @@ export function strategyMessage(
     site_excerpt: pack.site_excerpt.slice(0, 3000),
     similar_sites: pack.similar_sites,
     seo: pack.seo,
-    ads: pack.ads.slice(0, 10),
+    // Competitors' ads first, longest-running first: how long an ad has run is the public proof it pays.
+    ads: pack.ads.slice(0, 10).map((ad) => ({ ...ad, video_url: undefined, cover: undefined })),
     reddit: pack.reddit.slice(0, 8),
     aeo: pack.aeo,
   };
   const { product, breakdowns } = creative;
   return [
     `Build the campaign for ${product.name || pack.brand.name || pack.domain}.`,
-    `Deliver exactly ${options.concepts} video briefs. Each brief remakes one of the viral reference videos below for this product, as closely as possible: the same hook, beats, wording, timing, shots and on-screen text, with an AI presenter of the same kind in the same kind of setting, and only the product-specific parts changed. Pick the references with the best mix of proof (views far above the account's followers, or raw virality for a famous benchmark like Cluely or MrBeast) and fit for this product. Give the briefs different styles, not just different references: mix the lanes (a competitor's winning format, a niche breakout, a famous viral hook) and the formats, so the campaign tests several ways to win.`,
+    `Deliver exactly ${options.concepts} video briefs. Each brief remakes one of the proven reference videos below for this product, as closely as possible: the same hook, beats, wording, timing, shots and on-screen text, with an AI presenter of the same kind in the same kind of setting, and only the product-specific parts changed. Pick the references with the best mix of proof and fit for this product. Give the briefs different styles, not just different references: mix the lanes (a competitor's winning format, a niche breakout, a famous viral hook, a long-running ad) and the formats, so the campaign tests several ways to win.`,
+    `Plan the campaign as a funnel mix, the way performance teams do: the customer pays for sales, not views. A video with 2 million likes can sell less than one with 100 thousand. Give every brief a role and the metric it is judged on: reach videos get the product seen and shared (judged on views, shares or saves) and remake references whose proof is reach (views far above the account's followers, or raw virality for a famous benchmark like Cluely or MrBeast); convert videos make viewers click, sign up or buy (judged on link clicks, sign-ups or purchases) and remake references whose proof is that they sell (role "convert": an ad an advertiser kept paying for, many saves per like, a review, demo or testimonial that asks for the sale), keeping their selling beats (problem, proof, objection, offer, call to action) with this product's real facts and offer. ${options.concepts >= 2 ? `With ${options.concepts} videos, include at least one of each role.` : "With one video, pick the role the evidence supports best."} Each video will get its own tracked link, so a convert video's call to action must be one concrete step.`,
+    `Remakes are one-to-one: the reference's layout, graphics, captions and timing are rebuilt shot by shot with our presenter and product swapped in. So prefer references whose layout rebuilds cleanly (one presenter to camera, a green screen, a screen recording, graphics over a simple background) over ones that depend on real-world footage, and when the evidence is close, the shorter one: every second is rendered (about $0.40 a second with a presenter), so 45 seconds or less.`,
     breakdowns.length
-      ? `Reference videos, broken down beat by beat from their transcripts and frames:\n<references>\n${JSON.stringify(referenceDigest(breakdowns))}\n</references>`
+      ? `Reference videos, broken down beat by beat from their transcripts and frames. role and conversion_evidence say what each is proof of; how_it_sells quotes its selling beats:\n<references>\n${JSON.stringify(referenceDigest(breakdowns))}\n</references>`
       : "No reference videos could be broken down for this run. Base each brief on the strongest patterns in the research and set reference_id to an empty string.",
     `The product brief (the only source of claims):\n<product>\n${JSON.stringify({ ...product, visuals: undefined })}\n</product>`,
     product.visuals.length
@@ -190,9 +216,12 @@ export function normalizeStrategy(raw: unknown, options: StrategyOptions, contex
     const format = FORMATS.includes(brief.format as VideoFormat) ? (brief.format as VideoFormat) : "talking_head_broll";
     const reference = typeof brief.reference_id === "string" && references.has(brief.reference_id) ? brief.reference_id : (context.referenceIds[i % Math.max(1, context.referenceIds.length)] ?? "");
     const platforms = list(brief.platforms).filter((p): p is (typeof PLATFORMS)[number] => (PLATFORMS as readonly string[]).includes(p)).slice(0, 4);
+    const role: FunnelRole = brief.role === "reach" || brief.role === "convert" ? brief.role : DIRECT_ASK.test(brief.cta ?? "") ? "convert" : "reach";
     return {
       title: (brief.title ?? `Video ${i + 1}`).toString().trim(),
       reference_id: reference,
+      role,
+      metric: METRICS[role].includes(brief.metric as SuccessMetric) ? (brief.metric as SuccessMetric) : METRICS[role][0],
       format,
       angle: (brief.angle ?? "").toString(),
       audience: (brief.audience ?? "").toString(),
@@ -209,9 +238,30 @@ export function normalizeStrategy(raw: unknown, options: StrategyOptions, contex
       why: (brief.why ?? "").toString(),
     };
   });
-  strategy.campaign.briefs = briefs;
+  strategy.campaign.briefs = balanceRoles(briefs);
   strategy.campaign.concepts = [];
   return strategy;
+}
+
+/** A call to action that asks for a concrete step, as opposed to "follow for more". */
+const DIRECT_ASK = /sign ?up|\btry\b|download|\bget\b|start|link|free|code|shop|\bbuy\b|join|install|order|book|subscribe|credit|trial/i;
+
+/**
+ * A campaign of two or more videos tests both jobs: if the director made every video the same role,
+ * the one whose call to action fits the other job best switches (its metric with it).
+ */
+export function balanceRoles(briefs: CreativeBrief[]): CreativeBrief[] {
+  if (briefs.length < 2) return briefs;
+  for (const role of ["reach", "convert"] as const) {
+    if (briefs.some((brief) => brief.role === role)) continue;
+    const other: FunnelRole = role === "reach" ? "convert" : "reach";
+    // Turning a video into a converter: the one that already asks for a step. Into reach: one that does not.
+    const fits = (brief: CreativeBrief) => DIRECT_ASK.test(brief.cta) === (role === "convert");
+    const pick = [...briefs].reverse().find((brief) => brief.role === other && fits(brief)) ?? briefs[briefs.length - 1];
+    pick.role = role;
+    pick.metric = METRICS[role][0];
+  }
+  return briefs;
 }
 
 /** One finished concept: the brief, its script and its shot plan, in the shape production and the UI read. */
@@ -234,6 +284,7 @@ export function conceptFrom(brief: CreativeBrief, script: Script, plan: Producti
     cta: brief.cta,
     inspired_by: reference ? [reference.url] : [],
     why: brief.why,
+    ...(brief.role ? { role: brief.role, metric: brief.metric ?? METRICS[brief.role][0] } : {}),
     brief,
     script,
     plan,

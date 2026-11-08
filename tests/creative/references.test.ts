@@ -7,15 +7,20 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  type Baseline,
   breakdownAll,
   breakdownReference,
   canonicalUrl,
+  conversionOf,
+  DEFAULT_BASELINE,
   detectCuts,
   frameTimes,
   pickForBreakdown,
+  poolBaseline,
   readBreakdown,
   ReferenceUnavailableError,
   referenceId,
+  referenceRole,
   scoreCandidates,
   scoreVideo,
   wordsPerMinute,
@@ -91,14 +96,15 @@ describe("scoreVideo", () => {
     expect(paid.why).toContain("paid partnership");
   });
 
-  it("prefers 6-75 second videos", () => {
+  it("prefers 6-45 second videos, and charges a point per 10 s of remake past 45 s", () => {
     const at = (duration: number | null) => scoreVideo(video({ duration })).total;
     expect(at(23)).toBeGreaterThan(at(null));
     expect(at(null)).toBeGreaterThan(at(4));
+    expect(at(6)).toBe(at(45));
+    expect(at(45) - at(65)).toBeCloseTo(2, 5);
     expect(at(75)).toBeGreaterThan(at(90));
     expect(at(90)).toBeGreaterThan(at(161));
     expect(at(161)).toBeGreaterThan(at(372));
-    expect(at(6)).toBe(at(75));
   });
 
   it("does not trust a huge engagement rate or outlier on a few thousand views", () => {
@@ -282,6 +288,136 @@ describe("pickForBreakdown", () => {
   });
 });
 
+// ---------- conversion evidence ----------
+
+const adSignals = (over: Partial<NonNullable<Video["ad"]>> = {}): NonNullable<Video["ad"]> => ({ network: "meta", days: null, active: true, variants: null, cta: "", objective: "", ...over });
+
+describe("conversionOf", () => {
+  const typical: Baseline = { savesPerLike: 0.1, commentsPerLike: 0.02 };
+
+  it("reads saves and comments per like against the niche, not raw likes", () => {
+    // A save for every two likes, five times this niche's norm: people keep it to act on later.
+    const keeper = conversionOf(video({ likes: 10_000, saves: 5_000, comments: 200 }), typical);
+    // Two million likes, almost no saves: watched, not acted on.
+    const viral = conversionOf(video({ views: 30_000_000, likes: 2_000_000, saves: 20_000, comments: 40_000 }), typical);
+    expect(keeper.score).toBe(3);
+    expect(keeper.signals).toEqual(["saves per like 5x the pool's"]);
+    expect(viral.score).toBe(0);
+    expect(viral.role).toBe("reach");
+    // At the median: half the intent points, no questions points.
+    expect(conversionOf(video({ likes: 1_000, saves: 100, comments: 20 }), typical).score).toBe(1.5);
+  });
+
+  it("needs a selling cue on top of high saves to call an organic video a converter", () => {
+    const saved = video({ likes: 10_000, saves: 3_000, comments: 200, caption: "my whole agent setup, step by step" });
+    expect(conversionOf(saved, typical).role).toBe("reach");
+    const asks = conversionOf({ ...saved, caption: "my whole agent setup. Comment “READY” and I'll send the guide" }, typical);
+    expect(asks.role).toBe("convert");
+    expect(asks.signals).toContain('caption asks: "Comment “READY”"');
+    const review = conversionOf(video({ likes: 1_000, saves: 100, comments: 20, paid: true, caption: "honest review after a month" }), typical);
+    expect(review.signals).toEqual(["saves per like 1x the pool's", 'caption: "honest"', "paid partnership"]);
+    expect(review.role).toBe("convert");
+  });
+
+  it("ignores missing saves and comments rather than counting them against the video", () => {
+    const reel = conversionOf(video({ platform: "instagram", likes: 5_000, saves: 0, comments: 0, shares: 0 }), typical);
+    expect(reel).toEqual({ score: 0, role: "reach", signals: [] });
+  });
+
+  it("scores an ad on how long it ran, how many ads reuse it and its button", () => {
+    const veteran = conversionOf(video({ views: 0, likes: 0, saves: 0, comments: 0, paid: true, ad: adSignals({ days: 94, variants: 4, cta: "Shop now" }) }), typical);
+    expect(veteran.role).toBe("convert");
+    expect(veteran.score).toBe(8); // 1 ad + 4 longevity + 2 variants + 1 button
+    expect(veteran.signals).toEqual(["Meta ad", "ran 94 days, still running", "4 ads use this creative", "button: Shop now"]);
+    const fresh = conversionOf(video({ views: 0, likes: 0, ad: adSignals({ days: 3, cta: "Learn more" }) }), typical);
+    expect(fresh).toEqual({ score: 1, role: "convert", signals: ["Meta ad"] });
+    const month = conversionOf(video({ views: 0, likes: 0, ad: adSignals({ days: 30 }) }), typical).score;
+    expect(month).toBeCloseTo(1 + 4 * (Math.log2(30 / 7) / Math.log2(90 / 7)), 1);
+    const top = conversionOf(video({ views: 0, likes: 50_000, ad: adSignals({ network: "tiktok", active: null, objective: "conversions" }) }), typical);
+    expect(top.signals).toEqual(["TikTok ad", "TikTok top ad bought for conversions"]);
+  });
+});
+
+describe("the pool baseline", () => {
+  it("uses the pool's median once it has enough measured videos, and a default before", () => {
+    const pool = Array.from({ length: 9 }, (_, i) => video({ likes: 1_000, saves: 100 * (i + 1), comments: 10 }));
+    expect(poolBaseline(pool)).toEqual({ savesPerLike: 0.5, commentsPerLike: 0.01 });
+    expect(poolBaseline(pool.slice(0, 3))).toEqual(DEFAULT_BASELINE);
+  });
+
+  it("ranks a niche's converters against that niche", () => {
+    // Dev tutorials: a save for every three likes is normal, so 0.4 is not special there.
+    const devPool = Array.from({ length: 10 }, (_, i) => video({ url: `https://www.tiktok.com/@d${i}/video/${i}`, author: `d${i}`, likes: 10_000, saves: 3_300, comments: 150 }));
+    const candidate = video({ url: "https://www.tiktok.com/@x/video/1", author: "x", likes: 10_000, saves: 4_000, comments: 150 });
+    const inDev = scoreCandidates([...devPool, candidate], category).find((c) => c.author === "x")!;
+    const alone = scoreCandidates([candidate], category)[0];
+    expect(inDev.score.conversion!).toBeLessThan(alone.score.conversion!);
+  });
+});
+
+describe("ads in the candidate pool", () => {
+  it("are always the ad lane, explained by their run, and never collapse into one library link", () => {
+    const ads = [
+      video({ url: "https://www.facebook.com/ads/library/?id=111", author: "Poppi", views: 0, likes: 0, saves: 0, comments: 0, shares: 0, followers: null, paid: true, duration: null, source: "meta_ads_comp_0", ad: adSignals({ days: 60 }) }),
+      video({ url: "https://www.facebook.com/ads/library/?id=222", author: "Poppi", views: 0, likes: 0, saves: 0, comments: 0, shares: 0, followers: null, paid: true, duration: 20, source: "meta_ads_comp_0", ad: adSignals({ days: 5 }) }),
+    ];
+    const ranked = scoreCandidates(ads, category);
+    expect(ranked).toHaveLength(2);
+    expect(ranked.every((c) => c.origin === "ad" && c.score.role === "convert")).toBe(true);
+    expect(ranked.find((c) => c.url.endsWith("111"))!.score.why).toBe("Meta ad, ran 60 days, length unknown");
+    expect(canonicalUrl("https://library.tiktok.com/ads/detail/?ad_id=99&lang=en")).toBe("library.tiktok.com/ads/detail?ad_id=99");
+  });
+});
+
+describe("pickForBreakdown for a funnel mix", () => {
+  const scored = (over: Partial<ReferenceCandidate> & { total: number; role?: "reach" | "convert"; conversion?: number }) => {
+    const { total, role = "reach", conversion = 0, ...rest } = over;
+    return { ...video(rest), origin: rest.origin ?? "category", score: { outlier: 5, engagement: 0.05, total, why: "", role, conversion, signals: [] }, ...rest } as ReferenceCandidate;
+  };
+
+  it("reserves two convert and two reach references, converters by evidence even when their reach is low", () => {
+    const pool = [
+      scored({ author: "r1", total: 60 }),
+      scored({ author: "r2", total: 55 }),
+      scored({ author: "r3", total: 50 }),
+      scored({ author: "r4", total: 45 }),
+      scored({ author: "c-weak", total: 40, role: "convert", conversion: 3.6 }),
+      scored({ author: "ad-strong", origin: "ad", total: 3, role: "convert", conversion: 8, duration: null }),
+      scored({ author: "c-mid", total: 30, role: "convert", conversion: 5 }),
+    ];
+    const picked = pickForBreakdown(pool, 4);
+    expect(picked.map((c) => c.author).sort()).toEqual(["ad-strong", "c-mid", "r1", "r2"]);
+    expect(pickForBreakdown(pool, 2).map((c) => c.author).sort()).toEqual(["ad-strong", "r1"]);
+  });
+
+  it("only picks references whose footage it can download", () => {
+    const pool = [scored({ author: "gone", total: 10, role: "convert", conversion: 9, media_url: null }), scored({ author: "here", total: 5, role: "convert", conversion: 4 })];
+    expect(pickForBreakdown(pool, 2).map((c) => c.author)).toEqual(["here"]);
+  });
+
+  it("prefers the shorter of two close converters: every second of a remake is rendered", () => {
+    // 5 points at 75 s is 2 after the cost of 30 extra seconds; 4.5 at 30 s keeps all of it.
+    const pool = [scored({ author: "long", total: 10, role: "convert", conversion: 5, duration: 75 }), scored({ author: "short", total: 9, role: "convert", conversion: 4.5, duration: 30 }), scored({ author: "reach", total: 50 })];
+    expect(pickForBreakdown(pool, 2).map((c) => c.author)).toEqual(["reach", "short"]);
+  });
+
+  it("takes a lane's next author rather than a second video from someone already picked", () => {
+    const pool = [scored({ author: "same", origin: "adjacent", total: 60 }), scored({ author: "same", origin: "competitor", total: 50 }), scored({ author: "rival", origin: "competitor", total: 40 })];
+    expect(pickForBreakdown(pool, 2).map((c) => c.author)).toEqual(["same", "rival"]);
+  });
+});
+
+describe("referenceRole", () => {
+  const anatomy = { role: "convert" as const, structure: "demo" as const, problem: "", proof: "", offer: "", cta: "link in bio", objection: "" };
+  it("trusts ad origin and conversion evidence, else a video built to sell that asks for the click", () => {
+    expect(referenceRole({ origin: "ad", score: { outlier: null, engagement: 0, total: 0, why: "" } }, undefined)).toBe("convert");
+    expect(referenceRole({ origin: "category", score: { outlier: 3, engagement: 0.1, total: 30, why: "", role: "convert" } }, undefined)).toBe("convert");
+    expect(referenceRole({ origin: "category", score: { outlier: 3, engagement: 0.1, total: 30, why: "", role: "reach" } }, anatomy)).toBe("convert");
+    expect(referenceRole({ origin: "category", score: { outlier: 3, engagement: 0.1, total: 30, why: "", role: "reach" } }, { ...anatomy, cta: "" })).toBe("reach");
+    expect(referenceRole({ origin: "benchmark", score: { outlier: 300, engagement: 0.1, total: 60, why: "" } }, { ...anatomy, role: "reach" })).toBe("reach");
+  });
+});
+
 // ---------- pure helpers ----------
 
 describe("frameTimes", () => {
@@ -439,6 +575,7 @@ describe.skipIf(!bin)("breakdownReference on a synthetic video with three hard c
     caption_style: "white bold, black outline, centre, 2-3 words at a time",
     delivery: "fast, conversational, a little exasperated",
     why_it_works: "Opens on a promise of a secret, then pays it off with a concrete number.",
+    conversion: { role: "convert", structure: "before_after", problem: "I used to spend forty minutes every Sunday.", proof: "Now it takes me ten.", offer: "", cta: "Link is in my bio.", objection: "" },
     fit: { score: 14, reason: "Same before/after structure works for the containers." },
   };
 
@@ -528,6 +665,13 @@ describe.skipIf(!bin)("breakdownReference on a synthetic video with three hard c
     expect(breakdown.beats[3]).toMatchObject({ on_screen_text: "link in bio", line: "Link is in my bio." });
     expect(breakdown.caption_style).toBe(toolInput.caption_style);
     expect(breakdown.fit).toEqual({ score: 10, reason: toolInput.fit.reason });
+
+    // how it sells: the numbers say reach, but the video is built to sell and asks for the click
+    expect(brief).toContain("conversion evidence");
+    expect(breakdown.anatomy).toEqual(toolInput.conversion);
+    expect(breakdown.origin).toBe("category");
+    expect(breakdown.role).toBe("convert");
+    expect(breakdown.conversion).toEqual({ score: reference(clip).score.conversion, signals: reference(clip).score.signals });
 
     // the scratch folder is gone; the source file is untouched
     expect(await readdir(work)).toEqual([]);
