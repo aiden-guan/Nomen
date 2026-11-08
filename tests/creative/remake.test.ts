@@ -160,7 +160,7 @@ describe("the layout", () => {
 
   it("samples frames across the span and at every beat start", () => {
     const times = sampleTimes(span.beats, span.end);
-    expect(times.length).toBeLessThanOrEqual(32);
+    expect(times.length).toBeLessThanOrEqual(12); // Naive's image limit per request
     expect(times[0]).toBeGreaterThanOrEqual(0);
     expect(times[times.length - 1]).toBeLessThan(span.end);
     for (const beat of span.beats) expect(times.some((t) => Math.abs(t - beat.start - 0.25) < 0.4)).toBe(true);

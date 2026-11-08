@@ -748,8 +748,11 @@ const LAYOUT_TOOL = {
   },
 };
 
-/** When to look at the reference: every ~0.75 s and just after each beat starts, at most `max` frames. */
-export function sampleTimes(beats: Array<Pick<ReferenceBeat, "start">>, end: number, max = 32): number[] {
+/** Naive's message API takes at most 12 images per request (found on the first live run). */
+export const MAX_ANALYSIS_FRAMES = 12;
+
+/** When to look at the reference: just after each beat starts, then evenly between, at most `max` frames. */
+export function sampleTimes(beats: Array<Pick<ReferenceBeat, "start">>, end: number, max = MAX_ANALYSIS_FRAMES): number[] {
   const step = Math.max(0.75, end / Math.max(1, max - beats.length));
   const times = [...beats.map((b) => b.start + 0.25)];
   for (let t = 0.2; t < end - 0.1; t += step) times.push(t);
