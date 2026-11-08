@@ -1,4 +1,4 @@
-import type { BrandListItem as CoreBrandListItem, BrandView as CoreBrandView, CampaignView as CoreCampaignView, CreativeView as CoreCreativeView } from "@/lib/views";
+import type { BrandListItem as CoreBrandListItem, BrandView as CoreBrandView, CampaignView as CoreCampaignView, CreativeView as CoreCreativeView, ReferenceView as CoreReferenceView } from "@/lib/views";
 
 // The core track's HTTP API, as this UI uses it. The shapes are the core's own view types
 // (src/lib/views.ts), imported as types only, so a change there shows up here as a type error
@@ -8,6 +8,8 @@ export type BrandView = CoreBrandView;
 export type CampaignView = CoreCampaignView;
 export type CreativeView = CoreCreativeView;
 export type BrandListItem = CoreBrandListItem;
+/** A viral video the agents studied or set aside (the creative engine's reference study). */
+export type ReferenceView = CoreReferenceView;
 export type RunView = CampaignView["runs"][number];
 export type ShotView = CreativeView["shots"][number];
 export type PostView = CampaignView["posts"][number];

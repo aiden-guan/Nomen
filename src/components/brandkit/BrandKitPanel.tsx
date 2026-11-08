@@ -2,32 +2,15 @@
 
 // The brand kit: the brand's real logo, product screens, demo clips and fonts (uploaded, or found in
 // its code), so the video agents can show the actual product. The brand page renders
-// <BrandKitPanel brandId brandName /> and nothing else, so the internals can change freely.
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
+// <BrandKitPanel brandId brandName /> and nothing else, so the internals can change freely. The
+// intake itself (drops, batches, progress) lives in ./intake, shared with the Troy camp.
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import { Badge, Button, Card, Empty, Spinner, cx } from "@/components/ui";
-import type { BrandAsset, BrandKit } from "@/lib/creative/types";
+import type { BrandAsset } from "@/lib/creative/types";
+import { ACCEPT, errorText, KIND_LABEL, KIND_ORDER, kitApi, type KitView, MAX_ASSETS, type Notice, pickedFrom, size, useBrandKit } from "./intake";
 
 export type BrandKitPanelProps = { brandId: string; brandName: string };
 
-type Skipped = { name: string; reason: string };
-type KitView = BrandKit & { captioning: boolean; added?: string[]; skipped?: Skipped[] };
-type Picked = { file: File; path: string };
-type Progress = { total: number; loaded: number; files: number; sent: number };
-type Notice = { added: number; skipped: Skipped[]; unsupported: number };
-
-// Mirrors the server's limits (src/lib/creative/brandkit.ts); the server enforces them.
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const MAX_ASSETS = 60;
-const EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "avif", "mp4", "mov", "webm", "m4v", "ttf", "otf", "woff", "woff2", "pdf", "md", "markdown"];
-const ACCEPT = EXTENSIONS.map((ext) => `.${ext}`).join(",");
-const SKIP_FOLDERS = new Set(["node_modules", ".git", ".next", "dist", "build", "out", "vendor", "coverage", "__MACOSX"]);
-/** Files a dropped folder is walked for at most (most of a code folder is skipped by type anyway). */
-const MAX_WALK = 2000;
-const BATCH_FILES = 12;
-const BATCH_BYTES = 24 * 1024 * 1024;
-
-const KIND_ORDER: BrandAsset["kind"][] = ["logo", "icon", "screenshot", "image", "video", "font", "doc"];
-const KIND_LABEL: Record<BrandAsset["kind"], string> = { logo: "Logo", icon: "Icon", screenshot: "Screenshot", image: "Image", video: "Video", font: "Font", doc: "Doc" };
 const KIND_TONE: Record<BrandAsset["kind"], "accent" | "info" | "good" | "neutral" | "warn"> = {
   logo: "accent",
   icon: "info",
@@ -38,199 +21,26 @@ const KIND_TONE: Record<BrandAsset["kind"], "accent" | "info" | "good" | "neutra
   doc: "neutral",
 };
 
-const extOf = (name: string) => {
-  const base = name.split("/").pop() ?? "";
-  const dot = base.lastIndexOf(".");
-  return dot > 0 ? base.slice(dot + 1).toLowerCase() : "";
-};
-const size = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
-const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
-async function kitApi(url: string, init?: RequestInit): Promise<KitView> {
-  const response = await fetch(url, { cache: "no-store", ...init });
-  const body = (await response.json().catch(() => ({}))) as KitView & { error?: string };
-  if (!response.ok) throw new Error(body.error ?? `Request failed (HTTP ${response.status})`);
-  return body;
-}
-
-/** One multipart POST; XHR rather than fetch for upload progress. */
-function uploadBatch(url: string, batch: Picked[], onProgress: (loaded: number) => void): Promise<KitView> {
-  return new Promise((resolve, reject) => {
-    const form = new FormData();
-    for (const { file, path } of batch) form.append("files", file, path);
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.responseType = "json";
-    xhr.upload.onprogress = (event) => onProgress(event.loaded);
-    xhr.onload = () => {
-      const body = (xhr.response ?? {}) as KitView & { error?: string };
-      if (xhr.status >= 200 && xhr.status < 300) resolve(body);
-      else reject(new Error(body.error ?? `Upload failed (HTTP ${xhr.status})`));
-    };
-    xhr.onerror = () => reject(new Error("Upload failed: the connection dropped."));
-    xhr.send(form);
-  });
-}
-
-/** Up to 12 files and ~24 MB per request; a bigger single file goes on its own. */
-function toBatches(files: Picked[]): Picked[][] {
-  const batches: Picked[][] = [];
-  let current: Picked[] = [];
-  let bytes = 0;
-  for (const item of files) {
-    if (current.length && (current.length >= BATCH_FILES || bytes + item.file.size > BATCH_BYTES)) {
-      batches.push(current);
-      current = [];
-      bytes = 0;
-    }
-    current.push(item);
-    bytes += item.file.size;
-  }
-  if (current.length) batches.push(current);
-  return batches;
-}
-
-/** Walks dropped files and folders. Entries must be read synchronously, inside the drop event. */
-function readDrop(event: DragEvent): Promise<Picked[]> {
-  const entries: FileSystemEntry[] = [];
-  const loose: File[] = [];
-  for (const item of Array.from(event.dataTransfer.items)) {
-    if (item.kind !== "file") continue;
-    const entry = typeof item.webkitGetAsEntry === "function" ? item.webkitGetAsEntry() : null;
-    if (entry) entries.push(entry);
-    else {
-      const file = item.getAsFile();
-      if (file) loose.push(file);
-    }
-  }
-  if (!entries.length && !loose.length) loose.push(...Array.from(event.dataTransfer.files));
-  return (async () => {
-    const out: Picked[] = loose.map((file) => ({ file, path: file.name }));
-    const budget = { n: out.length };
-    for (const entry of entries) await walkEntry(entry, out, budget);
-    return out;
-  })();
-}
-
-async function walkEntry(entry: FileSystemEntry, out: Picked[], budget: { n: number }): Promise<void> {
-  if (budget.n >= MAX_WALK || entry.name.startsWith(".")) return;
-  if (entry.isFile) {
-    budget.n++;
-    const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject)).catch(() => null);
-    if (file) out.push({ file, path: entry.fullPath.replace(/^\/+/, "") || file.name });
-    return;
-  }
-  if (!entry.isDirectory || SKIP_FOLDERS.has(entry.name)) return;
-  const reader = (entry as FileSystemDirectoryEntry).createReader();
-  // readEntries answers in chunks (about 100 at a time) until it returns an empty list
-  for (;;) {
-    const chunk = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject)).catch(() => [] as FileSystemEntry[]);
-    if (!chunk.length) return;
-    for (const child of chunk) await walkEntry(child, out, budget);
-  }
-}
-
 export function BrandKitPanel({ brandId, brandName }: BrandKitPanelProps) {
-  const base = `/api/brands/${encodeURIComponent(brandId)}/brandkit`;
-  const [kit, setKit] = useState<KitView | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<Progress | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const { base, kit, setKit, loadError, actionError, progress, notice, setNotice, removing, captioning, uploading, upload, drop, remove } = useBrandKit(brandId);
   const [dragging, setDragging] = useState(false);
-  const [removing, setRemoving] = useState<string | null>(null);
   const filesInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      setKit(await kitApi(base));
-      setLoadError(null);
-    } catch (error) {
-      setLoadError(errorText(error));
-    }
-  }, [base]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  // Captions are written in the background after an upload or scan: poll until they land.
-  const captioning = Boolean(kit?.captioning);
-  useEffect(() => {
-    if (!captioning) return;
-    const id = setInterval(() => void refresh(), 4000);
-    return () => clearInterval(id);
-  }, [captioning, refresh]);
 
   // React has no prop for it: the folder picker needs the non-standard webkitdirectory attribute.
   useEffect(() => {
     folderInput.current?.setAttribute("webkitdirectory", "");
   }, []);
 
-  const uploading = progress !== null;
-
-  async function upload(picked: Picked[]) {
-    if (uploading || !picked.length) return;
-    setActionError(null);
-    const skipped: Skipped[] = [];
-    let unsupported = 0;
-    const ready: Picked[] = [];
-    const room = Math.max(0, MAX_ASSETS - (kit?.assets.length ?? 0));
-    for (const item of picked) {
-      if (!EXTENSIONS.includes(extOf(item.path))) unsupported++;
-      else if (item.file.size > MAX_FILE_BYTES) skipped.push({ name: item.path, reason: `too big (${size(item.file.size)}; the limit is 25 MB)` });
-      else if (item.file.size === 0) skipped.push({ name: item.path, reason: "empty file" });
-      else if (ready.length >= room) skipped.push({ name: item.path, reason: `not sent: the kit holds ${MAX_ASSETS} files` });
-      else ready.push(item);
-    }
-    let added = 0;
-    if (ready.length) {
-      const total = ready.reduce((sum, item) => sum + item.file.size, 0);
-      let done = 0;
-      setProgress({ total, loaded: 0, files: ready.length, sent: 0 });
-      try {
-        for (const batch of toBatches(ready)) {
-          const batchBytes = batch.reduce((sum, item) => sum + item.file.size, 0);
-          const next = await uploadBatch(base, batch, (loaded) => setProgress((p) => p && { ...p, loaded: done + Math.min(loaded, batchBytes) }));
-          done += batchBytes;
-          added += next.added?.length ?? 0;
-          skipped.push(...(next.skipped ?? []));
-          setKit(next);
-          setProgress((p) => p && { ...p, loaded: done, sent: p.sent + batch.length });
-        }
-      } catch (error) {
-        setActionError(errorText(error));
-      } finally {
-        setProgress(null);
-      }
-    }
-    setNotice({ added, skipped, unsupported });
-  }
-
   function onDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
     setDragging(false);
-    if (uploading) return;
-    void readDrop(event).then(upload, (error) => setActionError(errorText(error)));
+    drop(event);
   }
 
   function onPick(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
+    const picked = pickedFrom(event.target.files);
     event.target.value = "";
-    void upload(files.filter((file) => !file.name.startsWith(".")).map((file) => ({ file, path: file.webkitRelativePath || file.name })));
-  }
-
-  async function remove(asset: BrandAsset) {
-    setRemoving(asset.id);
-    setActionError(null);
-    try {
-      setKit(await kitApi(`${base}?asset=${encodeURIComponent(asset.id)}`, { method: "DELETE" }));
-    } catch (error) {
-      setActionError(errorText(error));
-    } finally {
-      setRemoving(null);
-    }
+    void upload(picked);
   }
 
   const count = kit?.assets.length ?? 0;

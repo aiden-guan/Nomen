@@ -10,6 +10,7 @@ import { STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
 import { DEMO_ID, type PublishMode } from "./demo";
+import { BrandKitDrawer } from "./BrandKitDrawer";
 import { Dispatches } from "./Dispatches";
 import { ago, money } from "./format";
 import { Screening } from "./Screening";
@@ -29,6 +30,8 @@ export type CampActions = {
   retry: () => void;
   /** Opens a finished video at full height. */
   screen: (creative: CreativeView) => void;
+  /** Opens the brand kit (null in the demo, which has no server to upload to). */
+  openKit: (() => void) | null;
 };
 
 type Bubble = { id: number; station: StationId; text: string; level: string };
@@ -42,6 +45,8 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [screening, setScreening] = useState<string | null>(null);
+  // The brand kit drawer takes the station panel's place while it is open.
+  const [kitOpen, setKitOpen] = useState(false);
   // The demo replays a campaign on a clock (./demo.ts) instead of reading the API.
   const player = useDemo(demo, arrived);
   const view = demo ? player.view : liveView;
@@ -136,7 +141,11 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const [focused, setFocused] = useState<StationId | null>(null);
   const current = stationOf(campaign?.stage ?? "research");
   const shown = selected ?? focused ?? current;
-  const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: selected && wide ? 440 : 0 }), [selected, wide]);
+  const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: (selected || kitOpen) && wide ? 440 : 0 }), [selected, kitOpen, wide]);
+  // Picking a station closes the brand kit.
+  useEffect(() => {
+    if (selected) setKitOpen(false);
+  }, [selected]);
   const frameCamera = useCallback(
     (duration: number) => {
       const e = engine.current;
@@ -188,6 +197,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         connect: () => undefined,
         retry: () => undefined,
         screen,
+        openKit: null,
       };
     }
     return {
@@ -202,6 +212,10 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         }),
       retry: () => campaignId && void act("retry", () => campaignAction(campaignId, "retry")),
       screen,
+      openKit: () => {
+        setSelected(null);
+        setKitOpen(true);
+      },
     };
   }, [demo, player.approve, player.approveAll, player.publish, act, campaignId, brandId]);
 
@@ -215,7 +229,17 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
 
   return (
     <>
-      <TopBar view={view} spend={spend} visible={arrived} onSelect={setSelected} selected={selected} demo={demo ? player : undefined} home={home} />
+      <TopBar
+        view={view}
+        spend={spend}
+        visible={arrived}
+        onSelect={setSelected}
+        selected={selected}
+        demo={demo ? player : undefined}
+        home={home}
+        onKit={demo ? null : () => (kitOpen ? setKitOpen(false) : actions.openKit?.())}
+        kitOpen={kitOpen}
+      />
 
       {arrived && view && !wide && (
         <StationStrip
@@ -279,8 +303,12 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         />
       )}
 
+      {arrived && kitOpen && !selected && view && !demo && (
+        <BrandKitDrawer brandId={view.brand.id} brandName={view.brand.name} stage={campaign?.stage ?? null} wide={wide} onClose={() => setKitOpen(false)} />
+      )}
+
       {arrived && screening && finishedVideos.length > 0 && (
-        <Screening videos={finishedVideos} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} />
+        <Screening videos={finishedVideos} references={campaign?.references ?? []} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} />
       )}
 
       {demo && player.notice && (
@@ -320,6 +348,8 @@ function TopBar({
   selected,
   demo,
   home,
+  onKit,
+  kitOpen,
 }: {
   view: BrandView | null;
   spend: number;
@@ -328,6 +358,9 @@ function TopBar({
   selected: StationId | null;
   demo?: DemoPlayer;
   home: string;
+  /** Toggles the brand kit (absent in the demo). */
+  onKit: (() => void) | null;
+  kitOpen: boolean;
 }) {
   const campaign = view?.campaign ?? null;
   const plan = useMemo(() => derive(view), [view]);
@@ -387,6 +420,12 @@ function TopBar({
         <span className={`${styles.pixel} pointer-events-auto hidden shrink-0 text-[13px] text-[var(--ink-soft)] sm:inline`} title={`Naive ${money(campaign.spend.naive)} · Monid ${money(campaign.spend.monid)}${campaign.estimateUsd ? ` · video budget about ${money(campaign.estimateUsd)}` : ""}`}>
           {money(spend)} spent
         </span>
+      )}
+      {view && onKit && (
+        <button type="button" onClick={onKit} aria-pressed={kitOpen} className={`${styles.link} ${styles.pixel} pointer-events-auto shrink-0 text-[13px] ${kitOpen ? "text-[var(--crimson)]" : ""}`}>
+          <span className="sm:hidden">Kit</span>
+          <span className="hidden sm:inline">Brand kit</span>
+        </button>
       )}
       {view && !demo && (
         <a href={`/brands/${encodeURIComponent(view.brand.id)}`} className={`${styles.link} ${styles.pixel} pointer-events-auto hidden shrink-0 text-[13px] sm:inline`}>

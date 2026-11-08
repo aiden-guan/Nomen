@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { CreativeView } from "../api";
+import type { CreativeView, ReferenceView } from "../api";
 import styles from "../troy.module.css";
 import type { CampActions } from "./Camp";
 import { money, platformName } from "./format";
+import { RemakeOf } from "./References";
 import { crispIfTiny } from "./StationPanel";
 
 /**
@@ -14,6 +15,7 @@ import { crispIfTiny } from "./StationPanel";
  */
 export function Screening({
   videos,
+  references = [],
   id,
   onPick,
   onClose,
@@ -22,6 +24,8 @@ export function Screening({
   wide,
 }: {
   videos: CreativeView[];
+  /** The campaign's reference study, for the numbers of the viral video each one remakes. */
+  references?: ReferenceView[];
   id: string;
   onPick: (id: string) => void;
   onClose: () => void;
@@ -107,11 +111,37 @@ export function Screening({
                 {[concept.format, concept.angle].filter(Boolean).join(" · ")}
               </p>
             )}
+            {creative.reference && (
+              <section className="mt-4">
+                <h3 className={`${styles.pixel} mb-1.5 text-[11px] uppercase tracking-wider text-[var(--ink-faint)]`}>Remake of</h3>
+                <RemakeOf creative={creative} reference={references.find((r) => r.url === creative.reference?.url) ?? null} />
+              </section>
+            )}
             {concept?.hook && (
               <section className="mt-4">
                 <h3 className={`${styles.pixel} mb-1 text-[11px] uppercase tracking-wider text-[var(--ink-faint)]`}>Hook</h3>
                 <p className="leading-relaxed">{concept.hook}</p>
               </section>
+            )}
+            {concept?.script && (
+              <details className="mt-4">
+                <summary className={`${styles.pixel} cursor-pointer text-[11px] uppercase tracking-wider text-[var(--ink-faint)]`}>
+                  Script · {Math.round(concept.script.total_seconds)} s{concept.script.review ? ` · critic ${concept.script.review.score}/10` : ""}
+                </summary>
+                <ol className="mt-2 space-y-1.5 text-[12px]">
+                  {concept.script.beats.map((beat) => (
+                    <li key={beat.n} className="leading-snug">
+                      <span className="text-[var(--ink-faint)]">
+                        {beat.job} · {beat.visual}
+                        {beat.on_screen_text ? ` · “${beat.on_screen_text}”` : ""}
+                      </span>
+                      <br />
+                      {beat.line ? `“${beat.line}”` : <span className="text-[var(--ink-faint)]">(no line)</span>}
+                    </li>
+                  ))}
+                </ol>
+                {concept.script.review?.notes.length ? <p className="mt-2 text-[12px] text-[var(--ink-soft)]">Critic: {concept.script.review.notes.slice(0, 2).join(" ")}</p> : null}
+              </details>
             )}
             {creative.caption && (
               <section className="mt-4">

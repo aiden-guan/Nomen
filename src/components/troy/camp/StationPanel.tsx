@@ -8,7 +8,8 @@ import { STATION, type StationId } from "../scenes/layout";
 import styles from "../troy.module.css";
 import { Avatar } from "./Avatar";
 import { type CampActions, Pip } from "./Camp";
-import { money, platformName, when } from "./format";
+import { money, platformName, remakeLine, when } from "./format";
+import { ReferenceList } from "./References";
 
 const STATE_WORD: Record<string, string> = { waiting: "Waiting", working: "Working", done: "Done", failed: "Stopped", skipped: "Skipped", yours: "Your turn" };
 
@@ -113,8 +114,8 @@ export function StationPanel({
           )}
         </Section>
 
-        {id === "scouts" && <Scouts view={view} />}
-        {id === "oracle" && <Oracle view={view} state={state.state} />}
+        {id === "scouts" && <Scouts view={view} actions={actions} />}
+        {id === "oracle" && <Oracle view={view} state={state.state} actions={actions} />}
         {id === "tent" && <Tent view={view} />}
         {id === "workshop" && <Workshop view={view} busy={busy} actions={actions} />}
         {id === "theatre" && <Theatre view={view} busy={busy} actions={actions} />}
@@ -155,13 +156,29 @@ function Status({ value }: { value: string }) {
   return <span className={`${styles.pixel} text-[12px] ${tone}`}>{value}</span>;
 }
 
-function Scouts({ view }: { view: BrandView }) {
+/** A nudge to bring the brand kit while it can still shape this campaign's product study. */
+function KitNudge({ actions, children }: { actions: CampActions; children: ReactNode }) {
+  if (!actions.openKit) return null;
+  return (
+    <p className="mb-6 bg-[rgba(201,143,58,0.12)] px-3 py-2 text-[12px] leading-snug">
+      {children}{" "}
+      <button type="button" className={`${styles.link} ${styles.pixel} underline decoration-dotted underline-offset-4`} onClick={actions.openKit}>
+        Open the brand kit
+      </button>
+    </p>
+  );
+}
+
+function Scouts({ view, actions }: { view: BrandView; actions: CampActions }) {
   const campaign = view.campaign;
   if (!campaign) return null;
   const plan = campaign.plan;
   const pack = campaign.research;
   return (
     <>
+      {campaign.stage === "research" && campaign.status === "running" && (
+        <KitNudge actions={actions}>While the scouts are out: give the agents your real logo, product screens and code, so the videos show the actual product.</KitNudge>
+      )}
       {plan && (
         <Section title="Battle plan">
           <dl className="space-y-1.5 text-[13px]">
@@ -206,9 +223,48 @@ function Scouts({ view }: { view: BrandView }) {
   );
 }
 
-function Oracle({ view, state }: { view: BrandView; state: string }) {
+function Oracle({ view, state, actions }: { view: BrandView; state: string; actions: CampActions }) {
   const campaign = view.campaign;
   if (!campaign) return null;
+  const study = campaign.study ?? null;
+  const references = campaign.references ?? [];
+  // The creative engine's reference study; campaigns from before it (and the demo) had a format study.
+  if (study || references.length) {
+    const ready = campaign.creatives.filter((c) => c.status === "ready");
+    const onScreen = (creativeId: string) => {
+      const creative = ready.find((c) => c.id === creativeId);
+      if (creative) actions.screen(creative);
+    };
+    const studied = references.filter((r) => r.status === "studied").length;
+    return (
+      <>
+        {study && (
+          <Section title="The study">
+            <dl className="space-y-1.5 text-[13px]">
+              <Row label="Product">{study.product ? `${study.product.name}: ${study.product.oneLiner}` : "Reading the site…"}</Row>
+              {study.product && (
+                <Row label="On screen">
+                  {study.product.visuals} visuals{study.product.fromKit ? `, ${study.product.fromKit} from your brand kit` : ""}
+                  {!study.captured && " · screenshotting the site…"}
+                </Row>
+              )}
+              {study.screened > 0 && <Row label="Screened">{`${study.kept} of ${study.screened} top videos could be remade for this product`}</Row>}
+              {(study.picked > 0 || study.studied > 0) && <Row label="Broken down">{study.done ? `${study.studied} of ${Math.max(study.picked, study.studied)}${study.failed ? ` (${study.failed} couldn't be read)` : ""}` : `${study.studied} of ${Math.max(study.picked, study.studied)}, beat by beat…`}</Row>}
+            </dl>
+            {campaign.spend.style > 0 && <p className="mt-2 text-[12px] text-[var(--ink-faint)]">Cost so far {money(campaign.spend.style)}</p>}
+          </Section>
+        )}
+        {study && !study.product?.fromKit && state === "working" && <KitNudge actions={actions}>The oracle works best with your real screens and logo.</KitNudge>}
+        <Section title={`Viral references${studied ? ` · ${studied} broken down` : ""}`}>
+          {references.length === 0 ? (
+            <p className="text-[13px] text-[var(--ink-soft)]">The oracle ranks the videos the scouts found by how far they outran their accounts, then breaks the best down beat by beat. They show up here as soon as they&apos;re picked.</p>
+          ) : (
+            <ReferenceList references={references} onScreen={onScreen} />
+          )}
+        </Section>
+      </>
+    );
+  }
   return (
     <Section title="Format study">
       <p className="text-[13px] leading-relaxed text-[var(--ink-soft)]">
@@ -227,11 +283,54 @@ function Oracle({ view, state }: { view: BrandView; state: string }) {
 
 function Tent({ view }: { view: BrandView }) {
   const strategy = view.campaign?.strategy;
+  const engine = Boolean(view.campaign?.study || view.campaign?.references?.length);
   if (!strategy) {
     return (
       <Section title="Battle plan">
-        <p className="text-[13px] text-[var(--ink-soft)]">The strategist writes the brand brief, the search plan and every concept once the research is in.</p>
+        <p className="text-[13px] text-[var(--ink-soft)]">
+          {engine
+            ? "The creative director reads the oracle's breakdowns and picks which viral video each of ours remakes, and how. Then the script room writes every video line by line, and a critic scores each script."
+            : "The strategist writes the brand brief, the search plan and every concept once the research is in."}
+        </p>
       </Section>
+    );
+  }
+  const briefs = strategy.campaign.briefs ?? [];
+  const references = view.campaign?.references ?? [];
+  if (briefs.length) {
+    const concepts = strategy.campaign.concepts ?? [];
+    return (
+      <>
+        <Section title="The brief">
+          <p className={`${styles.pixel} text-[17px] leading-snug`}>{strategy.campaign.name}</p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--ink-soft)]">{strategy.campaign.objective}</p>
+          <dl className="mt-3 space-y-1.5 text-[13px]">
+            <Row label="Brand">{strategy.brand.one_liner}</Row>
+            {strategy.audience.length > 0 && <Row label="For">{strategy.audience.map((a) => a.name).join(", ")}</Row>}
+          </dl>
+        </Section>
+        <Section title={`Videos · ${concepts.length} of ${briefs.length} scripted`}>
+          <ol className="space-y-3.5">
+            {briefs.map((brief, i) => {
+              const reference = references.find((r) => r.id && r.id === brief.reference_id);
+              const concept = concepts.find((c) => c.brief?.title === brief.title);
+              const review = concept?.script?.review;
+              return (
+                <li key={`${brief.title}-${i}`} className="text-[13px]">
+                  <p className="font-semibold">
+                    {i + 1}. {brief.title} <span className="font-normal text-[var(--ink-faint)]">· {brief.format.replace(/_/g, " ")}</span>
+                  </p>
+                  {reference && <p className="mt-0.5 text-[12px] text-[var(--crimson)]">{remakeLine(reference)}</p>}
+                  <p className="mt-0.5 leading-snug text-[var(--ink-soft)]">{brief.hook_plan || brief.angle}</p>
+                  <p className="mt-0.5 text-[12px] text-[var(--ink-faint)]">
+                    {concept?.script ? `Script ${Math.round(concept.script.total_seconds)} s, ${concept.script.beats.length} beats${review ? ` · critic ${review.score}/10` : ""}` : "The script room is writing it…"}
+                  </p>
+                </li>
+              );
+            })}
+          </ol>
+        </Section>
+      </>
     );
   }
   return (
@@ -279,7 +378,22 @@ function Workshop({ view, busy, actions }: { view: BrandView; busy: string | nul
                 <span className="min-w-0 flex-1 truncate font-semibold">{creative.concept?.title ?? `Video ${creative.idx + 1}`}</span>
                 <Status value={creative.status} />
               </div>
+              {creative.reference && (
+                <p className="mt-0.5 truncate text-[12px] text-[var(--crimson)]">
+                  <a href={creative.reference.url} target="_blank" rel="noreferrer" className={styles.link}>
+                    {remakeLine(creative.reference)}
+                  </a>
+                </p>
+              )}
+              {(creative.concept?.format || creative.script) && (
+                <p className="mt-0.5 text-[12px] text-[var(--ink-faint)]">
+                  {[creative.concept?.format?.replace(/_/g, " "), creative.script ? `${Math.round(creative.script.seconds)} s script` : null, creative.script?.critic ? `critic ${creative.script.critic}/10` : null].filter(Boolean).join(" · ")}
+                </p>
+              )}
               <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {creative.shots.length === 0 && creative.status !== "ready" && creative.status !== "failed" && (
+                  <span className="bg-[rgba(43,29,20,0.06)] px-2 py-1 text-[11px]">No presenter: product screens and a voice-over, then the edit</span>
+                )}
                 {creative.shots.map((shot) => (
                   <span key={shot.n} className="bg-[rgba(43,29,20,0.06)] px-2 py-1 text-[11px]" title={shot.error ?? shot.qc?.issues[0] ?? undefined}>
                     Shot {shot.n}: {shot.status}
@@ -385,10 +499,13 @@ function VideoCard({ creative, busy, actions }: { creative: CreativeView; busy: 
         </span>
       </button>
       <p className="mt-1.5 line-clamp-2 font-semibold leading-snug">{title}</p>
+      {creative.reference && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--crimson)]">{remakeLine(creative.reference)}</p>}
       <label className="mt-1 flex cursor-pointer items-center gap-2">
         <input type="checkbox" checked={creative.approved} disabled={busy === key} onChange={(event) => actions.approve(creative, event.target.checked)} className="size-4 accent-[var(--crimson)]" />
         <span className={styles.pixel}>{creative.approved ? "Approved" : "Approve"}</span>
-        {creative.qcScore ? <span className="ml-auto text-[var(--ink-faint)]">QC {creative.qcScore}</span> : null}
+        {creative.script?.critic || creative.qcScore ? (
+          <span className="ml-auto text-[var(--ink-faint)]">{[creative.script?.critic ? `script ${creative.script.critic}` : null, creative.qcScore ? `QC ${creative.qcScore}` : null].filter(Boolean).join(" · ")}</span>
+        ) : null}
       </label>
     </li>
   );
