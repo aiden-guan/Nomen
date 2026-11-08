@@ -6,6 +6,7 @@
 // Every agent reads the documents before it and writes exactly one of these. Fields are plain
 // words a person could check; nothing downstream has to guess what an upstream agent meant.
 
+import type { CodeAdStory } from "../codeads/types";
 import type { Video } from "../research";
 
 // ---------- what we sell ----------
@@ -270,7 +271,9 @@ export type VideoFormat =
   /** No face: a phone filming a computer monitor while a voice walks through the product (the screen-walkthrough look). */
   | "filmed_screen"
   /** The reference itself, one to one: its footage re-performed by our people, its music, its layout and graphic places, our product facts (internal only). */
-  | "remake";
+  | "remake"
+  /** No camera, no AI video: a 3D cartoon ad made in code (ED Studio's build genre: Gary the Builder, a narrator, callouts), its concept taken from the reference (src/lib/codeads). */
+  | "code_ad";
 
 /** The creative director's brief for one video: which viral video it remakes and what changes for this product. */
 /** What a video is judged on once posted: reach videos on attention, convert videos on action. */
@@ -339,6 +342,8 @@ export type Script = {
   total_seconds: number;
   /** The script critic's last verdict. */
   review: { score: number; notes: string[]; rounds: number } | null;
+  /** code_ad: the story the engine animates, beat by beat (src/lib/codeads). */
+  code_ad?: CodeAdStory;
 };
 
 // ---------- how it gets made ----------

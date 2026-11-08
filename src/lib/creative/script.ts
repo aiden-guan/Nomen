@@ -252,6 +252,8 @@ function remakeBudgets(reference: ReferenceBreakdown) {
 }
 
 export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promise<Script> {
+  // Code ads write a story for the 3D engine instead (src/lib/codeads/story.ts).
+  if (ctx.brief.format === "code_ad") return (await (await import("../codeads/story")).writeCodeAd(naive, ctx)).script;
   const reply = await naive.message({
     model: QC_MODEL,
     max_tokens: 8000,
@@ -506,6 +508,8 @@ const ASK = /\blink\b|\bbio\b|sign ?up|\btry\b|download|\bget\b|\bstart\b|\bfree
 export function targetSeconds(reference: Pick<ReferenceBreakdown, "duration">, format: CreativeBrief["format"] = "voiceover_demo") {
   // A one-to-one remake keeps the reference's whole length (about $0.17 a second of it on Kling).
   if (format === "remake") return Math.round(Math.min(90, Math.max(4, reference.duration || 18)));
+  // A code ad borrows the reference's concept, not its length: 18-28 s.
+  if (format === "code_ad") return Math.round(Math.min(28, Math.max(18, (reference.duration || 40) * 0.5)));
   const cap = usesCreator(format) ? 24 : 40;
   return Math.round(Math.min(cap, Math.max(8, reference.duration || 18)));
 }

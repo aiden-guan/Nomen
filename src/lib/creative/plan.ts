@@ -34,6 +34,8 @@ export function screenFromLine(line: string, still?: { caption: string }, deskto
 export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief, delivery = "", referenceBeats: ReferenceBeat[] = []): ProductionPlan {
   // A one-to-one remake plans its own shots from the reference's frames (creative/remake.ts).
   if (brief.format === "remake") return { format: "remake", aroll: [], broll: [], voiceover: null, screens: [] };
+  // A code ad is animated from its story (script.code_ad) by src/lib/codeads: nothing to render here.
+  if (brief.format === "code_ad") return { format: "code_ad", aroll: [], broll: [], voiceover: null, screens: [] };
   const visuals = new Map(product.visuals.map((v) => [v.id, v]));
   const filmed = brief.format === "filmed_screen";
   const broll: BRollClip[] = [];

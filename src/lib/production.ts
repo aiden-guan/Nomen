@@ -7,6 +7,7 @@ import { logEvent, newId, now, parse, save, store } from "./db";
 import { ApiError } from "./http";
 import { chunkCaptions } from "./creative/captions";
 import { renderTimeline } from "./creative/edit";
+import { advanceCodeAd } from "./codeads/job";
 import { advanceRemake } from "./creative/remake-job";
 import { buildTimeline, type RenderedAssets, screenVisualId } from "./creative/plan";
 import { makePlate, newPlateRecord, type PlateRecord } from "./creative/plate";
@@ -263,6 +264,8 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
   if (!concept) return save("creatives", creative.id, { status: "failed", error: "concept is unreadable" });
   // One-to-one remakes rebuild the reference in their own module (creative/remake-job.ts).
   if (concept.brief?.format === "remake") return advanceRemake(ctx, creative, concept);
+  // Code ads are animated in code, in their own module (codeads/job.ts).
+  if (concept.brief?.format === "code_ad") return advanceCodeAd(ctx, creative, concept);
   const shots = parse<ShotState[]>(creative.shots_json, []);
   // Spend outside the shots: filmed_screen's monitor photos.
   let otherCost = concept.plan?.format === "filmed_screen" ? ((await readPlate(creative.id))?.cost_micro ?? 0) : 0;

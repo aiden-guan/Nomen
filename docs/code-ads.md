@@ -1,0 +1,93 @@
+# Code ads
+
+A code ad is a 15-30 second vertical ad made entirely in code: a Three.js scene that headless Chrome renders frame by
+frame, a synthesized score and foley, a narrator, and ffmpeg. No camera, no AI video. It is ED Studio's build genre
+(Dylan's other project: Gary the Builder, one gliding camera take, one spoken word at a time, yellow term callouts),
+cut to ad length and pointed at a product. The creative director picks it like any other format (`code_ad`).
+
+```
+CreativeBrief (format "code_ad")
+  └─ story.ts: the writer turns the brief, the product brief and a viral reference (any niche) into beats
+       └─ critic: scores it, rewrites it once under 8/10; code checks keep it renderable and true
+            └─ job.ts (a production tick starts it in the background, like a remake)
+                 ├─ narrate.ts: one ElevenLabs clip per beat (Adam, on Monid) or the free macOS scratch voice, word times
+                 ├─ layout.ts: story.json for the page (words, callouts, each beat's gag and screen on the clock)
+                 ├─ cues.ts + synth.py: music, foley and the narrator mixed to -14 LUFS
+                 ├─ render.ts: headless Chrome + WebGL, 60 fps with 2-sample motion blur, piped into ffmpeg
+                 └─ frame sheet → vision QC (Naive) → crv_…/final.mp4, poster.jpg, frames.jpg in the store's files
+```
+
+The finished video then goes through review and posting like every other video: it is uploaded to Naive for posting,
+carries a QC score and is not internal (it copies no one's footage).
+
+## The story
+
+The model writes `CodeAdStory` (`src/lib/codeads/types.ts`), stored on the concept as `script.code_ad`. Each beat is
+one narrated line, one gag landing on one word, one picture on the office's wall screen and 1-2 callouts:
+
+| Gag | On screen | For |
+| - | - | - |
+| `hack` | Gary types; the wall screen types the beat's terminal or chat | setups |
+| `explode` | the laptop blows up; Gary charred, X eyes, hat off | a crash, a bad deploy |
+| `bury` | labelled boxes bury Gary to the nose; dizzy stars | too much work, too many tools |
+| `zap` | the power strip: x-ray flicker, sparks | an integration that bites |
+| `money` | banknotes pour out of the screen | costs, a surprise bill |
+| `deliver` | the brand's crate drops and bursts; its agent robot hops out | the product's entrance |
+| `team` | more robots pop in, one per role, and roam | several agents, scale |
+| `approve` | a big button pops up; Gary slams it | approvals, budgets, guardrails |
+| `show` | the camera pushes in on a real product screenshot | "this is what it looks like" |
+| `celebrate` | confetti, Gary jumps | the payoff |
+
+Wall screens: `terminal`, `chat`, `image` (a real product visual by id), `logo`, `error`, `dashboard`.
+Callouts: `term` (yellow, the feature's real name), `label`, `money`, `stamp`, `sfx`.
+
+**The concept comes from a viral reference in any niche.** The writer gets the reference's breakdown (hook, beats, why
+it works) and keeps its premise, hook mechanic and escalation, never its words: an "AI given one instruction: make money"
+video becomes "You give an AI agent your credit card and one instruction: make money", then the product is the fix.
+ED Studio's own build reels are built the same way on @wemakebuild's "How a ___ Becomes a ___" engineering videos.
+
+The formula (ED Studio `docs/BUILD.md`, cut down): a hook spoken on frame 1, 1-2 failure beats that hurt Gary, "So you
+use <product>" and its entrance, one feature per beat named by a term callout, a payoff with one step and the url.
+Claims and numbers come from the product brief only; the linter flags any number that is not in it.
+
+## What was ported from ED Studio (`/Users/dylan/Documents/GitHub/EDStudio` at 6122035)
+
+Vendored into `src/lib/codeads/engine/` (browser modules, served to headless Chrome) and `src/lib/codeads/`:
+
+- `engine/core.js`: the renderer (bloom, grade, grain, tone mapping), deterministic timeline helpers, seeded random.
+- `engine/build/`: `toon.js` (Gary and his faces), `fx.js` (analytic particles: sparks, smoke, dust, confetti,
+  banknotes), `anim.js` (pop, drop, squash, wobble), `rail.js` (one gliding camera take: `planRail`), `cuts.js`
+  (`makeKick`, the frame-relative impact shake), `captions.js` (one word at a time + callouts; font paths changed).
+- `engine/fonts/`: Fredoka 600/700 (OFL) and Luckiest Guy (Apache 2.0), from `@fontsource`.
+- `engine/props.js`: `makeAgent` is ED Studio's `makeRoomba` (video 026) in the brand's colours with a role sign.
+- `engine/sets/devoffice.js`: adapted from `sets/office.js` (video 012): a dollhouse dev office with a wall screen.
+- `synth.py`: `audio/synth.py` whole (numpy + scipy), plus an `--out` option.
+- Ported to TypeScript: `tools/narrate.py`'s word timing and layout (`narrate.ts`, `layout.ts`), `tools/render.mjs`
+  (`render.ts`, on the DevTools pipe instead of puppeteer), the 024 `make_cues.py` "WORKSHOP" score (`cues.ts`).
+- New: `engine/codead.js` compiles the beats into a scene (gags, camera framings, kicks, FX, the wall screen),
+  `engine/screen.js` draws the wall screen, `story.ts` writes and checks the story, `job.ts` runs it.
+
+Left out: ED Studio's other 40 sets and most props, the 5-subagent review loop, TRIBE scoring, cuts (Dylan rejected
+them for the build genre), ElevenLabs' character timestamps (Monid's text-to-speech returns audio only, so words are
+timed from the audio like ED Studio's scratch voice), the operation and posting tools. ED Studio is PolyForm
+Noncommercial; it is Dylan's code and he asked for this port, so the license is his call.
+
+## Running it
+
+It renders where the worker runs locally: it needs Google Chrome (WebGL on the GPU), ffmpeg and `python3` with numpy and
+scipy. **It cannot render on Vercel** (no Chrome with WebGL, no Python): there the creative fails at once with
+"run the worker locally to make them". A 25 s ad takes about 6-8 minutes at 60 fps on an M-series Mac.
+
+- Voice: ElevenLabs Adam through Monid when a Monid key is set (cents), else the free macOS `say` voice.
+  `NOMEN_CODEAD_VOICE=scratch` forces the free one. `NOMEN_PYTHON` picks the Python.
+- Cost: the writer and critic (Claude Sonnet on Naive, ~$0.10-0.30), the narrator (~$0.05-0.20), one vision check
+  (cents). Rendering is free.
+
+The sample for Naïve, end to end (reads the main checkout's data read-only, writes into this checkout's `data/`):
+
+```bash
+NOMEN_DATA_DIR=/Users/dylan/Documents/GitHub/nomen/data NOMEN_CODEAD_LIVE=all npx vitest run tests/codead.live.test.ts
+```
+
+`story` writes the story only, `make` makes the ad from the saved story, `stills` renders stills of an ad folder.
+See the file's header for the options. Output: `data/codead-live/<brand>-<tag>/final.mp4`, `frames.jpg`, `made.json`.

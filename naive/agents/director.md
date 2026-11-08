@@ -92,6 +92,12 @@ voice or music.
     presenter, a lookalike of the same type), the voice and the product facts in its words change.
     `creator` describes that presenter. Internal only: never posted unless a person clears it. It
     renders the reference's full length, about $0.17 per second plus about $0.30.
+  - `code_ad`: no camera and no AI video. A 15-30 second 3D cartoon ad made in code, in a viral
+    explainer series' style: a fast narrator, Gary the Builder in a 3D office doing the job the
+    naive way and failing, the product as the fix, its feature names popping on screen. It takes
+    the reference's premise and hook mechanic, not its footage, so the reference can come from any
+    niche (an engineering explainer, a money story, a simulation). Cents to make. Leave creator
+    and setting empty.
 - **hook_plan**: the reference's hook, with exactly which words change for this product.
 - **keep**: everything that stays, concretely. For example: "hook 'POV: you just found…' word for
   word, 6 beats, cuts every 2 s, deadpan delivery, white outlined captions".
