@@ -1,4 +1,5 @@
 import { type BrandView, type CreativeView, normalizeSite } from "../api";
+import { postNumbers } from "../scenes/battle";
 import { stationForEvent } from "../scenes/derive";
 import { LAND, landFor } from "../scenes/layout";
 import { SAMPLE } from "./sample";
@@ -84,9 +85,63 @@ export type DemoState = {
   approved: Record<number, boolean>;
   /** When you sent the approved videos out, and which ones. */
   publish: { mode: PublishMode; at: number; ids: number[] } | null;
+  /** Which campaign of the loop this is: the recording is 1; autopilot's next one is 2. */
+  round: number;
+  /** The campaign before this one, as it ended (to step back to it). */
+  previous?: DemoState | null;
 };
 
-export const freshState = (now = Date.now()): DemoState => ({ t: 0, origin: now, approved: {}, publish: null });
+export const freshState = (now = Date.now()): DemoState => ({ t: 0, origin: now, approved: {}, publish: null, round: 1, previous: null });
+
+/**
+ * Autopilot starts the next campaign: a fresh clock on a new campaign (the army comes home, the
+ * scouts ride out again), planned from how the last one's posts did (`roundLesson`). The camp sees
+ * it as the new campaign it is. `previousRound` steps back to the one before, as it ended.
+ */
+export function nextRound(state: DemoState): DemoState {
+  return { t: 0, origin: state.origin + Math.round(state.t * 1000) + 60_000, approved: {}, publish: null, round: state.round + 1, previous: state };
+}
+
+export function previousRound(state: DemoState): DemoState {
+  return state.previous ?? state;
+}
+
+/** What the next campaign learns from this one's posts: the video that led and the one that trailed. */
+export type Lesson = { best: LessonVideo; worst: LessonVideo; illustrative: boolean };
+type LessonVideo = { idx: number; title: string; format: string; ratio: number };
+
+export function roundLesson(script: DemoScript): Lesson | null {
+  const bench = script.research?.benchmark;
+  if (!bench || bench.views <= 0 || bench.likes <= 0) return null;
+  const illustrative = illustrativeNumbers(script);
+  const rated = ordered(script)
+    .map((c) => {
+      const numbers = postNumbers(c.analytics ?? illustrativeAnalytics(script, c.idx));
+      if (!numbers) return null;
+      return { idx: c.idx, title: c.concept?.title ?? `Video ${c.idx + 1}`, format: c.concept?.format ?? "video", ratio: numbers.likes / numbers.views / (bench.likes / bench.views) };
+    })
+    .filter((v): v is LessonVideo => v !== null)
+    .sort((a, b) => b.ratio - a.ratio);
+  if (rated.length < 2) return null;
+  return { best: rated[0], worst: rated[rated.length - 1], illustrative };
+}
+
+/** "24% ahead of", "22% behind": a ratio against the top videos. */
+export const against = (ratio: number) => `${Math.abs(Math.round((ratio - 1) * 100))}% ${ratio >= 1 ? "ahead of" : "behind"}`;
+
+/** The dispatches that open the next campaign: autopilot started it, and what the director took from the last. */
+function roundEvents(script: DemoScript, round: number) {
+  const lesson = roundLesson(script);
+  const lines = [{ at: 0, level: "info", message: `Autopilot started campaign ${round} on its cadence and weekly budget, planned from campaign ${round - 1}'s posts` }];
+  if (lesson) {
+    lines.push({
+      at: 0.2,
+      level: "info",
+      message: `Director: "${lesson.best.title}" (${lesson.best.format}) led, ${against(lesson.best.ratio)} the top videos; "${lesson.worst.title}" (${lesson.worst.format}) trailed, ${against(lesson.worst.ratio)} them. More of what led${lesson.illustrative ? " (illustrative numbers)" : ""}.`,
+    });
+  }
+  return lines;
+}
 
 // --- The clock -------------------------------------------------------------------------------
 
@@ -205,6 +260,24 @@ function secondSweep(script: DemoScript) {
   });
 }
 
+/**
+ * One land's scout on the clock: when he sets out, when his last source is in, and about when he
+ * is home with the case (the ride back takes about as long as the ride out and the gathering).
+ */
+export function scoutWindow(script: DemoScript, land: string): { start: number; end: number; back: number; runs: string[] } | null {
+  const first = script.runs.filter((run) => run.phase === "A");
+  const second = script.runs.filter((run) => run.phase !== "A");
+  const times = secondSweep(script);
+  const windows = [
+    ...first.map((run, i) => ({ key: run.key, start: firstStart(i), end: firstStart(i) + stay(run.key) })),
+    ...second.map((run, j) => ({ key: run.key, ...times[j] })),
+  ].filter((w) => landFor(w.key) === land);
+  if (!windows.length) return null;
+  const start = Math.min(...windows.map((w) => w.start));
+  const end = Math.max(...windows.map((w) => w.end));
+  return { start, end, back: end + (end - start), runs: windows.map((w) => w.key) };
+}
+
 function videoWindow(tl: Timeline, i: number) {
   const begin = tl.production[0] + i * tl.stagger;
   return { begin, framed: begin + FRAMES, rendered: begin + FRAMES + RENDER, ready: begin + PER_VIDEO };
@@ -291,7 +364,8 @@ export function jump(script: DemoScript, state: DemoState, direction: 1 | -1): D
 export function replay(script: DemoScript, state: DemoState): BrandView {
   const tl = timeline(script);
   const { t } = state;
-  const key = scriptKey(script);
+  // Each campaign of the loop has its own ids, so the camp sees the next one as new.
+  const key = scriptKey(script) + (state.round > 1 ? `_r${state.round}` : "");
   const videos = ordered(script);
 
   const stage = t < tl.research[1] ? "research" : tl.style && t < tl.style[1] ? "style" : t < tl.strategy[1] ? "strategy" : t < tl.production[1] ? "production" : "review";
@@ -411,7 +485,7 @@ export function replay(script: DemoScript, state: DemoState): BrandView {
   };
 
   const reviewEvents = t >= tl.review ? [{ at: tl.review, level: "info", message: `${videos.length} of ${videos.length} videos are ready for review` }] : [];
-  const events = [...placeEvents(script), ...reviewEvents, ...live.map((e) => ({ ...e, level: "info" }))]
+  const events = [...(state.round > 1 ? roundEvents(script, state.round) : []), ...placeEvents(script), ...reviewEvents, ...live.map((e) => ({ ...e, level: "info" }))]
     .filter((e) => e.at <= t)
     .sort((a, b) => a.at - b.at)
     .slice(-60)

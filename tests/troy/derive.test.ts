@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type BrandView, normalizeSite } from "@/components/troy/api";
-import { activeStation, derive, stationForEvent, stationOf } from "@/components/troy/scenes/derive";
+import { activeStation, derive, runLabel, stationForEvent, stationOf } from "@/components/troy/scenes/derive";
 import { normalizeDomain } from "@/lib/pipeline";
 
 // The camp is a picture of the core's BrandView. These tests pin what each station shows for
@@ -285,5 +285,19 @@ describe("the website box", () => {
       const client = normalizeSite(input);
       expect("domain" in client ? client.domain : null, JSON.stringify(input)).toBe(server);
     }
+  });
+});
+
+describe("run labels", () => {
+  it("names every kind of research run, numbered ones too", () => {
+    expect(runLabel("tiktok_brand")).toBe("TikTok: the brand");
+    expect(runLabel("tiktok_3")).toBe("TikTok: category");
+    expect(runLabel("tiktok_conv_1")).toBe("TikTok: videos that sell");
+    expect(runLabel("tiktok_comp_2")).toBe("TikTok: competitor");
+    expect(runLabel("tiktok_bench_0")).toBe("TikTok: benchmark brand");
+    expect(runLabel("tiktok_ads_comp_1")).toBe("TikTok ads: competitor");
+    expect(runLabel("meta_ads_comp_2")).toBe("Meta ads: competitor");
+    expect(runLabel("scout_shorts_4")).toBe("Shorts: format check");
+    expect(runLabel("something_new")).toBe("something new");
   });
 });

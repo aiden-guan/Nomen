@@ -112,7 +112,9 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
   scriptRef.current = player.script;
   const applyStep = useCallback(
     (step: TourStep | null) => {
-      setAgentId(null);
+      // A step about one soldier rides along with him, his card open.
+      setAgentId(step?.agent ?? null);
+      if (step?.agent) setFollowing(true);
       setSelected(step?.station ?? null);
       setTourCamera(step?.camera ?? null);
       setTourFocus(step?.focus ?? null);
@@ -123,6 +125,8 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
     [takeCamera],
   );
   const tour = useTour({ enabled: demo, arrived, player, apply: applyStep });
+  // The soldier the tour's step rides along with (the camera comes in closer for him).
+  const closeUp = Boolean(tour.on && agentId && tour.step?.agent === agentId);
   const presenter = useMemo(() => (tour.on ? { ...player, next: tour.next, back: tour.back, restart: tour.restart } : player), [tour.on, tour.next, tour.back, tour.restart, player]);
   const view = demo ? player.view : liveView;
   const plan = useMemo(() => derive(view), [view]);
@@ -325,19 +329,26 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
     }
     const agent = plan.agents.find((a) => a.id === agentId);
     const ins = { ...insets, bottom: wide ? insets.bottom : Math.round(window.innerHeight * 0.64) };
-    const zoom = e.camp.focus(agent?.station ?? current, ins).zoom;
+    // The tour's ride-along comes in closer than a clicked soldier, so you see the one agent.
+    const zoom = e.camp.focus(agent?.station ?? current, ins).zoom * (closeUp ? 1.35 : 1);
     // CSS px from the soldier to the camera's centre, so they sit in the middle of the open map.
     const dx = ins.right / 2;
     const dy = (ins.bottom - ins.top) / 2;
     e.stage.follow = { at: () => e.camp.position(agentId), dx, dy };
-    const p = e.camp.position(agentId);
-    if (p) e.stage.look({ x: projectX(p.x, p.y) + dx / zoom, y: projectY(p.x, p.y, p.z) + dy / zoom, zoom }, reduced ? 0 : 0.8, easeInOutCubic);
+    const aim = () => {
+      const p = e.camp.position(agentId);
+      if (p) e.stage.look({ x: projectX(p.x, p.y) + dx / zoom, y: projectY(p.x, p.y, p.z) + dy / zoom, zoom }, reduced ? 0 : 0.8, easeInOutCubic);
+      return Boolean(p);
+    };
+    // A soldier still inside the horse (a scout the plan just called out) is aimed at once he is out.
+    const timer = aim() ? null : setInterval(() => aim() && timer && clearInterval(timer), 250);
     return () => {
+      if (timer) clearInterval(timer);
       e.stage.follow = null;
     };
     // The plan changes every tick in the demo; who is followed and how is what matters here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine, agentId, following, arrived, insets, wide, reduced]);
+  }, [engine, agentId, following, arrived, insets, wide, reduced, closeUp]);
   useEffect(
     () => () => {
       const e = engine.current;
@@ -918,6 +929,7 @@ function DemoControls({ player }: { player: DemoPlayer }) {
         title={player.script?.recorded ? "A recorded campaign, replayed. Nothing is spent." : "A made-up campaign. Nothing is spent."}
       >
         {label}
+        {player.round > 1 ? ` · campaign ${player.round}` : ""}
         {!player.playing && !player.done ? " · paused" : ""}
         {player.auto ? " · auto" : ""}
       </span>

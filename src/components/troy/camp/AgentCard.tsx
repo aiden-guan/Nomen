@@ -132,7 +132,10 @@ function mission(agent: AgentPlan, view: BrandView) {
   const land = LAND[scoutLand(agent.id)];
   const runs = landRuns(view.campaign?.runs ?? [], land.id);
   const providers = [...new Set(runs.map((run) => run.provider).filter(Boolean))];
-  const what = runs.length ? list(runs.map((run) => `“${runLabel(run.key)}”`)) : land.what.toLowerCase();
+  // Searches of one kind together: “TikTok: category” (5).
+  const kinds = new Map<string, number>();
+  for (const run of runs) kinds.set(runLabel(run.key), (kinds.get(runLabel(run.key)) ?? 0) + 1);
+  const what = runs.length ? list([...kinds].map(([label, n]) => `“${label}”${n > 1 ? ` (${n})` : ""}`)) : land.what.toLowerCase();
   return `Ride to ${land.name}, fetch ${what}${providers.length ? ` through ${list(providers)}` : ""} and bring it all back to camp in a scroll case.`;
 }
 

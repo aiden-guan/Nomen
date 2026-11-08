@@ -83,8 +83,28 @@ export const RUN_LABELS: Record<string, string> = {
   aeo_perplexity: "Perplexity answer",
 };
 
+/** Numbered runs (src/lib/research.ts, and the scout's format checks in creative/scout.ts), by kind. */
+const NUMBERED_LABELS: Array<[RegExp, string]> = [
+  [/^tiktok_\d+$/, "TikTok: category"],
+  [/^tiktok_conv_\d+$/, "TikTok: videos that sell"],
+  [/^reels_conv_\d+$/, "Reels: videos that sell"],
+  [/^tiktok_face_\d+$/, "TikTok: talking-head videos"],
+  [/^reels_face_\d+$/, "Reels: talking-head videos"],
+  [/^tiktok_comp_\d+$/, "TikTok: competitor"],
+  [/^tiktok_bench_\d+$/, "TikTok: benchmark brand"],
+  [/^reels_\d+$/, "Instagram Reels"],
+  [/^shorts_\d+$/, "YouTube Shorts"],
+  [/^tiktok_ads_comp_\d+$/, "TikTok ads: competitor"],
+  [/^tiktok_top_ads$/, "TikTok top ads"],
+  [/^meta_ads_(?:comp_)?\d+$/, "Meta ads: competitor"],
+  [/^meta_ads_cat$/, "Meta ads: category"],
+  [/^scout_tiktok_\d+$/, "TikTok: format check"],
+  [/^scout_reels_\d+$/, "Reels: format check"],
+  [/^scout_shorts_\d+$/, "Shorts: format check"],
+];
+
 export function runLabel(key: string) {
-  return RUN_LABELS[key] ?? key.replace(/_/g, " ");
+  return RUN_LABELS[key] ?? NUMBERED_LABELS.find(([pattern]) => pattern.test(key))?.[1] ?? key.replace(/_/g, " ");
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BrandView } from "../api";
-import { advance, approveAll, type DemoScript, type DemoState, finished, freshState, jump, loadDemoScript, type PublishMode, publish, replay, seek } from "./demo";
+import { advance, approveAll, type DemoScript, type DemoState, finished, freshState, jump, loadDemoScript, nextRound, previousRound, type PublishMode, publish, replay, seek } from "./demo";
 
 export type DemoPlayer = {
   script: DemoScript | null;
@@ -10,6 +10,8 @@ export type DemoPlayer = {
   playing: boolean;
   /** Seconds on the demo clock. */
   t: number;
+  /** Which campaign of the loop is playing: 1 is the recording, 2 autopilot's next one. */
+  round: number;
   /** Autoplay approves and posts the videos itself instead of waiting at the review. */
   auto: boolean;
   done: boolean;
@@ -27,6 +29,9 @@ export type DemoPlayer = {
   holdAt: (t: number | null) => void;
   play: () => void;
   postAll: () => void;
+  /** Autopilot starts the next campaign; and back to the one before, as it ended. */
+  nextRound: () => void;
+  previousRound: () => void;
 };
 
 const TICK_MS = 250;
@@ -117,6 +122,8 @@ export function useDemo(enabled: boolean, arrived: boolean, site: string | null 
       },
       play: () => setPlaying(true),
       postAll: () => script && setState((s) => publish(script, approveAll(script, s), "now")),
+      nextRound: () => setState((s) => nextRound(s)),
+      previousRound: () => setState((s) => previousRound(s)),
     }),
     [script],
   );
@@ -151,5 +158,5 @@ export function useDemo(enabled: boolean, arrived: boolean, site: string | null 
   // clock only runs once the column has arrived.
   const view = useMemo(() => (enabled && script ? replay(script, state) : null), [enabled, script, state]);
   const done = script ? finished(script, state) : false;
-  return { script, view, playing, t: state.t, auto, done, notice, ...controls };
+  return { script, view, playing, t: state.t, round: state.round, auto, done, notice, ...controls };
 }

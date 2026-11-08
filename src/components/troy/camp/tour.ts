@@ -1,5 +1,6 @@
-import { LANDS, landFor, type StationId } from "../scenes/layout";
-import { type DemoScript, illustrativeNumbers, timeline } from "./demo";
+import { runLabel } from "../scenes/derive";
+import { LAND, LANDS, type LandId, landFor, type StationId } from "../scenes/layout";
+import { against, type DemoScript, illustrativeNumbers, roundLesson, scoutWindow, timeline } from "./demo";
 
 // The presenter's tour of a replayed campaign: one step per part of the work, from the website
 // going in to the posts coming back. Each step moves the demo clock to its part, opens the station
@@ -26,7 +27,22 @@ export type TourStep = {
   video?: number;
   /** Approve every video and post them when the step opens. */
   post?: boolean;
+  /** A soldier to follow: the camera rides along with him and his card opens. */
+  agent?: string;
+  /** The step plays autopilot's next campaign (the loop's second round); its times are that campaign's. */
+  round?: boolean;
 };
+
+/** The scout the tour rides along with: TikTok's if he rides, else the busiest land's. */
+const FOLLOW_LANDS: LandId[] = ["tiktok", "instagram", "youtube", "reddit"];
+
+function followScout(script: DemoScript) {
+  const lands = [...new Set(script.runs.map((run) => landFor(run.key)))];
+  const busiest = [...lands].sort((a, b) => script.runs.filter((r) => landFor(r.key) === b).length - script.runs.filter((r) => landFor(r.key) === a).length);
+  const land = FOLLOW_LANDS.find((l) => lands.includes(l)) ?? busiest.find((l) => l !== "site");
+  const window = land ? scoutWindow(script, land) : null;
+  return land && window ? { land, ...window } : null;
+}
 
 /** Seconds past a stage's end that a step waits at, so what the stage made is on screen. */
 const SHOWN = 0.4;
@@ -93,15 +109,32 @@ export function tourSteps(script: DemoScript): TourStep[] {
 
   const lands = [...new Set(script.runs.map((run) => landFor(run.key)))];
   const named = LANDS.filter((land) => lands.includes(land.id)).map((land) => (land.id === "site" ? "the brand's own site" : land.id === "metaads" ? "the Meta Ad Library" : land.name));
+  // One scout, followed all the way: out to his land and back with the case.
+  const scout = followScout(script);
+  const rideAt = scout ? Math.max(3.5, scout.start - 0.3) : null;
   steps.push({
     key: "scouts",
     title: "The scouts fan out",
     body: `They ride to ${plural(lands.length, "source")} at once: ${list(named)}. ${plural(script.runs.length, "research run")} in all.`,
     at: 3,
-    hold: tl.research[1] - 1,
+    hold: rideAt ?? tl.research[1] - 1,
     station: null,
     camera: "world",
   });
+
+  if (scout && rideAt !== null) {
+    const name = LAND[scout.land].name;
+    const labels = [...new Set(scout.runs.map((key) => runLabel(key)))];
+    steps.push({
+      key: "agent",
+      title: `Ride along with the ${name} scout`,
+      body: `Every soldier here is an agent with one job. This one rides to ${name} for ${plural(scout.runs.length, "search", "searches")} (${list(labels.slice(0, 4).map((label) => label.replace(new RegExp(`^${name}: `), "")))}${labels.length > 4 ? " and more" : ""}) and brings them back in a scroll case for the strategist. His card says what he is doing right now; click any soldier to follow it the same way.`,
+      at: rideAt,
+      hold: Math.min(scout.back + 1, tl.research[1] - 1),
+      station: null,
+      agent: `scout:${scout.land}`,
+    });
+  }
 
   const research = script.research;
   if (research) {
@@ -211,12 +244,18 @@ export function tourSteps(script: DemoScript): TourStep[] {
     station: null,
   });
 
+  // The loop closes: autopilot starts the next campaign from these posts, and the scouts ride again.
+  const lesson = roundLesson(script);
   steps.push({
     key: "loop",
-    title: "Then it goes again",
-    body: "With autopilot on, the next campaign starts on its own cadence and weekly budget, and the director plans it from how these posts did.",
-    hold: "end",
+    title: "Then it goes again: campaign 2",
+    body: `With autopilot on, the next campaign starts on its own cadence and weekly budget, and the director plans it from how these posts did${
+      lesson ? `: "${lesson.best.title}" led, ${against(lesson.best.ratio)} the top videos, and "${lesson.worst.title}" trailed, so more ${lesson.best.format}${lesson.illustrative ? " (illustrative numbers)" : ""}` : ""
+    }. The army comes home and the scouts are already riding out again: research, plan, videos, posts, numbers, and round again.`,
+    hold: tl.research[1] - 1,
     station: null,
+    camera: "world",
+    round: true,
   });
 
   return steps;

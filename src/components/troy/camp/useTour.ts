@@ -43,6 +43,19 @@ export function useTour({ enabled, arrived, player, apply }: { enabled: boolean;
       const step = steps[i];
       if (!step) return;
       const p = playerRef.current;
+      // The loop's last step plays autopilot's next campaign; every other step is the recording's.
+      const round = step.round ? 2 : 1;
+      if (round > p.round) p.nextRound();
+      else if (round < p.round) p.previousRound();
+      if (round !== p.round) {
+        // Back in the recording, a step with a start goes there (after the round switch above).
+        if (round === 1 && step.at !== undefined) p.seek(step.at);
+        p.holdAt(step.hold === "end" ? null : step.run !== undefined ? null : step.hold);
+        p.play();
+        apply(step);
+        setIndex(i);
+        return;
+      }
       const back = i < indexRef.current;
       // Forward never rewinds what has already played; back goes to the step's start.
       const rewind = step.at !== undefined && (back || p.t < step.at);

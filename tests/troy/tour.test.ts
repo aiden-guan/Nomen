@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advance, approveAll, type DemoScript, type DemoState, freshState, publish, seek, timeline } from "@/components/troy/camp/demo";
+import { advance, approveAll, type DemoScript, type DemoState, freshState, publish, scoutWindow, seek, timeline } from "@/components/troy/camp/demo";
 import { SAMPLE } from "@/components/troy/camp/sample";
 import { tourSteps } from "@/components/troy/camp/tour";
 
@@ -29,6 +29,7 @@ describe("the tour", () => {
     expect(steps.map((s) => s.key)).toEqual([
       "start",
       "scouts",
+      "agent",
       "findings",
       ...(tl.style ? ["oracle"] : []),
       "tent",
@@ -49,7 +50,20 @@ describe("the tour", () => {
     expect(by.workshop.station).toBe("workshop");
     expect(by[`video-${videos[0].idx}`]).toMatchObject({ station: "theatre", video: videos[0].idx });
     expect(by.post).toMatchObject({ station: "agora", post: true, run: 6 });
-    expect(by.loop.hold).toBe("end");
+    // The loop ends on autopilot's next campaign: its scouts riding out, the camera pulled back.
+    expect(by.loop).toMatchObject({ round: true, camera: "world", station: null, hold: tl.research[1] - 1 });
+  });
+
+  it("rides along with one scout, from when he sets out until he is home", () => {
+    const by = Object.fromEntries(steps.map((s) => [s.key, s]));
+    const ride = scoutWindow(recording, "tiktok")!;
+    expect(by.agent).toMatchObject({ agent: "scout:tiktok", station: null });
+    expect(by.agent.title).toBe("Ride along with the TikTok scout");
+    expect(by.agent.at).toBeCloseTo(Math.max(3.5, ride.start - 0.3));
+    // The fan-out waits where he sets out; he is followed until he is back, before the findings.
+    expect(by.scouts.hold).toBe(by.agent.at);
+    expect(by.agent.hold).toBe(Math.min(ride.back + 1, tl.research[1] - 1));
+    expect(by.agent.body).toContain(`rides to TikTok for ${ride.runs.length} searches`);
   });
 
   it("holds each stage until what it made is on screen, and never before the step starts", () => {

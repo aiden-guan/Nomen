@@ -11,10 +11,14 @@ import {
   jump,
   limit,
   loadDemoScript,
+  nextRound,
   placeEvents,
+  previousRound,
   publish,
   REVIEW_HOLD,
   replay,
+  roundLesson,
+  scoutWindow,
   timeline,
 } from "@/components/troy/camp/demo";
 import { SAMPLE } from "@/components/troy/camp/sample";
@@ -297,5 +301,52 @@ describe("illustrative numbers", () => {
     const noBenchmark: DemoScript = { ...unposted, research: unposted.research && { ...unposted.research, benchmark: null } };
     expect(illustrativeNumbers(noBenchmark)).toBe(false);
     expect(replay(noBenchmark, posted(noBenchmark)).campaign!.posts.every((p) => p.analytics === null)).toBe(true);
+  });
+});
+
+describe("the loop's next campaign", () => {
+  const unposted: DemoScript = { ...SAMPLE, recorded: true, creatives: SAMPLE.creatives.map((c) => ({ ...c, analytics: null })) };
+  const ended = () => play(unposted, publish(unposted, approveAll(unposted, at(timeline(unposted).review)), "now"), 40);
+
+  it("starts a new campaign from the top, and steps back to the last one as it ended", () => {
+    const last = ended();
+    const next = nextRound(last);
+    expect(next).toMatchObject({ t: 0, round: 2, approved: {}, publish: null });
+    const before = replay(unposted, last);
+    const after = replay(unposted, next);
+    // A new campaign to the camp: its own ids, back at the research, no battle.
+    expect(after.campaign!.id).not.toBe(before.campaign!.id);
+    expect(after.campaign!.stage).toBe("research");
+    expect(after.campaign!.posts).toEqual([]);
+    expect(derive(after).battle.phase).toBe("none");
+    expect(previousRound(next)).toBe(last);
+    expect(previousRound(last)).toBe(last);
+  });
+
+  it("opens with autopilot's dispatches: what led and what trailed", () => {
+    const lesson = roundLesson(unposted)!;
+    expect(lesson.illustrative).toBe(true);
+    expect(lesson.best.ratio).toBeCloseTo(Math.max(...ILLUSTRATIVE_RATIOS.slice(0, unposted.creatives.length)), 2);
+    expect(lesson.worst.ratio).toBeLessThan(lesson.best.ratio);
+    const lines = replay(unposted, { ...nextRound(ended()), t: 1 }).events.map((e) => e.message);
+    expect(lines.some((m) => /^Autopilot started campaign 2/.test(m))).toBe(true);
+    expect(lines.some((m) => m.startsWith(`Director: "${lesson.best.title}"`) && m.includes("(illustrative numbers)"))).toBe(true);
+    // The first campaign has none of them.
+    expect(replay(unposted, ended()).events.some((e) => /^Autopilot started/.test(e.message))).toBe(false);
+  });
+
+  it("has nothing to learn without a benchmark", () => {
+    expect(roundLesson({ ...unposted, research: unposted.research && { ...unposted.research, benchmark: null } })).toBeNull();
+  });
+});
+
+describe("a scout on the clock", () => {
+  it("sets out with his land's first source and is home after the last", () => {
+    const ride = scoutWindow(SAMPLE, "tiktok")!;
+    expect(ride.runs.every((key) => key.startsWith("tiktok"))).toBe(true);
+    expect(ride.start).toBeLessThan(ride.end);
+    expect(ride.back).toBeGreaterThan(ride.end);
+    expect(ride.back).toBeLessThanOrEqual(timeline(SAMPLE).research[1]);
+    expect(scoutWindow(SAMPLE, "nowhere")).toBeNull();
   });
 });
