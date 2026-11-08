@@ -56,12 +56,7 @@ export function buildDevOffice(studio, opts = {}) {
 
   // the wall screen: a canvas the ad redraws (terminal, chat, a screenshot, the logo) inside a dark bezel
   const S = D.screen;
-  rbox(S.w + 0.1, S.h + 0.1, 0.06, 0.02, mat(0x15171b, 0.35), S.x, S.y, S.z - 0.04);
-  const scv = document.createElement('canvas'); scv.width = 1280; scv.height = 720;
-  const stex = new THREE.CanvasTexture(scv); stex.colorSpace = THREE.SRGBColorSpace; stex.anisotropy = 8;
-  const screenMesh = mk(new THREE.PlaneGeometry(S.w, S.h), new THREE.MeshBasicMaterial({ map: stex, toneMapped: false }), root, S.x, S.y, S.z);
-  screenMesh.castShadow = false; screenMesh.receiveShadow = false;
-  const glow = new THREE.PointLight(new THREE.Color(C.screenBg ?? 0x1d2433).lerp(new THREE.Color(0xffffff), 0.4), 0.9, 3.2, 2); glow.position.set(S.x, S.y - 0.2, S.z + 0.6); root.add(glow);
+  const wall = addWallScreen(root, S, C);
 
   // the standing desk: top, metal legs, a modesty panel that hides Gary's legs, a nameplate facing the lens
   const [dx, dz] = D.desk, wood = mat(0x6a4630, 0.45), steel = mat(0x2a2d33, 0.35, { metalness: 0.5 });
@@ -72,16 +67,7 @@ export function buildDevOffice(studio, opts = {}) {
   const plate = mk(new THREE.PlaneGeometry(0.62, 0.116), new THREE.MeshStandardMaterial({ map: plateTex, roughness: 0.3, metalness: 0.4 }), root, dx, D.deskTop - 0.2, dz + D.deskD / 2 + 0.002);
 
   // the laptop: base on the desk, the lid tilted toward Gary; its back (toward us) carries the brand's logo
-  const lap = new THREE.Group(); lap.position.set(D.laptop[0], D.deskTop, D.laptop[1]); lap.rotation.y = Math.PI; root.add(lap);
-  const alu = mat(0xb8bcc2, 0.3, { metalness: 0.55 });
-  const base = rbox(0.42, 0.018, 0.29, 0.006, alu, 0, 0.009, 0, lap);
-  const hinge = new THREE.Group(); hinge.position.set(0, 0.018, -0.14); lap.add(hinge);
-  const lid = new THREE.Group(); hinge.add(lid); lid.rotation.x = -0.32;
-  rbox(0.42, 0.28, 0.012, 0.006, alu, 0, 0.14, 0, lid);
-  const lidLogo = mk(new THREE.PlaneGeometry(0.11, 0.11), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false, map: logoTexture(opts.logo, C) }), lid, 0, 0.15, -0.0075);
-  lidLogo.rotation.y = Math.PI; lidLogo.castShadow = false;
-  const lapScreen = mk(new THREE.PlaneGeometry(0.38, 0.24), new THREE.MeshBasicMaterial({ color: new THREE.Color(C.screenBg ?? 0x1d2433).lerp(new THREE.Color(0x6aa8ff), 0.25), toneMapped: false }), lid, 0, 0.14, 0.0065);
-  lapScreen.castShadow = false;
+  const laptop = addLaptop(root, [D.laptop[0], D.deskTop, D.laptop[1]], opts.logo, C);
 
   // desk clutter: a mug, a little plant, sticky notes
   const mug = new THREE.Group(); mug.position.set(dx + 0.66, D.deskTop, dz + 0.12); root.add(mug);
@@ -124,10 +110,46 @@ export function buildDevOffice(studio, opts = {}) {
 
   return {
     root, D,
-    screen: { canvas: scv, ctx: scv.getContext('2d'), tex: stex, mesh: screenMesh, glow },
-    laptop: { g: lap, lid, hinge, base, logo: lidLogo, screen: lapScreen },
+    screen: wall, laptop,
+    // the one station: the developer behind the standing desk, the wall screen behind him (see codead.js)
+    stations: {
+      hero: {
+        x: D.gary[0], y: 0, z: D.gary[1], rotY: 0, top: D.deskTop, laptop, laptopAt: D.laptop, button: D.button, strip: [0.55, -1.52], crate: D.crate,
+        orbit: { cx: 0.05, cz: -0.42, rx: 1.0, rz: 0.2, w: 0.7 }, money: [[0.62, D.deskTop, -1.45], [-0.66, D.deskTop, -1.5], [1.25, 0, -1.55]],
+        screen: { ...D.screen, ...wall },
+      },
+    },
     update(t) { for (const L of leds) L.led.visible = Math.sin(t * L.rate + L.ph) > -0.3; },
   };
+}
+
+/** A wall screen at S {x, y, z, w, h} facing +z: a dark bezel, a 1280x720 canvas the ad redraws, a glow on the room. */
+export function addWallScreen(root, S, C, opts = {}) {
+  const rbox = (w, h, d, r, m, x, y, z) => mk(new RoundedBoxGeometry(w, h, d, 2, r), m, root, x, y, z);
+  if (opts.bezel !== false) rbox(S.w + 0.1, S.h + 0.1, 0.06, 0.02, mat(0x15171b, 0.35), S.x, S.y, S.z - 0.04);
+  const scv = document.createElement('canvas'); scv.width = 1280; scv.height = 720;
+  const stex = new THREE.CanvasTexture(scv); stex.colorSpace = THREE.SRGBColorSpace; stex.anisotropy = 8;
+  const mesh = mk(new THREE.PlaneGeometry(S.w, S.h), new THREE.MeshBasicMaterial({ map: stex, toneMapped: false }), root, S.x, S.y, S.z);
+  if (opts.rotY) mesh.rotation.y = opts.rotY;
+  mesh.castShadow = false; mesh.receiveShadow = false;
+  const glow = new THREE.PointLight(new THREE.Color(C.screenBg ?? 0x1d2433).lerp(new THREE.Color(0xffffff), 0.4), opts.glow ?? 0.9, opts.glowRange ?? 3.2, 2); glow.position.set(S.x, S.y - 0.2, S.z + 0.6); root.add(glow);
+  return { canvas: scv, ctx: scv.getContext('2d'), tex: stex, mesh, glow };
+}
+
+/** A laptop on a surface at p [x, y, z], open toward -z (the person behind it), the brand's logo on the lid's back. */
+export function addLaptop(root, p, logoImg, C) {
+  const rbox = (w, h, d, r, m, x, y, z, parent) => mk(new RoundedBoxGeometry(w, h, d, 2, r), m, parent, x, y, z);
+  const lap = new THREE.Group(); lap.position.set(p[0], p[1], p[2]); lap.rotation.y = Math.PI; root.add(lap);
+  const alu = mat(0xb8bcc2, 0.3, { metalness: 0.55 });
+  const base = rbox(0.42, 0.018, 0.29, 0.006, alu, 0, 0.009, 0, lap);
+  const hinge = new THREE.Group(); hinge.position.set(0, 0.018, -0.14); lap.add(hinge);
+  const lid = new THREE.Group(); hinge.add(lid); lid.rotation.x = -0.32;
+  rbox(0.42, 0.28, 0.012, 0.006, alu, 0, 0.14, 0, lid);
+  const logo = mk(new THREE.PlaneGeometry(0.11, 0.11), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false, map: logoTexture(logoImg, C) }), lid, 0, 0.15, -0.0075);
+  logo.rotation.y = Math.PI; logo.castShadow = false;
+  const screen = mk(new THREE.PlaneGeometry(0.38, 0.24), new THREE.MeshBasicMaterial({ color: new THREE.Color(C.screenBg ?? 0x1d2433).lerp(new THREE.Color(0x6aa8ff), 0.25), toneMapped: false }), lid, 0, 0.14, 0.0065);
+  screen.castShadow = false;
+  return { g: lap, lid, hinge, base, logo, screen };
 }
 
 /** The brand's logo on a transparent square (contained), or its initial on a brand-coloured disc. */

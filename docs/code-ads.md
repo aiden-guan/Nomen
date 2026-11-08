@@ -3,8 +3,8 @@
 A code ad is a 15-30 second vertical ad made entirely in code: a Three.js scene that headless Chrome renders frame by
 frame, a synthesized score and foley, a narrator, and ffmpeg. No camera, no AI video. It is ED Studio's build genre
 (Dylan's other project: one gliding camera take, one spoken word at a time, yellow term callouts), cut to ad length and
-pointed at a product, with a cartoon software developer in the lead instead of ED Studio's Gary the Builder. The creative
-director picks it like any other format (`code_ad`).
+pointed at a product, with a cartoon cast instead of ED Studio's Gary the Builder (Chad, the lead, and in versus ads
+the chud, the old way). The creative director picks it like any other format (`code_ad`).
 
 ```
 CreativeBrief (format "code_ad")
@@ -24,7 +24,8 @@ carries a QC score and is not internal (it copies no one's footage).
 ## The story
 
 The model writes `CodeAdStory` (`src/lib/codeads/types.ts`), stored on the concept as `script.code_ad`. Each beat is
-one narrated line, one gag landing on one word, one picture on the office's wall screen and 1-2 callouts:
+one narrated line, one gag landing on one word, one picture on the big screen behind the character and 1-2 callouts.
+The story also picks its **scene** and, for a versus ad, names its **rival** and who plays each beat (`who`):
 
 | Gag | On screen | For |
 | - | - | - |
@@ -42,10 +43,34 @@ one narrated line, one gag landing on one word, one picture on the office's wall
 Wall screens: `terminal`, `chat`, `image` (a real product visual by id), `logo`, `error`, `dashboard`.
 Callouts: `term` (yellow, the feature's real name), `label`, `money`, `stamp`, `sfx`.
 
-**The cast.** The lead is a software developer, two looks that rotate between videos (the writer picks one, else the
-job alternates): `geek`, a heavyset dev in a hoodie with round glasses, headphones round his neck and a short beard,
-and `mogger`, a sharp dev in a white tee with a quiff, a watch and shades pushed up on his head. ED Studio's Gary the
-Builder (a hard hat) made no sense at a laptop (Dylan, after the first sample).
+**The cast** (`engine/cast.js`, on the toon rig in `engine/build/toon.js`). After Dylan's notes on Nov 8:
+- `chad`, the lead (the product): a buff, very handsome developer. A V-shaped torso (pecs, delts, traps, biceps, a thick
+  neck), a fitted tee with the brand's logo and name on the chest (black when the logo is light, white when it is
+  dark), a sculpted head (a squared jaw over a forward chin, cheekbones over hollow cheeks, a brow ridge, a stubble
+  shadow), narrow hooded hunter eyes with steel-blue irises under thick straight brows, a shaggy wolf cut with a mane to
+  the nape, a resting face that keeps its cool (his reactions never scream or grin).
+- `chud`, the rival (the old way, never a real company): obese, his stained tee riding up over his gut with the old
+  way's name across it, sweat running down his forehead, flies circling his head, a greasy comb-over and stringy sides,
+  a patchy neckbeard, a double chin, taped glasses over beady eyes, crocs.
+Older stories that named `geek` or `mogger` render with the new cast (`geek` → the chud, `mogger` → Chad).
+`engine/lookdev.js` renders both side by side for stills (a `story.json` with `lookdev`).
+
+**The scenes** (`engine/sets/`). Every set gives each character a station: where they stand, a work surface with a
+laptop, a big screen, the crate's spot, the robots' orbit. Optionally it also gives framing overrides, a pose hook and
+props to attach.
+
+| Scene | What it is | For |
+| - | - | - |
+| `office` | the dev office: a standing desk under a wall screen | the default |
+| `stage` | a launch keynote: a demo table, a giant LED wall, light pillars, a headset mic, an audience that cheers on `celebrate` | launches, "introducing" |
+| `gym` | a weight room: he curls a dumbbell with one hand and types with the other; a TV on the mirror wall | "it runs while you train" |
+| `rooftop` | a rooftop pool at golden hour: a cocktail table, a drink, an outdoor screen, shades on his head | "it runs while you're at the pool" |
+| `versus` | two floors cut open: the chud's basement (pizza boxes, cans, a bare bulb, an error monitor) under Chad's penthouse | the old way against the product |
+
+In a versus ad the rival plays the old way's problems (`hack`, `bury`, `explode`, `zap`, `money`), and the lead plays
+the product (`deliver`, `team`, `approve`, `show`, `celebrate`) and always the last beat. The camera glides between the
+floors. When the lead celebrates, the rival holds his head. The narration compares methods and never mocks
+anyone's looks: the pictures do the comparing.
 
 **The tone.** Product-first, like a sharp dev-tool launch video: the product is named early and every beat after the
 problem shows one real thing it does. At most one light, dry wink per ad; no slapstick lines, roasts, yelling or absurd
@@ -82,10 +107,11 @@ Vendored into `src/lib/codeads/engine/` (browser modules, served to headless Chr
 - `engine/fonts/`: Fredoka 600/700 (OFL) and Luckiest Guy (Apache 2.0), from `@fontsource`.
 - `engine/props.js`: `makeAgent` is ED Studio's `makeRoomba` (video 026) in the brand's colours with a role sign.
 - `engine/sets/devoffice.js`: adapted from `sets/office.js` (video 012): a dollhouse dev office with a wall screen.
+  New sets in the same style: `stage.js`, `gym.js`, `rooftop.js`, `versus.js` (Nomen's, not ED Studio's).
 - `synth.py`: `audio/synth.py` whole (numpy + scipy), plus an `--out` option.
 - Ported to TypeScript: `tools/narrate.py`'s word timing and layout (`narrate.ts`, `layout.ts`), `tools/render.mjs`
   (`render.ts`, on the DevTools pipe instead of puppeteer), the 024 `make_cues.py` "WORKSHOP" score (`cues.ts`).
-- New: `engine/codead.js` compiles the beats into a scene (gags, camera framings, kicks, FX, the wall screen),
+- New: `engine/codead.js` compiles the beats into a scene (stations, the cast, gags, camera framings, kicks, FX, the screens),
   `engine/screen.js` draws the wall screen, `story.ts` writes and checks the story, `job.ts` runs it.
 
 Left out: ED Studio's other 40 sets and most props, the 5-subagent review loop, TRIBE scoring, cuts (Dylan rejected

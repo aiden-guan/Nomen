@@ -31,11 +31,9 @@ import { contactSheet, renderStills, renderVideo, runQc } from "./render";
 import { type CodeAdBrand, type CodeAdStory, HEROES, type Hero } from "./types";
 
 /** The developer a story plays with: its own pick, else a rotation keyed on the video (geek, mogger, geek…). */
-export function heroFor(story: CodeAdStory, key: string): Hero {
-  if (story.hero && HEROES.includes(story.hero)) return story.hero;
-  let h = 0;
-  for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return HEROES[h % HEROES.length];
+export function heroFor(story: CodeAdStory, _key: string): Hero {
+  // the lead is Chad; an older story that named its developer ("geek", "mogger") keeps that look
+  return story.hero && HEROES.includes(story.hero) ? story.hero : "chad";
 }
 
 const SYNTH = resolve(process.cwd(), "src/lib/codeads/synth.py");

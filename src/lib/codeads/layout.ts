@@ -39,9 +39,11 @@ export type StoryJson = {
   codead: {
     brand: CodeAdBrand;
     hero: string;
+    scene: string;
+    rival?: { name: string };
     nameplate: string;
     poster: string;
-    beats: Array<{ id: string; gag: string; t0: number; t1: number; s0: number; s1: number; hit: number; screen: { kind: string; lines?: string[]; image?: string; title?: string }; labels: string[]; label: string }>;
+    beats: Array<{ id: string; gag: string; who: "hero" | "rival"; t0: number; t1: number; s0: number; s1: number; hit: number; screen: { kind: string; lines?: string[]; image?: string; title?: string }; labels: string[]; label: string }>;
   };
 };
 
@@ -100,7 +102,7 @@ export function layoutStory(story: CodeAdStory, voiced: Voiced, brand: CodeAdBra
     const hit = hitWord ? hitWord.t0 : vb.t0 + 0.55 * (vb.t1 - vb.t0);
     const label = sb.gag === "approve" ? (sb.labels[0] ?? "APPROVE") : (sb.labels[0] ?? "");
     const screen = sb.screen.kind === "image" ? (images[sb.screen.visual_id ?? ""] ? { kind: "image", image: images[sb.screen.visual_id ?? ""] } : { kind: "logo" }) : { kind: sb.screen.kind, ...(sb.screen.lines?.length ? { lines: sb.screen.lines } : {}), ...(sb.screen.title ? { title: sb.screen.title } : {}) };
-    codeBeats.push({ id: vb.id, gag: sb.gag, t0: r3(t0), t1: r3(t1), s0: vb.t0, s1: vb.t1, hit: r3(hit), screen, labels: sb.labels, label });
+    codeBeats.push({ id: vb.id, gag: sb.gag, who: story.rival && sb.who === "rival" ? "rival" : "hero", t0: r3(t0), t1: r3(t1), s0: vb.t0, s1: vb.t1, hit: r3(hit), screen, labels: sb.labels, label });
   });
   // a word shown for < 0.12 s (a fast "a", "to") joins the next one in one caption instead of flashing, never across a clause
   const joinLen = options.joinLen ?? 4;
@@ -136,7 +138,7 @@ export function layoutStory(story: CodeAdStory, voiced: Voiced, brand: CodeAdBra
       words,
       callouts,
       // stories written for ED Studio's Gary keep their nameplate's job, not his name
-      codead: { brand, hero: story.hero ?? "geek", nameplate: story.nameplate.replace(/\bGARY\b/i, "DEV"), poster: story.poster, beats: codeBeats },
+      codead: { brand, hero: story.hero ?? "chad", scene: story.rival ? "versus" : (story.scene ?? "office"), ...(story.rival ? { rival: story.rival } : {}), nameplate: story.nameplate.replace(/\bGARY\b/i, "DEV"), poster: story.poster, beats: codeBeats },
     },
     notes,
   };

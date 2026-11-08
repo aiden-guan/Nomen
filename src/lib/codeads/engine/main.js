@@ -11,7 +11,7 @@ try {
   const studio = createStudio(document.getElementById('gl'), story.look || {});
   const overlay = createBuildOverlay(story);
   await Promise.all(BUILD_FONTS.map((f) => document.fonts.load(f)));
-  const video = await build(studio, story);
+  const video = story.lookdev ? await (await import('@engine/lookdev.js')).build(studio, story) : await build(studio, story);
   await document.fonts.ready;
   window.STORY = story;
 

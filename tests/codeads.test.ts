@@ -213,16 +213,29 @@ describe("the page's story.json", () => {
     expect(sheetTimes(page, 6)).toHaveLength(6);
   });
 
-  it("casts a developer: the story's pick, else a rotation; never Gary on the nameplate", () => {
-    const story = normalizeStory({ ...raw, hero: "mogger", nameplate: "GARY · SOLO FOUNDER" }, ctx);
-    expect(story.hero).toBe("mogger");
-    expect(heroFor(story, "crv_a")).toBe("mogger");
-    const unpicked = { ...story, hero: undefined };
-    const cast = new Set(["crv_a", "crv_b", "crv_c", "crv_d", "crv_e"].map((id) => heroFor(unpicked, id)));
-    expect([...cast].sort()).toEqual(["geek", "mogger"]);
-    expect(heroFor(unpicked, "crv_a")).toBe(heroFor(unpicked, "crv_a"));
+  it("casts the lead (Chad, unless an older story named its developer); never Gary on the nameplate", () => {
+    const story = normalizeStory({ ...raw, nameplate: "GARY · SOLO FOUNDER" }, ctx);
+    expect(story).toMatchObject({ hero: "chad", scene: "office" });
+    expect(heroFor({ ...story, hero: undefined }, "crv_a")).toBe("chad");
+    expect(heroFor({ ...story, hero: "mogger" }, "crv_a")).toBe("mogger");
     const { story: page } = layoutStory(story, voiced, brand, {});
-    expect(page.codead).toMatchObject({ hero: "mogger", nameplate: "DEV · SOLO FOUNDER" });
+    expect(page.codead).toMatchObject({ hero: "chad", scene: "office", nameplate: "DEV · SOLO FOUNDER" });
+    expect(page.codead.rival).toBeUndefined();
+    expect(page.codead.beats.every((b) => b.who === "hero")).toBe(true);
+  });
+
+  it("stages a versus ad: the rival plays the old way's problems, the lead plays the product and the ending", () => {
+    const vs = normalizeStory({ ...raw, rival: { name: "diy agents" }, beats: raw.beats.map((b, i) => ({ ...b, who: i === 2 ? "hero" : "rival" })) }, ctx);
+    expect(vs).toMatchObject({ scene: "versus", rival: { name: "DIY AGENTS" } });
+    // the hack and the money are his; a product gag (deliver) and the last beat stay the lead's
+    expect(vs.beats.map((b) => b.who ?? "hero")).toEqual(["rival", "rival", "hero", "hero"]);
+    const { story: page } = layoutStory(vs, voiced, brand, {});
+    expect(page.codead).toMatchObject({ scene: "versus", rival: { name: "DIY AGENTS" } });
+    expect(page.codead.beats.map((b) => b.who)).toEqual(["rival", "rival", "hero", "hero"]);
+    // a scene asked for wins over the writer's; a versus ad with no rival beat is flagged
+    expect(normalizeStory({ ...raw, scene: "gym" }, { ...ctx, scene: "stage" }).scene).toBe("stage");
+    expect(normalizeStory({ ...raw, scene: "rooftop" }, ctx).scene).toBe("rooftop");
+    expect(lintStory({ ...vs, beats: vs.beats.map((b) => ({ ...b, who: "hero" as const })) }, ctx)).toEqual(expect.arrayContaining([expect.stringMatching(/no rival beat/)]));
   });
 
   it("scores it like ED Studio's build reels: music from beat 2, a ta-da on every term, foley per gag, the narrator on top", () => {

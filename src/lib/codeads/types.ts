@@ -51,15 +51,32 @@ export type CodeAdBeat = {
   labels: string[];
   screen: CodeAdScreen;
   callouts: CodeAdCallout[];
+  /** versus: who plays the beat, the lead (the product) or the rival (the old way). Default: the lead. */
+  who?: "hero" | "rival";
 };
 
-/** The developer on screen: a heavyset dev in a hoodie and glasses, or a sharp, handsome one. They rotate between videos. */
-export const HEROES = ["geek", "mogger"] as const;
+/**
+ * The lead on screen (engine/cast.js): chad, a buff, very handsome developer in a fitted tee with the brand's logo.
+ * geek and mogger are the older looks; stories that name them render with the new cast.
+ */
+export const HEROES = ["chad", "geek", "mogger"] as const;
 export type Hero = (typeof HEROES)[number];
 
+/**
+ * Where it happens (engine/sets/): office (a standing desk under a wall screen), stage (a launch keynote, a giant LED
+ * wall and an audience), gym (he curls a dumbbell while he types), rooftop (a rooftop pool at golden hour), versus (two
+ * floors: the rival, the old way, in a grimy basement under the lead's penthouse).
+ */
+export const SCENES = ["office", "stage", "gym", "rooftop", "versus"] as const;
+export type Scene = (typeof SCENES)[number];
+
 export type CodeAdStory = {
-  /** Who plays the developer (engine/codead.js HEROES). */
+  /** Who plays the developer (engine/cast.js). */
   hero?: Hero;
+  /** Where it happens. versus needs `rival`. */
+  scene?: Scene;
+  /** versus: the old way the rival stands for, 1-3 words in caps, printed on his tee and his desk ("DIY AGENTS"). Never a real company. */
+  rival?: { name: string };
   /**
    * The viral video this ad borrows its concept from (any niche: an engineering explainer, a money story, a sim), and
    * how: its premise and hook mechanic, and how they carry this product. The words are never theirs.

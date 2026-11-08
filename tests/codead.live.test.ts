@@ -10,7 +10,7 @@ import { contactSheet, renderStills, runQc } from "@/lib/codeads/render";
 import { writeCodeAd } from "@/lib/codeads/story";
 import { breakdownReference, canonicalUrl, scoreCandidates } from "@/lib/creative/references";
 import type { Video } from "@/lib/research";
-import type { CodeAdStory, Hero } from "@/lib/codeads/types";
+import type { CodeAdStory, Hero, Scene } from "@/lib/codeads/types";
 import { getBrandKit } from "@/lib/creative/brandkit";
 import { targetSeconds } from "@/lib/creative/script";
 import { findChrome } from "@/lib/creative/screens";
@@ -44,7 +44,10 @@ type Case = {
   campaign: string;
   /** The breakdown whose concept the ad borrows (any niche). */
   reference: string;
-  hero: Hero;
+  /** Older cases named their developer; new ones star Chad (the story's lead). */
+  hero?: Hero;
+  /** Where the ad happens (the writer is told to use it). */
+  scene?: Scene;
   title: string;
   role: FunnelRole;
   angle: string;
@@ -144,6 +147,68 @@ const CASES: Case[] = [
     angle: "Testing on one phone at a time is slow. Mobilerun runs your task on a fleet of real cloud phones at once, with a live view of every step.",
     hook_plan: "The reference's curiosity hook (an everyday phone doing something unexpected), scaled up to a whole fleet.",
     cta: "Start free at mobilerun.ai",
+  },
+  // Chad and the chud: the same engine in new scenes (stage, gym, rooftop) and versus ads (the old way downstairs, the
+  // product upstairs). Narrated by Naive (the Monid wallet is empty).
+  {
+    name: "naive-versus",
+    campaign: NAIVE,
+    reference: "ref_88a571100e", // mplentg: "I Let AI Run My Side Hustle", an AI given one instruction: make money (644K views)
+    scene: "versus",
+    title: "Two founders, one instruction: make money",
+    role: "convert",
+    angle: "Two founders give AI agents the same goal. One wires agents to his card by hand (keys, scripts, no rules) and it goes wrong; the other deploys a Naïve company template, where agents get a company to run and spending waits for approval.",
+    hook_plan: "The reference's one-instruction dare, run twice side by side: the old way downstairs, Naïve upstairs.",
+    cta: "Pick a company template at usenaive.ai",
+    narrator: "naive",
+  },
+  {
+    name: "naive-keynote",
+    campaign: NAIVE,
+    reference: "ref_593aea417a", // ElevenLabs' agents ad: "Every enterprise sees the potential of AI agents" (ran 44 days)
+    scene: "stage",
+    title: "Introducing a company run by agents",
+    role: "convert",
+    angle: "A launch keynote: Naïve, where you pick a company template, deploy it, and a team of agents runs it, each with its own identity, under policy you commit and approvals you give.",
+    hook_plan: "The reference's big-claim opener as a keynote reveal on a giant screen, then one feature per beat.",
+    cta: "Build your company with agents at usenaive.ai",
+    narrator: "naive",
+  },
+  {
+    name: "monid-gym",
+    campaign: MONID,
+    reference: "ref_119a19b980", // ai.with.ni: "Everyone talks about vibe coding, but nobody shows you the actual setup" (1.2M views)
+    scene: "gym",
+    title: "Your agent sets itself up while you train",
+    role: "convert",
+    angle: "Nobody shows the setup that gives an agent its tools. One line, 'set up monid.ai/SKILL.md', and the agent finds, compares and pays for 2900+ tools from one balance, while you get your workout in.",
+    hook_plan: "The reference's gap hook ('nobody shows you the actual setup'), shown between sets.",
+    cta: "Start with $1 in free credit at monid.ai",
+    narrator: "naive",
+  },
+  {
+    name: "mobilerun-rooftop",
+    campaign: MOBILERUN,
+    reference: "ref_3c6a101cca", // risingpower__: an old desk phone ringing because an AI agent is calling (769K views)
+    scene: "rooftop",
+    title: "Your agent tests on real phones while you're at the pool",
+    role: "convert",
+    angle: "Your agent runs your app's tests on real cloud phones (tap, swipe, type, SMS codes) and on a fleet of devices at once, while you're at the pool. Describe the task in plain language.",
+    hook_plan: "The reference's odd pairing (an AI agent and a phone), poolside: the agent works the phones, you don't.",
+    cta: "Start free at mobilerun.ai",
+    narrator: "naive",
+  },
+  {
+    name: "monid-versus",
+    campaign: MONID,
+    reference: "ref_39fbf885ae", // Cluely: "We spent $400,000 on these billboards" (628K views)
+    scene: "versus",
+    title: "A sign-up for every API, or one balance",
+    role: "convert",
+    angle: "Downstairs, a developer signs up for every API his agent needs, one key and one subscription at a time. Upstairs, the agent pays per call for 2900+ tools from one Monid balance.",
+    hook_plan: "The reference's big-spend opener as the pile of keys and subscriptions, against one balance.",
+    cta: "Start with $1 in free credit at monid.ai",
+    narrator: "naive",
   },
 ];
 
@@ -262,11 +327,12 @@ async function runCase(c: Case, data: string, out: string, stage: "story" | "mak
   else if (stage !== "all" && stage !== "story" && existsSync(storyPath)) story = JSON.parse(await readFile(storyPath, "utf8")) as CodeAdStory;
   else {
     expect(naive, "NAIVE_API_KEY is needed to write the story").toBeTruthy();
-    const written = await patient(() => writeCodeAd(naive!, { product: input.product, brief: briefFor(c, input), reference: input.reference, targetSeconds: target, site: siteOf(input.brand) }), log);
+    const scene = (process.env.NOMEN_CODEAD_SCENE as Scene | undefined) ?? c.scene;
+    const written = await patient(() => writeCodeAd(naive!, { product: input.product, brief: briefFor(c, input), reference: input.reference, targetSeconds: target, site: siteOf(input.brand), ...(scene ? { scene } : {}) }), log);
     story = written.story;
     await writeFile(join(out, "script.json"), JSON.stringify(written.script, null, 1));
-    log(`story: ${story.beats.length} beats, ${story.hero ?? "?"}, critic ${written.script.review?.score ?? "?"}/10 (${written.script.review?.notes.join(" | ").slice(0, 600) ?? ""})`);
-    for (const b of story.beats) log(`  ${b.id.padEnd(10)} ${b.gag.padEnd(9)} ${b.say}`);
+    log(`story: ${story.beats.length} beats, ${story.scene ?? "office"}${story.rival ? ` vs ${story.rival.name}` : ""}, critic ${written.script.review?.score ?? "?"}/10 (${written.script.review?.notes.join(" | ").slice(0, 600) ?? ""})`);
+    for (const b of story.beats) log(`  ${b.id.padEnd(10)} ${(b.who ?? "hero").padEnd(6)} ${b.gag.padEnd(9)} ${b.say}`);
   }
   story = { ...story, hero: (process.env.NOMEN_CODEAD_HERO as Hero | undefined) ?? c.hero ?? story.hero };
   await writeFile(storyPath, JSON.stringify(story, null, 1));
@@ -305,7 +371,7 @@ async function runCase(c: Case, data: string, out: string, stage: "story" | "mak
   const made = await makeCodeAd(adInput);
   await copyFile(made.path, join(out, "final.mp4"));
   await copyFile(made.sheet, join(out, "frames.jpg"));
-  await writeFile(join(out, "made.json"), JSON.stringify({ duration: made.duration, hero: story.hero, narrator: narrator.kind, spend_usd: made.spendMicro / 1e6, qc: made.qc, notes: made.notes, reference: { id: input.reference.id, url: input.reference.url, author: input.reference.author, views: input.reference.views, followers: input.reference.followers } }, null, 1));
+  await writeFile(join(out, "made.json"), JSON.stringify({ duration: made.duration, hero: story.hero, scene: story.scene, rival: story.rival, narrator: narrator.kind, spend_usd: made.spendMicro / 1e6, qc: made.qc, notes: made.notes, reference: { id: input.reference.id, url: input.reference.url, author: input.reference.author, views: input.reference.views, followers: input.reference.followers } }, null, 1));
   log(`final ${join(out, "final.mp4")} (${made.duration.toFixed(1)} s), narrator $${(made.spendMicro / 1e6).toFixed(3)}, QC ${made.qc ? `${made.qc.score}/10 ${made.qc.issues.join(" | ").slice(0, 600)}` : "not run"}`);
   if (made.notes.length) log(`notes: ${made.notes.join(" | ")}`);
   expect(made.duration).toBeGreaterThan(8);
