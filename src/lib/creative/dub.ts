@@ -376,7 +376,10 @@ export type VoicePiece = { path: string; from: number; seconds: number; speed: n
  * times, over the reference's bed. With `finish` (edit.ts): the voice chain, pink room tone at
  * about -50 dBFS, the bed at 0.35 ducked under the voice, and -14 LUFS; without it, a plain mix.
  */
-export function soundArgs(input: { voices: VoicePiece[]; bed: string | null; duration: number; finish: boolean; out: string }): string[] {
+/** A sound effect laid on top of the mix at `at` seconds, at `gain` (linear). */
+export type EffectPiece = { path: string; at: number; gain: number };
+
+export function soundArgs(input: { voices: VoicePiece[]; bed: string | null; duration: number; finish: boolean; out: string; effects?: EffectPiece[] }): string[] {
   const args = ["-hide_banner", "-nostdin", "-loglevel", "error", "-y"];
   const graph: string[] = [];
   const labels: string[] = [];
@@ -397,14 +400,26 @@ export function soundArgs(input: { voices: VoicePiece[]; bed: string | null; dur
     graph.push(`${roomTone(input.duration, 44100)}[room]`, `[vox][room]amix=inputs=2:normalize=0:duration=first[voice]`);
     voice = "[voice]";
   }
+  // Effects ride on top: after the voice chain, never ducked, before the loudness pass.
+  const effects = input.effects ?? [];
+  const bedInput = args.filter((a) => a === "-i").length;
+  if (input.bed) args.push("-i", input.bed);
+  effects.forEach((e, k) => {
+    const at = args.filter((a) => a === "-i").length;
+    args.push("-i", e.path);
+    graph.push(`[${at}:a]${mono},volume=${fmt(e.gain)},adelay=${Math.round(e.at * 1000)}:all=1,apad,atrim=end=${end}[fx${k}]`);
+  });
+  const fx = effects.length ? "[fx]" : "";
+  if (effects.length) graph.push(`${effects.map((_, k) => `[fx${k}]`).join("")}amix=inputs=${effects.length}:normalize=0:duration=longest[fx]`);
+  const n = (base: number) => base + (effects.length ? 1 : 0);
   if (input.bed) {
-    const bedInput = args.filter((a) => a === "-i").length;
-    args.push("-i", input.bed);
     if (input.finish) {
-      graph.push(`${voice}asplit=2[v1][sc]`, `[${bedInput}:a]${mono},volume=${BED_LEVEL}[bed]`, `[bed][sc]${DUCK}[ducked]`, `[v1][ducked]amix=inputs=2:normalize=0:duration=first,${LOUDNESS}[mix]`);
+      graph.push(`${voice}asplit=2[v1][sc]`, `[${bedInput}:a]${mono},volume=${BED_LEVEL}[bed]`, `[bed][sc]${DUCK}[ducked]`, `[v1][ducked]${fx}amix=inputs=${n(2)}:normalize=0:duration=first,${LOUDNESS}[mix]`);
     } else {
-      graph.push(`[${bedInput}:a]${mono}[bed]`, `${voice}[bed]amix=inputs=2:normalize=0:duration=first[mix]`);
+      graph.push(`[${bedInput}:a]${mono}[bed]`, `${voice}[bed]${fx}amix=inputs=${n(2)}:normalize=0:duration=first[mix]`);
     }
+  } else if (effects.length) {
+    graph.push(`${voice}${fx}amix=inputs=2:normalize=0:duration=first${input.finish ? `,${LOUDNESS}` : ""}[mix]`);
   } else {
     graph.push(`${voice}${input.finish ? LOUDNESS : "anull"}[mix]`);
   }

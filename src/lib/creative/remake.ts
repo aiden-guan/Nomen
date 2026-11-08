@@ -68,7 +68,7 @@ import {
   voiceStats,
   warpKeys,
 } from "./clone";
-import { type AudioRecord, demucs, makeVoice, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurBeats, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
+import { type AudioRecord, demucs, type EffectPiece, makeVoice, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurBeats, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
 import { DEFAULT_FONT, FINISHED_ENCODE, fontMetrics, PICTURE_FINISH, renderTimeline } from "./edit";
 import { CHARACTER_STYLE, genderOf, type Persona } from "./persona";
 import { decodeRgb, makePlate, newPlateRecord, type PlateRecord } from "./plate";
@@ -1122,6 +1122,37 @@ async function pool<T>(items: T[], limit: number, task: (item: T) => Promise<voi
 const stopping = (error: unknown) => error instanceof ApiError && (error.retryable || error.outOfCredits);
 
 /** Words said between two times, as one line. */
+export type EffectKind = "pop" | "whoosh";
+
+/**
+ * The sound effects for what appears on screen: a pop for a card that pops in, a whoosh for one that
+ * slides or fades in (the closing card too). One per moment: graphics landing within 0.3 s of each
+ * other share one. Dylan: the video model never adds them, and the cards landed in silence.
+ */
+export function soundEffects(graphics: Array<Pick<ComposeGraphic, "start" | "entrance">>, end: number): Array<{ kind: EffectKind; at: number }> {
+  const out: Array<{ kind: EffectKind; at: number }> = [];
+  for (const g of graphics.slice().sort((a, b) => a.start - b.start)) {
+    if (g.entrance === "cut" || g.start < 0 || g.start > end - 0.1) continue;
+    const kind: EffectKind = g.entrance === "pop" ? "pop" : "whoosh";
+    const last = out[out.length - 1];
+    if (last && g.start - last.at < 0.3) continue;
+    out.push({ kind, at: round(Math.max(0, kind === "whoosh" ? g.start - 0.12 : g.start)) });
+  }
+  return out;
+}
+
+/** ffmpeg arguments that synthesize one effect: a short pitched pop, or a swell of filtered noise. */
+export function effectArgs(kind: EffectKind, out: string): string[] {
+  const source =
+    kind === "pop"
+      ? ["-f", "lavfi", "-i", "aevalsrc='0.9*sin(2*PI*(480+620*exp(-t*38))*t)*exp(-t*26)*min(1\\,t*400)':s=44100:d=0.2"]
+      : ["-f", "lavfi", "-i", "anoisesrc=d=0.5:c=pink:a=0.7:r=44100", "-af", "bandpass=f=1600:width_type=o:w=2.2,afade=t=in:d=0.28:curve=exp,afade=t=out:st=0.28:d=0.22"];
+  return ["-hide_banner", "-loglevel", "error", "-y", ...source, "-ac", "1", out];
+}
+
+/** Gain of each effect in the mix (linear, before the loudness pass). */
+const EFFECT_GAIN: Record<EffectKind, number> = { pop: 0.5, whoosh: 1 };
+
 /** Time kept after the last word of the video's final take, so the plug isn't clipped by the end. */
 const FINAL_BREATH = 0.7;
 /** How long the closing card with the product's site shows at the end. */
@@ -1616,8 +1647,15 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   const cardFrom = card && end > END_CARD_SECONDS + 1 ? round(end - END_CARD_SECONDS) : null;
   if (card && cardFrom !== null) graphics.push({ path: card, kind: "image", start: cardFrom, end, x: 0, y: 0, width: stage.width, height: stage.height, entrance: "fade" });
 
+  const effects: EffectPiece[] = [];
+  for (const sfx of soundEffects(graphics, end)) {
+    const path = join(dir, `sfx-${sfx.kind}.wav`);
+    if (!existsSync(path)) await ffmpeg(effectArgs(sfx.kind, path));
+    effects.push({ path, at: sfx.at, gain: EFFECT_GAIN[sfx.kind] });
+  }
+  if (effects.length) notes.push(`sound effects: ${effects.length} (${soundEffects(graphics, end).map((e) => `${e.kind} at ${e.at.toFixed(1)} s`).join(", ")})`);
   const soundtrack = join(dir, "soundtrack.wav");
-  await ffmpeg(soundArgs({ voices: pieces, bed: reference.bed, duration: end, finish, out: soundtrack }));
+  await ffmpeg(soundArgs({ voices: pieces, bed: reference.bed, duration: end, finish, out: soundtrack, effects }));
 
   const cut = join(dir, "cut");
   await rm(cut, { recursive: true, force: true });

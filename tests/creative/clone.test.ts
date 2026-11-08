@@ -321,6 +321,17 @@ describe("the voice", () => {
     expect(timed[timed.length - 1]).toEqual({ text: "wow,", start: 3.38, end: 3.66 });
   });
 
+  it("lays sound effects on top of the finished voice and bed, before the loudness pass", () => {
+    const args = soundArgs({ voices: [{ path: "v.wav", from: 0, seconds: 6, speed: 1, at: 0 }], bed: "bed.wav", duration: 6, finish: true, out: "o.wav", effects: [{ path: "pop.wav", at: 1.93, gain: 0.5 }, { path: "whoosh.wav", at: 3.55, gain: 1 }] });
+    const graph = args[args.indexOf("-filter_complex") + 1];
+    expect(args.filter((a) => a === "-i")).toHaveLength(4); // voice, bed, two effects
+    expect(graph).toMatch(/\[2:a\][^;]*volume=0\.5,adelay=1930:all=1/);
+    expect(graph).toContain("[fx0][fx1]amix=inputs=2");
+    expect(graph).toMatch(/\[v1\]\[ducked\]\[fx\]amix=inputs=3:normalize=0:duration=first,loudnorm/);
+    // Without effects the mix is as before.
+    expect(soundArgs({ voices: [], bed: null, duration: 2, finish: false, out: "o.wav" }).join(" ")).not.toContain("[fx]");
+  });
+
   it("leaves the video's last take a breath after its last word", async () => {
     const { fitChunk } = await import("@/lib/creative/clone");
     const clip = { duration: 8.04, speech: { from: 0.3, to: 7.2 } };

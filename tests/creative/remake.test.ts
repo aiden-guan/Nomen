@@ -454,6 +454,28 @@ describe("the ending", () => {
 
 });
 
+describe("sound effects", () => {
+  it("pops a card in, whooshes a slide or fade, one effect per moment, none on a hard cut", async () => {
+    const { soundEffects } = await import("@/lib/creative/remake");
+    const fx = soundEffects(
+      [
+        { start: 3.67, entrance: "slide_up" },
+        { start: 1.93, entrance: "pop" },
+        { start: 2.05, entrance: "pop" }, // lands with the one before: no second sound
+        { start: 5.4, entrance: "cut" },
+        { start: 14.2, entrance: "fade" }, // the closing card
+        { start: 15.58, entrance: "pop" }, // at the very end: nothing
+      ],
+      15.6,
+    );
+    expect(fx).toEqual([
+      { kind: "pop", at: 1.93 },
+      { kind: "whoosh", at: 3.55 },
+      { kind: "whoosh", at: 14.08 },
+    ]);
+  });
+});
+
 describe("where a take's first frame is grabbed", () => {
   it("moves past a cut the layout's segment time missed, and stays put otherwise", async () => {
     const { afterCut } = await import("@/lib/creative/remake");
