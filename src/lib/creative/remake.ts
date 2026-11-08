@@ -34,7 +34,7 @@ import type { NaiveClient } from "../naive";
 import { type CloneVerdict, QC_MODEL, reviewClone, reviewFrame } from "../qc";
 import { extractJson } from "../research";
 import type { Files } from "../store/types";
-import { type CaptionStyle, escapeAssText, toAss } from "./captions";
+import { type CaptionStyle, escapeAssText, type FontMetrics, textWidth, toAss } from "./captions";
 import {
   chunkTakes,
   type CloneLayer,
@@ -241,6 +241,19 @@ const COMPUTER_SCREEN = /\b(laptop|monitor|computer|desktop|chromebook|browser|w
  */
 export function screenSegmentKind(kind: SegmentKind, shows: string): SegmentKind {
   return kind === "broll" && COMPUTER_SCREEN.test(shows) ? "screen_walkthrough" : kind;
+}
+
+/**
+ * The segments once the input's hints apply. A device `display`: its b-roll films that display (a
+ * screen walkthrough). `people: "keep"`: nobody is re-performed, so a talking head or a stitch is
+ * footage to keep (b-roll), and a person cut out over other footage stays in it.
+ */
+export function filmedSegments<T extends Pick<RemakeSegment, "kind" | "presenter">>(segments: T[], o: { display?: unknown; people?: "keep" }): T[] {
+  return segments.map((s) => {
+    if (o.display && s.kind === "broll") return { ...s, kind: "screen_walkthrough" as const };
+    if (o.people !== "keep") return s;
+    return { ...s, kind: s.kind === "talking_head" || s.kind === "stitch" ? ("broll" as const) : s.kind, presenter: { ...s.presenter, inset: null } };
+  });
 }
 
 /** A model's name for a segment, mapped onto the kinds we clone. */
@@ -771,23 +784,40 @@ const assColour = (hexColour: string, alpha = 0) => {
   return `&H${alpha.toString(16).padStart(2, "0").toUpperCase()}${v.slice(4, 6)}${v.slice(2, 4)}${v.slice(0, 2)}`.toUpperCase().replace("&H", "&H");
 };
 
+/** Colour emoji (with their joiners, skin tones and variation selectors): libass draws them as empty boxes. */
+const UNDRAWABLE = /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u200D\uFE0F]/gu;
+
 /**
  * The text overlays as an ASS file: each at its reference box (centred on the box, from its top),
- * at its letter size, colour, outline, shadow and background box, with our words.
+ * at its letter size, colour, outline, shadow and background box, with our words. Emoji are left
+ * out (libass cannot draw them). With the font's `metrics`, a line too wide for the frame in our
+ * font (wider than most captions' condensed ones) is squeezed to as little as 75%, then made smaller.
  */
-export function textsAss(items: Array<{ overlay: TextOverlay; lines: string[] }>, fontName = "Poppins ExtraBold"): string {
+export function textsAss(items: Array<{ overlay: TextOverlay; lines: string[] }>, fontName = "Poppins ExtraBold", metrics?: FontMetrics): string {
   const time = (s: number) => {
     const cs = Math.max(0, Math.round(s * 100));
     return `${Math.floor(cs / 360000)}:${String(Math.floor(cs / 6000) % 60).padStart(2, "0")}:${String(Math.floor(cs / 100) % 60).padStart(2, "0")}.${String(cs % 100).padStart(2, "0")}`;
   };
-  const events = items.map(({ overlay, lines }) => {
-    const size = Math.round((overlay.size * OUT.height) / 0.7);
+  const events = items.flatMap(({ overlay, lines }) => {
+    const drawn = lines.map((line) => line.replace(UNDRAWABLE, "").replace(/\s{2,}/g, " ").trim()).filter(Boolean);
+    if (!drawn.length) return [];
+    let size = Math.round((overlay.size * OUT.height) / 0.7);
     const x = Math.round((overlay.box.x + overlay.box.w / 2) * OUT.width);
     const y = Math.round(overlay.box.y * OUT.height);
+    let squeeze = 100;
+    if (metrics) {
+      const pad = overlay.background ? 2 * Math.round(size * 0.18) : 14;
+      const room = 2 * (Math.min(x, OUT.width - x) - OUT.width * 0.04) - pad;
+      const widest = Math.max(...drawn.map((line) => textWidth(line, size, metrics)));
+      if (room > 0 && widest > room) {
+        squeeze = Math.max(75, Math.floor((100 * room) / widest));
+        if ((widest * squeeze) / 100 > room) size = Math.floor((size * room * 100) / (widest * squeeze));
+      }
+    }
     const border = overlay.background ? `\\3c${assColour(overlay.background)}\\bord${Math.round(size * 0.18)}` : overlay.outline === "none" ? "\\bord0" : `\\3c&H000000&\\bord${overlay.outline === "thin" ? 3 : 7}`;
     const shadow = overlay.shadow ? `\\shad${Math.max(2, Math.round(size * 0.06))}\\4c&H000000&\\4a&H80&` : "\\shad0";
-    const body = lines.map((line) => escapeAssText(line, "space")).join("\\N");
-    return `Dialogue: 2,${time(overlay.start)},${time(overlay.end)},${overlay.background ? "Boxed" : "Text"},,0,0,0,,{\\an8\\pos(${x},${y})\\fs${size}\\1c${assColour(overlay.color)}${border}${shadow}}${body}`;
+    const body = drawn.map((line) => escapeAssText(line, "space")).join("\\N");
+    return [`Dialogue: 2,${time(overlay.start)},${time(overlay.end)},${overlay.background ? "Boxed" : "Text"},,0,0,0,,{\\an8\\pos(${x},${y})\\fs${size}${squeeze < 100 ? `\\fscx${squeeze}` : ""}\\1c${assColour(overlay.color)}${border}${shadow}}${body}`];
   });
   return [
     "[Script Info]",
@@ -836,6 +866,26 @@ export function labelCase(ours: string, label: string[]): string {
 export function overlayBeat(overlay: Pick<TextOverlay, "start">, beats: Array<Pick<ReferenceBeat, "start" | "end">>): number {
   const i = beats.findIndex((beat) => overlay.start >= beat.start - 0.05 && overlay.start < beat.end);
   return i >= 0 ? i : 0;
+}
+
+/**
+ * Our on-screen text for each overlay: its beat's. A caption in several boxes shown together (a
+ * premise, its quote, a pointer) splits the beat's text between them, top to bottom, aligned to
+ * their own words, so no box repeats the whole caption.
+ */
+export function overlayTexts(overlays: Array<Pick<TextOverlay, "lines" | "box" | "start" | "end">>, beats: Array<Pick<ReferenceBeat, "start" | "end">>, texts: string[]): string[] {
+  const out = overlays.map((o) => texts[overlayBeat(o, beats)] ?? "");
+  const byBeat = new Map<number, number[]>();
+  overlays.forEach((o, k) => byBeat.set(overlayBeat(o, beats), [...(byBeat.get(overlayBeat(o, beats)) ?? []), k]));
+  for (const [i, group] of byBeat) {
+    if (group.length < 2 || !texts[i]?.trim()) continue;
+    const together = group.every((a) => group.every((b) => overlays[a].start < overlays[b].end && overlays[b].start < overlays[a].end));
+    if (!together) continue;
+    const order = [...group].sort((a, b) => overlays[a].box.y - overlays[b].box.y);
+    const parts = overlayLines(texts[i], order.map((k) => overlays[k].lines.join(" ")));
+    if (parts.length === order.length) order.forEach((k, j) => (out[k] = parts[j]));
+  }
+  return out;
 }
 
 // ---------- ffmpeg arguments for the cut ----------
@@ -1304,6 +1354,12 @@ export type RemakeInput = {
   display?: DeviceDisplay;
   /** An ffmpeg filter for our voice before the finish (PHONE_EQ: heard through a phone's speaker, as the reference's is). */
   voiceEq?: string;
+  /**
+   * "keep": the people in the reference's footage stay as filmed (a faceless video's person never
+   * talks to the camera: a silent shot of someone at a desk under a caption). Their shots are kept,
+   * with only the burned-in words painted out, and nobody is re-performed.
+   */
+  people?: "keep";
   /** Prefix of every idempotency key: stable per video, so a rerun never pays twice. */
   idem: string;
   /** Personas still to make for this remake (their portraits count in the estimate). */
@@ -1488,7 +1544,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   // 2. The reference's scene changes, the segments snapped onto them, and each layer's own cuts.
   manifest.cuts ??= (await detectCuts(input.referencePath, 0.3, info.duration).catch(() => [] as number[])).filter((c) => c < end);
   const cuts = manifest.cuts;
-  const segments = snapSegments(input.display ? layout.segments.map((s) => (s.kind === "broll" ? { ...s, kind: "screen_walkthrough" as const } : s)) : layout.segments, cuts);
+  const segments = snapSegments(filmedSegments(layout.segments, input), cuts);
   const layers = layersOf({ segments }, stage, presenter.ratios);
   // A filmed screen often cuts between shots of the same room, which the usual setting misses.
   if (layers.some((l) => l.kind === "screen") && !manifest.soft_cuts) {
@@ -1587,7 +1643,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   const estimate = estimateCost(
     layers,
     { name: presenter.name, ...presenter.price },
-    { personas: (input.personasToMake ?? 0) + (needsCohost ? 1 : 0), graphics: requests.length, plates: layers.filter((l) => l.kind === "screen").length, padSeconds: presenter.voice === "own" ? 0.6 : 0 },
+    { personas: (input.personasToMake ?? 0) + (needsCohost ? 1 : 0), graphics: requests.length, plates: layers.filter((l) => l.kind === "screen" && !keepScreens.has(l.id)).length, padSeconds: presenter.voice === "own" ? 0.6 : 0 },
   );
   manifest.estimate = estimate;
   await save();
@@ -1838,7 +1894,9 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
         stagePieces.push({ path: clip, kind: "video", from: fit.from, seconds: round(chunk.end - chunk.start), speed: fit.speed });
       }
     } else if (layer.kind === "keep") {
-      stagePieces.push({ path: input.referencePath, kind: "video", from: layer.start, seconds: len, crop: stageRef });
+      // Faceless: kept footage has its burned-in words painted out, as a kept screen does, so ours are the only ones.
+      const kept = !people && burnedInText(layout, stage, layer).length ? await keptScreen(work, manifest, { layer, layout, stage, stageRef, reference: input.referencePath }) : null;
+      stagePieces.push(kept ? { path: kept, kind: "video", from: 0, seconds: len } : { path: input.referencePath, kind: "video", from: layer.start, seconds: len, crop: stageRef });
     } else if (layer.kind === "screen" && !manifest.fallbacks[layer.id] && (await work.local(manifest.screens[layer.id]?.clip_key))) {
       stagePieces.push({ path: (await work.local(manifest.screens[layer.id].clip_key))!, kind: "video", from: 0, seconds: len });
     } else if (layer.kind === "graphic" && built.get(layer.id)) {
@@ -1879,12 +1937,13 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   await mkdir(join(cut, "fonts"), { recursive: true });
   await copyFile(DEFAULT_FONT, join(cut, "fonts", basename(DEFAULT_FONT)));
   const ass: string[] = [];
+  const shares = overlayTexts(layout.texts, span.beats, lines.map((l) => l.on_screen_text ?? ""));
   const texts = layout.texts
-    .map((overlay) => {
+    .map((overlay, k) => {
       const i = overlayBeat(overlay, span.beats);
       // A label that shows the spoken line shows ours (TikTok's read-out labels), in its letter case.
       const spoken = labelSaysLine(overlay.lines, span.beats[i]?.line ?? "");
-      const ours = lines[i]?.on_screen_text || (spoken ? labelCase(lines[i]?.line ?? "", overlay.lines) : "");
+      const ours = shares[k] || (spoken ? labelCase(lines[i]?.line ?? "", overlay.lines) : "");
       return { overlay, spoken, lines: overlayLines(ours, overlay.lines) };
     })
     .filter((t) => t.lines.length && t.overlay.start < end)
@@ -1892,7 +1951,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   const skipped = layout.texts.length - texts.length;
   if (skipped > 0) notes.push(`${skipped} text overlay${skipped > 1 ? "s" : ""} left out: the script gave no on-screen text for ${skipped > 1 ? "their beats" : "its beat"}`);
   if (texts.length) {
-    await writeFile(join(cut, "texts.ass"), textsAss(texts), "utf8");
+    await writeFile(join(cut, "texts.ass"), textsAss(texts, undefined, await fontMetrics(DEFAULT_FONT)), "utf8");
     ass.push("texts.ass");
   }
   // Word captions only where the reference has them (a voice-over ad's only words may be its graphics').
@@ -2038,9 +2097,9 @@ async function twinFrame(
 }
 
 /**
- * A filmed screen kept as it is: the reference's footage with only its burned-in captions painted
- * out (OpenCV, as the tracker), so the edit's captions are the only words on it. Without OpenCV, or
- * with nothing to paint out, the footage itself.
+ * A filmed screen (or, faceless, any footage) kept as it is: the reference's footage with only its
+ * burned-in captions painted out (OpenCV, as the tracker), so the edit's captions are the only words
+ * on it. Without OpenCV, or with nothing to paint out, the footage itself.
  */
 async function keptScreen(work: Work, manifest: Manifest, o: { layer: CloneLayer; layout: RemakeLayout; stage: Stage; stageRef: Rect; reference: string }): Promise<string> {
   const { layer, stage } = o;
@@ -2057,7 +2116,7 @@ async function keptScreen(work: Work, manifest: Manifest, o: { layer: CloneLayer
   } else {
     await ffmpeg(stageArgs([{ path: o.reference, kind: "video", from: layer.start, seconds, crop: o.stageRef }], stage, out));
   }
-  work.say(`Kept the reference's own screen for ${layer.start.toFixed(1)}-${layer.end.toFixed(1)} s${python && erase.length ? ", its captions painted out" : ""}`);
+  work.say(`Kept the reference's own ${layer.kind === "keep" ? "footage" : "screen"} for ${layer.start.toFixed(1)}-${layer.end.toFixed(1)} s${python && erase.length ? ", its captions painted out" : ""}`);
   rec.mode = "keep";
   rec.clip_key = await work.keep(`screens/${layer.id}.mp4`, out, "video/mp4");
   await work.save();

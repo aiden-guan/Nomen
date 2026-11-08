@@ -6,8 +6,9 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { editFfmpeg } from "@/lib/creative/edit";
-import { balanceLines, burnedInText, overlayLines, parseScreenPolicy, screenPolicy, screenPolicyPrompt, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, staticCaption, wordCaptions } from "@/lib/creative/remake";
+import { textWidth } from "@/lib/creative/captions";
+import { DEFAULT_FONT, editFfmpeg, fontMetrics } from "@/lib/creative/edit";
+import { balanceLines, burnedInText, filmedSegments, overlayLines, parseScreenPolicy, screenPolicy, screenPolicyPrompt, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, staticCaption, textsAss, overlayTexts, wordCaptions } from "@/lib/creative/remake";
 import { readScreenCorners } from "@/lib/creative/clone";
 import { beatsOfWords, fitSegments, freshVoiceArgs, PHONE_EQ, soundArgs, timeOurLines, timeOurWords, wordsFromSegments } from "@/lib/creative/dub";
 import { referenceFrameNote } from "@/lib/creative/screens";
@@ -296,6 +297,76 @@ describe("faceless remakes: keep the reference's screen, or put ours on it", () 
     const policy = await screenPolicy(naive, segments, { name: "Mobilerun", one_liner: "real phones for AI agents" });
     expect(policy[1].keep).toBe(true);
     expect(policy[2].keep).toBe(false);
+  });
+});
+
+describe("faceless remakes: a silent person in the footage stays as filmed", () => {
+  const person = { box: { x: 0.2, y: 0.1, w: 0.6, h: 0.5 }, inset: null, green: false };
+  const cutOut = { box: null, inset: { x: 0.6, y: 0.6, w: 0.3, h: 0.3 }, green: true };
+  const segments = [
+    { n: 1, kind: "talking_head" as const, presenter: person },
+    { n: 2, kind: "broll" as const, presenter: cutOut },
+    { n: 3, kind: "stitch" as const, presenter: cutOut },
+    { n: 4, kind: "graphic" as const, presenter: person },
+  ];
+
+  it("keeps a talking head or a stitch as footage, cut-outs included, so nobody is re-performed", () => {
+    const kept = filmedSegments(segments, { people: "keep" });
+    expect(kept.map((s) => s.kind)).toEqual(["broll", "broll", "broll", "graphic"]);
+    expect(kept.every((s) => s.presenter.inset === null)).toBe(true);
+    expect(kept[0].presenter.box).toEqual(person.box);
+  });
+
+  it("changes nothing without the hint, and a device display still turns b-roll into its screen", () => {
+    expect(filmedSegments(segments, {})).toEqual(segments);
+    expect(filmedSegments(segments, { display: { width: 960, height: 720 } }).map((s) => s.kind)).toEqual(["talking_head", "screen_walkthrough", "stitch", "graphic"]);
+    // A person kept as footage is not the device's display.
+    expect(filmedSegments(segments, { display: { width: 960, height: 720 }, people: "keep" }).map((s) => s.kind)).toEqual(["broll", "screen_walkthrough", "broll", "graphic"]);
+  });
+});
+
+describe("faceless remakes: a redrawn caption in our font", () => {
+  const boxed = { id: "t1", lines: ["I TOLD CLAUDE,"], box: { x: 0.05, y: 0.4, w: 0.9, h: 0.2 }, start: 0, end: 6, color: "#000000", outline: "none" as const, shadow: false, background: "#FFFFFF", size: 0.02 };
+
+  it("leaves out emoji, which libass draws as empty boxes", async () => {
+    const ass = textsAss([{ overlay: boxed, lines: ["HERE'S WHAT I DEPLOYED 👇", "👍🏽"] }], undefined, await fontMetrics(DEFAULT_FONT));
+    expect(ass).toMatch(/}HERE'S WHAT I DEPLOYED\n/);
+    expect(ass).not.toMatch(/\p{Extended_Pictographic}/u);
+    expect(ass).not.toContain("\\N");
+  });
+
+  it("squeezes a line too wide for the frame, and leaves a short one as it is", async () => {
+    const metrics = await fontMetrics(DEFAULT_FONT);
+    const long = "\"I'M EXHAUSTED, AND I WANT TO STOP WORKING IN THE NEXT";
+    // Letters 3% of the frame high: fs 82, too wide for 1080 px in Poppins.
+    expect(textWidth(long, 82, metrics)).toBeGreaterThan(1080);
+    const wide = textsAss([{ overlay: { ...boxed, size: 0.03 }, lines: [long, "2 YEARS. I WANT A BUSINESS"] }], undefined, metrics);
+    const squeeze = Number(wide.match(/\\fscx(\d+)/)?.[1]);
+    expect(squeeze).toBeGreaterThanOrEqual(75);
+    expect(squeeze).toBeLessThan(100);
+    const size = Number(wide.match(/\\fs(\d+)\\/)?.[1]);
+    expect((textWidth(long, size, metrics) * squeeze) / 100).toBeLessThanOrEqual(1080 * 0.92);
+    expect(textsAss([{ overlay: boxed, lines: ["I TOLD NAÏVE,"] }], undefined, metrics)).not.toContain("\\fscx");
+  });
+});
+
+describe("faceless remakes: a caption in several boxes", () => {
+  const box = (y: number, lines: string[], start = 0, end = 6) => ({ lines, box: { x: 0.05, y, w: 0.9, h: 0.05 }, start, end });
+  const caption = [box(0.6, ["HERE'S THE EXACT PROMPT", "I GAVE IT 👇"]), box(0.4, ["I TOLD CLAUDE,"]), box(0.45, ["\"I'M EXHAUSTED, AND I WANT TO STOP", "WORKING IN THE NEXT 2 YEARS. PEOPLE", "HAVE NO IDEA WHAT I DO.\""])];
+  const ours = "I TOLD NAÏVE, \"I'M EXHAUSTED, AND I WANT TO STOP WORKING IN THE NEXT 2 YEARS. I WANT AGENTS TO RUN A FACELESS CHANNEL FOR ME.\" HERE'S THE EXACT TEMPLATE I DEPLOYED 👇";
+
+  it("splits the beat's text between boxes shown together, top to bottom, by their words", () => {
+    const shares = overlayTexts(caption, [beat(0, 6)], [ours]);
+    expect(shares[1]).toBe("I TOLD NAÏVE,");
+    expect(shares[2]).toBe("\"I'M EXHAUSTED, AND I WANT TO STOP WORKING IN THE NEXT 2 YEARS. I WANT AGENTS TO RUN A FACELESS CHANNEL FOR ME.\"");
+    expect(shares[0]).toBe("HERE'S THE EXACT TEMPLATE I DEPLOYED");
+  });
+
+  it("gives one box, or boxes shown one after another, their beat's whole text", () => {
+    expect(overlayTexts([caption[1]], [beat(0, 6)], ["I TOLD NAÏVE,"])).toEqual(["I TOLD NAÏVE,"]);
+    const labels = [box(0.4, ["first"], 0, 2), box(0.4, ["second"], 2, 4)];
+    expect(overlayTexts(labels, [beat(0, 4)], ["ours"])).toEqual(["ours", "ours"]);
+    expect(overlayTexts(labels, [beat(0, 2), beat(2, 4)], ["one", "two"])).toEqual(["one", "two"]);
   });
 });
 

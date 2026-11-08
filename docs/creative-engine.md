@@ -187,6 +187,15 @@ reference's own footage stays and only the product content and the voice change.
   white point, tint, softness), and the reference's burned-in captions are painted out of the
   footage it keeps. Shots are split at a softer cut list (scene score 0.12), since a filmed screen
   cuts between shots of the same room. Without OpenCV it warps between corner reads, as before.
+- **A generic screen stays as it is** (a phone ringing, a call screen): our product goes on a
+  filmed screen only where the original's would sell someone else's. `screens: "auto"` asks once
+  per remake (cached; unsure means replace), `"keep"` forces it; the kept footage only has its
+  burned-in captions painted out.
+- **A silent person in the footage** (someone at a desk under a caption, never talking to the
+  camera) stays as filmed with `people: "keep"`: nobody is re-performed, and every kept shot of a
+  faceless remake has its burned-in words painted out so the redrawn caption is the only one.
+- **Redrawn captions** leave out emoji (libass draws them as empty boxes) and squeeze a line our
+  font makes too wide for the frame (to 75%, then smaller).
 - **Labels a voice reads out** (TikTok's text to speech) show our line in their case; captions stay
   out of a label's window and never run across two lines.
 - **A voice-over ad** keeps no captions when the reference has none (`captions.present`), and a
@@ -200,8 +209,10 @@ reference's own footage stays and only the product content and the voice change.
   reference's words.
 
 **Live tests:** `tests/faceless.live.test.ts`: @vqgts for Mobilerun (a filmed laptop with labels),
-@ai.with.ni for Monid (a filmed monitor with a voice-over) and ElevenLabs' Meta ad for Naive (a
-voice-over over motion graphics). See the file's header for the commands.
+@ai.with.ni for Monid (a filmed monitor with a voice-over), ElevenLabs' Meta ad for Naive (a
+voice-over over motion graphics), @risingpower__ for Mobilerun (a desk phone ringing, its own
+display kept) and @marketingwithed_ for Naive (a silent desk shot under one caption: only the
+caption changes). See the file's header for the commands.
 
 ## Costs
 

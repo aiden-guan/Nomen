@@ -28,6 +28,7 @@ import type { Files } from "@/lib/store/types";
 //   NOMEN_FACELESS_LIVE=1 npx vitest run tests/faceless.live.test.ts -t aiwithni     (Monid)
 //   NOMEN_FACELESS_LIVE=1 npx vitest run tests/faceless.live.test.ts -t elevenlabs   (Naive)
 //   NOMEN_FACELESS_LIVE=1 npx vitest run tests/faceless.live.test.ts -t risingpower  (Mobilerun; no Monid at all)
+//   NOMEN_FACELESS_LIVE=1 npx vitest run tests/faceless.live.test.ts -t marketingwithed  (Naive; caption only, no Monid)
 //   NOMEN_FACELESS_LIVE=dry ...   (checks the inputs, pays nothing)
 //
 // Set NOMEN_DATA_DIR to a data folder holding nomen.db, brandkits/ and media/references/<file>
@@ -57,6 +58,8 @@ type Case = {
   voiceEq?: string;
   /** "keep": the reference's own screen stays (it is generic); only the sound and the caption change. */
   screens?: "keep";
+  /** "keep": the person in the footage stays as filmed (silent, never talking to the camera). */
+  people?: "keep";
   brief: Omit<CreativeBrief, "reference_id" | "format" | "creator" | "setting" | "visuals">;
   stats: string;
 };
@@ -178,6 +181,38 @@ const CASES: Case[] = [
       why: "769x its follower count and 14K shares: a faceless object shot whose own footage stays, with only the phone's display and the voice changed.",
     },
   },
+  {
+    // @marketingwithed_: one silent shot of a man at his desk (laptop, podcast mic) who never talks
+    // to the camera, under one static caption in black on white boxes ("I told Claude, '...' Here's
+    // the exact prompt I gave it") over a trending sound. 408K views and 1.8K comments in 6 seconds.
+    // Ours: the same footage and sound, only the caption changes (the reference says nothing).
+    name: "marketingwithed",
+    campaign: NAIVE,
+    reference: { campaign: NAIVE, url: "https://www.instagram.com/reel/DfFZLxtOYeG/" },
+    file: "marketingwithed-original.mp4",
+    maxUsd: 1,
+    // Nothing is said: the narrator is never heard.
+    narrator: { id: "fable", name: "Fable", gender: "male" },
+    speech: "naive",
+    screens: "keep",
+    people: "keep",
+    stats: "407,862 views · 2,270 likes · 1,764 comments · 6.2 s · Instagram reel · prompt-in-the-caption CTA",
+    brief: {
+      title: "I told Naïve I'm exhausted",
+      role: "convert",
+      metric: "sign_ups",
+      angle: "The same tired-founder confession: what he told the AI (he is exhausted and wants a business that runs quietly, without showing his face), then a pointer down to exactly what he set up. Here the AI is Naïve, and what it gives him is a team of agents running a faceless short-form channel.",
+      audience: "Solo founders and creators who want a faceless content business run by AI agents instead of a team",
+      hook_plan: "The same 'I told <tool>,' opener and quoted wish in the creator's own tired words over the silent desk shot, then the same pointer to the post caption.",
+      keep: ["the one silent shot of the man at his desk, untouched", "the three black-on-white caption boxes in the same places, order and letter case", "the trending sound", "the pointer down to the post caption"],
+      change: ["the tool he told is Naïve, not Claude", "his wish is one Naïve really grants: a faceless short-form video channel run by a team of AI agents (the Short Form template), with him approving what goes out", "the pointer leads to the template he deployed, not a prompt"],
+      platforms: ["instagram", "tiktok"],
+      caption: "I told Naïve: \"I'm exhausted. I want a business that runs quietly, without showing my face.\" Here's exactly what I deployed: 1. Open Naïve Studio in the browser (no terminal). 2. Pick the Naïve Short Form v1 template and click Deploy. 3. Watch the first session: the agent team briefs, scripts and generates a vertical video in your channel's look, and queues it for your approval.",
+      hashtags: ["#aiagents", "#naive", "#facelessbusiness"],
+      cta: "Here's the template I deployed",
+      why: "408K views and 1,764 comments on a 6-second silent shot: the caption's confession and its pointer do all the work, and the footage shows only a man at his desk, so it stays as filmed.",
+    },
+  },
 ];
 
 /** The store's files in a folder of their own, so a live run never touches the app's media. */
@@ -296,6 +331,7 @@ describe.skipIf(!live)("faceless one-to-one remakes (live, paid)", () => {
             display: c.display,
             voiceEq: c.voiceEq,
             screens: c.screens,
+            people: c.people,
             finish: process.env.NOMEN_REMAKE_FINISH !== "0",
             idem: `faceless-live-${c.name}-${tag}`,
             onEvent: log,
