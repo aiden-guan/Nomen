@@ -110,7 +110,10 @@ export function fontMetrics(path = DEFAULT_FONT): Promise<FontMetrics> {
 // ---------- planning ----------
 
 type Motion = BRollClip["motion"];
-type Visual = { start: number; end: number; split: boolean; path: string; kind: "image" | "video"; motion: Motion };
+type Visual = { start: number; end: number; split: boolean; inset?: boolean; path: string; kind: "image" | "video"; motion: Motion };
+
+/** The presenter window in inset segments: a rounded portrait window centred low, under the captions. */
+export const INSET = { width: 380, height: 500, radius: 40, centerY: 0.775 } as const;
 
 const fps = OUTPUT.fps;
 const snap = (t: number) => Math.round(t * fps) / fps;
@@ -125,7 +128,7 @@ function planVisuals(timeline: EditTimeline, duration: number, hasARoll: boolean
     const start = snap(Math.max(0, segment.start));
     const end = snap(Math.min(duration, segment.end));
     if (!(end > start)) continue;
-    visuals.push({ start, end, split: segment.layer === "split" && hasARoll, ...segment.broll });
+    visuals.push({ start, end, split: segment.layer === "split" && hasARoll, inset: segment.layer === "inset" && hasARoll, ...segment.broll });
   }
   visuals.sort((a, b) => a.start - b.start);
   if (!hasARoll && visuals.length) {
@@ -375,9 +378,14 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
     graph.push(`anullsrc=r=48000:cl=stereo,atrim=end=${num(duration)}[aout]`);
   }
 
-  // Split screen: the A-roll's upper-middle band on the top half during split segments.
+  // Inset: keep a copy of the A-roll before any B-roll covers it, for the presenter window.
   const half = H / 2;
   let base = "base0";
+  const insets = visuals.filter((v) => v.inset);
+  if (insets.length) {
+    graph.push(`[base0]split[base0x][ainsetsrc]`);
+    base = "base0x";
+  }
   const splits = visuals.filter((v) => v.split);
   if (splits.length) {
     const top = Math.round((H * SPLIT_AROLL_TOP) / 2) * 2;
@@ -406,6 +414,22 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
     graph.push(`[${base}][${id}v]overlay=0:${v.split ? half : 0}:eof_action=pass:enable='${enable}'[${next}]`);
     base = next;
   });
+
+  // Presenter window: the face band of the A-roll, rounded, over the product graphics.
+  if (insets.length) {
+    const { width: iw, height: ih, radius: r } = INSET;
+    const enable = insets.map((v) => `between(t,${num(v.start - 0.5 / fps)},${num(v.end - 0.5 / fps)})`).join("+");
+    const cropH = even((W * ih) / iw);
+    const cropTop = even(H * 0.08);
+    graph.push(
+      `[ainsetsrc]crop=${W}:${cropH}:0:${cropTop},scale=${iw}:${ih}:flags=lanczos,format=rgba[ainsetrgb]`,
+      // A rounded-rectangle alpha mask, computed once per frame size (cheap at this size).
+      `color=c=white:s=${iw}x${ih}:r=${fps}:d=${num(duration + 1)},format=gray,geq=lum='255*lte(hypot(max(0,abs(X-${iw / 2})-${iw / 2 - r}),max(0,abs(Y-${ih / 2})-${ih / 2 - r})),${r})'[insetmask]`,
+      `[ainsetrgb][insetmask]alphamerge[ainset]`,
+      `[${base}][ainset]overlay=(W-w)/2:${Math.round(H * INSET.centerY - ih / 2)}:eof_action=pass:enable='${enable}'[baseinset]`,
+    );
+    base = "baseinset";
+  }
 
   const scratch = options.workDir ? resolve(options.workDir) : tmpdir();
   await mkdir(scratch, { recursive: true });

@@ -13,7 +13,7 @@ const MAX_SHOT = 8;
 /** Taller than a phone screen (a full-page capture): worth scrolling. A one-screen phone capture is not. */
 export const isTall = (visual: Pick<ProductVisual, "width" | "height">) => Boolean(visual.width && visual.height && visual.height > visual.width * 2.4);
 
-const usesCreator = (format: CreativeBrief["format"]) => format === "talking_head_broll" || format === "split_screen";
+const usesCreator = (format: CreativeBrief["format"]) => format === "talking_head_broll" || format === "split_screen" || format === "presenter_inset";
 
 export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief, delivery = ""): ProductionPlan {
   const visuals = new Map(product.visuals.map((v) => [v.id, v]));
@@ -213,7 +213,7 @@ export function buildTimeline(
       segments.push({
         start: time.start,
         end: time.end,
-        layer: beat.visual === "split" && !noCreator ? "split" : "broll",
+        layer: beat.visual === "split" && !noCreator ? "split" : beat.visual === "inset" && !noCreator ? "inset" : "broll",
         broll: { path: shown.path, kind: shown.kind, motion: clip?.motion ?? "zoom_in" },
       });
       lastVisual = shown;

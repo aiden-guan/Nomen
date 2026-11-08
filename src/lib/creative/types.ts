@@ -134,7 +134,9 @@ export type VideoFormat =
   /** No face: the product on screen, a voice-over, captions. */
   | "voiceover_demo"
   /** No voice: the product on screen with large on-screen text. */
-  | "text_story";
+  | "text_story"
+  /** Product graphics full screen, the presenter in a small rounded window (the dev-tutorial look). */
+  | "presenter_inset";
 
 /** The creative director's brief for one video: which viral video it remakes and what changes for this product. */
 export type CreativeBrief = {
@@ -173,8 +175,8 @@ export type ScriptBeat = {
   line: string;
   /** Large text on screen (the hook, a label), or "". Captions of the line are added separately. */
   on_screen_text: string;
-  /** What fills the screen: the creator, the product, or both stacked. */
-  visual: "creator" | "product" | "split";
+  /** What fills the screen: the creator, the product, both stacked, or the product with the presenter inset. */
+  visual: "creator" | "product" | "split" | "inset";
   /** ProductVisual id for "product" and "split" beats. */
   product_visual: string | null;
   /** Creator: expression and small action. Product: the motion ("slow scroll down", "push in on the label"). */
@@ -228,7 +230,7 @@ export type EditTimeline = {
   segments: Array<{
     start: number;
     end: number;
-    layer: "aroll" | "broll" | "split";
+    layer: "aroll" | "broll" | "split" | "inset";
     broll?: { path: string; kind: "image" | "video"; motion: BRollClip["motion"] };
   }>;
   /** Spoken-word captions, 1-4 words each. */

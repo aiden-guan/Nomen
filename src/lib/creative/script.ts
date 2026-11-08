@@ -92,7 +92,7 @@ const SCRIPT_TOOL = {
             seconds: { type: "number", description: "Planned length, 1-8." },
             line: { type: "string", description: "Exactly what is said out loud. Empty for a silent beat." },
             on_screen_text: { type: "string", description: "Large text on screen (the hook, a label), max 8 words, or empty. Not a caption of the line." },
-            visual: { type: "string", enum: ["creator", "product", "split"] },
+            visual: { type: "string", enum: ["creator", "product", "split", "inset"] },
             product_visual: { type: ["string", "null"], description: "A visual id from the list for product and split beats; null for creator beats." },
             direction: {
               type: "string",
@@ -159,7 +159,7 @@ function writerSystem() {
     "Showing the product:",
     "- Real footage of the product exists only as the listed visuals (ids like p1, s2). Every beat where the reference cuts away to a product, a screen or a demo shows this product's best-matching visual. If the reference never cuts away, still show the product on the beat that names what it does.",
     "- Creator beats: the reference's action and expression, kept small and calm (video models distort big gestures): no pointing at the lens, no thumbs up, no fast head turns, no hands near the face.",
-    "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; talking_head_broll mixes creator and product beats.",
+    "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; presenter_inset uses inset beats (product graphics full screen, the presenter in a small window; the hook may be a creator beat); talking_head_broll mixes creator, product and inset beats.",
     "",
     "Call the script tool once with every beat.",
   ].join("\n");
@@ -266,9 +266,11 @@ export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptCo
   const ids = new Set(ctx.product.visuals.map((v) => v.id));
   const fallbackVisual = ctx.brief.visuals.find((id) => ids.has(id)) ?? ctx.product.visuals[0]?.id ?? null;
   const out: ScriptBeat[] = beats.slice(0, 12).map((beat, i) => {
-    let visual: ScriptBeat["visual"] = beat.visual === "product" || beat.visual === "split" ? beat.visual : "creator";
+    let visual: ScriptBeat["visual"] = beat.visual === "product" || beat.visual === "split" || beat.visual === "inset" ? beat.visual : "creator";
     if (ctx.brief.format === "voiceover_demo" || ctx.brief.format === "text_story") visual = "product";
     if (ctx.brief.format === "split_screen") visual = "split";
+    // Inset videos may open on the presenter full screen (the hook), then keep them in the window.
+    if (ctx.brief.format === "presenter_inset" && !(i === 0 && visual === "creator")) visual = "inset";
     let productVisual = typeof beat.product_visual === "string" && ids.has(beat.product_visual) ? beat.product_visual : null;
     if (visual !== "creator" && !productVisual) productVisual = fallbackVisual;
     if (visual !== "creator" && !productVisual) visual = "creator"; // no footage at all: the creator carries it
@@ -337,7 +339,7 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
   }
 
   // The product has to appear: on every beat where the reference cut away, and at least once.
-  if (ctx.product.visuals.length && ctx.brief.format === "talking_head_broll") {
+  if (ctx.product.visuals.length && (ctx.brief.format === "talking_head_broll" || ctx.brief.format === "presenter_inset")) {
     if (!script.beats.some((b) => b.visual !== "creator")) issues.push("the product is never on screen");
     const cutaways = reference.beats.filter((b) => b.shot !== "talking_head" && b.shot !== "reaction").length;
     const ours = script.beats.filter((b) => b.visual !== "creator").length;
@@ -352,6 +354,6 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
  * about $0.40 per second to render, so remakes with a presenter stop at 24 s; faceless ones at 40 s.
  */
 export function targetSeconds(reference: Pick<ReferenceBreakdown, "duration">, format: CreativeBrief["format"] = "voiceover_demo") {
-  const cap = format === "talking_head_broll" || format === "split_screen" ? 24 : 40;
+  const cap = format === "talking_head_broll" || format === "split_screen" || format === "presenter_inset" ? 24 : 40;
   return Math.round(Math.min(cap, Math.max(8, reference.duration || 18)));
 }

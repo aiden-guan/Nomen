@@ -42,6 +42,8 @@ voice, footage or music.
   - `talking_head_broll`: a creator talks to camera, and the edit cuts to the real product while
     they keep talking.
   - `split_screen`: the creator on top, the product underneath.
+  - `presenter_inset`: product graphics full screen with the presenter in a small rounded window.
+    This is the look of most viral dev-tool tutorials.
   - `voiceover_demo`: no face. The product is on screen with a voice-over and captions.
   - `text_story`: no face. The product is on screen with large text.
 - **hook_plan**: the reference's hook, with exactly which words change for this product.
