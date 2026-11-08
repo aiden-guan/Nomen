@@ -1148,16 +1148,17 @@ const drawtextSafe = (text: string) => text.replace(/\\/g, "\\\\").replace(/'/g,
 export function endCardArgs(o: { image: string; site: string | null; font: string; width: number; height: number; out: string }): string[] {
   const { width: W, height: H } = o;
   const even = (n: number) => 2 * Math.round(n / 2);
-  const cardW = even(W * 0.84);
-  const cardH = even(Math.min(H * 0.55, cardW * 1.1));
-  const size = Math.round(Math.max(40, H * 0.05));
+  // The top square of the page (its logo and headline), as large as fits: a wide band shows it narrower.
+  const cardH = even(Math.min(H * 0.6, W * 0.84));
+  const cardW = cardH;
+  const size = Math.round(Math.max(52, H * 0.055));
   const gap = Math.round(H * 0.035);
   const block = cardH + (o.site ? gap + size : 0);
   const top = Math.round(Math.max(H * 0.05, (H - block) / 2 - H * 0.04));
   const filter = [
     `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=40:2,eq=brightness=-0.35[bg]`,
-    // The top of the page in the card's shape (a tall phone capture shows its hero, a wide picture its middle).
-    `[0:v]crop='min(iw,ih*${cardW}/${cardH})':'min(ih,iw*${cardH}/${cardW})':'(iw-ow)/2':0,scale=${cardW}:${cardH}[card]`,
+    // The top square of the page (a tall phone capture shows its hero, a wide picture its middle).
+    `[0:v]crop='min(iw,ih)':'min(iw,ih)':'(iw-ow)/2':0,scale=${cardW}:${cardH}[card]`,
     `[bg][card]overlay=(W-w)/2:${top}${o.site ? "[v0]" : "[v]"}`,
     ...(o.site ? [`[v0]drawtext=fontfile='${o.font}':text='${drawtextSafe(o.site)}':fontcolor=white:fontsize=${size}:x=(w-text_w)/2:y=${top + cardH + gap}:borderw=5:bordercolor=black@0.55[v]`] : []),
   ];
