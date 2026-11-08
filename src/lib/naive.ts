@@ -225,6 +225,16 @@ export class NaiveClient {
     return this.call<SpeechGeneration>("POST", "/v1/media/audio/speech", input, idempotencyKey, 180_000);
   }
 
+  /** A sound effect from a description, synchronous (0.5-30 s): the reply carries the stored file. */
+  generateSoundEffect(input: { prompt: string; duration_seconds?: number; loop?: boolean }, idempotencyKey: string) {
+    return this.call<AudioGeneration>("POST", "/v1/media/sound-effects", input, idempotencyKey, 180_000);
+  }
+
+  /** An original song or instrumental from a description, synchronous (3-300 s): the reply carries the stored file. */
+  generateMusic(input: { prompt: string; length_seconds?: number; instrumental?: boolean }, idempotencyKey: string) {
+    return this.call<AudioGeneration>("POST", "/v1/media/music", input, idempotencyKey, 300_000);
+  }
+
   // ---------- computers and their browser (https://usenaive.ai/docs/api/computers.md, /browser.md) ----------
 
   /** Provisioning is asynchronous: the 202 says `creating`; poll `getComputer` until `running`. */
@@ -326,6 +336,8 @@ export type NaiveFile = {
 };
 
 export type SpeechGeneration = { object: "speech_generation"; model: string; file: NaiveFile; duration_seconds: number | null; cost_micro_usd: number | null };
+/** A generated sound effect or piece of music. */
+export type AudioGeneration = { object: "sound_generation" | "music_generation"; file: NaiveFile; duration_seconds: number | null; cost_micro_usd: number | null };
 
 // ---------- computer and browser types ----------
 

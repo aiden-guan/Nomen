@@ -22,7 +22,8 @@ export const W = 1080;
 export const H = 1920;
 export const FPS = 30;
 
-export type CutClip = { path: string; seconds: number; from: number };
+/** A clip on the cut: `seconds` long from `from`; a clip shorter than that (`length`) plays slowed down to fill it. */
+export type CutClip = { path: string; seconds: number; from: number; length?: number };
 
 export type CutText =
   | { kind: "hook"; start: number; end: number; text: string }
@@ -52,7 +53,7 @@ export type BrainrotCut = {
 export type CutInput = {
   script: BrainrotScript;
   /** Per shot, in order: its rendered clip and its voice line (null for a silent shot). */
-  shots: Array<{ clip: string; voice: { path: string; seconds: number } | null }>;
+  shots: Array<{ clip: string; voice: { path: string; seconds: number } | null; length?: number }>;
   endVoice: { path: string; seconds: number } | null;
   endImage: string | null;
   music: { bed: string | null; hype: string | null };
@@ -191,7 +192,7 @@ export function buildCut(input: CutInput): BrainrotCut {
   }
 
   return {
-    clips: input.shots.map((s, i) => ({ path: s.clip, seconds: durations[i], from: 0 })),
+    clips: input.shots.map((s, i) => ({ path: s.clip, seconds: durations[i], from: 0, ...(s.length ? { length: s.length } : {}) })),
     end: input.endImage ? { image: input.endImage, seconds: endSeconds } : null,
     duration,
     texts,
@@ -315,6 +316,9 @@ export function zoomExpr(fx: CutFx[], T = "(on/30)"): string {
   return parts.length ? `1+${parts.join("+")}` : "1";
 }
 
+/** The most a clip is slowed down to fill its shot. */
+export const SLOWEST = 1.35;
+
 /** The fisheye bulge: barrel distortion over a matching zoom, so the middle swells and the frame stays full. */
 export const FISHEYE = { k1: 0.38, k2: 0.17 } as const;
 
@@ -331,8 +335,10 @@ export function cutArgs(cut: BrainrotCut, out: string, options: { ass: boolean }
 
   cut.clips.forEach((clip, i) => {
     const v = input("-ss", n3(clip.from), "-i", resolve(clip.path));
+    // A clip a little shorter than its shot plays in slow motion (on brand); the rest holds the last frame.
+    const slow = clip.length && clip.length - clip.from < clip.seconds ? Math.min(SLOWEST, clip.seconds / Math.max(0.5, clip.length - clip.from)) : 1;
     graph.push(
-      `[${v}:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=bicubic,crop=${W}:${H},setsar=1,fps=${FPS},tpad=stop_mode=clone:stop_duration=8,trim=duration=${n3(clip.seconds)},setpts=PTS-STARTPTS[c${i}]`,
+      `[${v}:v]${slow > 1.001 ? `setpts=${n3(slow)}*(PTS-STARTPTS),` : ""}scale=${W}:${H}:force_original_aspect_ratio=increase:flags=bicubic,crop=${W}:${H},setsar=1,fps=${FPS},tpad=stop_mode=clone:stop_duration=8,trim=duration=${n3(clip.seconds)},setpts=PTS-STARTPTS[c${i}]`,
     );
     parts.push(`[c${i}]`);
   });

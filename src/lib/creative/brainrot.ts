@@ -115,8 +115,11 @@ export type BitRecipe = {
   look: string;
   /** How the camera and the characters move in every clip. */
   movement: string;
-  /** The voice: an ElevenLabs voice and how it is directed. */
-  voice: { id: string; name: string; tags: string };
+  /**
+   * The voice: an ElevenLabs voice, how it is directed, and how much faster it is played (pitch
+   * kept); `naive` is the voice of Naive's openai/gpt-audio used when Monid can't make it.
+   */
+  voice: { id: string; name: string; tags: string; tempo: number; naive: string };
   /** Shots without words last this long. */
   silentSeconds: number;
   rules: string[];
@@ -144,7 +147,8 @@ export const RECIPES: Record<BrainrotBit, BitRecipe> = {
     shots: { min: 5, max: 7 },
     look: "Hyperreal glossy 3D render, vivid saturated colours, bright cinematic sunlight, crisp detail, a real-world setting, the creature large in frame, vertical 9:16.",
     movement: "Smooth cinematic camera; the creature does one goofy action with total confidence.",
-    voice: { id: "5DTSWAtuA2BoWMSMFTRP", name: "Caty (English with an Italian accent)", tags: "[excited] [dramatic]" },
+    // Caty reads about 1.5 words a second; anthems are rattled off.
+    voice: { id: "5DTSWAtuA2BoWMSMFTRP", name: "Caty (English with an Italian accent)", tags: "[excited] [dramatic]", tempo: 1.3, naive: "verse" },
     silentSeconds: 2.5,
     rules: [
       "Shot 1 is the outrageous stunt that introduces the product's mascot creature, a hybrid of an animal and the product's main object, named after the product in pseudo-Italian (Monid -> 'Monidino Saldolino'), its name chanted three times.",
@@ -174,12 +178,12 @@ export const RECIPES: Record<BrainrotBit, BitRecipe> = {
     shots: { min: 5, max: 7 },
     look: "Glossy Pixar-style 3D animation still, cartoon food characters with big expressive eyes and tiny arms and legs, warm cinematic lighting, detailed real sets, vertical 9:16.",
     movement: "Slow dramatic push-in; small emotional acting (trembling lip, a tear rolling, a slow head turn).",
-    voice: { id: "6FiCmD8eY5VyjOdG5Zjk", name: "Adam (deep story voice)", tags: "[dramatic]" },
+    voice: { id: "6FiCmD8eY5VyjOdG5Zjk", name: "Adam (deep story voice)", tags: "[dramatic]", tempo: 1.08, naive: "ballad" },
     silentSeconds: 2.5,
     rules: [
       "The hero is a sad, slightly gross food character (a lumpy potato, a stale croissant); the rival is a rich, glossy one. Both are originals with silly names.",
       "Story in order: the hero's pain is the product's problem from the brief; the rival humiliates them; rock bottom, crying in the rain ('It's over.'); the hero finds the product and the music turns (music.turn is that shot's number) ('We're so back.'); the hero wins with the product's real aha moment; the rival gets mogged.",
-      "words: the narration for that shot, 6 to 16 short words, dramatic and dumb, in the third person.",
+      "words: the narration for that shot, 5 to 12 short words, dramatic and dumb, in the third person; 20 to 28 seconds of narration in all.",
       "Say 'it's over' at rock bottom and 'we're so back' at the turn.",
     ],
   },
@@ -204,7 +208,7 @@ export const RECIPES: Record<BrainrotBit, BitRecipe> = {
     shots: { min: 4, max: 6 },
     look: "Cinematic hyperreal 3D render, dramatic low angle, golden-hour backlight, lens flare, slight haze, vertical 9:16.",
     movement: "Slow motion; the hero barely moves (a slow nod, sunglasses sliding down, a lazy wave) while everything around them moves fast.",
-    voice: { id: "dWi43pgmQOjZTMYtl9lg", name: "Matthew (low, gravelly, slow)", tags: "[deadpan]" },
+    voice: { id: "dWi43pgmQOjZTMYtl9lg", name: "Matthew (low, gravelly, slow)", tags: "[deadpan]", tempo: 1, naive: "ash" },
     silentSeconds: 2.6,
     rules: [
       "The hero is an original non-human character (a chrome robot, a smug gadget) that stands for the user's AI agent or the product. The workers behind it are the product doing the work (from the brief's aha moment).",
@@ -565,7 +569,8 @@ export function inventedNumbers(script: BrainrotScript, product: ProductBrief): 
 }
 
 /** What an outrageous opener looks like in words: a stunt or an action beat. */
-export const STUNT = /\b(leap\w*|jump\w*|dive\w*|diving|parachut\w*|skydiv\w*|explo\w*|blast\w*|smash\w*|crash\w*|burst\w*|launch\w*|rocket\w*|backflip\w*|flip\w*|cannonball\w*|stunt\w*|fireball|wrecking|catapult\w*|slam\w*)\b/i;
+export const STUNT =
+  /\b(leap\w*|jump\w*|dive\w*|diving|parachut\w*|skydiv\w*|explo\w*|blast\w*|smash\w*|crash\w*|burst\w*|launch\w*|rocket\w*|backflip\w*|flip\w*|cannonball\w*|stunt\w*|fireball|wrecking|catapult\w*|slam\w*|ramp\w*|monster truck|jet[\s-]?ski\w*|crush\w*|soar\w*|fly|flies|flying|flew|zipline\w*|wheelie\w*|burnout|drift\w*|kaboom|boom|stampede|bungee|plow\w*|plough\w*|barrel\w*)\b/i;
 
 const say = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}\s.]/gu, " ");
 
@@ -634,8 +639,11 @@ export async function writeBrainrot(naive: Pick<NaiveClient, "message">, ctx: Br
   if ((review.score === null || review.score < PASS || issues.length) && review.revised) {
     const revised = normalizeBrainrot(review.revised, ctx);
     const left = lintBrainrot(revised, ctx);
-    // A revision that breaks the rules worse than the draft is not kept.
-    if (revised.shots.length >= recipe.shots.min && left.length <= issues.length) {
+    // The critic's rewrite is kept unless it breaks a hard rule (people, characters, topics, numbers,
+    // the product at the end) or breaks more rules than the draft did.
+    const hard = (list: string[]) => list.filter((issue) => /people|characters|off-limits|numbers|not named/.test(issue)).length;
+    const better = left.length <= issues.length || ((review.score ?? 0) < PASS && hard(left) === 0);
+    if (revised.shots.length >= recipe.shots.min && better) {
       revised.review = { score: Math.max(review.score ?? 0, PASS), notes: [...left.map((issue) => `lint: ${issue}`), ...review.notes].slice(0, 10), rounds: 2 };
       script = revised;
     }
@@ -695,6 +703,8 @@ export type BrainrotPlan = {
 };
 
 const NO_WORDS = "No text, no letters, no words, no captions, no signs, no logos, no watermark anywhere in the image.";
+/** Image models draw "a robot" or "a chrome figure" as a human-shaped mannequin: every character is told otherwise. */
+const NOT_HUMAN = "A goofy cartoon character with an obviously non-human body (chunky mechanical parts, an object or an animal), never a human figure, mannequin or human body shape, nothing suggestive.";
 
 /** The stills and clips for a script: each recurring character drawn once, then every shot from them. */
 export function planBrainrot(script: BrainrotScript): BrainrotPlan {
@@ -706,7 +716,7 @@ export function planBrainrot(script: BrainrotScript): BrainrotPlan {
   return {
     characters: recurring.map((c) => ({
       id: c.id,
-      prompt: [`Character design still: ${c.look}.`, "Full body, standing, facing the camera, in a simple bright setting that suits it.", recipe.look, NO_WORDS].join(" "),
+      prompt: [`Character design still: ${c.look}.`, NOT_HUMAN, "Full body, standing, facing the camera, in a simple bright setting that suits it.", recipe.look, NO_WORDS].join(" "),
     })),
     shots: script.shots.map((shot) => {
       const cast = shot.cast.map((id) => byId.get(id)).filter((c): c is BrainrotCharacter => Boolean(c));
@@ -717,6 +727,7 @@ export function planBrainrot(script: BrainrotScript): BrainrotPlan {
         still: [
           shot.frame.replace(/\.$/, "") + ".",
           cast.length ? `Characters: ${cast.map((c) => `${c.look}${refs.includes(c.id) ? " (exactly as in the reference image)" : ""}`).join("; ")}.` : "",
+          cast.length ? NOT_HUMAN : "",
           recipe.look,
           NO_WORDS,
         ]
@@ -761,13 +772,13 @@ export function videoSeconds(model: string, seconds: number): number {
 }
 
 /** How long a line takes the voice to say (a dramatic read, about 2.6 words a second). */
-export const lineSeconds = (words: string) => {
+export const lineSeconds = (words: string, tempo = 1) => {
   const count = words.split(/\s+/).filter(Boolean).length;
-  return count ? count / 2.6 + 0.35 : 0;
+  return count ? count / (2.6 * tempo) + 0.35 : 0;
 };
 
 /** A shot's planned length: its line's, at least the bit's silent length. */
-export const shotSeconds = (shot: Pick<BrainrotShot, "words" | "seconds">, recipe: BitRecipe) => Math.max(shot.words ? 1.6 : recipe.silentSeconds, lineSeconds(shot.words), shot.words ? 0 : shot.seconds);
+export const shotSeconds = (shot: Pick<BrainrotShot, "words" | "seconds">, recipe: BitRecipe) => Math.max(shot.words ? 1.6 : recipe.silentSeconds, lineSeconds(shot.words, recipe.voice.tempo), shot.words ? 0 : shot.seconds);
 
 export type BrainrotEstimate = {
   clips_seconds: number;
@@ -778,7 +789,8 @@ export type BrainrotEstimate = {
 export function estimateBrainrot(script: BrainrotScript, options: { model?: string; perSecond?: number; sfxToMake?: number; checks?: number } = {}): BrainrotEstimate {
   const recipe = RECIPES[script.bit];
   const plan = planBrainrot(script);
-  const clipsSeconds = script.shots.reduce((sum, shot) => sum + videoSeconds(options.model ?? "google/veo-3.1-lite", shotSeconds(shot, recipe) + 0.3), 0);
+  // Clips may play up to 1.35x slowed to fill their shot (brainrot-cut.ts SLOWEST).
+  const clipsSeconds = script.shots.reduce((sum, shot) => sum + videoSeconds(options.model ?? "google/veo-3.1-lite", (shotSeconds(shot, recipe) + 0.2) / 1.35), 0);
   const chars = script.shots.reduce((sum, shot) => sum + shot.words.length, 0) + script.end.line.length + script.shots.filter((s) => /6-7|six seven/i.test(s.stamp + s.words)).length * 12;
   const total = script.shots.reduce((sum, shot) => sum + shotSeconds(shot, recipe), 0) + 3;
   const round = (n: number) => Math.round(n * 1000) / 1000;

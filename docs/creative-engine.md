@@ -107,6 +107,7 @@ lip-sync. What made it look real is the prompt recipe in `plan.ts`:
 | `filmed_screen` | a phone filming a monitor that shows the product | text-to-speech | cents, plus one to three photos |
 | `text_story` | the product only, with large text | text-to-speech | cents |
 | `remake` | the reference itself, one to one: our people, our graphics, its layout, cuts and music | our people (Kling 3.0's own voice) over the reference's music | about $0.17 per second of the reference plus about $0.30, internal only |
+| `brainrot` | a deliberately terrible AI meme ad: a stunt opener, original absurd characters, meme text, the product's site as the end card ([docs/brainrot.md](brainrot.md)) | an ElevenLabs voice over a beat, sound effects, bass-boosted drops | about $2-3 a video on Veo 3.1 Lite, held until cleared |
 
 ## One-to-one remakes (`remake`)
 

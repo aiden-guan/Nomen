@@ -23,7 +23,7 @@ import { QC_MODEL } from "../qc";
 import { extractJson } from "../research";
 import type { Files } from "../store/types";
 import { type BrainrotScript, type BrainrotSfx, PRICES, planBrainrot, RECIPES, shotSeconds, videoSeconds } from "./brainrot";
-import { buildCut, renderCut, shotDurations } from "./brainrot-cut";
+import { buildCut, renderCut, shotDurations, SLOWEST } from "./brainrot-cut";
 import { jobFile } from "./presenter";
 import { OverBudget, patient } from "./remake";
 import type { ProductBrief } from "./types";
@@ -33,9 +33,12 @@ const exec = promisify(execFile);
 export { OverBudget, videoSeconds };
 
 export type BrainrotDeps = {
-  naive: Pick<NaiveClient, "message" | "generateImage" | "fileUrl" | "generateVideo" | "getMediaJob">;
-  /** ElevenLabs through Monid: the voice, the music and the sound effects. */
-  monid: MonidRunner;
+  naive: Pick<NaiveClient, "message" | "generateImage" | "fileUrl" | "generateVideo" | "getMediaJob" | "speak" | "generateMusic" | "generateSoundEffect">;
+  /**
+   * ElevenLabs through Monid: the voice, the music and the sound effects, for cents. Without it, or
+   * once its wallet refuses a call, Naive's own speech, music and sound-effect models make them.
+   */
+  monid: MonidRunner | null;
   files: Files;
   fetchUrl?: (url: string, path: string) => Promise<void>;
 };
@@ -128,12 +131,13 @@ export function endVisual(product: ProductBrief): ProductBrief["visuals"][number
 
 const VOICE_SETTINGS = { stability: 0.35, similarity_boost: 0.75 };
 
-/** A voice line cut to the speech (ElevenLabs reads have air at both ends). */
-async function tighten(input: string, out: string) {
+/** A voice line cut to the speech (ElevenLabs reads have air at both ends), played `tempo` times faster with its pitch kept. */
+export async function tighten(input: string, out: string, tempo = 1) {
   const bin = await ffmpegPath();
   if (!bin) return input;
   const quiet = "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.05";
-  await exec(bin, ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", input, "-af", `${quiet},areverse,${quiet},areverse`, "-ar", "44100", "-ac", "1", out]);
+  const faster = Math.abs(tempo - 1) > 0.01 ? `,atempo=${Math.min(2, Math.max(0.5, tempo)).toFixed(3)}` : "";
+  await exec(bin, ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", input, "-af", `${quiet},areverse,${quiet},areverse${faster}`, "-ar", "44100", "-ac", "1", out]);
   return out;
 }
 
@@ -190,7 +194,7 @@ const OFF_LIMITS =
  */
 export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Promise<BrainrotResult> {
   const naive = patient(deps.naive);
-  const { monid, files } = deps;
+  const { files } = deps;
   const prefix = `${input.prefix}/brainrot`;
   const manifestKey = `${prefix}/manifest.json`;
   const dir = join(scratchDir(), `brainrot-${input.prefix.replace(/[^\w.-]+/g, "-")}`);
@@ -243,7 +247,7 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
     const total = shots.reduce((sum, s) => sum + planned(s.n), 0) + 3;
     const musicSeconds = probing ? 0 : (manifest.music.bed ? 0 : total + 2) + (script.music.turn && !manifest.music.hype ? total / 2 : 0);
     const images = plan.characters.filter((c) => !manifest.characters[c.id]).length + pictured.filter((s) => !manifest.stills[String(s.n)]).length;
-    const clips = pictured.filter((s) => !manifest.clips[String(s.n)]?.key).reduce((sum, s) => sum + videoSeconds(input.videoModel, planned(s.n)), 0);
+    const clips = pictured.filter((s) => !manifest.clips[String(s.n)]?.key).reduce((sum, s) => sum + videoSeconds(input.videoModel, (planned(s.n) + 0.2) / SLOWEST), 0);
     const checks = input.qc === false || probing ? 0 : (manifest.checked ? 0 : 1) + (manifest.qc ? 0 : 1);
     return (chars / 1000) * PRICES.ttsPerK + (musicSeconds / 60) * PRICES.musicPerMin + images * PRICES.image + clips * perSecond() + checks * PRICES.call;
   };
@@ -252,15 +256,46 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
     if (spent() + ahead > input.maxUsd + 1e-6) throw new OverBudget(`brainrot ${step}: $${spent().toFixed(2)} spent + about $${ahead.toFixed(2)} to go is over the $${input.maxUsd.toFixed(2)} cap`);
   };
 
-  // ---------- ElevenLabs on Monid ----------
-  const eleven = async (endpoint: string, body: Record<string, unknown>, name: string) => {
-    const done = await runToEnd(monid, "elevenlabs", endpoint, { body }, { pollMs: Math.min(pollMs, 2000), timeoutMs: 6 * 60_000 });
-    manifest.spend.monid_micro += runCostMicro(done);
-    const link = outputLink(done.output, "audio");
-    if (!link) throw new ApiError("monid", 502, "no_audio", `ElevenLabs ${endpoint} returned no audio for ${name}`);
-    const raw = join(dir, `${name.replace(/\//g, "-")}.mp3`);
-    await fetchTo(link, raw);
-    return raw;
+  // ---------- audio: ElevenLabs on Monid, else Naive's own models ----------
+  let monidOut = !deps.monid;
+  const eleven = async (endpoint: string, body: Record<string, unknown>, name: string): Promise<string | null> => {
+    if (monidOut || !deps.monid) return null;
+    try {
+      const done = await runToEnd(deps.monid, "elevenlabs", endpoint, { body }, { pollMs: Math.min(pollMs, 2000), timeoutMs: 6 * 60_000 });
+      manifest.spend.monid_micro += runCostMicro(done);
+      const link = outputLink(done.output, "audio");
+      if (!link) throw new ApiError("monid", 502, "no_audio", `ElevenLabs ${endpoint} returned no audio for ${name}`);
+      const raw = join(dir, `${name.replace(/\//g, "-")}-raw.mp3`);
+      await fetchTo(link, raw);
+      return raw;
+    } catch (error) {
+      // An empty wallet is not this video's fault: the rest of its audio comes from Naive.
+      if (!(error instanceof ApiError && (error.outOfCredits || error.status === 402))) throw error;
+      monidOut = true;
+      note("Monid's wallet was empty, so some of the audio was made with Naive's models");
+      return null;
+    }
+  };
+  const naiveAudio = async (made: { file: { id: string; name?: string; content_type?: string }; cost_micro_usd: number | null }, name: string) => {
+    manifest.spend.naive_micro += made.cost_micro_usd ?? 0;
+    const ext = /wav/.test(made.file.content_type ?? made.file.name ?? "") ? "wav" : "mp3";
+    const path = join(dir, `${name.replace(/\//g, "-")}-raw.${ext}`);
+    await fetchTo((await naive.fileUrl(made.file.id)).url, path);
+    return path;
+  };
+  const speech = async (text: string, name: string, voice: { eleven: string; tags: string; naive: string; settings?: Record<string, number> }) =>
+    (await eleven("/text-to-speech", { text: `${voice.tags} ${text}`.trim(), voice_id: voice.eleven, model_id: "eleven_v4", voice_settings: voice.settings ?? VOICE_SETTINGS }, name)) ??
+    naiveAudio(await naive.speak({ text, model: "openai/gpt-audio", voice: voice.naive }, `${input.idem}-${name}`), name);
+  const music = async (prompt: string, seconds: number, name: string) =>
+    (await eleven("/v1/music", { prompt: `${prompt}. Instrumental, no vocals.`, music_length_ms: Math.round(seconds * 1000), model_id: "music_v1", force_instrumental: true }, name)) ??
+    naiveAudio(await naive.generateMusic({ prompt: `${prompt}. Instrumental, no vocals.`, length_seconds: Math.round(seconds), instrumental: true }, `${input.idem}-${name}`), name);
+  const effect = async (name: BrainrotSfx) => {
+    const prompt = SFX_PROMPTS[name];
+    if (name === "six_seven") return speech(prompt.text, `sfx-${name}`, { eleven: CHANT_VOICE, tags: "[shouting]", naive: "verse", settings: { stability: 0.2, similarity_boost: 0.7 } });
+    return (
+      (await eleven("/v1/sound-generation", { text: prompt.text, duration_seconds: prompt.seconds, prompt_influence: 0.6 }, `sfx-${name}`)) ??
+      naiveAudio(await naive.generateSoundEffect({ prompt: prompt.text, duration_seconds: prompt.seconds }, `brainrot-sfx-${name}`), `sfx-${name}`)
+    );
   };
 
   guard("before starting");
@@ -269,8 +304,8 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
   const lines = [...script.shots.filter((s) => s.words).map((s) => ({ id: String(s.n), text: s.words })), ...(script.end.line ? [{ id: "end", text: script.end.line }] : [])];
   await pool(lines, 3, async ({ id, text }) => {
     if (manifest.voice[id] && (await local(manifest.voice[id].key))) return;
-    const raw = await eleven("/text-to-speech", { text: `${recipe.voice.tags} ${text}`.trim(), voice_id: recipe.voice.id, model_id: "eleven_v4", voice_settings: VOICE_SETTINGS }, `voice-${id}`);
-    const tight = await tighten(raw, join(dir, `voice-${id}.wav`));
+    const raw = await speech(text, `voice-${id}`, { eleven: recipe.voice.id, tags: recipe.voice.tags, naive: recipe.voice.naive });
+    const tight = await tighten(raw, join(dir, `voice-${id}.wav`), recipe.voice.tempo);
     const seconds = (await probe(tight)).duration;
     manifest.voice[id] = { key: await keep(`voice-${id}${tight.endsWith(".wav") ? ".wav" : ".mp3"}`, tight, tight.endsWith(".wav") ? "audio/wav" : "audio/mpeg"), seconds };
     await persist();
@@ -315,7 +350,8 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
   const render = async (n: number, extra = "") => {
     const id = String(n);
     const rec = (manifest.clips[id] ??= {});
-    const seconds = videoSeconds(input.videoModel, durations[n - 1] + 0.3);
+    // Clips may be slowed down to fill their shot (SLOWEST), so a 4.6 s shot takes a 4 s clip, not a 6 s one.
+    const seconds = videoSeconds(input.videoModel, (durations[n - 1] + 0.2) / SLOWEST);
     if (!rec.job) {
       guard(`before clip ${n}`);
       const still = manifest.stills[id];
@@ -371,26 +407,23 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
   // 4. Music and sound effects (cents), while the clips render.
   const total = durations.reduce((a, b) => a + b, 0) + 3.5;
   const audio = (async () => {
+    const audioType = (path: string) => (path.endsWith(".wav") ? "audio/wav" : "audio/mpeg");
     if (!(manifest.music.bed && (await local(manifest.music.bed)))) {
-      const raw = await eleven("/v1/music", { prompt: `${script.music.style || "dumb catchy meme beat"}. Instrumental, no vocals.`, music_length_ms: Math.round(Math.min(60, Math.max(10, total + 1.5)) * 1000), model_id: "music_v1", force_instrumental: true }, "music-bed");
-      manifest.music.bed = await keep("music-bed.mp3", raw, "audio/mpeg");
+      const raw = await music(script.music.style || "dumb catchy meme beat", Math.min(60, Math.max(10, total + 1.5)), "music-bed");
+      manifest.music.bed = await keep(`music-bed.${raw.split(".").pop()}`, raw, audioType(raw));
       await persist();
     }
     if (script.bit === "melodrama" && script.music.turn && script.music.hype && !(manifest.music.hype && (await local(manifest.music.hype)))) {
       const after = durations.slice(script.music.turn - 1).reduce((a, b) => a + b, 0) + 4;
-      const raw = await eleven("/v1/music", { prompt: `${script.music.hype}. Instrumental, no vocals.`, music_length_ms: Math.round(Math.min(60, Math.max(8, after)) * 1000), model_id: "music_v1", force_instrumental: true }, "music-hype");
-      manifest.music.hype = await keep("music-hype.mp3", raw, "audio/mpeg");
+      const raw = await music(script.music.hype, Math.min(60, Math.max(8, after)), "music-hype");
+      manifest.music.hype = await keep(`music-hype.${raw.split(".").pop()}`, raw, audioType(raw));
       await persist();
     }
     for (const name of neededSfx(script)) {
       if (await files.exists(sfxKey(name))) continue;
-      const prompt = SFX_PROMPTS[name];
       try {
-        const raw =
-          name === "six_seven"
-            ? await eleven("/text-to-speech", { text: `[shouting] ${prompt.text}`, voice_id: CHANT_VOICE, model_id: "eleven_v4", voice_settings: { stability: 0.2, similarity_boost: 0.7 } }, `sfx-${name}`)
-            : await eleven("/v1/sound-generation", { text: prompt.text, duration_seconds: prompt.seconds, prompt_influence: 0.6 }, `sfx-${name}`);
-        await files.putFile(sfxKey(name), raw, "audio/mpeg");
+        const raw = await effect(name);
+        await files.putFile(sfxKey(name), raw, audioType(raw));
       } catch (error) {
         if (error instanceof ApiError && (error.retryable || error.outOfCredits)) throw error;
         const out = join(dir, `sfx-${name}.wav`);
@@ -407,7 +440,7 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
   // 5. Every clip checked once; a failed one is rendered again with the check's fix.
   if (input.qc !== false && !manifest.checked) {
     const checks = await checkClips(naive, script, input.product.name, await Promise.all(script.shots.map(async (s) => (await local(manifest.clips[String(s.n)]?.key))!)));
-    manifest.spend.naive_micro += Math.round(PRICES.call * 1e6);
+    manifest.spend.naive_micro += Math.round(PRICES.call * 1e6) * Math.ceil(script.shots.length / CLIPS_PER_CHECK);
     for (const check of checks) {
       const rec = manifest.clips[String(check.n)];
       if (rec) rec.check = check;
@@ -416,17 +449,21 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
     for (const check of failed) {
       const rec = manifest.clips[String(check.n)];
       if (!rec || rec.fixed) continue;
-      try {
-        guard(`before re-rendering clip ${check.n}`);
-      } catch (error) {
+      // The first render stays kept until a new one lands; the new one is paid for only if it fits.
+      const again = videoSeconds(input.videoModel, (durations[check.n - 1] + 0.2) / SLOWEST) * perSecond();
+      if (spent() + left() + again > input.maxUsd + 1e-6) {
         note(`clip ${check.n} failed its check (${check.issues.join("; ")}) and was kept: no budget left to render it again`);
         continue;
       }
       rec.fixed = true;
-      rec.key = undefined;
       await persist();
       say(`clip ${check.n} failed its check (${check.issues.join("; ")}); rendering it again`);
-      await render(check.n, check.fix);
+      try {
+        await render(check.n, check.fix);
+      } catch (error) {
+        if (error instanceof ApiError && (error.retryable || error.outOfCredits)) throw error;
+        note(`clip ${check.n}: its second render failed (${error instanceof Error ? error.message : String(error)}); the first is kept`);
+      }
     }
     manifest.checked = true;
     await persist();
@@ -450,7 +487,12 @@ export async function makeBrainrot(deps: BrainrotDeps, input: BrainrotInput): Pr
     }
     const cut = buildCut({
       script,
-      shots: await Promise.all(script.shots.map(async (s, i) => ({ clip: (await local(manifest.clips[String(s.n)]?.key))!, voice: shotVoices[i] }))),
+      shots: await Promise.all(
+        script.shots.map(async (s, i) => {
+          const clip = (await local(manifest.clips[String(s.n)]?.key))!;
+          return { clip, voice: shotVoices[i], length: (await probe(clip)).duration || undefined };
+        }),
+      ),
       endVoice: await voiceOf("end"),
       endImage,
       music: { bed: await local(manifest.music.bed), hype: await local(manifest.music.hype) },
@@ -518,26 +560,38 @@ export function neededSfx(script: BrainrotScript): BrainrotSfx[] {
 }
 
 /** Two frames of every clip to a vision model: fails only what breaks the rules or the shot. */
+/** Clips per check: two frames each, and Naive takes at most 12 images in one request. */
+export const CLIPS_PER_CHECK = 6;
+
+/** Two frames of every clip to a vision model, six clips a call: fails only what breaks the rules or the shot. */
 export async function checkClips(naive: Pick<NaiveClient, "message">, script: BrainrotScript, productName: string, clips: string[]): Promise<ClipCheck[]> {
-  const content: unknown[] = [];
-  for (const [i, clip] of clips.entries()) {
-    const frames = await extractFrames(clip, 2, 360);
-    content.push({ type: "text", text: `Clip ${i + 1}: ${script.shots[i].frame} ${script.shots[i].motion}` });
-    for (const frame of frames) content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame.toString("base64") } });
+  const out: ClipCheck[] = [];
+  for (let first = 0; first < clips.length; first += CLIPS_PER_CHECK) {
+    const batch = clips.slice(first, first + CLIPS_PER_CHECK);
+    const content: unknown[] = [];
+    for (const [k, clip] of batch.entries()) {
+      const i = first + k;
+      const frames = await extractFrames(clip, 2, 360);
+      content.push({ type: "text", text: `Clip ${i + 1}: ${script.shots[i].frame} ${script.shots[i].motion}` });
+      for (const frame of frames) content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame.toString("base64") } });
+    }
+    content.push({
+      type: "text",
+      text: [
+        `These are two frames from each of ${batch.length} AI clips (numbered as above) for a deliberately absurd "brainrot" meme ad for ${productName}. Looking AI-made, cartoonish, ugly or unhinged is intended: do not fail anything for that.`,
+        `Fail a clip only for: ${OFF_LIMITS}; readable or garbled text, letters, captions or logos drawn into the picture; a human being as a main character (characters are animals, food, objects and robots); a clip that does not show its scene at all, or is frozen, blank or melted beyond recognition.`,
+        "Call clip_checks once with every clip, by its number.",
+      ].join("\n"),
+    });
+    const reply = await naive.message({ model: QC_MODEL, max_tokens: 2500, messages: [{ role: "user", content }], tools: [CHECK_TOOL] });
+    const raw = (reply.content.find((b) => b.type === "tool_use" && b.name === CHECK_TOOL.name)?.input ?? extractJson(reply.content.map((b) => b.text ?? "").join("\n"))) as { shots?: Array<Partial<ClipCheck>> } | null;
+    out.push(
+      ...(raw?.shots ?? [])
+        .map((s) => ({ n: Number(s.n), pass: s.pass !== false, issues: Array.isArray(s.issues) ? s.issues.filter((x): x is string => typeof x === "string") : [], fix: typeof s.fix === "string" ? s.fix : "" }))
+        .filter((s) => s.n > first && s.n <= first + batch.length),
+    );
   }
-  content.push({
-    type: "text",
-    text: [
-      `These are two frames from each of ${clips.length} AI clips for a deliberately absurd "brainrot" meme ad for ${productName}. Looking AI-made, cartoonish, ugly or unhinged is intended: do not fail anything for that.`,
-      `Fail a clip only for: ${OFF_LIMITS}; readable or garbled text, letters, captions or logos drawn into the picture; a human being as a main character (characters are animals, food, objects and robots); a clip that does not show its scene at all, or is frozen, blank or melted beyond recognition.`,
-      "Call clip_checks once with every clip.",
-    ].join("\n"),
-  });
-  const reply = await naive.message({ model: QC_MODEL, max_tokens: 2500, messages: [{ role: "user", content }], tools: [CHECK_TOOL] });
-  const raw = (reply.content.find((b) => b.type === "tool_use" && b.name === CHECK_TOOL.name)?.input ?? extractJson(reply.content.map((b) => b.text ?? "").join("\n"))) as { shots?: Array<Partial<ClipCheck>> } | null;
-  return (raw?.shots ?? [])
-    .map((s) => ({ n: Number(s.n), pass: s.pass !== false, issues: Array.isArray(s.issues) ? s.issues.filter((x): x is string => typeof x === "string") : [], fix: typeof s.fix === "string" ? s.fix : "" }))
-    .filter((s) => s.n >= 1 && s.n <= clips.length);
+  return out;
 }
 
 /** Eight frames of the cut to a vision model: is it safe, is the product readable, does the bit land. */

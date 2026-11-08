@@ -23,7 +23,12 @@ import {
 } from "@/lib/creative/brainrot";
 import { type BrainrotDeps, makeBrainrot, neededSfx, OverBudget } from "@/lib/creative/brainrot-make";
 import { editFfmpeg } from "@/lib/creative/edit";
+import { store } from "@/lib/db";
+import { createBrand, startCampaign } from "@/lib/pipeline";
+import { advanceCreative, type CreativeRow, insertCreative } from "@/lib/production";
+import type { Strategy } from "@/lib/strategy";
 import type { CreativeBrief, ProductBrief } from "@/lib/creative/types";
+import { ApiError } from "@/lib/http";
 import { probe } from "@/lib/media";
 import type { MonidRun } from "@/lib/monid";
 import { isInternal, postingHold } from "@/lib/publish";
@@ -217,6 +222,18 @@ describe("brainrot in a campaign", () => {
     expect(postingHold({ ...concept, cleared: { at: "now", by: "Dylan", note: "ok" } })).toBeNull();
   });
 
+  it("goes to its own production job, which needs both Naive and Monid", async () => {
+    const brandId = await createBrand("brainrot-route.ai");
+    const campaignId = await startCampaign(brandId);
+    const id = await insertCreative(campaignId, 0, brainrotConcept(brief, normalizeBrainrot(raw(), ctx)));
+    const [row] = await store().find<CreativeRow>("creatives", { id }, { limit: 1 });
+    expect(JSON.parse(row.shots_json)).toEqual([]);
+    await advanceCreative({ campaignId, brandId, naive: null, monid: null, naiveOut: () => false, markNaiveOut: async () => undefined, strategy: {} as Strategy }, row);
+    const [after] = await store().find<CreativeRow>("creatives", { id }, { limit: 1 });
+    expect(after.status).toBe("failed");
+    expect(after.error).toMatch(/needs Naive .* and Monid/);
+  });
+
   it("reads the site from the brand's URL", () => {
     expect(siteOf("https://www.monid.ai/pricing")).toBe("monid.ai");
     expect(siteOf("mobilerun.ai")).toBe("mobilerun.ai");
@@ -250,7 +267,7 @@ function folderFiles(root: string): Files {
 
 type Fakes = { deps: BrainrotDeps; count: Record<string, number>; failClip: Set<number> };
 
-function fakes(dir: string, media: { clip: string; image: string; audio: string }, options: { clipCost?: number; failCheck?: number } = {}): Fakes {
+function fakes(dir: string, media: { clip: string; image: string; audio: string }, options: { clipCost?: number; failCheck?: number; monidEmpty?: boolean } = {}): Fakes {
   const count: Record<string, number> = {};
   const bump = (k: string) => (count[k] = (count[k] ?? 0) + 1);
   const failClip = new Set<number>();
@@ -266,6 +283,7 @@ function fakes(dir: string, media: { clip: string; image: string; audio: string 
     monid: {
       async run(provider: string, endpoint: string) {
         bump(`monid ${endpoint}`);
+        if (options.monidEmpty) throw new ApiError("monid", 402, "402", "Not enough wallet balance");
         return { runId: `r${Object.values(count).reduce((a, b) => a + b, 0)}`, status: "COMPLETED", output: { audio: { download_link: `https://fake.local/${endpoint.replace(/\W/g, "")}.mp3` } }, billing: { actualCost: { value: 2000, unit: "MICRO_DOLLAR" } } } as MonidRun;
       },
       async getRun() {
@@ -288,6 +306,18 @@ function fakes(dir: string, media: { clip: string; image: string; audio: string 
       },
       async fileUrl(id: string) {
         return { url: `https://fake.local/${id}`, expires_at: "" };
+      },
+      async speak() {
+        bump("naive speak");
+        return { object: "speech_generation", model: "openai/gpt-audio", file: { id: "audio-speech", content_type: "audio/wav" }, duration_seconds: 1.8, cost_micro_usd: 600 };
+      },
+      async generateMusic() {
+        bump("naive music");
+        return { object: "music_generation", file: { id: "audio-music", content_type: "audio/mpeg" }, duration_seconds: 20, cost_micro_usd: 60000 };
+      },
+      async generateSoundEffect() {
+        bump("naive sfx");
+        return { object: "sound_generation", file: { id: "audio-sfx", content_type: "audio/mpeg" }, duration_seconds: 1.5, cost_micro_usd: 4000 };
       },
       async generateVideo(input: { seconds?: number; prompt: string }) {
         bump("video");
@@ -379,6 +409,19 @@ describe.skipIf(!ffmpeg)("making a brainrot video (fake providers, real ffmpeg)"
     await expect(makeBrainrot(f.deps, input())).rejects.toBeInstanceOf(OverBudget);
     expect(f.count.video).toBe(1);
   }, 120_000);
+
+  it("makes the voice, music and sound effects with Naive when Monid's wallet is empty", async () => {
+    const f = fakes(join(dir, "e"), media, { monidEmpty: true });
+    const result = await makeBrainrot(f.deps, input());
+    expect(result.key).toBe("crv_test/final.mp4");
+    // Monid refuses the first voice lines (three are asked at once) and is not asked again.
+    expect(Object.entries(f.count).filter(([k]) => k.startsWith("monid")).reduce((sum, [, n]) => sum + n, 0)).toBeLessThanOrEqual(3);
+    expect(f.count["naive speak"]).toBe(5 + 1 + 1);
+    expect(f.count["naive music"]).toBe(1);
+    expect(f.count["naive sfx"]).toBeGreaterThanOrEqual(4);
+    expect(result.spend.monid_micro).toBe(0);
+    expect(result.notes.join(" ")).toContain("Monid's wallet was empty");
+  }, 240_000);
 
   it("renders a clip that failed its check again, once, with the check's fix", async () => {
     const f = fakes(join(dir, "d"), media, { failCheck: 2 });
