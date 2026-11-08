@@ -210,7 +210,7 @@ export async function advancePosts() {
         const status = normalizeStatus(result.status);
         await save("posts", post.id, { status, result_json: JSON.stringify(result), error: postError(result) });
         if (status === "failed") await logEvent({ brandId: brand.id, level: "error", message: `A post failed: ${postError(result)}` });
-        if (status === "posted") await logPosted(brand.id, post, result);
+        if (status === "posted") await announcePosted(naive, brand.id, brand.identity_id, post, result);
       } else if (post.naive_post_id && post.status === "posted") {
         if (post.analytics_at && Date.now() - Date.parse(post.analytics_at) < ANALYTICS_EVERY_MS) continue;
         if (Date.now() - Date.parse(post.created_at) > 14 * 24 * 3600 * 1000) continue;
@@ -219,8 +219,10 @@ export async function advancePosts() {
       }
     } catch (error) {
       if (error instanceof ApiError && error.retryable) {
-        // Naive at capacity, or a network blip: nothing is lost. A queued post says why it waits.
+        // Naive at capacity, or a network blip: nothing is lost. A queued post says why it waits; a
+        // busy analytics read waits for the next round instead of asking again every tick.
         if (post.status === "pending") await save("posts", post.id, { error: `Waiting for Naive (${error.message.replace(/^naive: /, "")}); trying again in a minute` });
+        else if (post.status === "posted") await save("posts", post.id, { analytics_at: now() });
         continue;
       }
       await save("posts", post.id, { status: post.status === "pending" ? "failed" : post.status, error: error instanceof Error ? error.message : String(error), analytics_at: now() });
@@ -253,13 +255,23 @@ async function submit(naive: NaiveClient, brandId: string, identity: string, pos
     brandId,
     message: `Post ${post.scheduled_at ? `scheduled for ${post.scheduled_at.slice(0, 16).replace("T", " ")} UTC` : "submitted"}: ${platforms.map(platformName).join(", ")}${request.visibility ? ` (${request.visibility})` : ""}`,
   });
-  if (status === "posted") await logPosted(brandId, post, result);
+  if (status === "posted") await announcePosted(naive, brandId, identity, post, result);
 }
 
-/** One line in the activity log when a post is out, with its link when Naive has one. */
-async function logPosted(brandId: string, post: PostRow, result: SocialPost) {
-  const url = typeof result.url === "string" && result.url ? `: ${result.url}` : "";
-  await logEvent({ brandId, message: `Posted to ${parse<string[]>(post.platforms_json, []).map(platformName).join(", ")}${url}` });
+/**
+ * A post is out. Its analytics are read at once: Naive's post read has no link, and the analytics
+ * carry the network's permalink and first numbers. Then one line in the activity log, with the link.
+ */
+async function announcePosted(naive: NaiveClient, brandId: string, identity: string, post: PostRow, result: SocialPost) {
+  let analytics_json: string | null = null;
+  try {
+    analytics_json = JSON.stringify(await naive.postAnalytics(identity, result.id));
+    await save("posts", post.id, { analytics_json, analytics_at: now() });
+  } catch {
+    // The next tick reads them; the line goes out without the link.
+  }
+  const { url } = postStats({ result_json: JSON.stringify(result), analytics_json });
+  await logEvent({ brandId, message: `Posted to ${parse<string[]>(post.platforms_json, []).map(platformName).join(", ")}${url ? `: ${url}` : ""}` });
 }
 
 /**
@@ -328,9 +340,26 @@ const METRIC_OF = new Map(Object.entries(METRIC_KEYS).flatMap(([metric, keys]) =
  */
 export function postStats(post: Pick<PostRow, "analytics_json" | "result_json">): PostStats & { url: string | null } {
   const result = parse<{ url?: unknown; metrics?: unknown } | null>(post.result_json, null);
-  const fromAnalytics = collectStats(parse<unknown>(post.analytics_json, null));
+  const analytics = parse<unknown>(post.analytics_json, null);
+  const fromAnalytics = collectStats(analytics);
   const stats = Object.keys(fromAnalytics).length ? fromAnalytics : collectStats(result?.metrics ?? null);
-  return { url: typeof result?.url === "string" && result.url ? result.url : null, ...stats };
+  // Naive's post read has no link; its analytics carry the network's permalink.
+  const url = typeof result?.url === "string" && result.url ? result.url : findPermalink(analytics);
+  return { url, ...stats };
+}
+
+/** The first network permalink in the analytics (bundle.social's `permalink`), or null. */
+function findPermalink(node: unknown): string | null {
+  if (!node || typeof node !== "object") return null;
+  const values = Array.isArray(node) ? node : Object.values(node);
+  if (!Array.isArray(node)) {
+    for (const [key, value] of Object.entries(node)) if (/^(permalink|post_?url)$/i.test(key) && typeof value === "string" && /^https?:\/\//.test(value)) return value;
+  }
+  for (const value of values) {
+    const found = findPermalink(value);
+    if (found) return found;
+  }
+  return null;
 }
 
 function collectStats(node: unknown): PostStats {

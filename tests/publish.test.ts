@@ -13,7 +13,7 @@ import { useStore } from "@/lib/store";
 import { sqliteConnection, sqliteStore } from "@/lib/store/sqlite";
 import type { Files } from "@/lib/store/types";
 import { brandView } from "@/lib/views";
-import { fakeNaive, NAIVE_BASE, postOut } from "./fake-naive";
+import { fakeNaive, liveAnalytics, NAIVE_BASE, postOut } from "./fake-naive";
 
 // Everything after "a video is ready": queueing, uploading the cut, posting, following the post,
 // its stats, and the autopilot's next campaign. Real code throughout; only Naive's HTTP is faked.
@@ -263,26 +263,51 @@ describe("advancePosts", () => {
     expect((await posts())[0]).toMatchObject({ status: "processing", naive_post_id: "spo_1", error: null });
   });
 
-  it("follows a post until it is out, then reads its link and stats for the camp", async () => {
+  it("follows a post until it is out, then shows its link and stats in the camp", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(T0);
     await addCreative({ final_file_id: "fil_a" });
     await publishCampaign(CAMPAIGN, "now");
     await advancePosts();
-    postOut(fake.state.posts.get("spo_1")!, "https://www.tiktok.com/@naive.agents/video/1");
 
+    // Naive's post read has no link; its analytics carry the network's permalink and first numbers.
+    postOut(fake.state.posts.get("spo_1")!);
+    fake.state.analytics = liveAnalytics("https://www.tiktok.com/@naive.agents/video/1", [{ at: "2026-11-08T05:01:00Z", views: 0 }]);
     vi.setSystemTime(T0 + 61_000);
     await advancePosts();
     expect((await posts())[0].status).toBe("posted");
     expect(await messages()).toContainEqual("Posted to TikTok: https://www.tiktok.com/@naive.agents/video/1");
+    expect((await brandView(BRAND))!.campaign!.posts[0]).toMatchObject({ url: "https://www.tiktok.com/@naive.agents/video/1", stats: { views: 0 } });
 
-    fake.state.analytics = { data: { tiktok: { id: "1", analytics: { videoViews: 1200, likeCount: 40, commentsCount: 3, shareCount: 2 } } } };
-    vi.setSystemTime(T0 + 122_000);
+    fake.state.analytics = liveAnalytics("https://www.tiktok.com/@naive.agents/video/1", [
+      { at: "2026-11-08T05:01:00Z", views: 0 },
+      { at: "2026-11-08T05:40:00Z", views: 1200, likes: 40, comments: 3, shares: 2 },
+    ]);
+    vi.setSystemTime(T0 + 61_000 + 31 * 60_000);
     await advancePosts();
     const [post] = (await brandView(BRAND))!.campaign!.posts;
-    expect(post).toMatchObject({ status: "posted", url: "https://www.tiktok.com/@naive.agents/video/1", stats: { views: 1200, likes: 40, comments: 3, shares: 2 } });
+    expect(post).toMatchObject({ status: "posted", url: "https://www.tiktok.com/@naive.agents/video/1", stats: { views: 1200, likes: 40, comments: 3, shares: 2, saves: 0 } });
     expect((await getCampaign(CAMPAIGN))!.status).toBe("live");
   });
+
+  it("waits for the next round after a busy analytics read instead of asking again every tick", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(T0);
+    fake.state.createdStatus = "posted";
+    await addCreative({ final_file_id: "fil_a" });
+    await publishCampaign(CAMPAIGN, "now");
+    await advancePosts(); // submitted and out at once; its analytics are read right away
+    const reads = () => fake.calls(/\/analytics$/, "GET");
+    expect(reads()).toHaveLength(1);
+
+    fake.state.busy.analytics = 3; // a GET is tried three times before it gives up
+    vi.setSystemTime(T0 + 31 * 60_000);
+    await advancePosts();
+    expect(reads()).toHaveLength(4);
+    vi.setSystemTime(T0 + 31 * 60_000 + 5_000);
+    await advancePosts();
+    expect(reads()).toHaveLength(4);
+  }, 20_000);
 
   it("says so when a post is out the moment it is submitted", async () => {
     fake.state.createdStatus = "posted";
@@ -355,6 +380,17 @@ describe("postStats", () => {
     expect(postStats({ analytics_json: JSON.stringify(analytics), result_json: null })).toEqual({ url: null, views: 400, likes: 14, comments: 2, shares: 0, saves: 0 });
   });
 
+  it("reads the link and the latest numbers from Naive's live analytics", () => {
+    // The shape Naive returned for the first live TikTok post: the post read itself has no link.
+    const post = { id: "spo_1", object: "social_post", status: "posted", platforms: ["tiktok"], posted_at: "2026-11-08T06:20:24.083Z", error: null };
+    const analytics = liveAnalytics("https://www.tiktok.com/@ed._.studios/video/7705681405535079694", [
+      { at: "2026-11-08T06:25:01.046Z", views: 6 },
+      { at: "2026-11-08T06:24:20.137Z", views: 4 },
+      { at: "2026-11-08T06:20:51.784Z", views: 0 },
+    ]);
+    expect(postStats({ result_json: JSON.stringify(post), analytics_json: JSON.stringify(analytics) })).toEqual({ url: "https://www.tiktok.com/@ed._.studios/video/7705681405535079694", views: 6, likes: 0, comments: 0, shares: 0, saves: 0 });
+  });
+
   it("falls back to the post's own metrics and link", () => {
     const post = { id: "spo_1", status: "posted", url: "https://youtu.be/x", metrics: { views: 12, likes: 1, comments: 0 } };
     expect(postStats({ analytics_json: null, result_json: JSON.stringify(post) })).toEqual({ url: "https://youtu.be/x", views: 12, likes: 1, comments: 0 });
@@ -381,10 +417,14 @@ describe("autopilot, one full cycle", () => {
 
     // The post goes out at 16:00; its stats come in.
     vi.setSystemTime(Date.parse("2026-11-08T16:05:00.000Z"));
-    postOut(fake.state.posts.get("spo_1")!, "https://www.tiktok.com/@naive.agents/video/9");
+    postOut(fake.state.posts.get("spo_1")!);
+    fake.state.analytics = liveAnalytics("https://www.tiktok.com/@naive.agents/video/9", [{ at: "2026-11-08T16:05:00Z", views: 0 }]);
     await advancePosts();
-    fake.state.analytics = { data: { tiktok: { analytics: { videoViews: 4321, likeCount: 210, commentsCount: 17, shareCount: 9 } } } };
-    vi.setSystemTime(Date.parse("2026-11-08T16:10:00.000Z"));
+    fake.state.analytics = liveAnalytics("https://www.tiktok.com/@naive.agents/video/9", [
+      { at: "2026-11-08T16:05:00Z", views: 0 },
+      { at: "2026-11-08T16:40:00Z", views: 4321, likes: 210, comments: 17, shares: 9 },
+    ]);
+    vi.setSystemTime(Date.parse("2026-11-08T16:40:00.000Z"));
     await advancePosts();
     expect((await posts())[0]).toMatchObject({ status: "posted", analytics_json: expect.stringContaining("4321") });
 
@@ -401,7 +441,7 @@ describe("autopilot, one full cycle", () => {
     const message = String(fake.state.sessions[0]?.message ?? "");
     const past = JSON.parse(message.match(/<past_results>\n(.*)\n<\/past_results>/s)?.[1] ?? "[]");
     expect(past).toEqual([
-      expect.objectContaining({ title: "We gave an agent $3", hook: "I gave an AI agent $3 and one skill file", platforms: ["tiktok"], status: "posted", url: "https://www.tiktok.com/@naive.agents/video/9", stats: { views: 4321, likes: 210, comments: 17, shares: 9 } }),
+      expect.objectContaining({ title: "We gave an agent $3", hook: "I gave an AI agent $3 and one skill file", platforms: ["tiktok"], status: "posted", url: "https://www.tiktok.com/@naive.agents/video/9", stats: { views: 4321, likes: 210, comments: 17, shares: 9, saves: 0 } }),
     ]);
   });
 });
