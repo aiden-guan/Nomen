@@ -24,7 +24,7 @@ import * as THREE from 'three';
 import { clamp, lerp, easeIO, easeOut } from './core.js';
 import { makeFX, makeDizzy } from './build/fx.js';
 import { pop, drop, squash, wobble, easeOutBack } from './build/anim.js';
-import { planRail, makeRail } from './build/rail.js';
+import { planRail, makeRail, moveTime } from './build/rail.js';
 import { makeKick } from './build/cuts.js';
 import { makeCast, headHeight } from './cast.js';
 import { SETS } from './sets/index.js';
@@ -130,9 +130,11 @@ export async function build(studio, story) {
     const S = m.S, HEAD = [S.x, S.y + m.headY, S.z], SCR = [S.screen.x, S.screen.y, S.screen.z], fit = Math.max(5.6, S.screen.w * 3.05);   // the screen fills the width, with room for the presenter beside it
     const base = {
       face: (yaw = 0.12) => aim(HEAD, { frac: 0.38, d: 2.3, fov: 34, yaw, pitch: 0.05 }),
-      gary: (yaw = 0) => aim(HEAD, { frac: 0.39, d: 3.9, fov: 40, yaw, pitch: 0.1 }),
-      home: (yaw = 0) => aim(HEAD, { frac: 0.42, d: 5.3, fov: 40, yaw, pitch: 0.1 }),
-      screen: (yaw = 0) => aim(SCR, { frac: 0.27, d: fit, fov: 40, yaw, pitch: 0.03 }),
+      gary: (yaw = 0) => aim(HEAD, { frac: 0.36, d: 3.9, fov: 40, yaw, pitch: 0.1 }),
+      // the face sits clear above the one-word caption (52 %), the big screen above it
+      home: (yaw = 0) => aim(HEAD, { frac: 0.39, d: 5.8, fov: 40, yaw, pitch: 0.1 }),
+      // the screen high in the frame, as high as it takes to keep the presenter's face above the caption (52 %)
+      screen: (yaw = 0) => aim(SCR, { frac: clamp(0.42 - (SCR[1] - HEAD[1]) / (2 * fit * Math.tan((20 * PI) / 180)), 0.12, 0.27), d: fit, fov: 40, yaw, pitch: 0.03 }),
       wide: (yaw = 0) => aim([S.x + 0.1, S.y + 1.0, S.z + 0.36], { frac: 0.42, d: 6.4, fov: 42, yaw, pitch: 0.16 }),
       floor: (yaw = 0) => aim([S.x + 0.4, S.y + 1.05, S.z + 0.36], { frac: 0.4, d: 5.6, fov: 42, yaw, pitch: 0.14 }),
     };
@@ -146,12 +148,13 @@ export async function build(studio, story) {
     let at = b.i === 0 ? 0 : b.t0;
     // a move to the other floor (versus) arrives a little into the beat, so the last floor's gag lands in frame first
     if (b.i > 0 && beats[b.i - 1].who !== b.who) at = b.t0 + clamp(b.hit - b.t0 - 0.6, 0.3, 1.0);
-    // every framing holds until its gag has landed (ED Studio's `until`: a gag must finish in frame)
-    const add = (t, f, extra = {}) => frames.push({ t: Math.max(0, t), until: Math.min(b.t1, b.hit + 0.75), ...f, ...extra });
+    // every framing holds until its gag has landed (ED Studio's `until`: a gag must finish in frame); before a move to
+    // the other floor it holds until the line is said, so the faces don't sweep through the captions while it plays
+    const cross = beats[b.i + 1] && beats[b.i + 1].who !== b.who;
+    const add = (t, f, extra = {}) => frames.push({ t: Math.max(0, t), until: Math.max(Math.min(b.t1, b.hit + 0.75), cross ? b.s1 - 0.2 : 0), who: b.who, beat: b.i, ...f, ...extra });
     // a versus ad opens on the whole house, then glides to the first floor that plays
     // (a hook with no big gag, "Two founders, one goal", plays on both floors at once)
     if (b.i === 0 && versus && E.wide && (b.gag === 'hack' || b.gag === 'idle')) { frames.push({ t: 0, until: b.t1, ...E.wide(0) }); continue; }
-    if (b.i === 0 && versus && E.wide && b.hit > 2.6) { frames.push({ t: 0, until: Math.min(b.t1, 1.0), ...E.wide(0) }); at = Math.min(1.2, Math.max(0.3, b.hit - 1.0)); }
     switch (b.gag) {
       // a beat whose screen carries the point shows the whole screen above the character (the callouts sit in the lower third)
       case 'hack': add(at, b.i === 0 ? F.home(0) : F.home(y)); break;
@@ -176,6 +179,16 @@ export async function build(studio, story) {
   frames.sort((a, b) => a.t - b.t);
   const Fr = frames.filter((f, i) => i === frames.length - 1 || f.stop || frames[i + 1].t - f.t >= 1.15 || f.keep);
   const rail = makeRail(planRail(Fr));
+  // a callout on a floor the camera is leaving ends as the glide starts (planRail's departure), so the faces sweeping
+  // past during the move never sit under it
+  const d3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  for (let i = 0; i + 1 < Fr.length; i++) {
+    const f = Fr[i], n = Fr[i + 1];
+    if (!f.who || !n.who || f.who === n.who || f.beat == null) continue;
+    const need = moveTime(Math.max(d3(f.pos, n.pos), d3(f.look, n.look) * 0.7)), dep0 = n.t - Math.max(need, Math.min(1.6 * need, 0.55 * (n.t - f.t)));
+    const leave = f.until ? Math.max(dep0, Math.min(f.until, n.t - 0.8 * need)) : dep0, B = beats[f.beat];
+    for (const c of story.callouts || []) if (c.t0 >= B.t0 - 0.01 && c.t0 < B.t1 && c.t1 > leave) c.t1 = Math.max(c.t0 + 0.6, leave);
+  }
   const kick = makeKick(kicks);
 
   // ---------------------------------------------------------------- FX, scheduled once (analytic particles)

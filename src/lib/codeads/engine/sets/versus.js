@@ -10,7 +10,7 @@ import { mat, mk, canvasTex, rng } from '../core.js';
 import { addWallScreen, addLaptop, drawContain, wrap } from './devoffice.js';
 
 export const UP = 2.85;
-const W = 4.8, Z0 = -2.6, Z1 = 1.2, H = 2.55;
+const W = 4.8, Z0 = -2.6, Z1 = 1.2, H = 2.55, H2 = 2.9;   // H2: the penthouse's taller room (its screen hangs clear of the lead's head)
 const hex = (c) => '#' + new THREE.Color(c).getHexString();
 
 export function buildVersus(studio, opts = {}) {
@@ -33,7 +33,7 @@ export function buildVersus(studio, opts = {}) {
   const slabTex = canvasTex(512, 64, (g, w, h) => { g.fillStyle = '#cfcac0'; g.fillRect(0, 0, w, h); g.fillStyle = '#a9a398'; g.fillRect(0, 0, w, 10); g.fillRect(0, h - 10, w, 10); }, [4, 1]);
   const conc = mat(0xbdb8ae, 0.85);
   box(W + 0.2, UP - H, Z1 - Z0 + 0.2, [conc, conc, conc, conc, new THREE.MeshStandardMaterial({ map: slabTex, roughness: 0.85 }), conc], 0, (H + UP) / 2, (Z0 + Z1) / 2);
-  box(W + 0.2, 0.25, Z1 - Z0 + 0.2, [conc, conc, conc, conc, new THREE.MeshStandardMaterial({ map: slabTex, roughness: 0.85 }), conc], 0, UP + H + 0.125, (Z0 + Z1) / 2);
+  box(W + 0.2, 0.25, Z1 - Z0 + 0.2, [conc, conc, conc, conc, new THREE.MeshStandardMaterial({ map: slabTex, roughness: 0.85 }), conc], 0, UP + H2 + 0.125, (Z0 + Z1) / 2);
 
   // ------------------------------------------------ downstairs: the basement
   const damp = canvasTex(512, 256, (g, w, h) => { g.fillStyle = '#5d625a'; g.fillRect(0, 0, w, h); const r = rng(5); for (let i = 0; i < 40; i++) { const gr = g.createRadialGradient(r() * w, r() * h, 0, r() * w, r() * h, 20 + r() * 60); gr.addColorStop(0, 'rgba(40,52,30,.45)'); gr.addColorStop(1, 'rgba(40,52,30,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); } g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 3; for (let y = 0; y < h; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); } }, [3, 1]);
@@ -54,7 +54,7 @@ export function buildVersus(studio, opts = {}) {
   box(1.6, 0.05, 0.5, cheap, 0, rTop - 0.025, rdz);
   for (const s of [-1, 1]) for (const dz of [-0.2, 0.2]) box(0.045, rTop - 0.05, 0.045, mat(0x5a4c3c, 0.7), s * 0.74, (rTop - 0.05) / 2, rdz + dz);
   plate(opts.rival?.name || 'THE OLD WAY', 0, rTop - 0.075, rdz + 0.252, '#8a8a8a', '#202020');
-  const rScreenAt = { x: 0, y: 1.72, z: Z0 + 0.1, w: 1.6, h: 0.9 };
+  const rScreenAt = { x: 0, y: 1.9, z: Z0 + 0.1, w: 1.6, h: 0.9 };
   const rScreen = addWallScreen(root, rScreenAt, { ...C, screenBg: 0x5a1010 }, { glow: 1.6, glowRange: 3.4 });
   const rLaptop = addLaptop(root, [0.1, rTop, -1.5], null, { ...C, accent: 0x777777 });
   // junk: energy drink cans, pizza boxes, a chip bag, sticky notes, a tangle of cables
@@ -74,17 +74,17 @@ export function buildVersus(studio, opts = {}) {
   const wood = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#c9a77c'; g.fillRect(0, 0, w, h); const r = rng(2); for (let y = 0; y < h; y += 32) { g.fillStyle = `hsl(32,${40 + r() * 10}%,${58 + r() * 8}%)`; g.fillRect(0, y, w, 30); } }, [5, 4]);
   const pfloor = mk(new THREE.PlaneGeometry(W, Z1 - Z0), new THREE.MeshStandardMaterial({ map: wood, roughness: 0.45 }), root, 0, y0 + 0.001, (Z0 + Z1) / 2); pfloor.rotation.x = -Math.PI / 2;
   const white = mat(0xf2efe9, 0.9);
-  for (const s of [-1, 1]) box(0.12, H, Z1 - Z0, white, s * (W / 2 + 0.06), y0 + H / 2, (Z0 + Z1) / 2);
+  for (const s of [-1, 1]) box(0.12, H2, Z1 - Z0, white, s * (W / 2 + 0.06), y0 + H2 / 2, (Z0 + Z1) / 2);
   // floor-to-ceiling glass on a sunny skyline, a solid panel in the middle that carries the wall screen
   const sky = new THREE.Mesh(new THREE.PlaneGeometry(12, 4.5), new THREE.MeshBasicMaterial({ toneMapped: false, map: canvasTex(1024, 380, (g, w, h) => {
     const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#6fb2ee'); gr.addColorStop(1, '#dff0fa'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
     const r = rng(8); for (let x = 0; x < w;) { const bw = 40 + r() * 80, bh = 70 + r() * 200; g.fillStyle = `hsl(${205 + r() * 20},${18 + r() * 14}%,${62 + r() * 16}%)`; g.fillRect(x, h - bh, bw, bh); g.fillStyle = 'rgba(255,255,255,.4)'; for (let y = h - bh + 8; y < h; y += 14) for (let xx = x + 5; xx < x + bw - 6; xx += 11) g.fillRect(xx, y, 6, 7); x += bw + 5; }
   }) }));
-  sky.position.set(0, y0 + 1.3, Z0 - 2.2); root.add(sky);
+  sky.position.set(0, y0 + 1.45, Z0 - 2.2); root.add(sky);
   const trim = mat(0x2c3036, 0.4);
-  for (const s of [-1, 1]) { for (let k = 0; k <= 2; k++) box(0.06, H, 0.08, trim, s * (1.1 + k * 0.62), y0 + H / 2, Z0); box(1.3, 0.08, 0.1, trim, s * 1.75, y0 + 0.04, Z0); box(1.3, 0.08, 0.1, trim, s * 1.75, y0 + H - 0.04, Z0); }
-  box(2.2, H, 0.1, mat(new THREE.Color(C.wall ?? 0x3a414d), 0.6), 0, y0 + H / 2, Z0 - 0.02);
-  const hScreenAt = { x: 0, y: y0 + 1.75, z: Z0 + 0.1, w: 1.84, h: 1.035 };
+  for (const s of [-1, 1]) { for (let k = 0; k <= 2; k++) box(0.06, H2, 0.08, trim, s * (1.1 + k * 0.62), y0 + H2 / 2, Z0); box(1.3, 0.08, 0.1, trim, s * 1.75, y0 + 0.04, Z0); box(1.3, 0.08, 0.1, trim, s * 1.75, y0 + H2 - 0.04, Z0); }
+  box(2.2, H2, 0.1, mat(new THREE.Color(C.wall ?? 0x3a414d), 0.6), 0, y0 + H2 / 2, Z0 - 0.02);
+  const hScreenAt = { x: 0, y: y0 + 2.14, z: Z0 + 0.1, w: 1.84, h: 1.035 };
   const hScreen = addWallScreen(root, hScreenAt, C, { glow: 0.8 });
   // the lead's desk: a clean white standing desk, a plant, a coffee
   const hdz = -1.3, hTop = 0.64;
@@ -110,7 +110,7 @@ export function buildVersus(studio, opts = {}) {
   const hemi = new THREE.HemisphereLight(0xe6eefc, 0x4a4038, 0.75); root.add(hemi);
   const key = new THREE.DirectionalLight(0xfff4e8, 1.7); key.position.set(-2.5, 9, 8); key.target.position.set(0, 2.2, -1.2); root.add(key, key.target);
   key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0004; Object.assign(key.shadow.camera, { left: -4, right: 4, top: 6, bottom: -3, near: 1, far: 26 });
-  const sun = new THREE.PointLight(0xfff1dc, 7, 6, 1.4); sun.position.set(0.4, y0 + 2.3, -0.4); root.add(sun);
+  const sun = new THREE.PointLight(0xfff1dc, 7, 6, 1.4); sun.position.set(0.4, y0 + 2.5, -0.4); root.add(sun);
   const sun2 = new THREE.DirectionalLight(0xfff3e0, 0.8); sun2.position.set(2, y0 + 6, -8); sun2.target.position.set(0, y0, 0); root.add(sun2, sun2.target);
   root.traverse((o) => { if (o.isMesh && (o.material.isMeshBasicMaterial || o.material.transparent)) o.castShadow = false; });
 
