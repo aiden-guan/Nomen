@@ -237,7 +237,8 @@ export async function build(studio, story) {
         break;
       case 'zap':
         if (h < 0) { p.armR = { x: -1.0, z: 0.42, el: 0.25 }; p.head = { x: 0.35, y: 0.35, z: 0 }; p.lean = 0.12; p.mouth = 'smile'; }
-        else if (h < 0.55) { p.xray = Math.floor(h / 0.055) % 2 === 0; p.hairUp = 1; p.eyes = 'wide'; p.mouth = 'teeth'; p.armR = { x: -1.0, z: 0.42, el: 0.25 }; p.squash = [1 + 0.05 * Math.sin(h * 90), 1 + 0.05 * Math.cos(h * 90)]; }
+        // a jolt, not a strobe: two short x-ray pulses, then the shock on his face
+        else if (h < 0.55) { p.xray = h < 0.06 || (h > 0.13 && h < 0.19); p.hairUp = 1; p.eyes = 'wide'; p.mouth = 'o'; p.armR = { x: -1.0, z: 0.42, el: 0.25 }; p.squash = [1 + 0.04 * Math.sin(h * 90), 1 + 0.04 * Math.cos(h * 90)]; }
         else { p.hairUp = Math.max(0, 1 - (h - 0.55) / 2.5); p.eyes = 'spiral'; p.mouth = 'wavy'; p.armR = { x: 0.1, z: 0.3, el: 0.4 }; }
         break;
       case 'money':
