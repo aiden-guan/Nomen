@@ -124,7 +124,7 @@ export function buildVersus(studio, opts = {}) {
     root,
     stations: {
       hero: station(y0, hTop, hLaptop, hScreenAt, hScreen, {}),
-      rival: station(0, rTop, rLaptop, rScreenAt, rScreen, { z: -2.18, laptopAt: [0.1, -1.5], button: [-0.55, -1.38], strip: [0.5, -1.58], money: [[0.6, rTop, -1.4], [-0.62, rTop, -1.45], [1.3, 0, -1.9]], idleScreen: { kind: 'error', lines: ['BUILD FAILED', 'cron job crashed at 3:12 AM', '47 tabs open'] } }),
+      rival: station(0, rTop, rLaptop, rScreenAt, rScreen, { z: -2.18, laptopAt: [0.1, -1.5], button: [-0.55, -1.38], strip: [0.5, -1.58], money: [[0.6, rTop, -1.4], [-0.62, rTop, -1.45], [1.3, 0, -1.9]], idleScreen: { kind: 'error', lines: ['STILL BROKEN', 'doing it all by hand'] } }),
     },
     /** both floors in the frame */
     wide: (yaw = 0) => ({ pos: [Math.sin(yaw) * 8.6, 2.85 + 1.3, -1.0 + Math.cos(yaw) * 8.6], look: [0, 2.55, -1.0], fov: 42 }),

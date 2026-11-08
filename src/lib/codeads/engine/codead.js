@@ -287,10 +287,10 @@ export async function build(studio, story) {
     }
     // the lead's celebration makes the rival hold his head
     if (m.key === 'rival') { const cel = beats.find((x) => x.gag === 'celebrate' && x.who === 'hero' && t >= x.hit); if (cel && !mine) { p.armL = { x: -2.6, z: 0.9, el: 2.0 }; p.armR = { x: -2.6, z: 0.9, el: 2.0 }; p.head = { x: 0.3, y: 0.25 * Math.sin(t * 5), z: 0 }; p.eyes = 'closed'; p.mouth = 'frown'; p.brows = 1; } }
-    // a show beat: the character steps aside (walking) so the screen and the caption are clear, presents it, and steps back after
+    // a show beat: the character steps well aside (walking) so the screen and the caption are clear, presents it, and steps back after
     for (const s of m.shows) {
       const out = u01(t, s.t0, s.t0 + 0.5), back = u01(t, s.t1, s.t1 + 0.5), k = easeIO(out) * (1 - easeIO(back));
-      if (k > 0) { p.x = S.x - 0.6 * k; if ((out > 0 && out < 1) || (back > 0 && back < 1)) { p.walk = t * 11; p.walkAmt = 0.8; } }
+      if (k > 0) { p.x = S.x - 0.85 * k; if ((out > 0 && out < 1) || (back > 0 && back < 1)) { p.walk = t * 11; p.walkAmt = 0.8; } }
     }
     // aftermath: an explosion or a zap leaves the character charred for a while
     for (const e of [...m.explodes, ...m.zaps]) { const a = t - e.hit; if (a >= 0 && a < 5) { const c = (e.gag === 'explode' ? 0.85 : 0.45) * (1 - clamp((a - 0.4) / 4.2)); p.char = Math.max(p.char || 0, c); if (e.gag === 'explode' && a < 1.1) p.hairUp = Math.max(p.hairUp || 0, 1 - a / 1.6); } }
