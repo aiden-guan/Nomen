@@ -264,7 +264,8 @@ export function lintStory(story: CodeAdStory, ctx: CodeAdContext): string[] {
   const has = (phrase: string) => new RegExp(`\\b${phrase.replace(/[-?]/g, (c) => `\\${c}`)}`, "i").test(text);
   for (const phrase of BANNED) if (has(phrase)) issues.push(`ad phrase "${phrase}"`);
   // numbers only from the brief (the failures carry none)
-  const briefText = JSON.stringify({ claims: ctx.product.claims, proof: ctx.product.proof, offer: ctx.product.offer, features: ctx.product.features, code: ctx.product.code, one_liner: ctx.product.one_liner }).toLowerCase().replace(/(\d),(?=\d{3})/g, "$1");
+  // the aha counts too: it is the brief's own demo ("task completed in 3.8s · 2 actions")
+  const briefText = JSON.stringify({ claims: ctx.product.claims, proof: ctx.product.proof, offer: ctx.product.offer, features: ctx.product.features, code: ctx.product.code, one_liner: ctx.product.one_liner, aha: ctx.product.aha }).toLowerCase().replace(/(\d),(?=\d{3})/g, "$1");
   for (const number of text.match(/\$?\d[\d,.]*\s*(?:%|x|k|m)?/gi) ?? []) {
     const digits = number.replace(/[^\d.]/g, "").replace(/\.$/, "");
     // the same number, not just its digits inside a longer one ("5" is in "2025")
