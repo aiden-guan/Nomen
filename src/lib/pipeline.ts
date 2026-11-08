@@ -122,8 +122,14 @@ export function clients() {
   return { naive: build(() => new NaiveClient()), monid: build(() => new MonidClient()) };
 }
 
-/** How many times in a row a step may hit a busy or failing provider before the campaign fails. */
+/**
+ * How many times in a row a step may hit a busy or failing provider before the campaign fails: about
+ * half an hour for planning steps, about three hours for production, whose shots already back off
+ * one by one and only need the campaign to keep waiting (a Naive capacity crunch ran past 40 min).
+ */
 const RETRY_LIMIT = 12;
+const PRODUCTION_RETRY_LIMIT = 40;
+export const retryLimit = (stage: string) => (stage === "production" ? PRODUCTION_RETRY_LIMIT : RETRY_LIMIT);
 /** The wait before retrying such a step: 5 s doubling to 5 min, about half an hour in all. */
 export const retryDelayMs = (attempts: number) => Math.min(300, 5 * 2 ** Math.max(0, attempts - 1)) * 1000;
 /**
@@ -144,12 +150,12 @@ export async function advanceCampaign(id: string) {
     if (campaign.attempts) await save("campaigns", id, { attempts: 0 });
     retryAfter.delete(id);
   } catch (error) {
-    if (error instanceof ApiError && error.retryable && campaign.attempts < RETRY_LIMIT) {
+    if (error instanceof ApiError && error.retryable && campaign.attempts < retryLimit(campaign.stage)) {
       const attempts = campaign.attempts + 1;
       retryAfter.set(id, Date.now() + retryDelayMs(attempts));
       await save("campaigns", id, { attempts });
       // Say so once, not on every retry.
-      if (attempts === 1) await logEvent({ brandId: campaign.brand_id, campaignId: id, level: "warn", message: `A provider is busy at ${campaign.stage} (${error.message}); retrying with backoff for up to about 30 minutes` });
+      if (attempts === 1) await logEvent({ brandId: campaign.brand_id, campaignId: id, level: "warn", message: `A provider is busy at ${campaign.stage} (${error.message}); retrying with backoff for up to about ${campaign.stage === "production" ? "3 hours" : "30 minutes"}` });
     } else {
       const message = error instanceof Error ? error.message : String(error);
       await save("campaigns", id, { status: "failed", error: message });

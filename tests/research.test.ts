@@ -292,3 +292,12 @@ describe("campaign retries after a busy provider", () => {
     expect([1, 2, 3, 6, 7, 12].map(retryDelayMs)).toEqual([5000, 10000, 20000, 160000, 300000, 300000]);
   });
 });
+
+describe("campaign patience per stage", () => {
+  it("waits far longer in production than in planning", async () => {
+    const { retryLimit, retryDelayMs } = await import("@/lib/pipeline");
+    const total = (n: number) => Array.from({ length: n }, (_, i) => retryDelayMs(i + 1)).reduce((a, b) => a + b, 0);
+    expect(total(retryLimit("research")) / 60000).toBeLessThan(40);
+    expect(total(retryLimit("production")) / 60000).toBeGreaterThan(150);
+  });
+});
