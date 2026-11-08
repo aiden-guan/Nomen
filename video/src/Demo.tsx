@@ -31,8 +31,11 @@ const stepAt = (key: string) => log.steps.find((s) => s.key === key)?.frame ?? n
 
 /** Seconds the end card holds at the close. */
 const END_SECONDS = 2.6;
-/** Frames off the start (the wait before the website is typed). */
-const SKIP = 18;
+/**
+ * Frames off the start (the wait before the website is typed): the edit opens 56 frames (about
+ * 1.9 s) before the website is entered, however long it took to type.
+ */
+const SKIP = Math.max(0, log.enter - 56);
 /** Where the film holds still for the outreach thread, and for how long (frames). */
 const CREATORS = stepAt("creators");
 // Keep in step with prepare.mjs, which cuts this frame as public/freeze.png.

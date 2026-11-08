@@ -1,7 +1,7 @@
 // Films the demo walk-through frame by frame, for the edited demo video (video/, Remotion).
 //
 //   npm run build && npm start                         (a production build on :3000)
-//   node scripts/film-demo.cjs out/plate.mp4           (SITE=monid.ai for the other demo)
+//   node scripts/film-demo.cjs out/plate.mp4           (types usenaive.ai; SITE=monid.ai for the other demo)
 //
 // Nothing here runs in real time, so nothing stutters: the page's clock is Playwright's fake one,
 // advanced exactly 1/30 s per frame. The scene (requestAnimationFrame), the replay clock and the
@@ -18,7 +18,7 @@ const { writeFileSync } = require("fs");
 const FFMPEG = require("ffmpeg-static");
 
 const out = process.argv[2] || "plate.mp4";
-const site = process.env.SITE || "naive.ai";
+const site = process.env.SITE || "usenaive.ai";
 const base = process.env.BASE_URL || "http://localhost:3000";
 const FPS = 30;
 const W = 1440, H = 810, SCALE = 4 / 3; // 1920 x 1080 frames
