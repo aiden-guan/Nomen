@@ -324,6 +324,15 @@ def track(spec):
         backward, bshares, bwhy = track_run(frames, f0, snapped, range(f0 - 1, s0 - 1, -1), exclude)
         shares = fshares + bshares
         report["inliers"] = round(float(np.mean(shares)), 3) if shares else None
+        # The flow lost near the shot's ends (a cut a frame off, a blurred last frame): the
+        # corners found hold for the few frames left, rather than giving up on the whole shot.
+        slack = max(4, int(0.12 * (s1 - s0)))
+        if fwhy and s1 - 1 - (max(forward) if forward else f0) <= slack:
+            report["held_end"] = fwhy
+            fwhy = None
+        if bwhy and (min(backward) if backward else f0) - s0 <= slack:
+            report["held_start"] = bwhy
+            bwhy = None
         problem = fwhy or bwhy
         if problem or (shares and np.mean(shares) < 0.5):
             report["fallback"] = problem or "the flow did not agree on one plane"
@@ -332,7 +341,8 @@ def track(spec):
                 quads[s0 + k] = q
         else:
             tracked = {f0: snapped, **forward, **backward}
-            series = smooth([tracked[i] for i in range(s0, s1)])
+            first, last = min(tracked), max(tracked)
+            series = smooth([tracked[min(max(i, first), last)] for i in range(s0, s1)])
             for k, q in enumerate(series):
                 quads[s0 + k] = q
             # How far the tracked corners sit from the vision model's other reads (diagnostic only).

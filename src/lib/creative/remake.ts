@@ -69,7 +69,7 @@ import {
   voiceStats,
   warpKeys,
 } from "./clone";
-import { type AudioRecord, demucs, extractArgs, makeVoice, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
+import { type AudioRecord, demucs, extractArgs, makeVoice, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurLines, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
 import { DEFAULT_FONT, FINISHED_ENCODE, fontMetrics, PICTURE_FINISH, renderTimeline } from "./edit";
 import { CHARACTER_STYLE, genderOf, type Persona } from "./persona";
 import { decodeRgb, makePlate, newPlateRecord, type PlateRecord } from "./plate";
@@ -1494,7 +1494,9 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     notes.push("no words to say: the reference's whole soundtrack is kept");
   }
   notes.push(...(manifest.audio.notes ?? []).filter((n) => !notes.includes(n)));
-  const ourWords = timeOurWords(reference.words, scriptLines.join(" "));
+  // Faceless: nobody re-performs the footage, so each line is said inside its own beat's shot.
+  const byLine = !people;
+  const ourWords = byLine ? timeOurLines(reference.words, lines.map((l, i) => ({ text: l.line, start: span.beats[i].start, end: span.beats[i].end }))) : timeOurWords(reference.words, scriptLines.join(" "));
   const voiceInput = {
     reference: input.referencePath,
     end,
@@ -1504,6 +1506,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     mode: voiceMode(input.voice, input.host.persona.gender, genderOf(layout.presenter)),
     delivery: input.breakdown.delivery,
     separate,
+    byLine,
   };
   // A presenter that does not voice itself gets our voice first (an audio-driven one lip-syncs to it).
   let voice: Voice | null = presenter.voice === "own" ? null : await makeVoice(work, deps.monid, manifest.audio, voiceInput);
@@ -1586,7 +1589,8 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   for (const layer of layers.filter((l) => l.kind === "screen")) {
     const segment = segments.find((s) => s.n === layer.segment)!;
     try {
-      const softCuts = (manifest.soft_cuts ?? cuts).filter((c) => c > layer.start + 0.2 && c < layer.end - 0.2);
+      // Every cut inside the segment, also one a frame from its edge: the tracker treats each shot alone.
+      const softCuts = (manifest.soft_cuts ?? cuts).filter((c) => c > layer.start + 0.03 && c < layer.end - 0.03);
       const path = await filmedMonitor(work, naive, manifest, { layer, segment, layout, stage, stageRef, reference: input.referencePath, built, product: input.product, mode: input.screens ?? "auto", cuts: manifest.real?.[layer.id] ?? [], softCuts, idem: `${input.idem}-${layer.id}` });
       if (!path) manifest.fallbacks[layer.id] ??= "the filmed monitor could not be rebuilt";
     } catch (error) {

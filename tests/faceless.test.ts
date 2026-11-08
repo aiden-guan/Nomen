@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { editFfmpeg } from "@/lib/creative/edit";
 import { burnedInText, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenSegmentKind, segmentElements, stageGraphic, stageOf, wordCaptions } from "@/lib/creative/remake";
+import { fitSegments, timeOurLines, timeOurWords } from "@/lib/creative/dub";
 import { referenceFrameNote } from "@/lib/creative/screens";
 import { shotReadTimes, trackerPython, trackScreen, trackSpecJson } from "@/lib/creative/track";
 import type { Quad, ReferenceBeat } from "@/lib/creative/types";
@@ -96,6 +97,54 @@ describe("faceless remakes: filmed screens, labels and captions", () => {
     expect(boxes[1].y + boxes[1].height / 2).toBeCloseTo(960, -1);
     const silent = burnedInText(layout({ texts: [], captions: { ...layout().captions, present: false } }), stage, { start: 0, end: 5 });
     expect(silent).toEqual([]);
+  });
+});
+
+describe("faceless remakes: each line is said inside its own shot", () => {
+  // The reference reads one label per shot: "Spotify," (6.2-7.8), "TPT," (7.8-9.2), "games," (9.2-11.1).
+  const ref = [
+    { text: "Spotify,", start: 6.4, end: 7.0 },
+    { text: "TPT,", start: 8.0, end: 8.5 },
+    { text: "games,", start: 9.4, end: 9.9 },
+  ];
+  const lines = [
+    { text: "real iPhones,", start: 6.2, end: 7.8 },
+    { text: "SMS,", start: 7.8, end: 9.2 },
+    { text: "fleets,", start: 9.2, end: 11.1 },
+  ];
+
+  it("spreads a changed stretch across the shots when timed as one script", () => {
+    const words = timeOurWords(ref, lines.map((l) => l.text).join(" "));
+    const fleets = words.find((w) => w.text === "fleets,")!;
+    // "fleets" lands before the cut to its own shot (9.2 s).
+    expect(fleets.start).toBeLessThan(9.2);
+  });
+
+  it("keeps every line's words inside its own beat when timed line by line", () => {
+    const words = timeOurLines(ref, lines);
+    expect(words.map((w) => w.text)).toEqual(["real", "iPhones,", "SMS,", "fleets,"]);
+    expect(words[0].start).toBeGreaterThanOrEqual(6.2);
+    expect(words[1].end).toBeLessThanOrEqual(7.8);
+    expect(words[2].start).toBeGreaterThanOrEqual(7.8);
+    expect(words[2].end).toBeLessThanOrEqual(9.2);
+    expect(words[3].start).toBeGreaterThanOrEqual(9.2);
+  });
+
+  it("places each line of the read on its own beat's phrase", () => {
+    // The read says the three lines back to back.
+    const read = [
+      { text: "Real", start: 0.1, end: 0.3 },
+      { text: "iPhones,", start: 0.3, end: 0.8 },
+      { text: "SMS,", start: 1.0, end: 1.4 },
+      { text: "fleets,", start: 1.6, end: 2.0 },
+    ];
+    const segments = fitSegments(ref, lines.map((l) => l.text).join(" "), read, lines)!;
+    expect(segments).toHaveLength(3);
+    // Each piece of the read starts inside its own beat.
+    segments.forEach((seg, i) => {
+      expect(seg.at).toBeGreaterThanOrEqual(lines[i].start - 0.1);
+      expect(seg.at).toBeLessThan(lines[i].end);
+    });
   });
 });
 

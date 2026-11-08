@@ -170,6 +170,25 @@ export function timeOurWords(ref: TimedWord[], ourText: string): TimedWord[] {
   return out.map((w, i) => w ?? { text: ours[i], start: out[i - 1]?.end ?? 0, end: out[i - 1]?.end ?? 0 });
 }
 
+/**
+ * Our words on the reference's clock, line by line: line i is timed only against the reference's
+ * words in its own beat (start to end), so it is said inside that beat's shot. A faceless remake
+ * cuts its footage on the reference's beats (one label or one step per shot), and a changed
+ * stretch spread across two beats would put a word on the wrong shot. A beat whose reference says
+ * nothing gets our words spread over it.
+ */
+export function timeOurLines(ref: TimedWord[], lines: Array<Pick<VoiceLine, "text" | "start" | "end">>): TimedWord[] {
+  if (!ref.length) return [];
+  return lines.flatMap((line) => {
+    const words = tokens(line.text);
+    if (!words.length) return [];
+    const mine = ref.filter((w) => w.start >= line.start - 0.05 && w.start < line.end - 0.05);
+    if (mine.length) return timeOurWords(mine, line.text);
+    const step = Math.max(0.1, (line.end - line.start) / words.length);
+    return words.map((text, k) => ({ text, start: round(line.start + k * step), end: round(line.start + (k + 1) * step) }));
+  });
+}
+
 /** The reference's phrases: runs of words split at pauses of `gap` seconds or more, or at a sentence end. */
 export function phrasesOf(words: TimedWord[], gap = 0.28): Array<{ from: number; to: number; start: number; end: number }> {
   const out: Array<{ from: number; to: number; start: number; end: number }> = [];
@@ -186,32 +205,66 @@ export function phrasesOf(words: TimedWord[], gap = 0.28): Array<{ from: number;
 
 export type FitSegment = { from: number; to: number; at: number; tempo: number };
 
+/** A phrase cut where the reference's beats change (a speaker who does not pause at a cut). */
+function splitAtBeats(ref: TimedWord[], p: { from: number; to: number; start: number; end: number }, beatOf: (t: number) => number) {
+  const out: Array<{ from: number; to: number; start: number; end: number }> = [];
+  for (let i = p.from; i < p.to; i++) {
+    const last = out[out.length - 1];
+    if (last && beatOf(ref[i].start) === beatOf(ref[last.from].start)) {
+      last.to = i + 1;
+      last.end = ref[i].end;
+    } else out.push({ from: i, to: i + 1, start: ref[i].start, end: ref[i].end });
+  }
+  return out;
+}
+
 /**
  * The fresh read's timing: the read cut at the reference's phrase boundaries, each piece stretched
  * (within 0.8-1.35x, so it still sounds like speech) onto the reference phrase it replaces, and
  * never overlapping the piece before. Null when too few of the read's words could be placed; the
  * caller then fits the whole read with one tempo.
  */
-export function fitSegments(ref: TimedWord[], ourText: string, read: TimedWord[]): FitSegment[] | null {
+export function fitSegments(ref: TimedWord[], ourText: string, read: TimedWord[], lines?: Array<Pick<VoiceLine, "text" | "start" | "end">>): FitSegment[] | null {
   const ours = tokens(ourText);
   if (!ref.length || !ours.length || !read.length) return null;
-  const phrases = phrasesOf(ref);
+  // With `lines`, a phrase never crosses a line's beat: our line i only replaces words of beat i.
+  const beatOf = (t: number) => (lines ? lines.findIndex((l) => t >= l.start - 0.05 && t < l.end - 0.05) : 0);
+  const phrases = lines ? phrasesOf(ref).flatMap((p) => splitAtBeats(ref, p, beatOf)) : phrasesOf(ref);
   const phraseOfRef = new Array<number>(ref.length);
   phrases.forEach((p, k) => {
     for (let i = p.from; i < p.to; i++) phraseOfRef[i] = k;
   });
   // Each of our words belongs to the reference phrase whose words it keeps or replaces.
   const phraseOf = new Array<number>(ours.length).fill(-1);
-  for (const s of diffWords(
-    ref.map((w) => w.text),
-    ours,
-  )) {
-    const n = s.b[1] - s.b[0];
-    for (let k = 0; k < n; k++) {
-      if (s.same) phraseOf[s.b[0] + k] = phraseOfRef[s.a[0] + k];
-      else if (s.a[1] > s.a[0]) phraseOf[s.b[0] + k] = phraseOfRef[s.a[0] + Math.min(s.a[1] - s.a[0] - 1, Math.floor((k * (s.a[1] - s.a[0])) / n))];
-      else phraseOf[s.b[0] + k] = phraseOfRef[Math.max(0, s.a[0] - 1)] ?? 0;
+  const assign = (refIdx: number[], ourIdx: number[]) => {
+    for (const s of diffWords(
+      refIdx.map((i) => ref[i].text),
+      ourIdx.map((j) => ours[j]),
+    )) {
+      const n = s.b[1] - s.b[0];
+      for (let k = 0; k < n; k++) {
+        const j = ourIdx[s.b[0] + k];
+        if (s.same) phraseOf[j] = phraseOfRef[refIdx[s.a[0] + k]];
+        else if (s.a[1] > s.a[0]) phraseOf[j] = phraseOfRef[refIdx[s.a[0] + Math.min(s.a[1] - s.a[0] - 1, Math.floor((k * (s.a[1] - s.a[0])) / n))]];
+        else phraseOf[j] = phraseOfRef[refIdx[Math.max(0, s.a[0] - 1)]] ?? phraseOfRef[refIdx[0]] ?? 0;
+      }
     }
+  };
+  if (lines) {
+    // Line by line: our line's words against its own beat's reference words.
+    let at = 0;
+    lines.forEach((line, i) => {
+      const count = tokens(line.text).length;
+      const ourIdx = Array.from({ length: count }, (_, k) => at + k).filter((j) => j < ours.length);
+      at += count;
+      const refIdx = ref.map((_, r) => r).filter((r) => beatOf(ref[r].start) === i);
+      if (ourIdx.length && refIdx.length) assign(refIdx, ourIdx);
+    });
+  } else {
+    assign(
+      ref.map((_, i) => i),
+      ours.map((_, j) => j),
+    );
   }
   // When each of our words is said in the read.
   const timeOf = new Array<TimedWord | null>(ours.length).fill(null);
@@ -439,6 +492,8 @@ export type VoiceInput = {
   delivery: string;
   /** Splits voice from bed; null when Demucs is not set up. */
   separate: ((input: string, outDir: string) => Promise<{ voice: string; bed: string }>) | null;
+  /** Each line timed only within its own beat (faceless remakes: one shot per line), not across the whole script. */
+  byLine?: boolean;
 };
 
 export type Voice = {
@@ -529,13 +584,13 @@ export async function makeVoice(work: Work, monid: MonidRunner, record: AudioRec
   const text = input.lines.map((l) => l.text).join(" ");
 
   const { stem, bed, words } = await referenceAudio(work, monid, record, input);
-  const ours = timeOurWords(words, text);
+  const ours = input.byLine ? timeOurLines(words, input.lines) : timeOurWords(words, text);
   // Converting needs the clean voice: without one it would convert the music too.
   const mode: VoiceMode = input.mode === "convert" && record.stems === "none" ? "fresh" : input.mode;
   if (mode !== input.mode && !notes.includes("no clean voice track, so the voice is a fresh read")) notes.push("no clean voice track, so the voice is a fresh read");
   record.mode = mode;
 
-  const made = hash([mode, input.lines, input.host, input.others, record.voice_key, record.bed_key, input.end]);
+  const made = hash([mode, input.lines, input.host, input.others, record.voice_key, record.bed_key, input.end, ...(input.byLine ? ["by line"] : [])]);
   if (record.made_hash === made) {
     const [kept, mixed] = [await work.local(record.ours_key), await work.local(record.mix_key)];
     if (kept && mixed) return { voice: kept, mix: mixed, bed, words, ours, notes };
@@ -606,7 +661,8 @@ export async function makeVoice(work: Work, monid: MonidRunner, record: AudioRec
       }
       const take = takes[bestRead(takes, target)];
       const path = (await work.local(take.key))!;
-      let segments = fitSegments(refRun, r.plain, take.words);
+      // Line by line when one voice reads the whole script (a faceless remake's narrator).
+      let segments = fitSegments(refRun, r.plain, take.words, input.byLine && runs.length === 1 ? input.lines.filter((l) => tokens(l.text).length) : undefined);
       if (!segments) {
         // The read could not be lined up word by word: one tempo for all of it, from the first word.
         const at = refRun[0]?.start ?? first?.start ?? input.lines.find((l) => l.text.trim())?.start ?? 0;
