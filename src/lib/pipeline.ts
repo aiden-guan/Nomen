@@ -8,6 +8,7 @@ import { captureSiteVisuals } from "./creative/capture";
 import { planProduction } from "./creative/plan";
 import { analyzeProduct } from "./creative/product";
 import { breakdownAll, pickForBreakdown, scoreCandidates } from "./creative/references";
+import { applyRelevance, screenRelevance } from "./creative/relevance";
 import { scout, scoutSpecs } from "./creative/scout";
 import { targetSeconds, writeScript } from "./creative/script";
 import type { ProductBrief, ReferenceBreakdown, ReferenceCandidate } from "./creative/types";
@@ -251,7 +252,9 @@ export type CreativeState = {
   samples: string[];
   product?: ProductBrief;
   captured?: boolean;
-  candidates?: Array<Pick<ReferenceCandidate, "url" | "platform" | "author" | "views" | "followers" | "origin" | "score">>;
+  candidates?: Array<Pick<ReferenceCandidate, "url" | "platform" | "author" | "views" | "followers" | "origin" | "score"> & { relevance?: number; relevance_reason?: string }>;
+  /** The relevance screen's verdicts, by URL (done once, before the first breakdown). */
+  screened?: Array<{ url: string; relevance: number; reason: string }>;
   breakdowns?: ReferenceBreakdown[];
   failures?: Array<{ url: string; error: string }>;
   /** Reference URLs whose breakdown failed for a passing reason, retried once on the next tick. */
@@ -301,10 +304,25 @@ async function stepStyle(campaign: CampaignRow) {
 
   const options = parse<CampaignOptions>(campaign.options_json, defaultOptions());
   if (!state.breakdowns || state.retry?.length) {
-    const candidates = scoreCandidates(pack.videos, originOf);
-    state.candidates ??= candidates.slice(0, 20).map(({ url, platform, author, views, followers, origin, score }) => ({ url, platform, author, views, followers, origin, score }));
+    const ranked = scoreCandidates(pack.videos, originOf);
+    // Numbers pick viral clips; the relevance screen keeps only ones a remake would make sense for.
+    if (!state.screened && options.learnStyle && ranked.length) {
+      const plan = parse<ResearchPlan | null>(campaign.plan_json, null);
+      try {
+        state.screened = await screenRelevance(naive, ranked, { product: state.product, scoutNotes: plan?.scout_notes });
+      } catch (error) {
+        if (error instanceof ApiError && error.retryable && campaign.attempts < 3) throw error;
+        state.screened = [];
+      }
+      const kept = state.screened.filter((r) => r.relevance >= 6).length;
+      log(`Relevance screen: ${kept} of ${state.screened.length} top-ranked videos could be remade for ${state.product.name}${state.screened.length ? ` (dropped: ${state.screened.filter((r) => r.relevance < 6).slice(0, 4).map((r) => r.reason).join("; ")})` : ""}`);
+      save();
+    }
+    const candidates = state.screened?.length ? applyRelevance(ranked, state.screened) : ranked;
+    const verdicts = new Map((state.screened ?? []).map((r) => [r.url, r]));
+    state.candidates = candidates.slice(0, 20).map(({ url, platform, author, views, followers, origin, score }) => ({ url, platform, author, views, followers, origin, score, relevance: verdicts.get(url)?.relevance, relevance_reason: verdicts.get(url)?.reason }));
     // A second pass only retries the breakdowns that failed for a passing reason (a busy provider).
-    const picks = state.retry?.length ? candidates.filter((c) => state.retry!.includes(c.url)) : options.learnStyle ? pickForBreakdown(candidates, 6) : [];
+    const picks = state.retry?.length ? ranked.filter((c) => state.retry!.includes(c.url)) : options.learnStyle ? pickForBreakdown(candidates, 6, { keepOrder: Boolean(state.screened?.length) }) : [];
     if (picks.length && !state.retry?.length) log(`Breaking down ${picks.length} outlier videos beat by beat (transcript, cuts, frames): ${picks.map((p) => `@${p.author} ${p.score.why}`).join("; ")}`);
     const result = picks.length
       ? await breakdownAll(naive, picks, { workDir: work, brand: { name: state.product.name, one_liner: state.product.one_liner, kind: state.product.kind } })

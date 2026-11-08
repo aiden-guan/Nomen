@@ -121,13 +121,14 @@ export function scoreCandidates(videos: Video[], originOf: (video: Video) => Ref
  * checked after download), best first, with the best competitor post and the best category video
  * included whenever there is one, and one per author before anyone gets a second.
  */
-export function pickForBreakdown(candidates: ReferenceCandidate[], n = 6, options: { minSeconds?: number; maxSeconds?: number } = {}): ReferenceCandidate[] {
+export function pickForBreakdown(candidates: ReferenceCandidate[], n = 6, options: { minSeconds?: number; maxSeconds?: number; keepOrder?: boolean } = {}): ReferenceCandidate[] {
   const min = options.minSeconds ?? 5;
   const max = options.maxSeconds ?? 90;
   const usable = candidates
     .filter((candidate) => Boolean(candidate.media_url))
     .filter((candidate) => candidate.duration === null || (candidate.duration >= min && candidate.duration <= max))
-    .sort((a, b) => b.score.total - a.score.total);
+    // keepOrder: the caller already ranked them (by relevance, then performance).
+    .sort((a, b) => (options.keepOrder ? 0 : b.score.total - a.score.total));
 
   const picked: ReferenceCandidate[] = [];
   const authors = new Set<string>();
@@ -148,7 +149,7 @@ export function pickForBreakdown(candidates: ReferenceCandidate[], n = 6, option
       take(candidate);
     }
   }
-  return picked.sort((a, b) => b.score.total - a.score.total);
+  return options.keepOrder ? picked.sort((a, b) => usable.indexOf(a) - usable.indexOf(b)) : picked.sort((a, b) => b.score.total - a.score.total);
 }
 
 // ---------- the breakdown ----------
@@ -457,7 +458,8 @@ const BREAKDOWN_TOOL = {
       },
       beats: {
         type: "array",
-        description: "Consecutive beats from 0 s to the end of the video, no gaps or overlaps, usually 3-12. The first beat is the hook.",
+        maxItems: 14,
+        description: "Consecutive beats from 0 s to the end of the video, no gaps or overlaps, 3-14. The first beat is the hook. For a long video, merge neighbouring lines that do the same job so there are at most 14 beats; every spoken word still appears in exactly one beat.",
         items: {
           type: "object",
           required: ["start", "end", "job", "shot", "visual", "on_screen_text", "line"],
@@ -578,7 +580,7 @@ function buildContent(input: ContentInput): unknown[] {
 }
 
 async function askForBreakdown(naive: BreakdownClient, model: string, content: unknown[]): Promise<Record<string, unknown>> {
-  const ask = (text: string, tools?: object[]) => naive.message({ model, max_tokens: 4096, system: SYSTEM, messages: [{ role: "user", content: [...content, { type: "text", text }] }], tools });
+  const ask = (text: string, tools?: object[]) => naive.message({ model, max_tokens: 12000, system: SYSTEM, messages: [{ role: "user", content: [...content, { type: "text", text }] }], tools });
   let raw: unknown = null;
   try {
     const reply = await ask("Call the reference_breakdown tool once.", [BREAKDOWN_TOOL]);

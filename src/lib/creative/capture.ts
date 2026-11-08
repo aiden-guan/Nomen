@@ -54,7 +54,9 @@ export async function captureSiteVisuals(naive: CaptureClient, input: CaptureInp
       name: `nomen-capture-${bare}`.slice(0, 200),
       vcpu: 1,
       memory_mb: 1024,
-      browser: { allowed_domains: [bare, `*.${bare}`], timeout_minutes: 5, viewport, os: "mobile", block_ads: true, solve_captchas: false },
+      // Live-tested 2026-11-07: os "mobile", block_ads or solve_captchas leave the managed browser
+      // "unavailable" (409); a phone-width viewport alone renders the mobile layout.
+      browser: { allowed_domains: [bare, `*.${bare}`], viewport },
     },
     `nomen-capture-${bare}-${randomUUID()}`,
   );
@@ -66,8 +68,21 @@ export async function captureSiteVisuals(naive: CaptureClient, input: CaptureInp
     const key = () => `nomen-capture-${computer.id}-${++step}`;
     const seen = new Set<string>();
 
+    // The browser can answer "unavailable" for a few seconds after the computer reports running.
+    const goto = async (url: string) => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await naive.browserAction(computer.id, { action: "goto", url }, key());
+        } catch (error) {
+          if (!(error instanceof ApiError && error.status === 409) || attempt >= 4 || left() < 15_000) throw error;
+          await new Promise((resolve) => setTimeout(resolve, input.pollMs ?? 1500));
+        }
+      }
+    };
+    let lastError: unknown = null;
+
     const shoot = async (url: string) => {
-      const landed = await naive.browserAction(computer.id, { action: "goto", url }, key());
+      const landed = await goto(url);
       const final = pageKey(landed.url || url);
       if (seen.has(final)) return;
       seen.add(final);
@@ -99,8 +114,8 @@ export async function captureSiteVisuals(naive: CaptureClient, input: CaptureInp
         const found = await naive.browserAction(computer.id, { action: "links", limit: 200 });
         links = found.links ?? [];
       }
-    } catch {
-      // the homepage would not load or capture: explicit paths may still work
+    } catch (error) {
+      lastError = error; // the homepage would not load or capture: explicit paths may still work
     }
 
     const max = input.maxPages ?? 4;
@@ -109,10 +124,12 @@ export async function captureSiteVisuals(naive: CaptureClient, input: CaptureInp
       if (left() < 12_000) break;
       try {
         await shoot(page);
-      } catch {
-        // one page failing (a redirect off the domain, a slow load) never costs the others
+      } catch (error) {
+        lastError = error; // one page failing (a redirect off the domain, a slow load) never costs the others
       }
     }
+    // Nothing captured at all is a failure worth reporting, not an empty success.
+    if (visuals.length === 0 && lastError) throw lastError instanceof Error ? lastError : new Error(String(lastError));
     return visuals;
   } finally {
     await naive.closeBrowser(computer.id).catch(() => null);

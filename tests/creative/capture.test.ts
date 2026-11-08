@@ -168,7 +168,8 @@ describe("captureSiteVisuals", () => {
     const visuals = await captureSiteVisuals(client, { domain: "https://monid.ai/", dir, pollMs: 1 });
 
     const [create] = client.createComputer.mock.calls[0] as unknown as [Record<string, unknown>, string];
-    expect(create).toMatchObject({ name: "nomen-capture-monid.ai", vcpu: 1, browser: { viewport: PHONE_VIEWPORT, os: "mobile", allowed_domains: ["monid.ai", "*.monid.ai"] } });
+    expect(create).toMatchObject({ name: "nomen-capture-monid.ai", vcpu: 1, browser: { viewport: PHONE_VIEWPORT, allowed_domains: ["monid.ai", "*.monid.ai"] } });
+    expect((create as { browser: Record<string, unknown> }).browser.os).toBeUndefined(); // "mobile" leaves the live browser unavailable
     expect(client.getComputer).toHaveBeenCalledTimes(2);
 
     expect(visuals.map((v) => v.source)).toEqual(["capture:mobile:/", "capture:mobile:/pricing", "capture:mobile:/features", "capture:mobile:docs.monid.ai", "capture:mobile:/customers"]);

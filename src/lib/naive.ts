@@ -107,7 +107,7 @@ export class NaiveClient {
       "/v1/proxy/anthropic/v1/messages",
       input,
       undefined,
-      120_000,
+      240_000, // a long breakdown or script can take a few minutes to write
     );
   }
 
