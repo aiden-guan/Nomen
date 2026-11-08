@@ -158,7 +158,8 @@ function pronoun(creator: string) {
 }
 
 const CAMERA =
-  "The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens.";
+  // Say "camera", never "phone": video models draw a phone's status bar when a prompt names one.
+  "The camera is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens.";
 const CALM =
   "Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking.";
 const SAFE =
@@ -193,7 +194,7 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
       .filter(Boolean)
       .join(" "),
     video_prompt: [
-      "Vertical 9:16 smartphone video, UGC style.",
+      "Vertical 9:16 handheld-creator style video, UGC style, a plain full-frame picture with nothing overlaid.",
       CAMERA,
       `${lookOnly(brief.creator)}, in ${lookOnly(brief.setting)}.`,
       "A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind.",
