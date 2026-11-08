@@ -1029,8 +1029,10 @@ export async function remakeVideo(client: RemakeClient, input: RemakeInput): Pro
     if (!plan.graphics.length) return;
     // Built graphics and real failures are kept; a graphic that failed only because the model was
     // busy is built again on the next run (the first live remake lost 3 of 4 graphics that way).
+    // Older manifests carry the error text only.
+    const busy = (f: { error: string; retryable?: boolean }) => Boolean(f.retryable) || /at capacity|rate.?limit|busy|timed? ?out/i.test(f.error);
     const before = manifest.graphics?.key === graphicsKey ? manifest.graphics : { key: graphicsKey, clips: [], failures: [] };
-    const settled = new Set([...before.clips.filter((clip) => existsSync(clip.path)).map((clip) => clip.id), ...before.failures.filter((f) => !f.retryable).map((f) => f.id)]);
+    const settled = new Set([...before.clips.filter((clip) => existsSync(clip.path)).map((clip) => clip.id), ...before.failures.filter((f) => !busy(f)).map((f) => f.id)]);
     const requests = plan.graphics.map((g) => g.request).filter((request) => !settled.has(request.id));
     if (!requests.length) return;
     const build =
