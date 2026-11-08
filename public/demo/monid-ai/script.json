@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recorded": true,
-  "recordedAt": "2026-11-08T08:50:07.386Z",
+  "recordedAt": "2026-11-08T09:04:11.017Z",
   "brand": {
     "name": "Monid",
     "domain": "monid.ai",
@@ -524,7 +524,7 @@
           "metric": null
         },
         {
-          "title": "A sign-up per API vs one balance",
+          "title": "A sign-up for every API, or one balance",
           "format": "code ad (3D animation)",
           "reference_id": "ref_da97474993",
           "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
@@ -1100,7 +1100,7 @@
           }
         },
         {
-          "title": "A sign-up per API vs one balance",
+          "title": "A sign-up for every API, or one balance",
           "format": "code ad (3D animation)",
           "hook": "Every API your agent needs is another sign-up, another key.",
           "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
@@ -1125,12 +1125,18 @@
           "brief": {
             "format": "code ad (3D animation)",
             "role": "reach",
-            "title": "A sign-up per API vs one balance"
+            "title": "A sign-up for every API, or one balance"
           },
           "script": {
             "total_seconds": 26.7,
             "beats": [],
             "review": null
+          },
+          "previous": {
+            "title": "A sign-up per API vs one balance",
+            "format": "code ad (3D animation)",
+            "hook": "Every API your agent needs is another sign-up, another key.",
+            "note": "the first version, before this remake"
           }
         }
       ],
@@ -1795,7 +1801,7 @@
     {
       "idx": 4,
       "concept": {
-        "title": "A sign-up per API vs one balance",
+        "title": "A sign-up for every API, or one balance",
         "format": "code ad (3D animation)",
         "hook": "Every API your agent needs is another sign-up, another key.",
         "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
@@ -1825,6 +1831,12 @@
           "total_seconds": 26.7,
           "beats": [],
           "review": null
+        },
+        "previous": {
+          "title": "A sign-up per API vs one balance",
+          "format": "code ad (3D animation)",
+          "hook": "Every API your agent needs is another sign-up, another key.",
+          "note": "the first version, before this remake"
         }
       },
       "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
@@ -1834,8 +1846,8 @@
         "youtube"
       ],
       "qcScore": null,
-      "cost": 0.12,
-      "generation": 1,
+      "cost": 0.22,
+      "generation": 2,
       "shots": [],
       "video": "3.mp4",
       "poster": "3.png",
@@ -1911,7 +1923,7 @@
     {
       "s": 307,
       "level": "info",
-      "message": "The creative director chose 3 videos, each on what the research found: \"We gave an agent $3 and one skill file\" (one-to-one remake: The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s); \"i let my agent cook with one balance (it got greedy)\" (brainrot meme: Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers)); \"A sign-up per API vs one balance\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance)"
+      "message": "The creative director chose 3 videos, each on what the research found: \"We gave an agent $3 and one skill file\" (one-to-one remake: The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s); \"i let my agent cook with one balance (it got greedy)\" (brainrot meme: Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers)); \"A sign-up for every API, or one balance\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance)"
     },
     {
       "s": 380,
@@ -1969,14 +1981,14 @@
       "message": "\"i let my agent cook with one balance (it got greedy)\" is ready"
     },
     {
-      "s": 25275.5,
+      "s": 27186.5,
       "level": "info",
-      "message": "\"A sign-up per API vs one balance\": made as a code ad (3D animation) from @cluelyextras's video in the research (628K views on 3K followers)"
+      "message": "\"A sign-up for every API, or one balance\": made as a code ad (3D animation) from @cluelyextras's video in the research (628K views on 3K followers)"
     },
     {
-      "s": 25276.5,
+      "s": 27187.5,
       "level": "info",
-      "message": "\"A sign-up per API vs one balance\" is ready"
+      "message": "\"A sign-up for every API, or one balance\" is ready"
     }
   ],
   "spend": {
