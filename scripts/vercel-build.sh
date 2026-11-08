@@ -5,7 +5,7 @@
 # functions, hand them the server secret and, for production, this site's address (the worker
 # cron calls it), then build the app with the deployment's URL. See docs/convex.md.
 #
-# Without it: a plain build, as for the demo-only deployment (NOMEN_DEMO_ONLY=1).
+# Without it: a plain build; `/` then plays the demo (src/lib/live.ts).
 set -euo pipefail
 
 if [ -z "${CONVEX_DEPLOY_KEY:-}" ]; then

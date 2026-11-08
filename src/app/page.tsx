@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { TroyExperience } from "@/components/troy/TroyExperience";
 import { defaultOptions } from "@/lib/pipeline";
+import { liveEnabled } from "@/lib/live";
 import { loadSettings } from "@/lib/settings";
 import { estimateUsd } from "@/lib/views";
 
@@ -15,11 +16,11 @@ export const metadata: Metadata = {
 /**
  * The landing: the Trojan horse. The box starts a real campaign, which spends real credits; the
  * demo, which spends nothing, is at /demo. The brand list that used to live here is at /brands.
- * NOMEN_DEMO_ONLY=1 marks a deployment that can't run campaigns (Vercel: no lasting disk, no
- * background worker), so this page sends visitors to the demo there.
+ * Where real campaigns can't run yet (Vercel before Convex is connected; see src/lib/live.ts), this
+ * page sends visitors to the demo instead.
  */
 export default async function LandingPage() {
-  if (process.env.NOMEN_DEMO_ONLY === "1") redirect("/demo");
+  if (!liveEnabled()) redirect("/demo");
   await loadSettings();
   const options = defaultOptions();
   const estimate = estimateUsd(options);

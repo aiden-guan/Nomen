@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { GATE_COOKIE, gateToken, safeEqual, safeNext } from "@/app/gate/token";
+import { liveEnabled } from "@/lib/live";
 import { proxy } from "@/proxy";
 
 // The password gate for demo deployments. The password here is a test value; the real one lives
@@ -13,8 +14,7 @@ function request(path: string, cookie?: string) {
 }
 
 afterEach(() => {
-  delete process.env.SITE_PASSWORD;
-  delete process.env.NOMEN_DEMO_ONLY;
+  for (const name of ["SITE_PASSWORD", "NOMEN_DEMO_ONLY", "VERCEL", "NEXT_PUBLIC_CONVEX_URL", "CONVEX_DEPLOY_KEY"]) delete process.env[name];
 });
 
 describe("gate tokens", () => {
@@ -98,5 +98,23 @@ describe("the demo-only build", () => {
     process.env.NOMEN_DEMO_ONLY = "1";
     expect((await proxy(request("/api/campaigns/x"))).status).toBe(404);
     expect((await proxy(request("/"))).headers.get("x-middleware-next")).toBe("1");
+  });
+});
+
+describe("live or demo on Vercel", () => {
+  it("plays the demo on / until Convex is connected, then goes live by itself", async () => {
+    process.env.VERCEL = "1";
+    expect(liveEnabled()).toBe(false);
+    expect((await proxy(request("/api/brands"))).status).toBe(404);
+    process.env.NEXT_PUBLIC_CONVEX_URL = "https://example.convex.cloud";
+    process.env.CONVEX_DEPLOY_KEY = "prod:example|key";
+    expect(liveEnabled()).toBe(true);
+    expect((await proxy(request("/api/brands"))).headers.get("x-middleware-next")).toBe("1");
+    process.env.NOMEN_DEMO_ONLY = "1";
+    expect(liveEnabled()).toBe(false);
+  });
+
+  it("is live on a machine with a disk", () => {
+    expect(liveEnabled()).toBe(true);
   });
 });

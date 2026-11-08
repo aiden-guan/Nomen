@@ -1,15 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { GATE_COOKIE, gateToken, safeEqual } from "./app/gate/token";
+import { liveEnabled } from "./lib/live";
 
-// Two switches for demo deployments, both off by default so local development is unaffected.
+// Two guards for hosted deployments, both off in local development.
 //
 // SITE_PASSWORD puts a password in front of the whole site. Pages without the cookie go to /gate;
 // API calls get a 401, and /api/status a "locked" status, because the app header renders it on
 // every page and expects that shape.
 //
-// NOMEN_DEMO_ONLY=1 is for hosts that can't run campaigns (Vercel: no lasting disk, no worker).
-// The landing then plays the demo camp, and the API is switched off here, so nothing on the server
-// opens the database or calls a provider.
+// Where real campaigns can't run (Vercel before Convex is connected, or NOMEN_DEMO_ONLY=1; see
+// src/lib/live.ts), `/` plays the demo and the API is switched off here, so nothing on the server
+// opens a database or calls a provider. Once Convex is connected, `/` is live and /demo the demo.
 
 type Status = { naive: { ok: boolean; error?: string }; monid: { ok: boolean; error?: string }; mobilerun: { configured: boolean }; ffmpeg: boolean };
 
@@ -34,7 +35,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (process.env.NOMEN_DEMO_ONLY === "1" && pathname.startsWith("/api/") && !isGate) {
+  if (!liveEnabled() && pathname.startsWith("/api/") && !isGate) {
     if (pathname === "/api/status") return NextResponse.json(statusSaying("demo build"));
     return NextResponse.json({ error: "This is a demo build: campaigns are simulated, so the API is off." }, { status: 404 });
   }

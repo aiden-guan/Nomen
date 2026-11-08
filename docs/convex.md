@@ -36,13 +36,11 @@ the store contract and the pipeline against both, with Convex on `convex-test`
    as `CONVEX_DEPLOY_KEY`, Production only.
 2. **Provider keys.** In the Vercel project's environment variables, add `NAIVE_API_KEY` and
    `MONID_API_KEY` for Production, as type "Sensitive". Never put them in the repo or in chat.
-3. **Switch production on** (Claude or anyone with the project can do this):
-   - Set the project's build command to `bash scripts/vercel-build.sh`. With a deploy key it runs
-     `npx convex deploy`, sets `NOMEN_SERVER_SECRET` and `NOMEN_SITE_URL` on the Convex deployment,
-     and builds the app with its URL. Without a key it is a plain build.
-   - Remove `NOMEN_DEMO_ONLY` from Production; keep it for Preview.
-   - Keep `SITE_PASSWORD`: the real site spends real credits.
-   - Redeploy.
+3. **Redeploy.** The project's build command is `bash scripts/vercel-build.sh`. With a deploy key it
+   runs `npx convex deploy`, sets `NOMEN_SERVER_SECRET` and `NOMEN_SITE_URL` on the Convex deployment,
+   and builds the app with its URL; without one it is a plain build. `/` goes live by itself once
+   Convex is connected (src/lib/live.ts); before that it forwards to `/demo`. Keep `SITE_PASSWORD`:
+   the real site spends real credits.
 4. **Check:** `/` shows the cost line, `/demo` still plays the demo, and a campaign started from the
    horse moves through research within a minute.
 

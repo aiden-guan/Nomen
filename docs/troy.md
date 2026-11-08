@@ -113,16 +113,15 @@ set, so local development is unchanged.
 | Variable | Effect |
 | --- | --- |
 | `SITE_PASSWORD` | `src/proxy.ts` sends every page to `/gate` until the browser has the cookie. API calls get a 401. The cookie holds a SHA-256 hash of the password, never the password, and lasts 30 days. Changing the password logs every browser out. |
-| `NOMEN_DEMO_ONLY=1` | For a host that can't run campaigns. `/` forwards to `/demo`. The proxy switches the API off (404), except `/api/status`, which answers "demo build" for the core's header. Nothing on the server opens the database or calls a provider. |
+| `NOMEN_DEMO_ONLY=1` | Forces the demo, even where campaigns could run. Not needed on Vercel: there `/` forwards to `/demo` by itself until Convex is connected (`src/lib/live.ts`). The proxy switches the API off (404), except `/api/status`, which answers "demo build" for the core's header. Nothing on the server opens the database or calls a provider. |
 
-The Vercel project `nomen` (`nomen-phi.vercel.app`) sets both until Convex is connected. The
-password is set in the project's environment variables (type "sensitive"), never in the repo, and
-each browser enters it once. The project isn't linked to Git: deploy a branch with the Vercel CLI,
+The Vercel project `nomen` (`nomen-phi.vercel.app`) sets the password in its environment variables
+(type "sensitive"), never in the repo, and each browser enters it once. The project isn't linked to Git: deploy a branch with the Vercel CLI,
 the API or Claude's Vercel tools.
 
-The real product runs on Vercel once Convex holds the data (docs/convex.md); `NOMEN_DEMO_ONLY`
-then stays on for Preview only. It also runs anywhere with a lasting disk (`npm run build && npm
-start`, SQLite in `data/`). `/demo` works in every setup.
+The real product runs on Vercel once Convex holds the data (docs/convex.md), and `/` goes live by
+itself then. It also runs anywhere with a lasting disk (`npm run build && npm start`, SQLite in
+`data/`). `/demo` works in every setup.
 
 ## Under the core's layout
 
