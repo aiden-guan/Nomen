@@ -116,6 +116,20 @@ the front of `public/demo/index.json`:
 
 Commit `public/demo` and deploy. Typing that website on `/demo` then replays it.
 
+`--only <creative ids>` records just those videos: lines about the others are dropped or trimmed
+("Campaign started" counts the kept ones). A kept video that was remade after its first version
+(the first version is in its concept's `previous`) keeps the remake's production lines, and the
+plan and script lines describe the remake.
+
+**The Monid recording** (`public/demo/monid-ai/`) is the Monid campaign with one video: the
+one-to-one remake of the @cluelyextras billboard video (628K views) that "We gave an agent $3 and
+one skill file" became. `tests/monid-clone.seed.test.ts` stores that remake as the video's second
+generation in `data/` (opt-in: `NOMEN_SEED_MONID=1`), then:
+
+```bash
+npm run demo:export -- monid.ai --only crv_376762f3ac4741cda217 --id monid-ai
+```
+
 The replay places each event line on its own clock. Lines that mark a step (the plan, research
 done, a video ready) land exactly when the camp shows that step. The rest keep their relative place
 within their stage. Review and posting lines are dropped, because the replay writes those as the

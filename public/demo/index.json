@@ -1,4 +1,10 @@
 {
   "version": 1,
-  "scripts": []
+  "scripts": [
+    {
+      "id": "monid-ai",
+      "domain": "monid.ai",
+      "name": "Monid"
+    }
+  ]
 }

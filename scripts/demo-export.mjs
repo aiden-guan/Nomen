@@ -30,6 +30,9 @@ Options
   --id <slug>    the recording's folder name (default: from the domain, like monid-ai)
   --db <path>    the core's database, for the campaign's full event log
                  (default $NOMEN_DB_PATH or data/nomen.db, if present; else the API's latest 60)
+  --only <ids>   record only these videos (creative ids, comma-separated). Lines about the others
+                 are dropped or trimmed. A kept video remade after its first version (its concept's
+                 \`previous\`) keeps its new production lines; the first version's are dropped.
 `;
 
 // --- Arguments --------------------------------------------------------------------------------
@@ -95,9 +98,11 @@ if (!listed) fail(`No brand "${target}" on ${from}. Brands there: ${brands.map((
 const view = await api(`/api/brands/${encodeURIComponent(listed.id)}`);
 const campaign = view.campaign;
 if (!campaign) fail(`${listed.domain} has no campaign yet.`);
-const finished = campaign.creatives.filter((c) => c.status === "ready").sort((a, b) => a.idx - b.idx);
+const only = flags.only ? new Set(String(flags.only).split(",").map((x) => x.trim()).filter(Boolean)) : null;
+const finished = campaign.creatives.filter((c) => c.status === "ready" && (!only || only.has(c.id))).sort((a, b) => a.idx - b.idx);
+if (only) for (const wantedId of only) if (!campaign.creatives.some((c) => c.id === wantedId)) fail(`--only: no video ${wantedId} in ${listed.domain}'s latest campaign.`);
 if (!finished.length) fail(`${listed.domain}'s latest campaign has no finished videos yet (it is at ${campaign.stage}, ${campaign.status}).`);
-const unfinished = campaign.creatives.length - finished.length;
+const unfinished = campaign.creatives.filter((c) => (!only || only.has(c.id)) && c.status !== "ready").length;
 if (unfinished) warn(`${unfinished} video(s) aren't finished; the recording keeps the ${finished.length} that are.`);
 
 const id = (flags.id ?? view.brand.domain).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -232,9 +237,66 @@ function eventsFromDatabase() {
 
 const start = Date.parse(campaign.createdAt);
 const rows = eventsFromDatabase() ?? view.events.filter((e) => Date.parse(e.ts) >= start - 1000).reverse();
-const events = rows
+const events = recordedOnly(rows)
   .filter((e) => e.level !== "error" && !SKIP.test(e.message))
   .map((e) => ({ s: Math.max(0, Math.round((Date.parse(e.ts) - start) / 100) / 10), level: e.level, message: e.message }));
+
+/**
+ * With --only, the log as if the campaign had made just those videos: a line about other videos
+ * loses their part (or goes, if that was all of it). A kept video's first version (its concept's
+ * `previous`, before a remake) is renamed in the plan and script lines, and its own production
+ * lines (everything about it after the scripts were ready) are dropped for the remake's.
+ */
+function recordedOnly(lines) {
+  if (!only) return lines;
+  const kept = campaign.creatives.filter((c) => only.has(c.id));
+  const dropped = campaign.creatives.filter((c) => !only.has(c.id)).map((c) => c.concept?.title).filter(Boolean);
+  const scriptsAt = lines.find((l) => /^Scripts ready/.test(l.message))?.ts ?? null;
+  const out = [];
+  for (const line of lines) {
+    let message = line.message;
+    let firstVersion = false;
+    for (const c of kept) {
+      const before = c.concept?.previous?.title;
+      if (before && before !== c.concept?.title && message.includes(`"${before}"`)) {
+        if (scriptsAt && Date.parse(line.ts) > Date.parse(scriptsAt)) firstVersion = true;
+        message = message.split(`"${before}"`).join(`"${c.concept.title}"`);
+      }
+    }
+    if (firstVersion) continue;
+    // The plan and script lines describe the first version: give them the remake's format and script.
+    for (const c of kept) {
+      const title = c.concept?.title;
+      if (!c.concept?.previous || !title || !message.includes(`"${title}"`)) continue;
+      if (c.concept.previous.format && c.concept.format) message = message.split(`"${title}" (${c.concept.previous.format})`).join(`"${title}" (${c.concept.format})`);
+      const script = c.concept.script;
+      if (/^Scripts ready/.test(message) && script?.total_seconds) {
+        const critic = script.review?.score ? `, critic ${script.review.score}/10` : "";
+        message = message.replace(new RegExp(`"${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" [\\d.]+s(, critic \\d+/10)?`), `"${title}" ${script.total_seconds}s${critic}`);
+      }
+    }
+    // The opening line counts the videos the recording has.
+    message = message.replace(/^Campaign started: \d+ videos?/, `Campaign started: ${kept.length} video${kept.length === 1 ? "" : "s"}`);
+    const names = (title) => message.includes(`"${title}"`);
+    const keeps = kept.some((c) => c.concept?.title && names(c.concept.title));
+    const others = dropped.filter(names);
+    if (others.length && !keeps) continue;
+    for (const title of others) message = withoutTitle(message, title);
+    out.push({ ...line, message });
+  }
+  return out;
+}
+
+/** A line listing videos (`"A" (format), "B" (format)` or `"A" …; "B" …`) without one of them. */
+export function withoutTitle(message, title) {
+  const quoted = `"${title}"`;
+  const at = message.indexOf(quoted);
+  if (at < 0) return message;
+  const rest = message.slice(at + quoted.length);
+  const next = rest.search(/[,;] "/);
+  if (next >= 0) return message.slice(0, at) + rest.slice(next + 2);
+  return message.slice(0, at).replace(/[,;]\s*$/, "").trimEnd();
+}
 
 // --- Write it ---------------------------------------------------------------------------------
 
@@ -244,7 +306,7 @@ const script = {
   recorded: true,
   recordedAt: new Date().toISOString(),
   brand: { name: view.brand.name, domain: view.brand.domain, url: view.brand.url, profile },
-  options: campaign.options,
+  options: only && campaign.options ? { ...campaign.options, concepts: finished.length } : campaign.options,
   estimateUsd: campaign.estimateUsd ?? null,
   plan: campaign.plan,
   research: research
