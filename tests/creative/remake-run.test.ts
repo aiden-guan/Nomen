@@ -289,6 +289,21 @@ describe.skipIf(!ffmpeg)("remakeVideo with Kling voicing itself (fake providers,
     expect(manifest.graphics.failures).toEqual([]);
   }, 240_000);
 
+  it("splits out the reference's music and effects once Demucs is there, keeping the words it already timed", async () => {
+    const first = fakes();
+    first.deps.separate = null;
+    await remakeVideo(first.deps, input("crv_bed"));
+    const manifestPath = join(dir, "kept", "crv_bed", "remake", "manifest.json");
+    expect(JSON.parse(await readFile(manifestPath, "utf8")).audio.bed_key).toBeFalsy();
+    const again = fakes(); // with the Demucs stand-in
+    await remakeVideo(again.deps, input("crv_bed"));
+    const audio = JSON.parse(await readFile(manifestPath, "utf8")).audio;
+    expect(audio).toMatchObject({ stems: "demucs" });
+    expect(audio.bed_key).toBeTruthy();
+    expect(again.calls.stt).toEqual([]); // the reference's words stay timed: no speech-to-text again
+    expect(again.calls.kling).toEqual([]); // and no render again
+  }, 240_000);
+
   it("refuses a remake over its cap before paying for anything", async () => {
     const { deps, calls } = fakes();
     await expect(remakeVideo(deps, input("crv_cap", { maxUsd: 0.5 }))).rejects.toBeInstanceOf(OverBudget);

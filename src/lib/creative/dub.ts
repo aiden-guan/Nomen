@@ -533,6 +533,18 @@ export async function referenceAudio(work: Work, monid: MonidRunner, record: Aud
     }
     await work.save();
   }
+  // Split before Demucs was set up: split again now for the music and effects bed, keeping the words
+  // already timed (no speech-to-text again). The Cluely remake went out with no bed, so none of the
+  // original's sound effects.
+  if (input.separate && record.stems !== "demucs" && (!record.bed_key || !(await work.local(record.bed_key)))) {
+    work.say("Splitting the reference's voice from its music and effects (Demucs)");
+    const stems = await input.separate(original, join(work.dir, "stems"));
+    record.voice_key = await work.keep("audio/voice-stem.wav", stems.voice, "audio/wav");
+    record.bed_key = await work.keep("audio/bed.wav", stems.bed, "audio/wav");
+    record.stems = "demucs";
+    record.notes = notes.filter((note) => !/^no music bed/.test(note));
+    await work.save();
+  }
   const stem = (await work.local(record.voice_key))!;
   if (!record.words) {
     record.words = (await transcribe(stem)).filter((w) => w.start < input.end);
