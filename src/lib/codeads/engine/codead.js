@@ -144,6 +144,8 @@ export async function build(studio, story) {
     flip = -flip;
     const F = b.M.F, y = 0.12 * flip;
     let at = b.i === 0 ? 0 : b.t0;
+    // a move to the other floor (versus) arrives a little into the beat, so the last floor's gag lands in frame first
+    if (b.i > 0 && beats[b.i - 1].who !== b.who) at = b.t0 + clamp(b.hit - b.t0 - 0.6, 0.3, 1.0);
     // every framing holds until its gag has landed (ED Studio's `until`: a gag must finish in frame)
     const add = (t, f, extra = {}) => frames.push({ t: Math.max(0, t), until: Math.min(b.t1, b.hit + 0.75), ...f, ...extra });
     // a versus ad opens on the whole house, then glides to the first floor that plays

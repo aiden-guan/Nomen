@@ -47,8 +47,8 @@ export function buildStage(studio, opts = {}) {
   const laptop = addLaptop(root, [0.1, top, -1.28], opts.logo, C);
   // the audience: rows of heads and shoulders in the dark below the stage edge
   const crowd = [], skinM = [0x3a2c26, 0x2a201c, 0x4a3a30, 0x1e1a18].map((c) => mat(c, 0.8)), cloth = [0x15161a, 0x1c1e24, 0x22252c, 0x101114].map((c) => mat(c, 0.9));
-  for (let row = 0; row < 4; row++) for (let i = 0; i < 9; i++) {
-    const g = new THREE.Group(); g.position.set(-3.3 + i * 0.82 + (row % 2) * 0.4 + (R() - 0.5) * 0.15, -0.62 + row * 0.1, 1.7 + row * 0.62); root.add(g);
+  for (let row = 0; row < 3; row++) for (let i = 0; i < 9; i++) {
+    const g = new THREE.Group(); g.position.set(-3.3 + i * 0.82 + (row % 2) * 0.4 + (R() - 0.5) * 0.15, -0.98 + row * 0.09, 1.45 + row * 0.68); g.scale.setScalar(0.92); root.add(g);
     const sh = mk(new THREE.SphereGeometry(0.26, 12, 8), cloth[(i + row) % 4], g, 0, 0.95, 0); sh.scale.set(1.3, 0.75, 0.8);
     mk(new THREE.SphereGeometry(0.15, 12, 10), skinM[(i * 3 + row) % 4], g, 0, 1.28, 0);
     crowd.push({ g, ph: R() * 6 });
@@ -72,11 +72,12 @@ export function buildStage(studio, opts = {}) {
         screen: { ...SA, ...screen },
         // the keynote look: a small presenter under a giant screen, seen from the seats
         frames: (base, HEAD, SCR) => {
-          const seats = (yaw = 0, d = 6.6, h = 1.55, lookY = 1.7) => ({ pos: [Math.sin(yaw) * d, h, -1.86 + Math.cos(yaw) * d], look: [0, lookY, -1.86], fov: 42 });
+          // from the seats, aimed low enough that the presenter's head sits high in the frame (the caption goes on his chest)
+          const seats = (yaw = 0, d = 6.6, h = 1.55, lookY = 0.62) => ({ pos: [Math.sin(yaw) * d, h, -1.86 + Math.cos(yaw) * d], look: [0, lookY, -1.86], fov: 42 });
           return {
             home: (yaw = 0) => seats(yaw),
-            floor: (yaw = 0) => seats(yaw * 0.6, 7.2, 1.35, 1.6),
-            wide: (yaw = 0) => seats(yaw, 8.8, 1.2, 1.75),
+            floor: (yaw = 0) => seats(yaw * 0.6, 7.2, 1.45, 0.55),
+            wide: (yaw = 0) => seats(yaw, 8.6, 1.6, 0.75),
             screen: (yaw = 0) => ({ pos: [SCR[0] + Math.sin(yaw) * 7.0, SCR[1] - 0.35, SCR[2] + Math.cos(yaw) * 7.0], look: [SCR[0], SCR[1] - 0.95, SCR[2]], fov: 40 }),
           };
         },

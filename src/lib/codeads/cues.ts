@@ -130,6 +130,23 @@ export function buildCues(story: StoryJson, title = "code ad") {
     { sound: "city_day", t0: 0, t1: D, fade_in: 0.3, fade_out: 0.6, gain_db: -38, args: { murmur: 0.2, traffic: 0.4 }, seed: 2 },
     ...(firstAgent ? [{ sound: "fan", t0: firstAgent.hit + 0.6, t1: D, fade_in: 0.8, fade_out: 0.6, gain_db: -36, args: { rate: 14 }, seed: 3 }] : []),
   ];
+  // each scene sounds like where it is: a keynote's room murmur and the applause on the payoff, the gym's clanking
+  // plates under fluorescent hum, water and the city below a rooftop pool, a basement's drone under a versus ad
+  const scene = story.codead.scene, cheer = beats.find((b) => b.gag === "celebrate" && b.who !== "rival");
+  if (scene === "stage") {
+    amb.push({ sound: "crowd_cheer", t0: 0, t1: D, fade_in: 0.3, fade_out: 0.6, gain_db: -46, args: { excite: 0.15 }, seed: 4 });
+    if (cheer) {
+      amb.push({ sound: "applause", t0: cheer.hit, t1: D, fade_in: 0.15, fade_out: 0.8, gain_db: -27, args: { density: 55, swell: 0.4 }, seed: 5 });
+      amb.push({ sound: "crowd_cheer", t0: cheer.hit + 0.05, t1: D, fade_in: 0.2, fade_out: 0.8, gain_db: -31, args: { excite: 0.9 }, seed: 6 });
+    }
+  } else if (scene === "gym") {
+    amb.push({ sound: "lamp_hum", t0: 0, t1: D, fade_in: 0.2, fade_out: 0.5, gain_db: -46, seed: 4 });
+    for (let t = 1.3, k = 0; t < D - 1; t += 2.6 + (k % 3) * 0.45, k++) e(t, "metal_clang", -33 - (k % 2) * 3, k % 2 ? 0.55 : -0.55, { size: 0.6 + (k % 3) * 0.15, pitch: 1.2 + (k % 2) * 0.2, dur: 0.6 });
+  } else if (scene === "rooftop") {
+    amb.push({ sound: "surf", t0: 0, t1: D, fade_in: 0.4, fade_out: 0.6, gain_db: -42, args: { size: 0.3 }, seed: 4 });
+  } else if (scene === "versus") {
+    amb.push({ sound: "cabin_hum", t0: 0, t1: D, fade_in: 0.3, fade_out: 0.6, gain_db: -46, seed: 4 });
+  }
   return {
     title: `${title} (Nomen code ad: WORKSHOP marimba groove + construction foley + narrator)`,
     duration: D,
