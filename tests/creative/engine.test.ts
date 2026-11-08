@@ -4,6 +4,7 @@ import { fallbackBrief, toBrief } from "@/lib/creative/product";
 import { cleanReport, hashtags, scoutDigest, scoutSpecs } from "@/lib/creative/scout";
 import { lintScript, normalizeScript, type ScriptContext, targetSeconds, writeScript } from "@/lib/creative/script";
 import type { CreativeBrief, ProductBrief, ReferenceBreakdown, Script } from "@/lib/creative/types";
+import { ApiError } from "@/lib/http";
 import { compactResearch, phaseCSpecs, platformOfRun, type ResearchPack, type ResearchPlan, roughScore, type Video } from "@/lib/research";
 import { conceptFrom } from "@/lib/strategy";
 
@@ -155,6 +156,122 @@ describe("the critic", () => {
     expect(calls).toBe(3); // writer, critic, the critic's plain-JSON retry
     expect(script.review).toMatchObject({ score: 0, rounds: 1 });
     expect(script.review?.notes).toContain("critic unavailable: no review came back");
+  });
+});
+
+describe("the script room when Naive is at capacity", () => {
+  const busy = () => new ApiError("naive", 429, "rate_limited", "the service is at capacity");
+
+  /** Time that only moves when the room waits or a fake call takes it, so nothing really waits. */
+  function fakeClock() {
+    let now = 0;
+    const waits: number[] = [];
+    return {
+      waits,
+      now: () => now,
+      sleep: async (ms: number) => {
+        waits.push(ms);
+        now += ms;
+      },
+      pass: (ms: number) => {
+        now += ms;
+      },
+    };
+  }
+
+  /**
+   * Naive as the room met it on 2026-11-08: every call is answered "at capacity" `busyAnswers` times
+   * before it goes through, and each real answer takes 90 s. The writer drafts, the critic sends one
+   * rewrite back, then passes it.
+   */
+  function crowdedNaive(clock: ReturnType<typeof fakeClock>, busyAnswers: number) {
+    const calls: string[] = [];
+    let refused = 0;
+    let reviews = 0;
+    const naive = {
+      message: async (body: { tools?: Array<{ name: string }> }) => {
+        const step = body.tools?.[0]?.name ?? "plain json";
+        calls.push(step);
+        if (refused < busyAnswers) {
+          refused++;
+          throw busy();
+        }
+        refused = 0;
+        clock.pass(90_000);
+        if (step === "script") return { stop_reason: "tool_use", content: [{ type: "tool_use", name: "script", input: { beats: goodBeats.map((b) => ({ ...b })) } }] };
+        reviews++;
+        const review =
+          reviews === 1
+            ? { scores: {}, score: 6, notes: ["the ask is vague"], revised_beats: goodBeats.map((b) => (b.job === "cta" ? { ...b, line: "There's a dollar of free credit. Go try it." } : { ...b })) }
+            : { scores: {}, score: 9, notes: [], revised_beats: [] };
+        return { stop_reason: "tool_use", content: [{ type: "tool_use", name: "script_review", input: review }] };
+      },
+    };
+    return { naive: naive as unknown as Parameters<typeof writeScript>[0], calls };
+  }
+
+  it("waits out busy answers call by call, and the script comes back as usual", async () => {
+    const clock = fakeClock();
+    const { naive, calls } = crowdedNaive(clock, 2);
+    const script = await writeScript(naive, ctx, clock);
+    // The writer, the critic, the critic again on its rewrite: each asked three times, in that order.
+    expect(calls).toEqual(["script", "script", "script", "script_review", "script_review", "script_review", "script_review", "script_review", "script_review"]);
+    expect(script.beats[3].line).toBe("There's a dollar of free credit. Go try it.");
+    expect(script.review).toEqual({ score: 9, notes: [], rounds: 2 });
+    // Each call gets its own short, growing waits, however long the calls before it took.
+    const [first, second] = clock.waits;
+    expect(first).toBeLessThanOrEqual(5_000);
+    expect(second).toBeGreaterThan(first);
+    expect(clock.waits).toEqual([first, second, first, second, first, second]);
+  });
+
+  it("fails at once on an error that waiting won't fix", async () => {
+    const clock = fakeClock();
+    let calls = 0;
+    const naive = {
+      message: async () => {
+        calls++;
+        throw new ApiError("naive", 400, "invalid_request", "max_tokens: too large");
+      },
+    } as unknown as Parameters<typeof writeScript>[0];
+    await expect(writeScript(naive, ctx, clock)).rejects.toThrow(/max_tokens: too large/);
+    expect(calls).toBe(1);
+    expect(clock.now()).toBe(0);
+  });
+
+  it("gives one call about three minutes of busy answers, then leaves the script to the next tick", async () => {
+    const clock = fakeClock();
+    let calls = 0;
+    const naive = {
+      message: async () => {
+        calls++;
+        throw busy();
+      },
+    } as unknown as Parameters<typeof writeScript>[0];
+    const error = await writeScript(naive, ctx, clock).then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    // Still the busy answer, so the tick's own retry counts it as retryable trouble and tries again.
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).retryable).toBe(true);
+    expect(calls).toBeGreaterThan(3);
+    expect(clock.now()).toBeGreaterThanOrEqual(120_000);
+    expect(clock.now()).toBeLessThanOrEqual(180_000);
+  });
+
+  it("doesn't ask again after a call that took minutes to fail", async () => {
+    const clock = fakeClock();
+    let calls = 0;
+    const naive = {
+      message: async () => {
+        calls++;
+        clock.pass(240_000); // the request ran into its timeout
+        throw new ApiError("naive", 0, "network_error", "The operation was aborted due to timeout");
+      },
+    } as unknown as Parameters<typeof writeScript>[0];
+    await expect(writeScript(naive, ctx, clock)).rejects.toThrow(/timeout/);
+    expect(calls).toBe(1);
   });
 });
 

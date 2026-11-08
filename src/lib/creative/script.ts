@@ -230,18 +230,56 @@ export type ScriptRoom = {
   rounds?: number;
 };
 
-export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promise<Script> {
-  return runScriptRoom(naive, {
-    writer: writerSystem(),
-    context: contextBlock(ctx),
-    title: ctx.brief.title,
-    normalize: (beats) => normalizeScript(beats, ctx),
-    lint: (script) => lintScript(script, ctx),
-    critic: { system: criticSystem(), tool: CRITIC_TOOL },
-  });
+export async function writeScript(naive: NaiveClient, ctx: ScriptContext, clock?: Clock): Promise<Script> {
+  return runScriptRoom(
+    naive,
+    {
+      writer: writerSystem(),
+      context: contextBlock(ctx),
+      title: ctx.brief.title,
+      normalize: (beats) => normalizeScript(beats, ctx),
+      lint: (script) => lintScript(script, ctx),
+      critic: { system: criticSystem(), tool: CRITIC_TOOL },
+    },
+    clock,
+  );
 }
 
-export async function runScriptRoom(naive: NaiveClient, room: ScriptRoom): Promise<Script> {
+/**
+ * Naive answers "the service is at capacity" (HTTP 429) in bursts: at about 06:15 UTC on 2026-11-08
+ * it answered roughly one call in three. A script room makes three to seven calls, so one busy answer
+ * used to lose the whole script and the next tick started it over; after four rounds the room
+ * dropped 2 of 3 scripts in a campaign. Each call now waits out busy and other retryable answers on
+ * its own, 3 s doubling to 30 s, for up to 3 minutes from its first try (the call's own time
+ * included, so a request that hung until its timeout isn't sent again). After that, or on any other
+ * error, it throws as before and the next tick retries the room.
+ */
+const FIRST_WAIT_MS = 3_000;
+const LONGEST_WAIT_MS = 30_000;
+const PATIENCE_MS = 180_000;
+
+/** Time as the script room's retries see it. Tests pass one that doesn't really wait. */
+export type Clock = { now: () => number; sleep: (ms: number) => Promise<void> };
+const realClock: Clock = { now: () => Date.now(), sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) };
+
+function waitOutBusy(naive: Pick<NaiveClient, "message">, clock: Clock): Pick<NaiveClient, "message"> {
+  return {
+    async message(input) {
+      const start = clock.now();
+      for (let wait = FIRST_WAIT_MS; ; wait = Math.min(wait * 2, LONGEST_WAIT_MS)) {
+        try {
+          return await naive.message(input);
+        } catch (error) {
+          if (!(error instanceof ApiError && error.retryable) || clock.now() - start + wait > PATIENCE_MS) throw error;
+          await clock.sleep(wait);
+        }
+      }
+    },
+  };
+}
+
+export async function runScriptRoom(client: NaiveClient, room: ScriptRoom, clock: Clock = realClock): Promise<Script> {
+  const naive = waitOutBusy(client, clock);
   const reply = await naive.message({
     model: QC_MODEL,
     max_tokens: 8000,
@@ -280,7 +318,7 @@ function criticSystem() {
   ].join("\n");
 }
 
-async function critique(naive: NaiveClient, room: ScriptRoom, script: Script, issues: string[]): Promise<{ score: number | null; notes: string[]; revised: Array<Partial<ScriptBeat>> }> {
+async function critique(naive: Pick<NaiveClient, "message">, room: ScriptRoom, script: Script, issues: string[]): Promise<{ score: number | null; notes: string[]; revised: Array<Partial<ScriptBeat>> }> {
   const content = `${room.context}\n\n<script>\n${JSON.stringify(script.beats)}\n</script>\n\nAutomatic checks found: ${issues.length ? issues.join("; ") : "nothing"}.`;
   const ask = (extra: string, tools?: object[]) => naive.message({ model: QC_MODEL, max_tokens: 10000, system: `${room.critic.system}\n${extra}`, messages: [{ role: "user", content }], tools });
 
