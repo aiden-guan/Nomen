@@ -4,7 +4,7 @@
 
 # Nomen
 
-**Paste a brand's website. A team of agents studies what is winning on short-form video, writes the campaign, makes the videos, finds real creators, posts, and comes back for the next round.**
+**UGC that runs itself. Agents find what's winning, make the videos, post them, learn from the numbers and start the next round, on their own.**
 
 [Walkthrough](#walkthrough) · [What it made](#what-it-made) · [Architecture](#architecture) · [Engineering](#interesting-engineering) · [Quick start](#quick-start)
 
@@ -20,11 +20,11 @@
 
 ## What it does
 
-Nomen is an agent-run UGC studio. Given a website, it researches the brand, its competitors and the short-form videos that are outperforming their accounts; picks the formats worth copying; writes and produces original videos in those formats; checks every shot; lets a person approve each video or hand the brief to a real creator; posts to the brand's own accounts; and feeds the analytics into the next campaign. An autopilot starts that next campaign by itself, but only inside a weekly budget a person typed in.
+Nomen is an autonomous UGC studio that keeps itself running. Point it at a brand's website once: it researches the brand, its competitors and the short-form videos that are outperforming their accounts; picks the formats worth copying; writes and produces original videos in those formats; checks every shot; lets a person approve each video or hand the brief to a real creator; posts to the brand's own accounts; and feeds the analytics into the next campaign. An autopilot starts that next campaign by itself, but only inside a weekly budget a person typed in.
 
 The whole run is visible as a camp: each agent is a soldier walking between stations, and each station opens onto the work behind it.
 
-| One recorded campaign: Naïve (usenaive.ai) | |
+| One recorded round | Naïve (usenaive.ai) |
 | :--- | :--- |
 | Research jobs run | 42, across TikTok, Instagram, YouTube, Meta and TikTok ad libraries, Reddit, ChatGPT, Perplexity, SimilarWeb and Ahrefs |
 | Found and screened | 100 short-form videos, 9 ads and 5 Reddit threads |
