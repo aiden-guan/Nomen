@@ -15,3 +15,6 @@
 - Core storage goes through `src/lib/store` (SQLite locally, Convex on Vercel): use `store()`, `save` and
   `logEvent` from `src/lib/db.ts`, and await them. `db()` and the synchronous `update` are for the phones
   track's SQLite tables only. Details: docs/convex.md.
+- A file a later worker tick needs (renders, frames, screens, voice-over, the cut) goes through
+  `store().files` by key ("crv_…/name"); a tick's own scratch work goes in `scratchDir()`. Never
+  write to data/media directly: on Vercel the next tick may run on another machine.
