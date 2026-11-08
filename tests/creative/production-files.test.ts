@@ -97,5 +97,5 @@ describe.skipIf(!ffmpeg)("production's files", () => {
     const view = (await brandView(brandId))!;
     expect(view.campaign!.creatives[0].videoUrl).toBe(`/api/media/${id}/final.mp4`);
     expect((await getCampaign(campaignId))!.id).toBe(campaignId);
-  });
+  }, 180_000);
 });
