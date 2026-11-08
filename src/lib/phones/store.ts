@@ -73,6 +73,7 @@ create table if not exists phone_posts (
   title text not null,
   device_id text not null,
   platform text not null,
+  visibility text not null default 'public',
   status text not null,
   caption text not null,
   file_name text not null,
@@ -99,6 +100,9 @@ create index if not exists phone_posts_status on phone_posts (status, next_check
 create index if not exists phone_posts_brand on phone_posts (brand_id, created_at);
 `;
 
+/** Columns added to a phones table after it first shipped. `create table if not exists` never alters a table. */
+const ADDED_COLUMNS: Array<[table: string, column: string, definition: string]> = [["phone_posts", "visibility", "text not null default 'public'"]];
+
 let ready = false;
 
 /** Creates the phones tables on first use. Safe to call on every request and worker tick. */
@@ -106,6 +110,10 @@ export function phonesDb() {
   const conn = db();
   if (!ready) {
     conn.exec(SCHEMA);
+    for (const [table, column, definition] of ADDED_COLUMNS) {
+      const columns = conn.prepare(`pragma table_info(${table})`).all() as Array<{ name: string }>;
+      if (!columns.some((existing) => existing.name === column)) conn.exec(`alter table ${table} add column ${column} ${definition}`);
+    }
     ready = true;
   }
   return conn;
@@ -339,6 +347,9 @@ export function phoneNeededBefore(deviceId: string, until: string) {
 
 // --- Posts through the phone: one finished video, posted by the phone agent in the TikTok app. ----
 
+/** Who sees a post through the phone: everyone, or only the brand's own account (TikTok's "Only you"). */
+export type PostVisibility = "public" | "private";
+
 /** Same lifecycle as a session, ending in posted, failed or cancelled. */
 export type PhonePostStatus = "pending" | "waiting" | "starting" | "queued" | "running" | "posted" | "failed" | "cancelled";
 
@@ -349,6 +360,8 @@ export type PhonePostRow = {
   title: string;
   device_id: string;
   platform: "tiktok";
+  /** "private" is a test post TikTok shows only to the brand's own account ("Only you"). */
+  visibility: PostVisibility;
   status: PhonePostStatus;
   /** What the agent types, already one line and labeled AI-generated. */
   caption: string;
@@ -381,24 +394,26 @@ export function listPhonePosts(brandId: string, limit = 20) {
 }
 
 /**
- * Queues one video to post through the brand's phone, unless it is already on its way or out:
- * answers "active" or "posted" then. A failed or stopped post can be queued again.
+ * Queues one video to post through the brand's phone. Answers "active" while one of its posts is
+ * on its way, and "posted" for a public post once one is out; a private test post doesn't count,
+ * and a failed or stopped post can be queued again.
  */
-export function insertPhonePost(input: { brandId: string; creativeId: string; title: string; deviceId: string; caption: string }): PhonePostRow | "active" | "posted" {
+export function insertPhonePost(input: { brandId: string; creativeId: string; title: string; deviceId: string; caption: string; visibility: PostVisibility }): PhonePostRow | "active" | "posted" {
   const conn = phonesDb();
   return conn.transaction(() => {
-    const earlier = conn
-      .prepare("select status from phone_posts where creative_id = ? and status not in ('failed', 'cancelled') order by created_at desc, rowid desc limit 1")
-      .get(input.creativeId) as { status: PhonePostStatus } | undefined;
-    if (earlier) return earlier.status === "posted" ? ("posted" as const) : ("active" as const);
+    const active = conn.prepare(`select 1 from phone_posts where creative_id = ? and status in (${ACTIVE_STATUSES.map(() => "?").join(",")})`).get(input.creativeId, ...ACTIVE_STATUSES);
+    if (active) return "active" as const;
+    if (input.visibility === "public" && conn.prepare("select 1 from phone_posts where creative_id = ? and status = 'posted' and visibility = 'public'").get(input.creativeId)) {
+      return "posted" as const;
+    }
     const id = newId("php");
     const stamp = now();
     conn
       .prepare(
-        `insert into phone_posts (id, brand_id, creative_id, title, device_id, platform, status, caption, file_name, next_check_at, created_at, updated_at)
-         values (?, ?, ?, ?, ?, 'tiktok', 'pending', ?, ?, ?, ?, ?)`,
+        `insert into phone_posts (id, brand_id, creative_id, title, device_id, platform, visibility, status, caption, file_name, next_check_at, created_at, updated_at)
+         values (?, ?, ?, ?, ?, 'tiktok', ?, 'pending', ?, ?, ?, ?, ?)`,
       )
-      .run(id, input.brandId, input.creativeId, input.title, input.deviceId, input.caption, `nomen-${id}.mp4`, stamp, stamp, stamp);
+      .run(id, input.brandId, input.creativeId, input.title, input.deviceId, input.visibility, input.caption, `nomen-${id}.mp4`, stamp, stamp, stamp);
     return getPhonePost(id)!;
   })();
 }

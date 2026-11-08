@@ -24,6 +24,7 @@ import {
   saveLink,
   updateLink,
   type PhonePostRow,
+  type PostVisibility,
   type SessionRow,
 } from "./store";
 
@@ -275,6 +276,7 @@ export type PhonePostView = {
   id: string;
   creativeId: string;
   title: string;
+  visibility: PostVisibility;
   status: PhonePostRow["status"];
   message: string | null;
   error: string | null;
@@ -290,6 +292,7 @@ function phonePostView(row: PhonePostRow): PhonePostView {
     id: row.id,
     creativeId: row.creative_id,
     title: row.title,
+    visibility: row.visibility,
     status: row.status,
     message: row.message,
     error: row.error,
@@ -328,11 +331,14 @@ export async function phonePosts(brandId: unknown) {
 
 /**
  * "Post through phone" for one finished, approved video: queues a post the worker runs on the
- * brand's phone. Internal remakes that nobody cleared are refused here and again before posting.
- * Nothing touches the phone until the worker's next tick.
+ * brand's phone. `visibility` "private" makes it a test post only the brand's account can see
+ * (TikTok's "Only you"). Internal remakes that nobody cleared are refused here and again before
+ * posting, private or not. Nothing touches the phone until the worker's next tick.
  */
-export async function postThroughPhone(input: { creativeId?: unknown }) {
+export async function postThroughPhone(input: { creativeId?: unknown; visibility?: unknown }) {
   if (!phonesAvailable()) throw new PhonesError(400, PHONES_UNAVAILABLE);
+  const visibility: PostVisibility | null = input.visibility === undefined || input.visibility === null || input.visibility === "public" ? "public" : input.visibility === "private" ? "private" : null;
+  if (!visibility) throw new PhonesError(400, "visibility is public or private.");
   phonesDb();
   const creativeId = typeof input.creativeId === "string" ? input.creativeId : "";
   const [creative] = creativeId ? await store().find<CreativeRow>("creatives", { id: creativeId }, { limit: 1 }) : [];
@@ -346,12 +352,18 @@ export async function postThroughPhone(input: { creativeId?: unknown }) {
   if (!creative.approved || creative.rejected) throw new PhonesError(409, "Approve the video first.");
   const blocker = phonePostingBlocker(brand.id);
   if (blocker) throw new PhonesError(400, blocker);
-  const viaNaive = await store().find<{ platforms_json: string }>("posts", { creative_id: creative.id, status: { ne: "failed" } });
-  if (viaNaive.some((post) => parse<string[]>(post.platforms_json, []).includes("tiktok"))) throw new PhonesError(409, "This video already went to TikTok through Naive.");
+  if (visibility === "public") {
+    const viaNaive = await store().find<{ platforms_json: string }>("posts", { creative_id: creative.id, status: { ne: "failed" } });
+    if (viaNaive.some((post) => parse<string[]>(post.platforms_json, []).includes("tiktok"))) throw new PhonesError(409, "This video already went to TikTok through Naive.");
+  }
 
-  const queued = insertPhonePost({ brandId: brand.id, creativeId: creative.id, title: concept?.title ?? "Video", deviceId: getLink(brand.id)!.device_id, caption: phoneCaption(creative.caption) });
+  const queued = insertPhonePost({ brandId: brand.id, creativeId: creative.id, title: concept?.title ?? "Video", deviceId: getLink(brand.id)!.device_id, caption: phoneCaption(creative.caption), visibility });
   if (queued === "posted") throw new PhonesError(409, "This video was already posted through the phone.");
   if (queued === "active") throw new PhonesError(409, "This video is already being posted through the phone.");
-  await logEvent({ brandId: brand.id, campaignId: creative.campaign_id, message: `Phones: “${queued.title}” will be posted on TikTok through the brand's phone.` });
+  await logEvent({
+    brandId: brand.id,
+    campaignId: creative.campaign_id,
+    message: `Phones: “${queued.title}” will be posted on TikTok through the brand's phone${visibility === "private" ? " as a private test (Only you)" : ""}.`,
+  });
   return phonePosts(brand.id);
 }

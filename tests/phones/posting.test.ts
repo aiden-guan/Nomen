@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as phonePostsRoute, POST as postThroughPhoneRoute } from "@/app/api/phones/posts/route";
-import { now, store } from "@/lib/db";
+import { db, now, store } from "@/lib/db";
 import { advancePhones } from "@/lib/phones";
 import { runNow } from "@/lib/phones/service";
-import { getPhonePost, getSession, listPhonePosts, listSessions, saveLink } from "@/lib/phones/store";
+import { getPhonePost, getSession, listPhonePosts, listSessions, resetSchemaFlag, saveLink } from "@/lib/phones/store";
 import { useStore } from "@/lib/store";
 import { sqliteStore } from "@/lib/store/sqlite";
 import type { Files } from "@/lib/store/types";
@@ -86,10 +86,10 @@ async function addVideo(fields: { id?: string; approved?: number; concept?: Reco
   return id;
 }
 
-/** The camp's "Post through phone" button. */
-async function postThroughPhone(creativeId: string) {
+/** The camp's "Post through phone" button, public or ticked "Only you". */
+async function postThroughPhone(creativeId: string, visibility?: string) {
   const response = await postThroughPhoneRoute(
-    new Request("http://localhost/api/phones/posts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ creativeId }) }),
+    new Request("http://localhost/api/phones/posts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ creativeId, visibility }) }),
   );
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
@@ -151,6 +151,7 @@ describe("posting a video through the brand's phone", () => {
     expect(brief).toContain(fileName);
     expect(brief).toContain("Three steps to glass skin. #skincare #glowup #AIgenerated");
     expect(brief).toMatch(/AI-generated content/);
+    expect(brief).toContain('Set "Who can watch this video" to "Everyone"');
     expect(getPhonePost(post.id)!.status).toBe("running");
 
     advanceClock(11_000);
@@ -172,6 +173,50 @@ describe("posting a video through the brand's phone", () => {
     const again = await postThroughPhone(id);
     expect(again.status).toBe(409);
     expect(listPhonePosts(BRAND)).toHaveLength(1);
+  });
+
+  it("posts privately as “Only you” for a test, and the video can still go out publicly later", async () => {
+    const id = await addVideo();
+    expect((await postThroughPhone(id, "unlisted")).status).toBe(400);
+    expect((await postThroughPhone(id, "private")).status).toBe(200);
+    const test = onlyPost();
+    expect(test.visibility).toBe("private");
+
+    await advancePhones();
+    const brief = String(creates()[0].body?.task);
+    expect(brief).toContain('Set "Who can watch this video" to "Only you"');
+    expect(brief).toContain("if you can't set it to \"Only you\", do not post");
+    expect(brief).not.toContain("Your brand");
+
+    advanceClock(11_000);
+    mr.finishTask(test.task_id ?? getPhonePost(test.id)!.task_id!, {
+      output: { posted: true, postUrl: "https://www.tiktok.com/@acmeskin/video/7302", aiLabel: true, onlyYou: true, reason: "" },
+    });
+    await advancePhones();
+    expect(getPhonePost(test.id)).toMatchObject({ status: "posted", message: "Posted on TikTok as “Only you” (private)." });
+    expect(events().some((e) => e.level === "info" && /Phones: posted “Glass skin in 3 steps” as a private test on TikTok/.test(e.message))).toBe(true);
+
+    // A private test isn't a public post: the same video can still go out to everyone, once.
+    expect((await postThroughPhone(id)).status).toBe(200);
+    expect((await postThroughPhone(id)).status).toBe(409);
+    await advancePhones(); // the phone was parked after the test: wake it
+    mr.devices.get(PHONE)!.state = "ready";
+    advanceClock(21_000);
+    await advancePhones();
+    expect(String(creates()[1].body?.task)).toContain('Set "Who can watch this video" to "Everyone"');
+  });
+
+  it("adds the visibility column to a phone_posts table from before private posts", () => {
+    const conn = db();
+    conn.exec("drop table phone_posts");
+    conn.exec(`create table phone_posts (id text primary key, brand_id text not null, creative_id text not null, title text not null, device_id text not null,
+      platform text not null, status text not null, caption text not null, file_name text not null, attempts integer not null default 0,
+      next_check_at text not null, created_at text not null, updated_at text not null)`);
+    conn
+      .prepare("insert into phone_posts (id, brand_id, creative_id, title, device_id, platform, status, caption, file_name, next_check_at, created_at, updated_at) values ('php_old', ?, 'crv_old', 'Old', ?, 'tiktok', 'posted', 'c', 'nomen-php_old.mp4', ?, ?, ?)")
+      .run(BRAND, PHONE, now(), now(), now());
+    resetSchemaFlag();
+    expect(getPhonePost("php_old")!.visibility).toBe("public");
   });
 
   it("tries a failed upload again before any task starts", async () => {

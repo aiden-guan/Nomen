@@ -30,6 +30,8 @@ export function PhonePosting({ brandId, videos }: { brandId: string; videos: Cre
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState("");
+  // A private test post: TikTok shows it only to the brand's own account ("Only you").
+  const [onlyYou, setOnlyYou] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -55,22 +57,28 @@ export function PhonePosting({ brandId, videos }: { brandId: string; videos: Cre
   // Not offered where phones don't run (the Vercel deployment).
   if (!state.available) return null;
 
-  // Approved videos that aren't held back and haven't gone out (or started going out) through the phone.
-  const taken = new Set(state.posts.filter((post) => post.status !== "failed" && post.status !== "cancelled").map((post) => post.creativeId));
-  const choices = videos.filter((video) => video.approved && !(video.internal && !video.cleared) && !taken.has(video.id));
+  // Approved videos that aren't held back or on their way already; a public post also skips videos
+  // that went out publicly. A private test doesn't count: the video can still go out to everyone.
+  const onTheirWay = new Set(state.posts.filter((post) => ACTIVE.has(post.status)).map((post) => post.creativeId));
+  const outPublicly = new Set(state.posts.filter((post) => post.status === "posted" && post.visibility === "public").map((post) => post.creativeId));
+  const approved = videos.filter((video) => video.approved && !(video.internal && !video.cleared));
+  const choices = approved.filter((video) => !onTheirWay.has(video.id) && (onlyYou || !outPublicly.has(video.id)));
   const choice = choices.find((video) => video.id === picked) ?? choices[0] ?? null;
 
   const post = async () => {
     if (!choice) return;
     const title = choice.concept?.title ?? "this video";
+    const ask = onlyYou
+      ? `Post “${title}” on the brand's TikTok as “Only you”, through its phone? Only the brand's own account will see it.`
+      : `Post “${title}” publicly on the brand's TikTok, through its phone?`;
     const ok = window.confirm(
-      `Post “${title}” publicly on the brand's TikTok, through its phone?\n\nThe phone agent uploads it in the TikTok app with its caption and TikTok's AI-generated label. It costs up to ${state.cost.credits} Mobilerun credits (about $${(state.cost.credits / 100).toFixed(2)}) plus up to ${state.cost.minutes} minutes of phone time.`,
+      `${ask}\n\nThe phone agent uploads it in the TikTok app with its caption and TikTok's AI-generated label. It costs up to ${state.cost.credits} Mobilerun credits (about $${(state.cost.credits / 100).toFixed(2)}) plus up to ${state.cost.minutes} minutes of phone time.`,
     );
     if (!ok) return;
     setBusy(true);
     setError(null);
     try {
-      setState(await postThroughPhone(choice.id));
+      setState(await postThroughPhone(choice.id, onlyYou ? "private" : "public"));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
     } finally {
@@ -90,25 +98,38 @@ export function PhonePosting({ brandId, videos }: { brandId: string; videos: Cre
             Open the workspace
           </a>
         </p>
-      ) : choices.length === 0 ? (
-        <p className="mt-2 text-[12px] text-[var(--ink-faint)]">Approve a video to post it through the phone.</p>
       ) : (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <select
-            value={choice?.id ?? ""}
-            onChange={(event) => setPicked(event.target.value)}
-            aria-label="Video to post through the phone"
-            className={`${styles.input} h-9 min-w-0 flex-1 border-2 border-[rgba(43,29,20,0.2)] bg-[var(--paper)] px-2 text-[13px]`}
-          >
-            {choices.map((video) => (
-              <option key={video.id} value={video.id}>
-                {video.concept?.title ?? "Video"}
-              </option>
-            ))}
-          </select>
-          <button type="button" className={`${styles.button} ${styles.buttonQuiet} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={busy} onClick={() => void post()}>
-            {busy ? <span className={styles.spinner} aria-hidden="true" /> : null} Post through phone
-          </button>
+          {choices.length === 0 ? (
+            <p className="w-full text-[12px] text-[var(--ink-faint)]">
+              {approved.length === 0 ? "Approve a video to post it through the phone." : "Every approved video is on its way or already out through the phone."}
+            </p>
+          ) : (
+            <>
+              <select
+                value={choice?.id ?? ""}
+                onChange={(event) => setPicked(event.target.value)}
+                aria-label="Video to post through the phone"
+                className={`${styles.input} h-9 min-w-0 flex-1 border-2 border-[rgba(43,29,20,0.2)] bg-[var(--paper)] px-2 text-[13px]`}
+              >
+                {choices.map((video) => (
+                  <option key={video.id} value={video.id}>
+                    {video.concept?.title ?? "Video"}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className={`${styles.button} ${styles.buttonQuiet} ${styles.pixel} h-9 px-3 text-[13px]`} disabled={busy} onClick={() => void post()}>
+                {busy ? <span className={styles.spinner} aria-hidden="true" /> : null} Post through phone
+              </button>
+            </>
+          )}
+          {/* Shown even with nothing to pick: a video already out publicly can still get a private test. */}
+          <label className="flex w-full cursor-pointer items-center gap-2 text-[12px] text-[var(--ink-soft)]">
+            <input type="checkbox" checked={onlyYou} onChange={(event) => setOnlyYou(event.target.checked)} className="size-4 accent-[var(--crimson)]" />
+            <span>
+              <span className={styles.pixel}>Only you</span>: a private test post that only the brand&apos;s own account can see
+            </span>
+          </label>
         </div>
       )}
       {error && (
@@ -122,6 +143,7 @@ export function PhonePosting({ brandId, videos }: { brandId: string; videos: Cre
             <li key={post.id} className="text-[12px]">
               <div className="flex items-baseline gap-2">
                 <span className="min-w-0 flex-1 truncate font-semibold">{post.title}</span>
+                {post.visibility === "private" && <span className="shrink-0 text-[var(--ink-faint)]">only you</span>}
                 <span className={`${styles.pixel} ${tone(post.status)}`}>{STATUS_WORDS[post.status]}</span>
               </div>
               <p className={post.status === "failed" ? "text-[var(--crimson-dark)]" : "text-[var(--ink-faint)]"}>

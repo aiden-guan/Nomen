@@ -112,7 +112,7 @@ async function copyAndCreate(client: MobilerunClient, post: PhonePostRow) {
 
   const packageName = APP_PACKAGES.tiktok;
   const input: TaskInput = {
-    task: postTask({ brand: brand.name, fileName: post.file_name, folder: folder.split("/").filter(Boolean).pop() ?? folder, seconds, caption: post.caption }),
+    task: postTask({ brand: brand.name, fileName: post.file_name, folder: folder.split("/").filter(Boolean).pop() ?? folder, seconds, caption: post.caption, visibility: post.visibility }),
     deviceId: post.device_id,
     llmModel: AGENT_MODEL,
     maxSteps: POST_LIMITS.maxSteps,
@@ -204,7 +204,7 @@ async function poll(client: MobilerunClient, post: PhonePostRow) {
   const task = await client.taskStatus(post.task_id);
   const fields = { task_status: task.status, steps: task.steps ?? post.steps, recording_id: task.recordingId ?? post.recording_id };
   if (TERMINAL_TASK_STATES.has(task.status)) {
-    const outcome = postOutcome(task);
+    const outcome = postOutcome(task, post.visibility);
     return finishPost(post, outcome.status, outcome.message, { ...fields, post_url: outcome.url }, outcome.warn);
   }
   updateActivePhonePost(post.id, {
@@ -220,13 +220,14 @@ async function finishPost(post: PhonePostRow, status: Extract<PhonePostStatus, "
   if (!claimPhonePost(post.id, ACTIVE, status, { message, finished_at: now(), ...fields })) return;
   requestPark(post.device_id, post.brand_id);
   const url = typeof fields.post_url === "string" ? fields.post_url : null;
-  const notes = message.replace(/^Posted on TikTok\.\s*/, "");
+  const notes = message.replace(/^Posted on TikTok[^.]*\.\s*/, "");
+  const what = `“${post.title}”${post.visibility === "private" ? " as a private test" : ""}`;
   const line =
     status !== "posted"
-      ? `Phones: “${post.title}” wasn't posted on TikTok${status === "cancelled" ? " (stopped)" : ""}. ${message.replace(/^Not posted: /, "")}`
+      ? `Phones: ${what} wasn't posted on TikTok${status === "cancelled" ? " (stopped)" : ""}. ${message.replace(/^Not posted: /, "")}`
       : notes
-        ? `Phones: posted “${post.title}” on TikTok through the brand's phone. ${notes}${url ? ` Link: ${url}` : ""}`
-        : `Phones: posted “${post.title}” on TikTok through the brand's phone${url ? `: ${url}` : "."}`;
+        ? `Phones: posted ${what} on TikTok through the brand's phone. ${notes}${url ? ` Link: ${url}` : ""}`
+        : `Phones: posted ${what} on TikTok through the brand's phone${url ? `: ${url}` : "."}`;
   await logEvent({ brandId: post.brand_id, level: warn ? "warn" : "info", message: line.slice(0, 500) });
 }
 

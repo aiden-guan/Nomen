@@ -18,9 +18,10 @@ and posting through Naive work without them.
   the same file), not part of the warm-up, whose no-posting rule stays as written. It runs only when
   a person clicks "Post through phone" for one video in the camp's theatre: never on a schedule, on
   autopilot or for a whole campaign. It posts that one approved video on the brand's TikTok with its
-  caption, TikTok's AI-generated content label and an #AIgenerated tag. Internal remakes nobody
-  cleared (`postingHold` in `src/lib/publish.ts`) are refused at the click and again before the
-  phone is woken.
+  caption, TikTok's AI-generated content label and an #AIgenerated tag, publicly or, with "Only
+  you" ticked, as a private test only the brand's account can see. Internal remakes nobody cleared
+  (`postingHold` in `src/lib/publish.ts`) are refused at the click and again before the phone is
+  woken, private or not.
 - **The risk is on screen.** The panel always states that automated activity can break a
   platform's terms and put the account at risk.
 - **Keys stay out of the repo.** Use `.env.local` or the Settings page. Logins live in Mobilerun's
@@ -89,21 +90,25 @@ the worker's next tick, which then (`src/lib/phones/posting.ts`):
    the newest video in the gallery is this one; the phone's own files are left alone. The folder is
    listed afterwards, and a file that didn't arrive whole is copied again.
 3. Creates the posting task with the post's id as its `Idempotency-Key` and an `outputSchema` for
-   the agent's report (`posted`, `postUrl`, `aiLabel`, `reason`). The brief opens TikTok, taps +
-   and Upload, picks the video, types the caption (one line, tagged #AIgenerated), turns on
-   "AI-generated content" (it must not post without it) and, where TikTok offers it, the "Your
-   brand" disclosure, posts once and copies the link. `apps`: TikTok. `credentials`: the saved
-   TikTok login, if any. `vpnCountry`: the brand's, if chosen. Recording is on where the phone
-   supports it. Up to 80 steps and 15 minutes.
+   the agent's report (`posted`, `postUrl`, `aiLabel`, `onlyYou`, `reason`). The brief opens
+   TikTok, taps + and Upload, picks the video, types the caption (one line, tagged #AIgenerated),
+   turns on "AI-generated content" (it must not post without it), sets "Who can watch this video",
+   posts once and copies the link. A public post sets "Everyone" (TikTok keeps the last post's
+   choice) and, where TikTok offers it, the "Your brand" disclosure. A private test sets "Only you"
+   and must not post if it can't. `apps`: TikTok. `credentials`: the saved TikTok login, if any.
+   `vpnCountry`: the brand's, if chosen. Recording is on where the phone supports it. Up to 80
+   steps and 15 minutes.
 4. Polls the task, records `posted` (with the link, when the agent copied it), `failed` or
-   `cancelled`, logs it, and parks the phone.
+   `cancelled`, logs it, and parks the phone. A private test the agent didn't confirm as "Only
+   you", or a public post that went out as "Only you", is posted with a warning to check it.
 
 Copying and creating the task are retried after errors that can pass (up to 5 tries); the task
 itself runs once. A post that failed, or ended without the agent's report, is never posted again by
 itself, because the video may have gone out: its message says to check the brand's TikTok profile,
-and a person can click again. A video already posted, through the phone or to TikTok through
-Naive, is refused. Cost: up to 80 steps, about 40 credits ($0.40), plus up to 15 minutes of phone
-time.
+and a person can click again. A video already posted publicly, through the phone or to TikTok
+through Naive, is refused a second public post; a private test doesn't count, so a video can be
+tested privately and then posted. Cost: up to 80 steps, about 40 credits ($0.40), plus up to 15
+minutes of phone time.
 
 ## One-time phone setup for posting
 
@@ -162,8 +167,9 @@ Checked against docs.mobilerun.ai on 2026-11-07. Base URL `https://api.mobilerun
   timestamps. A scheduled session is unique per brand, platform and day.
 - `phone_parks`: phones waiting to be parked, one row per phone, with when to try next, how many
   tries failed and the last error. A row is removed once the phone is parked or can't be.
-- `phone_posts`: every post through a phone: the video, its title and caption, the file's name and
-  folder on the phone, its status, its Mobilerun task, the post's link and the agent's report.
+- `phone_posts`: every post through a phone: the video, its title and caption, public or private
+  (`visibility`, added to older tables on first use), the file's name and folder on the phone, its
+  status, its Mobilerun task, the post's link and the agent's report.
 
 The tables are created by the module on first use. `brands`, `campaigns`, `creatives` and `posts`
 are only read (posting reads the video, its cut and its earlier posts).
@@ -183,7 +189,7 @@ are only read (posting reads the video, its cut and its earlier posts).
 | `POST /api/phones/sessions` | Run now (`{ brandId, platform? }`) |
 | `POST /api/phones/sessions/{id}/cancel` | Stop a session |
 | `GET /api/phones/posts?brandId=` | Whether "Post through phone" is offered here and can run now (if not, what to do first), its cost, and the brand's phone posts |
-| `POST /api/phones/posts` | Post one finished, approved video through the brand's phone (`{ creativeId }`) |
+| `POST /api/phones/posts` | Post one finished, approved video through the brand's phone (`{ creativeId, visibility? }`: `"public"`, the default, or `"private"` for TikTok's "Only you") |
 
 ## Running and testing
 

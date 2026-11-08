@@ -90,7 +90,7 @@ describe("describeApiError", () => {
 
 describe("posting through a phone", () => {
   const done = { status: "completed" as const, succeeded: true, message: "Done.", execution: null };
-  const report = (fields: Record<string, unknown>) => ({ posted: true, postUrl: "", aiLabel: true, reason: "", ...fields });
+  const report = (fields: Record<string, unknown>) => ({ posted: true, postUrl: "", aiLabel: true, onlyYou: false, reason: "", ...fields });
 
   it("reads a post the agent made, with its link", () => {
     expect(postOutcome({ ...done, output: report({ postUrl: " https://www.tiktok.com/@acme/video/1 " }) })).toEqual({
@@ -115,6 +115,20 @@ describe("posting through a phone", () => {
 
   it("flags a post that went out without TikTok's AI-generated label", () => {
     expect(postOutcome({ ...done, output: report({ aiLabel: false }) })).toMatchObject({ status: "posted", warn: true, message: expect.stringMatching(/AI-generated label/) });
+  });
+
+  it("reads a private test post the agent set to “Only you”", () => {
+    expect(postOutcome({ ...done, output: report({ onlyYou: true, postUrl: "https://www.tiktok.com/@acme/video/2" }) }, "private")).toEqual({
+      status: "posted",
+      url: "https://www.tiktok.com/@acme/video/2",
+      warn: false,
+      message: "Posted on TikTok as “Only you” (private).",
+    });
+  });
+
+  it("warns when a private test post may be public, or a public one went out as “Only you”", () => {
+    expect(postOutcome({ ...done, output: report({ onlyYou: false }) }, "private")).toMatchObject({ status: "posted", warn: true, message: expect.stringMatching(/may be public/) });
+    expect(postOutcome({ ...done, output: report({ onlyYou: true }) }, "public")).toMatchObject({ status: "posted", warn: true, message: expect.stringMatching(/went out as “Only you”/) });
   });
 
   it("gives the agent's reason when it did not post", () => {

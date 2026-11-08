@@ -72,23 +72,30 @@ const MAY_BE_OUT = "Check the brand's TikTok profile before posting it again: th
  * What a finished posting task did, from the report its output schema asks for
  * (`POST_OUTPUT_SCHEMA`). A video the agent says it posted counts as posted even when the task
  * failed afterwards, so nobody posts it twice; a task that ended without a report may have posted.
+ * `visibility` is what was asked for: "private" is a test post set to TikTok's "Only you".
  */
-export function postOutcome(task: Pick<TaskStatus, "status" | "succeeded" | "message" | "execution" | "output">): {
+export function postOutcome(task: Pick<TaskStatus, "status" | "succeeded" | "message" | "execution" | "output">, visibility: "public" | "private" = "public"): {
   status: "posted" | "failed" | "cancelled";
   url: string | null;
   /** Worth a warning in the activity log. */
   warn: boolean;
   message: string;
 } {
-  const report = (task.output ?? {}) as { posted?: unknown; postUrl?: unknown; aiLabel?: unknown; reason?: unknown };
+  const report = (task.output ?? {}) as { posted?: unknown; postUrl?: unknown; aiLabel?: unknown; onlyYou?: unknown; reason?: unknown };
   const link = typeof report.postUrl === "string" ? report.postUrl.trim() : "";
   const url = /^https?:\/\/\S+$/i.test(link) ? link : null;
   if (report.posted === true) {
+    const privateAsAsked = visibility === "private" && report.onlyYou === true;
+    // A private test that may be public, or a public post that only the brand can see, needs a person.
+    const wrongAudience = visibility === "private" ? report.onlyYou !== true : report.onlyYou === true;
     const notes = [
       url ? null : "The agent couldn't copy the post's link; the video is on the brand's TikTok profile.",
       report.aiLabel === false ? "TikTok's AI-generated label may be off: check the post and turn it on." : null,
+      wrongAudience && visibility === "private" ? "TikTok didn't confirm “Only you”, so the video may be public: check it on the brand's profile." : null,
+      wrongAudience && visibility === "public" ? "It went out as “Only you”: set “Who can watch” to Everyone in the TikTok app to make it public." : null,
     ].filter(Boolean);
-    return { status: "posted", url, warn: report.aiLabel === false, message: ["Posted on TikTok.", ...notes].join(" ") };
+    const lead = privateAsAsked ? "Posted on TikTok as “Only you” (private)." : "Posted on TikTok.";
+    return { status: "posted", url, warn: report.aiLabel === false || wrongAudience, message: [lead, ...notes].join(" ") };
   }
   if (sessionStatusFor(task) === "cancelled") return { status: "cancelled", url: null, warn: false, message: `Stopped before it finished. ${MAY_BE_OUT}` };
   const reason = typeof report.reason === "string" ? report.reason.trim() : "";

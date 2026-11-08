@@ -85,9 +85,12 @@ export function phonePosts(brandId: string) {
   return call<PhonePostsView>(`/api/phones/posts?brandId=${encodeURIComponent(brandId)}`, { cache: "no-store" });
 }
 
-/** Posts one finished, approved video on TikTok through the brand's phone (the worker runs it). */
-export function postThroughPhone(creativeId: string) {
-  return call<PhonePostsView>("/api/phones/posts", { method: "POST", body: JSON.stringify({ creativeId }) });
+/**
+ * Posts one finished, approved video on TikTok through the brand's phone (the worker runs it).
+ * "private" is a test post only the brand's account can see (TikTok's "Only you").
+ */
+export function postThroughPhone(creativeId: string, visibility: PhonePostView["visibility"] = "public") {
+  return call<PhonePostsView>("/api/phones/posts", { method: "POST", body: JSON.stringify({ creativeId, visibility }) });
 }
 
 /** The brand's connected social accounts, read live from Naive (GET /api/brands/[id]/social), with why it failed if it did. */

@@ -242,9 +242,10 @@ export const POST_OUTPUT_SCHEMA = {
     posted: { type: "boolean", description: "True only if you tapped Post and TikTok took the video (posted, uploading or under review)." },
     postUrl: { type: "string", description: "The video's link from Share, then Copy link, or an empty string if you couldn't get it." },
     aiLabel: { type: "boolean", description: "True if the AI-generated content setting was on when you posted." },
+    onlyYou: { type: "boolean", description: 'True if "Who can watch this video" was set to "Only you" when you posted.' },
     reason: { type: "string", description: "If posted is false, what stopped you, in one sentence; otherwise an empty string." },
   },
-  required: ["posted", "postUrl", "aiLabel", "reason"],
+  required: ["posted", "postUrl", "aiLabel", "onlyYou", "reason"],
   additionalProperties: false,
 };
 
@@ -252,19 +253,26 @@ export const POST_OUTPUT_SCHEMA = {
  * The posting brief: one finished video, already copied onto the phone, posted once from the
  * brand's own TikTok account with its caption and TikTok's AI-generated label. It runs only when a
  * person clicks "Post through phone" for that video; the warm-up brief above never posts.
+ * "private" is a test post that only the brand's account can see ("Only you"). TikTok keeps the
+ * last post's audience, so a public post sets "Everyone" explicitly.
  */
-export function postTask(input: { brand: string; fileName: string; folder: string; seconds: number | null; caption: string }) {
+export function postTask(input: { brand: string; fileName: string; folder: string; seconds: number | null; caption: string; visibility: "public" | "private" }) {
   const length = input.seconds ? `, about ${Math.round(input.seconds)} seconds long` : "";
+  const audience =
+    input.visibility === "private"
+      ? 'This is a private test post. Set "Who can watch this video" to "Only you" (some versions say "Only me"); if you can\'t set it to "Only you", do not post: stop and report it. Check it still says "Only you" right before you tap Post.'
+      : 'Set "Who can watch this video" to "Everyone".';
+  const disclosure = input.visibility === "private" ? "" : ' If there is a "Disclose post content" setting, turn it on and choose "Your brand".';
   return [
     `You are the social media manager for ${input.brand}, posting one finished video from the brand's own official TikTok account on this phone. Post it exactly once.`,
     "1. Open TikTok. If it asks you to log in, use the saved credential for this app; if it asks for a code you do not have, stop and report it.",
     "2. Tap the + (create) button at the bottom of the screen, then Upload. If TikTok asks for access to photos and videos, allow it.",
     `3. Select only the newest video in the gallery: the file ${input.fileName} in the phone's ${input.folder} folder${length}. Tap Next until you reach the screen with the caption. Do not add sounds, effects, text, stickers or filters, and do not trim the video.`,
     `4. Replace everything in the caption field with exactly this text:\n${input.caption}`,
-    '5. Open "More options" and turn on "AI-generated content". If you can\'t find it or can\'t turn it on, do not post: stop and report it. If there is a "Disclose post content" setting, turn it on and choose "Your brand".',
+    `5. Open "More options" and turn on "AI-generated content". If you can't find it or can't turn it on, do not post: stop and report it.${disclosure} ${audience}`,
     "6. Tap Post once. Wait until TikTok shows the video as posted, uploading or under review, for up to 3 minutes.",
     "7. Open the new video on the brand's profile, tap Share, then Copy link. To read the link, paste it into TikTok's search field without searching, note it, then clear the field.",
     "Never post anything else, comment, send messages, like, follow, buy anything, change account settings, or edit or delete other posts. If anything goes wrong before you tap Post, do not post. If you are not sure whether the video went out, do not post it again: check the brand's profile instead.",
-    "Report whether the video was posted, its link, whether the AI-generated label was on, and what stopped you if it was not posted.",
+    'Report whether the video was posted, its link, whether the AI-generated label was on, whether "Who can watch this video" was "Only you", and what stopped you if it was not posted.',
   ].join("\n");
 }
