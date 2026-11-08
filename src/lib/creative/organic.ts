@@ -3,7 +3,7 @@ import { type Concept, conceptFrom } from "../strategy";
 import { type Formula, formulaDigest } from "./formulas";
 import { isTall, planProduction, presenterShot } from "./plan";
 import { ASK, BANNED, CRITIC_TOOL, normalizeScript, runScriptRoom, TESTIMONIAL } from "./script";
-import type { BeatJob, CreativeBrief, ProductBrief, ProductionPlan, ReferenceBreakdown, Script } from "./types";
+import type { BeatJob, CreativeBrief, ProductBrief, ProductionPlan, ReferenceBreakdown, Script, ScriptBeat } from "./types";
 
 // Organic videos: original scripts written in one of the campaign's winning formulas (formulas.ts),
 // shaped for what AI video does well. One persona talks to a propped-up camera in short takes,
@@ -45,17 +45,24 @@ export function personaFor(persona: Persona | undefined, setting?: string): Pers
 
 // ---------- the shape ----------
 
-/** Every other take is punched in this much: the jump cut creators make in their own edits. */
+/** Every other take on camera is punched in this much: the jump cut creators make in their own edits. */
 export const PUNCH_IN = 1.12;
-/** Kling's natural talking pace in a short take, in words per second (measured on its renders: 2.5-3.5). */
-const TAKE_WPS = 3.2;
-/** One take: at most this many words, said in at most this many seconds. */
-const MAX_TAKE_WORDS = 20;
+/**
+ * The pace a take is sized for, in words per second: fast and natural, about 205 words a minute
+ * (the references talk at 225-240; Kling's renders measured 2.5-3.5 and stretch a line to fill its take).
+ */
+const TAKE_WPS = 3.4;
+/** Room around the speech in a take; the edit trims it. */
+const TAKE_PAD = 0.6;
+/** The words a script may spend per second of its target: a little under the take pace, for breaths. */
+const SCRIPT_WPS = 3.3;
+/** One beat is one short sentence: at most this many words. */
+const MAX_TAKE_WORDS = 18;
 const MIN_TAKE = 3; // Kling's shortest
 const MAX_TAKE = 10;
-/** Organic videos run 12-20 s: every presenter second is rendered, and short takes are where AI video looks real. */
+/** Organic videos run 12-16 s: every word is rendered, and short takes are where AI video looks real. */
 const MIN_SECONDS = 12;
-const MAX_SECONDS = 20;
+const MAX_SECONDS = 16;
 /** Product screens should fill this share of the runtime. */
 const PRODUCT_SHARE = { min: 0.25, max: 0.6 } as const;
 /** Jobs that say what the product does: shown on a screen, never only said to camera. */
@@ -63,8 +70,36 @@ const CLAIM_JOBS: BeatJob[] = ["demo", "proof", "reveal"];
 
 const words = (line: string) => line.toLowerCase().replace(/[^\p{L}\p{N}'$%]+/gu, " ").trim().split(/\s+/).filter(Boolean);
 
-/** A take's render length: the line at Kling's pace plus a little room, in whole seconds (it bills what is asked). */
-export const takeSeconds = (line: string) => Math.min(MAX_TAKE, Math.max(MIN_TAKE, Math.ceil(words(line).length / TAKE_WPS + 0.7)));
+/** A take's render length: the line at the take pace plus a little room, in whole seconds (Kling bills what is asked). */
+export const takeSeconds = (line: string) => Math.min(MAX_TAKE, Math.max(MIN_TAKE, Math.ceil(words(line).length / TAKE_WPS + TAKE_PAD)));
+
+/** Whether these lines fit one take without being hurried. */
+const fitsOneTake = (lines: string[]) => words(lines.join(" ")).length / TAKE_WPS + TAKE_PAD <= MAX_TAKE;
+
+/** The most words a script for `target` seconds may have. */
+export const wordBudget = (target: number) => Math.round(target * SCRIPT_WPS);
+
+/**
+ * Which beats share a take. Every sentence on camera is a take of its own, so a jump cut (and the
+ * punch-in) falls between any two of them, and the visible takes stay short, where AI video looks
+ * real. A run of beats the product covers is one take, cut only when it would not fit: only its
+ * voice is heard, and fewer takes mean fewer voice changes and less paid padding.
+ */
+export function groupTakes(script: Script): Script["beats"][] {
+  const takes: Script["beats"][] = [];
+  let current: Script["beats"] = [];
+  for (const beat of script.beats.filter((b) => b.line)) {
+    const covered = beat.visual !== "creator";
+    const joins = covered && current.length > 0 && current.every((b) => b.visual !== "creator") && fitsOneTake([...current, beat].map((b) => b.line));
+    if (!joins && current.length) {
+      takes.push(current);
+      current = [];
+    }
+    current.push(beat);
+  }
+  if (current.length) takes.push(current);
+  return takes;
+}
 
 /** How long an organic video should run: its formula's length, kept to 12-20 s. */
 export const organicTarget = (formula: Pick<Formula, "pacing">) => Math.round(Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, formula.pacing.seconds || MAX_SECONDS)));
@@ -78,19 +113,17 @@ export const organicTarget = (formula: Pick<Formula, "pacing">) => Math.round(Ma
 export function planOrganic(script: Script, brief: CreativeBrief, product: ProductBrief, persona?: PersonaStill, delivery = ""): ProductionPlan {
   const shotBrief: CreativeBrief = { ...brief, format: "talking_head_broll", ...(persona ? { creator: persona.look, setting: persona.place } : {}) };
   const base = planProduction(script, shotBrief, product, delivery);
-  const aroll = script.beats
-    .filter((beat) => beat.line)
-    .map((beat, i) => {
-      const shot = presenterShot(i + 1, [beat], shotBrief, product, delivery, persona?.voice);
-      return {
-        ...shot,
-        seconds: Math.round((words(beat.line).length / TAKE_WPS) * 10) / 10,
-        duration: takeSeconds(beat.line),
-        ...(beat.visual === "product" ? { covered: true } : {}),
-        // Every take starts from the same still: nothing is re-posed.
-        ...(persona ? { pose: "" } : {}),
-      };
-    });
+  const aroll = groupTakes(script).map((beats, i) => {
+    const shot = presenterShot(i + 1, beats, shotBrief, product, delivery, persona?.voice);
+    return {
+      ...shot,
+      seconds: Math.round((words(shot.line).length / TAKE_WPS) * 10) / 10,
+      duration: takeSeconds(shot.line),
+      ...(beats.every((beat) => beat.visual !== "creator") ? { covered: true } : {}),
+      // Every take starts from the same still: nothing is re-posed.
+      ...(persona ? { pose: "" } : {}),
+    };
+  });
   return { ...base, format: "talking_head_broll", aroll, punch_in: PUNCH_IN };
 }
 
@@ -103,9 +136,9 @@ function writerSystem() {
     "You write an original short vertical video for a product. It is built on a formula that already worked across several viral videos: you get the formula (its hook archetype and mechanic, its beat structure with each beat's job and share of the runtime, its pacing, proof device and call-to-action pattern) and the videos that back it. Use them for their structure, energy and rhythm. Never copy their words, claims, numbers, products, brand names or handles: the script is new, about this product, in its real facts.",
     "",
     "How it will be made, so write for it:",
-    "- One AI presenter talks to a camera propped up at eye level, in short takes with a jump cut between them. Every beat is one take: one sentence, or two very short ones, 6 to 18 words, said in 3 to 7 seconds. Never more than 20 words in a beat. Every beat has a spoken line.",
+    "- One AI presenter talks to a camera propped up at eye level, in short takes with a jump cut between them. Every beat is one short sentence (or two very short ones) of 5 to 15 words, never more than 18. Every beat has a spoken line. Every word is rendered, so stay inside the word budget given with the target length.",
     "- The presenter is on camera (visual \"creator\") for the hook and the emotional beats: the confession, the reaction, the doubt, the ask. Her direction is one small thing per take (a small nod, a half-smile, a raised eyebrow, leaning in a little), never pointing, waving, holding things or touching her face.",
-    "- Every beat that says what the product does, or proves it, shows it instead (visual \"product\", with a `screen`): the product's real interface with the brief's exact names and wording, and what moves on it (text types in, a button is clicked, rows appear one by one). The presenter keeps talking over it. Product beats fill 30 to 50% of the runtime.",
+    "- Every beat that says what the product does, or proves it, shows it instead (visual \"product\", with a `screen`): the product's real interface with the brief's exact names and wording, and what moves on it (text types in, a button is clicked, rows appear one by one). The presenter keeps talking over it. Give product_visual a listed id only when that visual shows exactly what the line says; otherwise null, and the screen is built. Product beats carry 30 to 50% of the words; the rest is the presenter on camera.",
     "- The first beat is the hook, on camera: the formula's hook mechanic applied to this product and angle, with on_screen_text (at most 8 words) that sharpens it.",
     "",
     "Sounding human:",
@@ -176,7 +209,7 @@ function contextBlock(ctx: OrganicContext) {
       })),
     )}\n</backing_videos>`,
     ctx.persona ? `The presenter: ${ctx.persona.look}, filmed at ${ctx.persona.place}.` : "",
-    `Target length: about ${ctx.targetSeconds} seconds, so ${Math.max(3, Math.round(ctx.targetSeconds / 5))} to ${Math.max(4, Math.round(ctx.targetSeconds / 3.5))} beats. Format: talking_head_broll. Role: ${brief.role ?? "reach"} (judged on ${(brief.metric ?? (brief.role === "convert" ? "link_clicks" : "views")).replace(/_/g, " ")}).`,
+    `Target length: about ${ctx.targetSeconds} seconds: at most ${wordBudget(ctx.targetSeconds)} spoken words in all (count them), in ${Math.max(4, Math.round(ctx.targetSeconds / 4))} to ${Math.max(5, Math.round(ctx.targetSeconds / 2.5))} beats. Format: talking_head_broll. Role: ${brief.role ?? "reach"} (judged on ${(brief.metric ?? (brief.role === "convert" ? "link_clicks" : "views")).replace(/_/g, " ")}).`,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -223,7 +256,7 @@ export function lintOrganic(script: Script, ctx: OrganicContext): string[] {
   for (const beat of script.beats) {
     const count = words(beat.line).length;
     if (!count) issues.push(`beat ${beat.n} says nothing: every take is a spoken line`);
-    if (count > MAX_TAKE_WORDS) issues.push(`beat ${beat.n} runs ${count} words: one take is one or two short sentences (at most ${MAX_TAKE_WORDS} words)`);
+    if (count > MAX_TAKE_WORDS) issues.push(`beat ${beat.n} runs ${count} words: one take is one short sentence (at most ${MAX_TAKE_WORDS} words)`);
     if (beat.visual === "creator" && CLAIM_JOBS.includes(beat.job)) issues.push(`beat ${beat.n} makes a claim on camera (${beat.job}): show it on a product screen while she talks`);
     const copied = copiedRun(beat.line, sources);
     if (copied) issues.push(`beat ${beat.n} copies "${copied}" from a backing video: write it new`);
@@ -232,11 +265,15 @@ export function lintOrganic(script: Script, ctx: OrganicContext): string[] {
   const first = script.beats[0];
   if (first && first.visual !== "creator") issues.push("the hook (beat 1) belongs on camera: the presenter says it to the lens");
 
-  const total = script.total_seconds || 1;
-  const share = script.beats.filter((beat) => beat.visual !== "creator").reduce((sum, beat) => sum + beat.seconds, 0) / total;
+  // The runtime is the speech: shares and length are measured in spoken words.
+  const total = words(spoken).length;
+  const productWords = script.beats.filter((beat) => beat.visual !== "creator").reduce((sum, beat) => sum + words(beat.line).length, 0);
+  const share = total ? productWords / total : 0;
   if (share < PRODUCT_SHARE.min) issues.push(`the product is on screen for ${Math.round(share * 100)}% of the video: show the claims on product screens (aim for 30-50%)`);
   if (share > PRODUCT_SHARE.max) issues.push(`the product is on screen for ${Math.round(share * 100)}% of the video: keep the presenter on camera for the hook and the emotional beats (aim for 30-50%)`);
-  if (Math.abs(script.total_seconds - ctx.targetSeconds) > 4) issues.push(`total ${script.total_seconds}s vs the target ${ctx.targetSeconds}s`);
+  const budget = wordBudget(ctx.targetSeconds);
+  if (total > budget * 1.1) issues.push(`the script runs ${total} words, about ${Math.round(total / TAKE_WPS)} s spoken: cut it to ${budget} words or fewer (${ctx.targetSeconds} s)`);
+  if (total < budget * 0.6) issues.push(`the script runs ${total} words, about ${Math.round(total / TAKE_WPS)} s spoken: it can say more (up to ${budget} words for ${ctx.targetSeconds} s)`);
 
   if ((ctx.brief.role ?? "reach") === "convert") {
     const last = script.beats[script.beats.length - 1];
@@ -246,15 +283,25 @@ export function lintOrganic(script: Script, ctx: OrganicContext): string[] {
   return issues;
 }
 
-/** The organic script room: a writer in the formula, the linter above and a critic, as for remakes. */
+/** A script made renderable, the organic way: the presenter is on camera or the product fills the screen, nothing in between. */
+export function normalizeOrganic(beats: Array<Partial<ScriptBeat>>, ctx: Pick<OrganicContext, "product" | "brief">): Script {
+  const script = normalizeScript(beats, { ...ctx, brief: { ...ctx.brief, format: "talking_head_broll" } });
+  return { ...script, beats: script.beats.map((beat) => (beat.visual === "split" || beat.visual === "inset" ? { ...beat, visual: "product" } : beat)) };
+}
+
+/**
+ * The organic script room: a writer in the formula, the linter above and a critic, as for remakes,
+ * with a third round so the critic's last rewrite is checked too.
+ */
 export function writeOrganicScript(naive: NaiveClient, ctx: OrganicContext): Promise<Script> {
   return runScriptRoom(naive, {
     writer: writerSystem(),
     context: contextBlock(ctx),
     title: ctx.brief.title,
-    normalize: (beats) => normalizeScript(beats, ctx),
+    normalize: (beats) => normalizeOrganic(beats, ctx),
     lint: (script) => lintOrganic(script, ctx),
     critic: { system: criticSystem(), tool: ORGANIC_CRITIC_TOOL },
+    rounds: 3,
   });
 }
 

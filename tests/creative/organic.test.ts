@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { editFfmpeg, renderTimeline } from "@/lib/creative/edit";
 import { extractFormulas, fallbackFormulas, type Formula, formulaDigest, normalizeFormulas } from "@/lib/creative/formulas";
-import { lintOrganic, type OrganicContext, organicConcept, organicTarget, PUNCH_IN, personaFor, planOrganic, readPersona, takeSeconds, writeOrganicScript } from "@/lib/creative/organic";
+import { lintOrganic, normalizeOrganic, type OrganicContext, organicConcept, organicTarget, PUNCH_IN, personaFor, planOrganic, readPersona, takeSeconds, writeOrganicScript } from "@/lib/creative/organic";
 import { buildTimeline, planProduction } from "@/lib/creative/plan";
 import { normalizeScript } from "@/lib/creative/script";
 import type { CreativeBrief, ProductBrief, ReferenceBreakdown, Script } from "@/lib/creative/types";
@@ -234,10 +234,11 @@ const brief: CreativeBrief = {
 const ctx: OrganicContext = { product, brief, formula: insider, examples: [insiderA, insiderB], targetSeconds: 18 };
 
 const goodBeats = [
-  { n: 1, job: "hook", seconds: 4, line: "Okay, I almost didn't post this one.", on_screen_text: "Deleting this in 24h", visual: "creator", product_visual: null, direction: "leans in a little", emotion: "[hushed]" },
-  { n: 2, job: "demo", seconds: 5, line: "You pick a company template, like a short video channel, and you hit Deploy.", on_screen_text: "", visual: "product", product_visual: "s1", screen: "The Studio template list, the cursor clicks Deploy on Naive Short Form v1.", direction: "", emotion: "[matter-of-fact]" },
-  { n: 3, job: "proof", seconds: 5, line: "Then a team of agents runs it, and anything that costs money waits for you.", on_screen_text: "", visual: "product", product_visual: "s2", screen: "The first session running, then an approval card with Approve and Deny.", direction: "", emotion: "[calm]" },
-  { n: 4, job: "cta", seconds: 4, line: "It's called Naïve. The link's in my bio.", on_screen_text: "", visual: "creator", product_visual: null, direction: "a small half-smile", emotion: "[warm]" },
+  { n: 1, job: "hook", seconds: 3, line: "Okay, I almost didn't post this one.", on_screen_text: "Deleting this in 24h", visual: "creator", product_visual: null, direction: "leans in a little", emotion: "[hushed]" },
+  { n: 2, job: "agitate", seconds: 3, line: "Because it honestly feels like cheating a little.", on_screen_text: "", visual: "creator", product_visual: null, direction: "a small half-smile", emotion: "[deadpan]" },
+  { n: 3, job: "demo", seconds: 4, line: "You pick a company template, like a short video channel, and hit Deploy.", on_screen_text: "", visual: "product", product_visual: "s1", screen: "The Studio template list, the cursor clicks Deploy on Naive Short Form v1.", direction: "", emotion: "[matter-of-fact]" },
+  { n: 4, job: "proof", seconds: 5, line: "Then a team of agents runs it, and anything that costs money waits for you.", on_screen_text: "", visual: "product", product_visual: "s2", screen: "The first session running, then an approval card with Approve and Deny.", direction: "", emotion: "[calm]" },
+  { n: 5, job: "cta", seconds: 3, line: "It's called Naïve. The link's in my bio.", on_screen_text: "", visual: "creator", product_visual: null, direction: "a small nod", emotion: "[warm]" },
 ];
 
 const goodScript = (): Script => normalizeScript(goodBeats.map((b) => ({ ...b })) as never, ctx);
@@ -259,12 +260,30 @@ describe("the organic script room", () => {
     );
     const issues = lintOrganic(bad, ctx).join(" | ");
     expect(issues).toMatch(/game changer/);
-    expect(issues).toMatch(/beat 2 runs 32 words/);
+    expect(issues).toMatch(/beat 2 runs 32 words: one take is one short sentence/);
     expect(issues).toMatch(/beat 2 makes a claim on camera/);
     expect(issues).toMatch(/hook \(beat 1\) belongs on camera/);
     expect(issues).toMatch(/"90%" is not in the product brief/);
     expect(issues).toMatch(/handle or name "hustlewithmax37"/);
-    expect(issues).toMatch(/product is on screen for 21% of the video/);
+    expect(issues).toMatch(/product is on screen for 13% of the video/);
+  });
+
+  it("holds the script to the words the target length can say, since every word is rendered", () => {
+    const long = normalizeScript(
+      [
+        ...goodBeats.slice(0, 4).map((b) => ({ ...b })),
+        { n: 5, job: "proof", seconds: 4, line: "And you approve anything that costs money, every single time, before it happens.", on_screen_text: "", visual: "product", product_visual: "s2", direction: "" },
+        { n: 6, job: "proof", seconds: 4, line: "Each agent gets only what its role needs, and you can see all of it.", on_screen_text: "", visual: "product", product_visual: "s2", direction: "" },
+        { n: 7, job: "cta", seconds: 3, line: "It's called Naïve. Go deploy one today, the link is in my bio.", on_screen_text: "", visual: "creator", product_visual: null, direction: "" },
+      ] as never,
+      ctx,
+    );
+    expect(lintOrganic(long, ctx).join(" | ")).toMatch(/runs 84 words, about 25 s spoken: cut it to 59 words/);
+  });
+
+  it("shows split and inset beats as plain product screens: the presenter is either on camera or not", () => {
+    const script = normalizeOrganic([{ ...goodBeats[2], visual: "split" }, { ...goodBeats[3], visual: "inset" }] as never, ctx);
+    expect(script.beats.map((b) => b.visual)).toEqual(["product", "product"]);
   });
 
   it("writes an original script from the formula, then has the critic check it", async () => {
@@ -284,12 +303,12 @@ describe("the organic script room", () => {
     expect(content).toContain("The reluctant insider");
     expect(content).toContain("forbidden secret");
     expect(content).toContain(insiderA.hook.line); // the backing videos' hooks, for their rhythm
-    expect(script.beats).toHaveLength(4);
+    expect(script.beats).toHaveLength(5);
     expect(script.review).toMatchObject({ score: 9, rounds: 1 });
   });
 
   it("aims for a short video, since every presenter second is rendered", () => {
-    expect(organicTarget(insider)).toBe(20);
+    expect(organicTarget(insider)).toBe(16);
     expect(organicTarget({ ...insider, pacing: { ...insider.pacing, seconds: 14 } })).toBe(14);
   });
 });
@@ -297,34 +316,54 @@ describe("the organic script room", () => {
 describe("the organic plan shape", () => {
   const still = personaFor(persona, "bedroom")!;
 
-  it("renders one short take per sentence from the persona's own still, voice described the same every time", () => {
+  it("gives each on-camera sentence its own short take and the screen-covered run one take, all from the persona's still", () => {
     const plan = planOrganic(goodScript(), brief, product, still);
-    expect(plan.aroll.map((shot) => shot.beats)).toEqual([[1], [2], [3], [4]]);
-    expect(plan.aroll.map((shot) => shot.duration)).toEqual(goodBeats.map((b) => takeSeconds(b.line)));
-    expect(takeSeconds("Okay, I almost didn't post this one.")).toBe(3); // 7 words: about 2.2 s of speech at Kling's pace, plus room
-    expect(takeSeconds("one two")).toBe(3); // Kling's shortest take
-    expect(takeSeconds(Array(40).fill("word").join(" "))).toBe(10);
+    // The hook and the reaction are separate takes (a jump cut between them); the two claims under
+    // the screens are one take, only heard; the ask is its own take.
+    expect(plan.aroll.map((shot) => shot.beats)).toEqual([[1], [2], [3, 4], [5]]);
+    expect(plan.aroll.map((shot) => Boolean(shot.covered))).toEqual([false, false, true, false]);
+    expect(plan.aroll.map((shot) => shot.duration)).toEqual([3, 3, 9, 3]);
+    expect(plan.aroll[2].line).toBe(`${goodBeats[2].line} ${goodBeats[3].line}`);
     for (const shot of plan.aroll) {
       expect(shot.video_prompt).toContain(`Her voice: ${persona.voice}.`);
-      expect(shot.video_prompt).toContain(`She says: "${goodBeats[shot.n - 1].line}"`);
+      expect(shot.video_prompt).toContain(`She says: "${shot.line}"`);
       expect(shot.video_prompt).toContain("Hands relaxed and mostly below the frame");
     }
     expect(plan.punch_in).toBe(PUNCH_IN);
   });
 
-  it("marks takes the product covers, and builds screens for the claims", () => {
-    const plan = planOrganic(goodScript(), brief, product, still);
-    expect(plan.aroll.map((shot) => Boolean(shot.covered))).toEqual([false, true, true, false]);
-    expect(plan.screens?.map((s) => s.id)).toEqual(["b2", "b3"]);
-    expect(plan.broll.map((clip) => clip.visual_id)).toEqual(["screen:b2", "screen:b3"]);
+  it("sizes a take to its words at a fast natural pace, between Kling's shortest and ten seconds", () => {
+    expect(takeSeconds("Okay, I almost didn't post this one.")).toBe(3); // 7 words: about 2 s of speech
+    expect(takeSeconds("one two")).toBe(3);
+    expect(takeSeconds(Array(20).fill("word").join(" "))).toBe(7);
+    expect(takeSeconds(Array(40).fill("word").join(" "))).toBe(10);
   });
 
-  it("jump-cuts between takes, alternating the full frame and a punch-in; a remake's cut is unchanged", () => {
+  it("splits a covered run that would not fit one take", () => {
+    const long = normalizeScript(
+      [
+        goodBeats[0],
+        { ...goodBeats[2], line: "You pick a company template, like a short video channel or an online store, and you hit Deploy." },
+        { ...goodBeats[3], line: "Then a team of agents runs it for you, and anything that costs money waits for your yes first." },
+        goodBeats[4],
+      ].map((b, i) => ({ ...b, n: i + 1 })) as never,
+      ctx,
+    );
+    expect(planOrganic(long, brief, product, still).aroll.map((shot) => shot.beats)).toEqual([[1], [2], [3], [4]]);
+  });
+
+  it("builds screens for the claims", () => {
+    const plan = planOrganic(goodScript(), brief, product, still);
+    expect(plan.screens?.map((s) => s.id)).toEqual(["b3", "b4"]);
+    expect(plan.broll.map((clip) => clip.visual_id)).toEqual(["screen:b3", "screen:b4"]);
+  });
+
+  it("jump-cuts between the takes on camera, alternating the full frame and a punch-in; a remake's cut is unchanged", () => {
     const script = goodScript();
     const plan = planOrganic(script, brief, product, still);
     const aroll = plan.aroll.map((shot) => ({ path: `/tmp/take${shot.n}.mp4`, duration: 3 }));
     const timeline = buildTimeline(script, plan, { aroll, voiceover: null, visuals: new Map() });
-    expect(timeline.aroll.map((clip) => clip.zoom ?? 1)).toEqual([1, PUNCH_IN, 1, PUNCH_IN]);
+    expect(timeline.aroll.map((clip) => clip.zoom ?? 1)).toEqual([1, PUNCH_IN, 1, 1]);
     const remake = buildTimeline(script, planProduction(script, { ...brief, mode: undefined }, product), { aroll: [{ path: "/tmp/a.mp4", duration: 12 }], voiceover: null, visuals: new Map() });
     expect(remake.aroll).toEqual([{ path: "/tmp/a.mp4" }]);
   });
@@ -343,7 +382,7 @@ describe("the organic plan shape", () => {
     expect(concept.formula?.references.map((r) => r.url)).toEqual([insiderA.url, insiderB.url]);
     expect(concept.inspired_by).toEqual([insiderA.url, insiderB.url]);
     expect(concept.persona).toMatchObject({ name: "baddie", setting: "bedroom", file_id: "fil_bedroom" });
-    expect(concept.shots.map((shot) => shot.duration)).toEqual(goodBeats.map((b) => takeSeconds(b.line)));
+    expect(concept.shots.map((shot) => shot.duration)).toEqual([3, 3, 9, 3]);
     expect(concept.reference).toBeUndefined();
   });
 });
@@ -429,7 +468,7 @@ describe("organic videos in production", () => {
     expect(images).toEqual([]);
     expect(runs).toHaveLength(4);
     expect(runs.map((r) => (r.body.media as Array<{ url: string }>)[0].url)).toEqual(Array(4).fill("https://files.invalid/fil_bedroom.png"));
-    expect(runs.map((r) => r.body.resolution)).toEqual(["1080p", "720p", "720p", "1080p"]);
+    expect(runs.map((r) => r.body.resolution)).toEqual(["1080p", "1080p", "720p", "1080p"]);
     expect(runs.map((r) => r.body.duration)).toEqual(plan.aroll.map((shot) => shot.duration));
   });
 });

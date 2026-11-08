@@ -226,6 +226,8 @@ export type ScriptRoom = {
   lint: (script: Script) => string[];
   /** The critic's system prompt (without the call instruction) and its review tool. */
   critic: { system: string; tool: { name: string; [key: string]: unknown } };
+  /** Rounds of lint and critic before the draft stands (default MAX_ROUNDS). */
+  rounds?: number;
 };
 
 export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promise<Script> {
@@ -251,7 +253,7 @@ export async function runScriptRoom(naive: NaiveClient, room: ScriptRoom): Promi
   if (!beats.length) throw new ApiError("naive", 502, "script_unreadable", "the writer returned no script");
   let script = room.normalize(beats);
 
-  for (let round = 1; round <= MAX_ROUNDS; round++) {
+  for (let round = 1; round <= (room.rounds ?? MAX_ROUNDS); round++) {
     const issues = room.lint(script);
     const review = await critique(naive, room, script, issues);
     if (review.score === null) {

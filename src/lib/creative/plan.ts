@@ -360,10 +360,16 @@ export function buildTimeline(
   }
 
   const withCaptions = plan.format !== "text_story";
+  let seen = 0;
   const duration = plan.aroll.length ? assets.aroll.reduce((sum, clip) => sum + clip.duration, 0) : (assets.voiceover?.duration ?? script.total_seconds);
   return {
-    // Jump cuts (organic plans): every other take punched in, so no two takes in a row match.
-    aroll: assets.aroll.map((clip, i) => ({ path: clip.path, ...(plan.punch_in ? { zoom: i % 2 ? plan.punch_in : 1 } : {}) })),
+    // Jump cuts (organic plans): every other take on camera punched in, so no two in a row match.
+    // A covered take is never seen, so it does not count.
+    aroll: assets.aroll.map((clip, i) => {
+      if (!plan.punch_in) return { path: clip.path };
+      if (plan.aroll[i]?.covered) return { path: clip.path, zoom: 1 };
+      return { path: clip.path, zoom: seen++ % 2 ? plan.punch_in : 1 };
+    }),
     audio: plan.aroll.length ? null : assets.voiceover ? { path: assets.voiceover.path } : null,
     segments,
     captions: withCaptions ? chunk(captionSegments) : [],
