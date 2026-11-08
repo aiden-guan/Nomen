@@ -463,6 +463,10 @@ export const roomTone = (seconds: number, rate = 48000) => `anoisesrc=color=pink
 export const DUCK = "sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400";
 /** The bed's level under the voice when finished. */
 export const BED_LEVEL = 0.35;
+/** A music bed under a talking creator: quiet (about -16 dB), and ducked further whenever she speaks. */
+export const MUSIC_LEVEL = 0.16;
+/** A small sound effect's level: present, never louder than the voice. */
+export const SFX_LEVEL = 0.35;
 /** Loudness for phones: -14 LUFS, true peak under -1.5 dB. */
 export const LOUDNESS = "loudnorm=I=-14:TP=-1.5:LRA=11";
 
@@ -492,7 +496,13 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
 
   const out = resolve(outPath);
   const fontPath = resolve(options.fontPath ?? DEFAULT_FONT);
-  const files = [...timeline.aroll.map((c) => c.path), ...(timeline.audio ? [timeline.audio.path] : []), fontPath];
+  const files = [
+    ...timeline.aroll.map((c) => c.path),
+    ...(timeline.audio ? [timeline.audio.path] : []),
+    ...(timeline.music ? [timeline.music.path] : []),
+    ...(timeline.sfx ?? []).map((effect) => effect.path),
+    fontPath,
+  ];
   for (const segment of timeline.segments) if (segment.layer !== "aroll" && segment.broll) files.push(segment.broll.path, ...(segment.layer === "filmed" && segment.plate ? [segment.plate.path] : []));
   for (const file of files) if (!existsSync(resolve(file))) throw new Error(`edit: missing file ${file}`);
 
@@ -548,8 +558,9 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
     graph.push(`color=c=black:s=${W}x${H}:r=${fps}:d=${num(duration + 1)},format=yuv420p,setsar=1,trim=end_frame=${frames},setpts=PTS-STARTPTS[base0]`);
   }
 
-  // Soundtrack.
-  const sound = options.finish ? "araw" : "aout";
+  // Soundtrack. With a music bed or sound effects, the voice is mixed with them before the end.
+  const scored = Boolean(timeline.music) || Boolean(timeline.sfx?.length);
+  const sound = options.finish ? "araw" : scored ? "avoice" : "aout";
   if (audio) {
     const a = input("-i", audio.path);
     graph.push(`[${a}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=end=${num(duration)},asetpts=PTS-STARTPTS[${sound}]`);
@@ -558,13 +569,37 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
   } else {
     graph.push(`anullsrc=r=48000:cl=stereo,atrim=end=${num(duration)}[${sound}]`);
   }
+  if (options.finish) graph.push(`[araw]${VOICE_CHAIN}[avoice]`);
+  // What goes under the voice: room tone (finished), a music bed ducked by the voice, sound effects.
+  const under: string[] = [];
   if (options.finish) {
-    // The voice chain, room tone under it, then loudness for phones.
+    graph.push(`${roomTone(duration)},aformat=sample_fmts=fltp:channel_layouts=stereo[aroom]`);
+    under.push("[aroom]");
+  }
+  let voiceOut = "[avoice]";
+  if (timeline.music) {
+    const m = input("-stream_loop", "-1", "-i", resolve(timeline.music.path));
+    const level = timeline.music.level ?? MUSIC_LEVEL;
+    const fadeOut = Math.max(0, duration - 1.2);
     graph.push(
-      `[araw]${VOICE_CHAIN}[avoice]`,
-      `${roomTone(duration)},aformat=sample_fmts=fltp:channel_layouts=stereo[aroom]`,
-      `[avoice][aroom]amix=inputs=2:normalize=0:duration=first,${LOUDNESS},aresample=48000,atrim=end=${num(duration)}[aout]`,
+      `[avoice]asplit=2[avmix][avkey]`,
+      `[${m}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=end=${num(duration)},asetpts=PTS-STARTPTS,volume=${num(level)},afade=t=in:d=0.6,afade=t=out:st=${num(fadeOut)}:d=1.2[abed]`,
+      `[abed][avkey]${DUCK}[aduck]`,
     );
+    voiceOut = "[avmix]";
+    under.push("[aduck]");
+  }
+  (timeline.sfx ?? []).forEach((effect, i) => {
+    if (!(effect.at >= 0 && effect.at < duration)) return;
+    const e = input("-i", resolve(effect.path));
+    const ms = Math.round(effect.at * 1000);
+    graph.push(`[${e}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${num(effect.level ?? SFX_LEVEL)},adelay=${ms}|${ms}[asfx${i}]`);
+    under.push(`[asfx${i}]`);
+  });
+  if (options.finish || scored) {
+    // The voice first and longest: the mix runs exactly its length. Loudness for phones when finished.
+    const end = options.finish ? `,${LOUDNESS},aresample=48000` : "";
+    graph.push(`${voiceOut}${under.join("")}amix=inputs=${1 + under.length}:normalize=0:duration=first${end},atrim=end=${num(duration)}[aout]`);
   }
 
   // Inset: keep a copy of the A-roll before any B-roll covers it, for the presenter window.

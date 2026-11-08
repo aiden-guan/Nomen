@@ -206,6 +206,16 @@ export class NaiveClient {
     return this.call<Transcription>("GET", `/v1/media/audio/transcriptions/${id}`);
   }
 
+  /** A sound effect from a description, synchronous: the reply carries the stored file. */
+  generateSoundEffect(input: { prompt: string; duration_seconds?: number; loop?: boolean }, idempotencyKey: string) {
+    return this.call<AudioGeneration>("POST", "/v1/media/sound-effects", input, idempotencyKey, 180_000);
+  }
+
+  /** An original song or instrumental from a description, synchronous (3-300 s): the reply carries the stored file. */
+  generateMusic(input: { prompt: string; length_seconds?: number; instrumental?: boolean }, idempotencyKey: string) {
+    return this.call<AudioGeneration>("POST", "/v1/media/music", input, idempotencyKey, 300_000);
+  }
+
   /** Text to speech, synchronous: the reply carries the stored file (`fil_`). Most models answer WAV whatever `format` asks. */
   speak(input: SpeakInput, idempotencyKey: string) {
     return this.call<SpeechGeneration>("POST", "/v1/media/audio/speech", input, idempotencyKey, 180_000);
@@ -263,6 +273,9 @@ export type TranscribeInput = ({ file_id: string; url?: never } | { url: string;
   /** Per-segment timestamps; true when omitted. */
   timestamps?: boolean;
 };
+
+/** A sound effect or a piece of music, made synchronously and stored as a file. */
+export type AudioGeneration = { object: "sound_generation" | "music_generation"; file: { id: string; name?: string; content_type?: string }; duration_seconds: number | null; cost_micro_usd: number | null };
 
 /** A `media_job` of `kind: "transcription"`. */
 export type Transcription = {

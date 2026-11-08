@@ -98,23 +98,47 @@ const SPOKEN_TLD: Record<string, string> = { ai: "A I", io: "I O", com: "com", c
  * say one ("use naive dot A I slash docs"), splitting the brand's name out of a run-together domain.
  * Captions keep the written line.
  */
-export function sayable(line: string, productName: string): string {
+export function sayable(line: string, productName: string, sayAs?: string): string {
   const name = productName.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const respell = sayAs?.trim();
   const plain = line.normalize("NFD").replace(/\p{M}/gu, "");
-  return plain.replace(/\b((?:[a-z0-9-]+\.)+)(ai|io|com|co|app|dev|so|net|org)\b((?:\/[\w-]+)*)/gi, (_match, labels: string, tld: string, path: string) => {
+  const addressed = plain.replace(/\b((?:[a-z0-9-]+\.)+)(ai|io|com|co|app|dev|so|net|org)\b((?:\/[\w-]+)*)/gi, (_match, labels: string, tld: string, path: string) => {
     const said = labels
       .split(".")
       .filter(Boolean)
       .map((label) => {
         const lower = label.toLowerCase();
         const at = name ? lower.indexOf(name) : -1;
-        if (at < 0 || lower === name) return label;
-        return [label.slice(0, at), label.slice(at, at + name.length), label.slice(at + name.length)].filter(Boolean).join(" ");
+        if (at < 0) return label;
+        return [label.slice(0, at), respell ?? label.slice(at, at + name.length), label.slice(at + name.length)].filter(Boolean).join(" ");
       });
     const spokenPath = path ? path.split("/").filter(Boolean).map((part) => ` slash ${part}`).join("") : "";
     return `${[...said, SPOKEN_TLD[tld.toLowerCase()] ?? tld].join(" dot ")}${spokenPath}`;
   });
+  // The name itself, wherever it stands as a word, said the way the brand says it.
+  return respell && name ? addressed.replace(new RegExp(`\\b${name}\\b`, "gi"), respell) : addressed;
 }
+
+// ---------- sound ----------
+
+/** Where a short sound effect goes: a pop as the hook's text lands, a whoosh into and out of each run of screens. */
+export function soundCues(timeline: { duration?: number; overlays: Array<{ start: number; end?: number; text?: string }>; segments: Array<{ start: number; end: number; layer: string }> }): Array<{ at: number; kind: "pop" | "whoosh" }> {
+  const cues: Array<{ at: number; kind: "pop" | "whoosh" }> = [];
+  const first = [...timeline.overlays].sort((a, b) => a.start - b.start)[0];
+  if (first) cues.push({ at: round2(first.start + 0.05), kind: "pop" });
+  const screens = timeline.segments.filter((s) => s.layer !== "aroll").sort((a, b) => a.start - b.start);
+  const end = timeline.duration ?? Infinity;
+  // A whoosh starts a little before its cut so its peak lands on it.
+  const LEAD = 0.15;
+  screens.forEach((segment, i) => {
+    const before = screens[i - 1];
+    const after = screens[i + 1];
+    if (!before || segment.start - before.end > 0.05) cues.push({ at: round2(Math.max(0, segment.start - LEAD)), kind: "whoosh" });
+    if ((!after || after.start - segment.end > 0.05) && segment.end < end - 0.3) cues.push({ at: round2(segment.end - LEAD), kind: "whoosh" });
+  });
+  return cues.sort((a, b) => a.at - b.at);
+}
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** A take's render length: the line at the take pace plus a little room, in whole seconds (Kling bills what is asked). */
 export const takeSeconds = (line: string) => Math.min(MAX_TAKE, Math.max(MIN_TAKE, Math.ceil(words(line).length / TAKE_WPS + TAKE_PAD)));
@@ -162,7 +186,7 @@ export function planOrganic(script: Script, brief: CreativeBrief, product: Produ
   const aroll = groupTakes(script).map((beats, i) => {
     const shot = presenterShot(
       i + 1,
-      beats.map((beat) => ({ ...beat, line: sayable(beat.line, product.name), ...(persona && beat.emotion ? { emotion: calmTag(beat.emotion) } : {}) })),
+      beats.map((beat) => ({ ...beat, line: sayable(beat.line, product.name, product.say_as), ...(persona && beat.emotion ? { emotion: calmTag(beat.emotion) } : {}) })),
       shotBrief,
       product,
       delivery,
@@ -179,7 +203,9 @@ export function planOrganic(script: Script, brief: CreativeBrief, product: Produ
   });
   // The edit captions every line, so a screen shows the product rather than the line again.
   const screens = base.screens?.map((request) => ({ ...request, captioned: true }));
-  return { ...base, format: "talking_head_broll", aroll, ...(screens ? { screens } : {}), punch_in: PUNCH_IN };
+  // Small sound effects only: the background song is a real one, picked in TikTok or Instagram
+  // when the video is posted from the phone (licensed there), never baked into the file.
+  return { ...base, format: "talking_head_broll", aroll, ...(screens ? { screens } : {}), punch_in: PUNCH_IN, sound: { sfx: true } };
 }
 
 // ---------- the script room ----------

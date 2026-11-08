@@ -59,6 +59,8 @@ export type ProductBrief = {
   visuals: ProductVisual[];
   /** From the brand's linked code (read-only scan): real commands, screens and UI text, for accurate scripts and screens. */
   code?: { commands: string[]; screens: Array<{ route: string; summary: string }>; ui_strings: string[] };
+  /** How the brand's name is said, respelled for a voice model ("nah-eev" for Naïve); missing when it is said as written. */
+  say_as?: string;
 };
 
 // ---------- what already works ----------
@@ -387,6 +389,12 @@ export type ProductionPlan = {
    * (1.12 = 12% closer), the way creators cut their own talking-head videos.
    */
   punch_in?: number;
+  /**
+   * Organic videos: small sound effects (a whoosh into and out of the screens, a pop on the hook's
+   * text) and, only when a description is given, a music bed made from it. Organic videos ask for no
+   * music: the song is a real one, added in the app when the phone posts the video.
+   */
+  sound?: { music?: string; sfx: boolean };
 };
 
 // ---------- the edit ----------
@@ -415,6 +423,10 @@ export type EditTimeline = {
   overlays: Array<{ start: number; end: number; text: string }>;
   /** Total length; defaults to the soundtrack's length. */
   duration?: number;
+  /** A music bed under the voice: cut (or looped) to the video, ducked whenever someone speaks, faded at both ends. */
+  music?: { path: string; level?: number } | null;
+  /** Short sound effects at given times: a whoosh into a screen, a pop as the hook's text lands. */
+  sfx?: Array<{ at: number; path: string; level?: number }>;
 };
 
 /** A point in image pixels (x right, y down). */

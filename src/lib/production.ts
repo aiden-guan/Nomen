@@ -7,11 +7,12 @@ import { logEvent, newId, now, parse, save, store } from "./db";
 import { ApiError } from "./http";
 import { chunkCaptions } from "./creative/captions";
 import { renderTimeline } from "./creative/edit";
+import { soundCues } from "./creative/organic";
 import { buildTimeline, type RenderedAssets, screenVisualId } from "./creative/plan";
 import { makePlate, newPlateRecord, type PlateRecord } from "./creative/plate";
 import { buildScreens } from "./creative/screens";
 import { trimSilence } from "./creative/trim";
-import type { BrandKit, FilmedPlate, ProductBrief } from "./creative/types";
+import type { BrandKit, EditTimeline, FilmedPlate, ProductBrief, ProductionPlan } from "./creative/types";
 import { download, extractFrames, ffmpegPath, probe, scratchDir, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import type { NaiveClient } from "./naive";
@@ -999,7 +1000,52 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
   }
 
   const timeline = buildTimeline(script, plan, { aroll, voiceover, visuals, plate }, (segments) => chunkCaptions(segments, 3));
+  if (plan.sound) Object.assign(timeline, await soundFor(ctx, creativeId, plan.sound, timeline));
   await renderTimeline(timeline, finalPath, { workDir: join(dir, "edit"), finish: getSetting("finish") !== "off" });
+}
+
+/** The two small sound effects every organic video shares, made once and kept in the store. */
+const SFX = {
+  whoosh: { key: "sound/whoosh", prompt: "A soft quick airy whoosh for a cut in a social video, subtle, clean, no music", seconds: 1 },
+  pop: { key: "sound/pop", prompt: "A light soft pop, like a chat bubble appearing in an app, subtle and clean, no music", seconds: 1 },
+} as const;
+
+/**
+ * An organic video's sound: its own music bed (Naive's music model, from the plan's description,
+ * the length of the cut) and the shared sound effects at the cues soundCues places. Each is made
+ * once and kept by key. A busy provider is retried next tick; any other failure leaves that sound
+ * out of the cut rather than holding the video back.
+ */
+async function soundFor(ctx: ProductionContext, creativeId: string, sound: NonNullable<ProductionPlan["sound"]>, timeline: EditTimeline): Promise<Pick<EditTimeline, "music" | "sfx">> {
+  if (!ctx.naive || ctx.naiveOut()) return {};
+  const naive = ctx.naive;
+  const files = store().files;
+  /** A kept audio file by its key's stem, made by `make` the first time. Null when it could not be made. */
+  const kept = async (stem: string, what: string, make: () => Promise<{ file: { id: string; name?: string; content_type?: string }; cost_micro_usd: number | null }>) => {
+    for (const ext of ["mp3", "wav"]) if (await files.exists(`${stem}.${ext}`)) return files.localPath(`${stem}.${ext}`);
+    try {
+      const made = await make();
+      const ext = /wav/i.test(`${made.file.content_type ?? ""} ${made.file.name ?? ""}`) ? "wav" : "mp3";
+      await files.saveUrl(`${stem}.${ext}`, (await naive.fileUrl(made.file.id)).url, ext === "wav" ? "audio/wav" : "audio/mpeg");
+      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `Made ${what} on Naive ($${((made.cost_micro_usd ?? 0) / 1e6).toFixed(3)})` });
+      return files.localPath(`${stem}.${ext}`);
+    } catch (error) {
+      if (error instanceof ApiError && error.retryable) throw error; // the cut waits for the next tick
+      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `Cut without ${what}: ${message(error)}` });
+      return null;
+    }
+  };
+  const seconds = Math.min(300, Math.max(3, Math.round((timeline.duration ?? 15) + 2)));
+  const prompt = sound.music;
+  const music = prompt ? await kept(fileKey(creativeId, "music"), "the music bed", () => naive.generateMusic({ prompt, length_seconds: seconds, instrumental: true }, `${creativeId}-music`)) : null;
+  const effects: Partial<Record<keyof typeof SFX, string | null>> = {};
+  if (sound.sfx) {
+    for (const [name, effect] of Object.entries(SFX) as Array<[keyof typeof SFX, (typeof SFX)[keyof typeof SFX]]>) {
+      effects[name] = await kept(effect.key, `the ${name} sound`, () => naive.generateSoundEffect({ prompt: effect.prompt, duration_seconds: effect.seconds }, `organic-sfx-${name}`));
+    }
+  }
+  const sfx = soundCues(timeline).flatMap((cue) => (effects[cue.kind] ? [{ at: cue.at, path: effects[cue.kind]! }] : []));
+  return { ...(music ? { music: { path: music } } : {}), ...(sfx.length ? { sfx } : {}) };
 }
 
 /** Text-to-speech through Naive, saved as a local file for the edit. */

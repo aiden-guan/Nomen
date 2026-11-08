@@ -7,12 +7,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { editFfmpeg, renderTimeline } from "@/lib/creative/edit";
 import { extractFormulas, fallbackFormulas, type Formula, formulaDigest, normalizeFormulas } from "@/lib/creative/formulas";
-import { lintOrganic, normalizeOrganic, type OrganicContext, organicConcept, organicTarget, PUNCH_IN, personaFor, planOrganic, readPersona, sayable, takeSeconds, writeOrganicScript } from "@/lib/creative/organic";
+import { lintOrganic, normalizeOrganic, type OrganicContext, organicConcept, organicTarget, PUNCH_IN, personaFor, planOrganic, readPersona, sayable, soundCues, takeSeconds, writeOrganicScript } from "@/lib/creative/organic";
 import { buildTimeline, planProduction } from "@/lib/creative/plan";
 import { normalizeScript } from "@/lib/creative/script";
 import type { CreativeBrief, ProductBrief, ReferenceBreakdown, Script } from "@/lib/creative/types";
 import { createBrand, listCreatives, startCampaign } from "@/lib/pipeline";
 import { advanceCreative, insertCreative, type ProductionContext } from "@/lib/production";
+import { probe } from "@/lib/media";
 import type { ResearchPack } from "@/lib/research";
 import { normalizeStrategy, ORGANIC_STRATEGY_SCHEMA, organicStrategyMessage } from "@/lib/strategy";
 
@@ -362,6 +363,13 @@ describe("the organic plan shape", () => {
     expect(remake.aroll[0].video_prompt).toContain("propped up");
   });
 
+  it("respells the brand's name when the product says how it is said", () => {
+    expect(sayable("Go to usenaive.ai and open Naïve Studio.", "Naïve", "nah-eev")).toBe("Go to use nah-eev dot A I and open nah-eev Studio.");
+    expect(sayable("NAIVE runs it.", "Naïve", "nah-eev")).toBe("nah-eev runs it.");
+    // The written name stays when no respelling is given.
+    expect(sayable("Open Naïve Studio.", "Naïve")).toBe("Open Naive Studio.");
+  });
+
   it("has her say the brand and its address the way they are spoken, while the captions keep them written", () => {
     expect(sayable("Sign up at usenaive.ai, then open Naïve Studio.", "Naïve")).toBe("Sign up at use naive dot A I, then open Naive Studio.");
     expect(sayable("Go to monid.ai/skill and read docs.monid.com", "Monid")).toBe("Go to monid dot A I slash skill and read docs dot monid dot com");
@@ -390,6 +398,31 @@ describe("the organic plan shape", () => {
       ctx,
     );
     expect(planOrganic(long, brief, product, still).aroll.map((shot) => shot.beats)).toEqual([[1], [2], [3], [4]]);
+  });
+
+  it("asks for small sound effects and no music of its own: the song is picked in the app when posting", () => {
+    const plan = planOrganic(goodScript(), brief, product, still);
+    expect(plan.sound).toEqual({ sfx: true });
+    expect(planProduction(goodScript(), { ...brief, mode: undefined }, product).sound).toBeUndefined();
+  });
+
+  it("places a pop on the hook's text and a whoosh into and out of each run of screens", () => {
+    const cues = soundCues({
+      duration: 16,
+      overlays: [{ start: 0, end: 3, text: "hook" }],
+      segments: [
+        { start: 4, end: 6, layer: "broll" },
+        { start: 6, end: 9, layer: "broll" },
+        { start: 9, end: 12, layer: "broll" },
+      ],
+    });
+    expect(cues).toEqual([
+      { at: 0.05, kind: "pop" },
+      { at: 3.85, kind: "whoosh" },
+      { at: 11.85, kind: "whoosh" },
+    ]);
+    // A screen that runs to the end has no way back to the presenter: no exit whoosh.
+    expect(soundCues({ duration: 10, overlays: [], segments: [{ start: 2, end: 10, layer: "broll" }] })).toEqual([{ at: 1.85, kind: "whoosh" }]);
   });
 
   it("builds screens for the claims, captioned by the edit", () => {
@@ -528,6 +561,32 @@ describe.skipIf(!ffmpeg)("the punch-in", () => {
   afterAll(async () => {
     if (dir) await rm(dir, { recursive: true, force: true });
   });
+
+  it("lays a ducked music bed and sound effects under the voice", async () => {
+    // A "voice" that speaks for the first second and is silent for the second.
+    const voice = join(dir, "voice.mp4");
+    await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=540x960:rate=30:duration=2", "-f", "lavfi", "-i", "aevalsrc='if(lt(t,1),0.5*sin(2*PI*440*t),0)':s=48000:d=2", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", voice]);
+    const bed = join(dir, "bed.wav");
+    await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:duration=1.5:sample_rate=48000", bed]);
+    const pop = join(dir, "pop.wav");
+    await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=1000:duration=0.1:sample_rate=48000", pop]);
+    // RMS of the second half (the voice's pause), from the rendered file's audio.
+    const pauseLevel = async (file: string) => {
+      const { stderr } = await exec(ffmpeg!, ["-hide_banner", "-nostats", "-ss", "1.2", "-t", "0.6", "-i", file, "-af", "astats=measure_overall=RMS_level:measure_perchannel=none", "-f", "null", "-"]);
+      const level = /RMS level dB: (\S+)/.exec(stderr)?.[1];
+      return level === undefined || level === "-inf" ? -200 : Number(level);
+    };
+    const plain = join(dir, "plain-sound.mp4");
+    const scored = join(dir, "scored.mp4");
+    const base = { aroll: [{ path: voice }], audio: null, segments: [], captions: [], overlays: [] };
+    await renderTimeline(base, plain, { workDir: dir });
+    await renderTimeline({ ...base, music: { path: bed }, sfx: [{ at: 1.4, path: pop }] }, scored, { workDir: dir });
+    const info = await probe(scored);
+    expect(info).toMatchObject({ width: 1080, height: 1920, hasAudio: true });
+    expect(info.duration).toBeCloseTo(2, 0);
+    // In the pause there is music (and the pop) where the plain cut is silent.
+    expect(await pauseLevel(scored)).toBeGreaterThan((await pauseLevel(plain)) + 20);
+  }, 120_000);
 
   it("crops into the take when a clip asks for a zoom", async () => {
     const still = async (zoom: number | undefined, name: string) => {
