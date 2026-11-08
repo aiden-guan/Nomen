@@ -8,9 +8,9 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { textWidth } from "@/lib/creative/captions";
 import { DEFAULT_FONT, editFfmpeg, fontMetrics } from "@/lib/creative/edit";
-import { balanceLines, burnedInText, filmedSegments, overlayLines, parseScreenPolicy, screenPolicy, screenPolicyPrompt, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, staticCaption, textsAss, overlayTexts, wordCaptions } from "@/lib/creative/remake";
+import { balanceLines, burnedInText, filmedSegments, findEmoji, measureBoxedText, overlayLines, trailingEmoji, parseScreenPolicy, screenPolicy, screenPolicyPrompt, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, staticCaption, textsAss, overlayTexts, wordCaptions } from "@/lib/creative/remake";
 import { readScreenCorners } from "@/lib/creative/clone";
-import { beatsOfWords, fitSegments, freshVoiceArgs, PHONE_EQ, soundArgs, timeOurLines, timeOurWords, wordsFromSegments } from "@/lib/creative/dub";
+import { beatsOfWords, fitSegments, freshVoiceArgs, PHONE_EQ, soundArgs, timeOurLines, timeOurWords, wholeSoundArgs, wordsFromSegments } from "@/lib/creative/dub";
 import { referenceFrameNote } from "@/lib/creative/screens";
 import { shotReadTimes, trackerPython, trackScreen, trackSpecJson } from "@/lib/creative/track";
 import type { Quad, ReferenceBeat } from "@/lib/creative/types";
@@ -350,6 +350,93 @@ describe("faceless remakes: a redrawn caption in our font", () => {
   });
 });
 
+describe("faceless remakes: a boxed caption drawn as the reference draws it", () => {
+  // A grey crop: a light box (x 20-179, y 10-109) holding three lines of dark strokes 15 px tall,
+  // 30 px apart, and a dark beard beside the box that is no letter.
+  const W = 200;
+  const H = 120;
+  const crop = () => {
+    const grey = new Uint8Array(W * H).fill(120);
+    for (let y = 10; y < 110; y++) for (let x = 20; x < 180; x++) grey[y * W + x] = 255;
+    for (const top of [25, 55, 85]) for (let y = top; y < top + 15; y++) for (let x = 30; x < 170; x++) if (x % 8 < 4) grey[y * W + x] = 20;
+    for (let y = 20; y < 75; y++) for (let x = 182; x < W; x++) grey[y * W + x] = 15;
+    return grey;
+  };
+
+  it("measures the reference's letters and line distance inside the box only", () => {
+    expect(measureBoxedText(crop(), W, H)).toEqual({ cap: 15, pitch: 30 });
+    // One line: no distance to measure.
+    const one = crop();
+    for (let y = 50; y < 110; y++) for (let x = 20; x < 180; x++) one[y * W + x] = 255;
+    expect(measureBoxedText(one, W, H)).toEqual({ cap: 15, pitch: null });
+    expect(measureBoxedText(new Uint8Array(W * H).fill(120), W, H)).toBeNull();
+  });
+
+  it("draws one rounded box per line under letters as tall as the reference's, in the given font", async () => {
+    const metrics = await fontMetrics(DEFAULT_FONT);
+    const overlay = { id: "t2", lines: ["A", "B"], box: { x: 0.05, y: 0.5, w: 0.9, h: 0.1 }, start: 0, end: 6, color: "#000000", outline: "none" as const, shadow: false, background: "#FFFFFF", size: 0.02 };
+    const looks = new Map([["t2", { cap: 50, pitch: 80 }]]);
+    const ass = textsAss([{ overlay, lines: ["I WANT AI AGENTS", "RUNNING MY CHANNEL."] }], "Poppins ExtraBold", metrics, looks);
+    const boxes = ass.split("\n").filter((l) => l.includes("\\p1"));
+    const words = ass.split("\n").filter((l) => l.startsWith("Dialogue: 2,"));
+    expect(boxes).toHaveLength(2);
+    expect(words.map((l) => l.slice(l.indexOf("}") + 1))).toEqual(["I WANT AI AGENTS", "RUNNING MY CHANNEL."]);
+    // Capitals 46 px (the measured 50 less its quotes and commas) in Poppins.
+    const fs = Number(words[0].match(/\\fs(\d+)/)?.[1]);
+    expect(fs).toBe(Math.round((50 * 0.92 * (metrics.ascent + metrics.descent)) / metrics.capHeight));
+    // The lines are 80 px apart, and the first box reaches the reference box's top.
+    const ys = words.map((l) => Number(l.match(/\\pos\(\d+,(\d+)\)/)?.[1]));
+    expect(ys[1] - ys[0]).toBe(80);
+    expect(Number(boxes[0].match(/\\pos\(\d+,(\d+)\)/)?.[1])).toBeLessThanOrEqual(Math.round(0.5 * 1920));
+  });
+});
+
+describe("faceless remakes: the reference's own emoji at a redrawn line's end", () => {
+  it("reads the emoji a line ends with", () => {
+    expect(trailingEmoji("I GAVE IT 👇")).toBe("👇");
+    expect(trailingEmoji("HERE'S THE EXACT TEMPLATE I DEPLOYED 👇🏽 ")).toBe("👇🏽");
+    expect(trailingEmoji("NO EMOJI HERE")).toBe("");
+    expect(trailingEmoji("👇 FIRST, NOT LAST")).toBe("");
+  });
+
+  it("finds the colourful emoji inside the light box, not an arm beside it", () => {
+    // A white box (x 10-149) with a yellow emoji at x 100-119, y 20-39; an orange arm at x 170-199 outside the box.
+    const W = 200;
+    const H = 60;
+    const rgb = new Uint8Array(W * H * 3).fill(140);
+    const paint = (x0: number, y0: number, x1: number, y1: number, c: number[]) => {
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) rgb.set(c, (y * W + x) * 3);
+    };
+    paint(10, 0, 150, 60, [255, 255, 255]);
+    paint(30, 20, 90, 40, [10, 10, 10]);
+    paint(100, 20, 120, 40, [255, 200, 0]);
+    paint(170, 0, 200, 60, [230, 120, 40]);
+    expect(findEmoji(rgb, W, H)).toEqual({ x: 97, y: 17, width: 26, height: 26 });
+    paint(100, 20, 120, 40, [255, 255, 255]);
+    expect(findEmoji(rgb, W, H)).toBeNull();
+  });
+
+  it("marks a redrawn box to keep its shape and its emoji, and ends our last line before the emoji", async () => {
+    const layout = { texts: [{ id: "t3", lines: ["HERE'S THE EXACT PROMPT", "I GAVE IT 👇"], box: { x: 0.16, y: 0.71, w: 0.68, h: 0.12 }, start: 0, end: 6, color: "#000000", outline: "none" as const, shadow: false, background: "#FFFFFF", size: 0.022 }], captions: { present: false } } as unknown as RemakeLayout;
+    const stage = { x: 0, y: 0, width: 1080, height: 1920, band: false };
+    const keep = { x: 625, y: 1490, width: 52, height: 78 };
+    const [entry] = burnedInText(layout, stage, { start: 0, end: 6 }, new Map([["t3", { fill: true, keep }]]));
+    expect(entry).toMatchObject({ background: "#FFFFFF", fill: true, keep });
+    expect(burnedInText(layout, stage, { start: 0, end: 6 })[0].fill).toBeUndefined();
+
+    const metrics = await fontMetrics(DEFAULT_FONT);
+    const ass = textsAss([{ overlay: layout.texts[0], lines: ["HERE'S THE EXACT TEMPLATE", "I DEPLOYED"] }], undefined, metrics, new Map(), new Map([["t3", keep]]));
+    const last = ass.split("\n").filter((l) => l.startsWith("Dialogue: 2,")).pop()!;
+    const fs = Number(last.match(/\\fs(\d+)/)?.[1]);
+    const x = Number(last.match(/\\pos\((\d+),/)?.[1]);
+    expect(x + textWidth("I DEPLOYED", fs, metrics)).toBeLessThan(keep.x);
+    const box = ass.split("\n").filter((l) => l.includes("\\p1")).pop()!;
+    const bx = Number(box.match(/\\pos\((-?\d+),/)?.[1]);
+    const right = Math.max(...[...box.slice(box.indexOf("\\p1}") + 4).matchAll(/(-?\d+) -?\d+/g)].map((m) => Number(m[1])));
+    expect(bx + right).toBeLessThanOrEqual(keep.x);
+  });
+});
+
 describe("faceless remakes: a caption in several boxes", () => {
   const box = (y: number, lines: string[], start = 0, end = 6) => ({ lines, box: { x: 0.05, y, w: 0.9, h: 0.05 }, start, end });
   const caption = [box(0.6, ["HERE'S THE EXACT PROMPT", "I GAVE IT 👇"]), box(0.4, ["I TOLD CLAUDE,"]), box(0.45, ["\"I'M EXHAUSTED, AND I WANT TO STOP", "WORKING IN THE NEXT 2 YEARS. PEOPLE", "HAVE NO IDEA WHAT I DO.\""])];
@@ -359,7 +446,8 @@ describe("faceless remakes: a caption in several boxes", () => {
     const shares = overlayTexts(caption, [beat(0, 6)], [ours]);
     expect(shares[1]).toBe("I TOLD NAÏVE,");
     expect(shares[2]).toBe("\"I'M EXHAUSTED, AND I WANT TO STOP WORKING IN THE NEXT 2 YEARS. I WANT AGENTS TO RUN A FACELESS CHANNEL FOR ME.\"");
-    expect(shares[0]).toBe("HERE'S THE EXACT TEMPLATE I DEPLOYED");
+    // The caption's closing emoji stays with the last box (drawn from the reference's own pixels).
+    expect(shares[0]).toBe("HERE'S THE EXACT TEMPLATE I DEPLOYED 👇");
   });
 
   it("gives one box, or boxes shown one after another, their beat's whole text", () => {
@@ -435,6 +523,14 @@ describe("faceless remakes: sound and reference stills", () => {
   it("knows when the script says nothing (a music video with labels)", () => {
     expect(saysAnything(["", "  ", ""])).toBe(false);
     expect(saysAnything(["", "type mobilerun in comments"])).toBe(true);
+  });
+
+  it("plays the reference's own soundtrack as it is when nothing is said: stereo, capped to the cut", () => {
+    const args = wholeSoundArgs("ref.mp4", 6.36, "out.wav");
+    expect(args).not.toContain("-ac");
+    expect(args.join(" ")).not.toMatch(/loudnorm|volume|sidechain|amix/);
+    expect(args.filter((a) => a === "-t")).toHaveLength(2);
+    expect(args.join(" ")).toContain("apad,atrim=end=6.36");
   });
 
   it("finds the reference moment each graphic or screen stands for", () => {
@@ -522,6 +618,31 @@ describe.skipIf(!python)("faceless remakes: the screen tracker (OpenCV)", () => 
     expect(box).toBeGreaterThan(0.97);
     expect(above).toBe(0);
     expect(below).toBe(0);
+  }, 60_000);
+
+  it("keeps a redrawn box's shape: only its letters go, in the box's colour, and a kept emoji stays", async () => {
+    // A grey wall with a white caption box holding black strokes and a yellow emoji at its end.
+    const script = [
+      "import importlib.util, sys",
+      "import numpy as np",
+      "spec = importlib.util.spec_from_file_location('track', sys.argv[1]); track = importlib.util.module_from_spec(spec); spec.loader.exec_module(track)",
+      "frame = np.full((160, 400, 3), 150, np.uint8)",
+      "frame[40:120, 40:360] = 255",
+      "for i in range(10): frame[60:100, 60 + 22 * i:66 + 22 * i] = 10",
+      "frame[60:100, 300:340] = (0, 200, 255)",
+      // A white shirt's shaded fold touching the box's top edge: never painted over.
+      "frame[22:40, 300:380] = 228",
+      "out = track.erase_text(frame, [(20, 20, 360, 120, '#FFFFFF', True, (296, 56, 48, 48))])",
+      "box = out[40:120, 40:290]",
+      "print(int(box.min()), int((out[60:100, 300:340] == (0, 200, 255)).all()), int((out[0:22] == 150).all()), int((out[130:] == 150).all()), int((out[22:40, 300:380] == 228).all()))",
+    ].join("\n");
+    const { stdout } = await exec(python!, ["-I", "-B", "-c", script, join(process.cwd(), "scripts", "track-screen.py")]);
+    const [boxMin, emojiKept, above, below, shirt] = stdout.trim().split(" ").map(Number);
+    expect(boxMin).toBe(255);
+    expect(emojiKept).toBe(1);
+    expect(above).toBe(1);
+    expect(below).toBe(1);
+    expect(shirt).toBe(1);
   }, 60_000);
 
   it("follows a drifting display from one rough corner read and lays our screen into it", async () => {

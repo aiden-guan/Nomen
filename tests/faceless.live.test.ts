@@ -60,6 +60,8 @@ type Case = {
   screens?: "keep";
   /** "keep": the person in the footage stays as filmed (silent, never talking to the camera). */
   people?: "keep";
+  /** A font file like the reference's caption letters, used when it exists on this machine. */
+  font?: string;
   brief: Omit<CreativeBrief, "reference_id" | "format" | "creator" | "setting" | "visuals">;
   stats: string;
 };
@@ -196,6 +198,8 @@ const CASES: Case[] = [
     speech: "naive",
     screens: "keep",
     people: "keep",
+    // Instagram's condensed caption capitals: macOS's DIN Condensed is close (not in the repo; Poppins without it).
+    font: "/System/Library/Fonts/Supplemental/DIN Condensed Bold.ttf",
     stats: "407,862 views · 2,270 likes · 1,764 comments · 6.2 s · Instagram reel · prompt-in-the-caption CTA",
     brief: {
       title: "I told Naïve I'm exhausted",
@@ -332,6 +336,7 @@ describe.skipIf(!live)("faceless one-to-one remakes (live, paid)", () => {
             voiceEq: c.voiceEq,
             screens: c.screens,
             people: c.people,
+            captionFont: c.font && existsSync(c.font) ? c.font : undefined,
             finish: process.env.NOMEN_REMAKE_FINISH !== "0",
             idem: `faceless-live-${c.name}-${tag}`,
             onEvent: log,

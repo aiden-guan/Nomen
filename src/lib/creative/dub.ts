@@ -413,6 +413,9 @@ export function voiceRuns(lines: VoiceLine[], timed: TimedWord[], host: string, 
 /** The reference's sound, 0 to `end`, mono 44.1 kHz. */
 export const extractArgs = (reference: string, end: number, out: string) => ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", reference, "-t", fmt(end), "-vn", "-ac", "1", "-ar", "44100", out];
 
+/** The reference's own soundtrack as it is (stereo, its level, its drop), exactly `end` seconds: what a remake that says nothing plays. */
+export const wholeSoundArgs = (reference: string, end: number, out: string) => ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", reference, "-t", fmt(end), "-vn", "-af", `apad,atrim=end=${fmt(end)}`, "-t", fmt(end), "-ar", "44100", out];
+
 /** A spoken phrase without its leading and trailing silence. */
 export const tightenArgs = (raw: string, out: string) => ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", raw, "-af", "silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.15,aresample=44100", "-ac", "1", out];
 

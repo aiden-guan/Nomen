@@ -34,7 +34,7 @@ import type { NaiveClient } from "../naive";
 import { type CloneVerdict, QC_MODEL, reviewClone, reviewFrame } from "../qc";
 import { extractJson } from "../research";
 import type { Files } from "../store/types";
-import { type CaptionStyle, escapeAssText, type FontMetrics, textWidth, toAss } from "./captions";
+import { type CaptionStyle, escapeAssText, type FontMetrics, roundedRect, textWidth, toAss } from "./captions";
 import {
   chunkTakes,
   type CloneLayer,
@@ -47,6 +47,7 @@ import {
   frameArgs,
   grabGrey,
   grabJpeg,
+  grabRgb,
   GREEN_GATE,
   keyFilter,
   cornerColor,
@@ -69,7 +70,7 @@ import {
   voiceStats,
   warpKeys,
 } from "./clone";
-import { type AudioRecord, demucs, extractArgs, makeVoice, type NaiveSpeech, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurLines, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
+import { type AudioRecord, demucs, extractArgs, makeVoice, type NaiveSpeech, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurLines, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece, wholeSoundArgs } from "./dub";
 import { DEFAULT_FONT, FINISHED_ENCODE, fontMetrics, PICTURE_FINISH, renderTimeline } from "./edit";
 import { CHARACTER_STYLE, genderOf, type Persona } from "./persona";
 import { decodeRgb, makePlate, newPlateRecord, type PlateRecord } from "./plate";
@@ -449,12 +450,16 @@ export function fitToVertical(layout: RemakeLayout, reference: { width: number; 
   };
 }
 
+/** How a boxed text overlay's original goes when ours is drawn over it: keep the box (paint out only its letters), and an emoji rect (stage pixels) to leave. */
+export type Redraw = { fill: boolean; keep?: Rect };
+
 /**
  * Where the reference has words burned into its footage during a stretch, in stage pixels: its
  * caption strip (while captions show) and every text overlay's box in its window. Kept footage
- * (a filmed screen) gets them painted out, so ours are the only words on screen.
+ * (a filmed screen) gets them painted out, so ours are the only words on screen; a box in `redraw`
+ * keeps its shape and loses only its letters.
  */
-export function burnedInText(layout: Pick<RemakeLayout, "texts" | "captions">, stage: Stage, span: { start: number; end: number }): Array<{ x: number; y: number; width: number; height: number; start: number; end: number; background?: string }> {
+export function burnedInText(layout: Pick<RemakeLayout, "texts" | "captions">, stage: Stage, span: { start: number; end: number }, redraw?: Map<string, Redraw>): Array<{ x: number; y: number; width: number; height: number; start: number; end: number; background?: string; fill?: boolean; keep?: Rect }> {
   const toStage = (box: Box, pad: number) => {
     const x = Math.max(0, Math.round((box.x - pad) * OUT.width - stage.x));
     const y = Math.max(0, Math.round((box.y - pad / 2) * OUT.height - stage.y));
@@ -462,12 +467,13 @@ export function burnedInText(layout: Pick<RemakeLayout, "texts" | "captions">, s
     const bottom = Math.min(stage.height, Math.round((box.y + box.h + pad / 2) * OUT.height - stage.y));
     return right - x >= 4 && bottom - y >= 4 ? { x, y, width: right - x, height: bottom - y } : null;
   };
-  const out: Array<{ x: number; y: number; width: number; height: number; start: number; end: number; background?: string }> = [];
+  const out: Array<{ x: number; y: number; width: number; height: number; start: number; end: number; background?: string; fill?: boolean; keep?: Rect }> = [];
   for (const t of layout.texts) {
     if (t.end <= span.start || t.start >= span.end) continue;
     const rect = toStage(t.box, 0.02);
-    // Text on a solid box (black on white): the box and its letters go together.
-    if (rect) out.push({ ...rect, start: Math.max(span.start, t.start), end: Math.min(span.end, t.end), ...(t.background ? { background: t.background } : {}) });
+    // Text on a solid box (black on white): the box and its letters go together, unless ours is drawn over that box.
+    const r = t.background ? redraw?.get(t.id) : undefined;
+    if (rect) out.push({ ...rect, start: Math.max(span.start, t.start), end: Math.min(span.end, t.end), ...(t.background ? { background: t.background } : {}), ...(r?.fill ? { fill: true, ...(r.keep ? { keep: r.keep } : {}) } : {}) });
   }
   if (layout.captions.present !== false) {
     const c = layout.captions;
@@ -787,20 +793,186 @@ const assColour = (hexColour: string, alpha = 0) => {
 /** Colour emoji (with their joiners, skin tones and variation selectors): libass draws them as empty boxes. */
 const UNDRAWABLE = /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u200D\uFE0F]/gu;
 
+/** A boxed caption's letters as the reference draws them, in output pixels: capital height and the distance between lines. */
+export type BoxedLook = { cap: number; pitch: number | null };
+
+/**
+ * The reference's own letters in a caption box (dark strokes on a light box), from a grey crop of
+ * the box: the median height of its text lines (capitals, with their quotes and commas) and the
+ * median distance between them, in the crop's pixels. Only columns inside the light box count, so
+ * a beard or a laptop beside it is not a letter. Null when no clean line is found.
+ */
+export function measureBoxedText(grey: Uint8Array, width: number, height: number): BoxedLook | null {
+  const light = (x: number, y: number) => grey[y * width + x] > 200;
+  const cols: number[] = [];
+  for (let x = 0; x < width; x++) {
+    let n = 0;
+    for (let y = 0; y < height; y++) if (light(x, y)) n++;
+    if (n >= height * 0.5) cols.push(x);
+  }
+  if (cols.length < 8) return null;
+  const [left, right] = [cols[0] + 3, cols[cols.length - 1] - 3];
+  const rows: boolean[] = [];
+  for (let y = 0; y < height; y++) {
+    let strokes = 0;
+    for (let x = left; x <= right; x++) {
+      if (grey[y * width + x] >= 90) continue;
+      let near = false;
+      for (let d = 1; d <= 6 && !near; d++) near = (x - d >= 0 && light(x - d, y)) || (x + d < width && light(x + d, y));
+      if (near) strokes++;
+    }
+    rows.push(strokes >= 3);
+  }
+  const runs: Array<{ start: number; end: number }> = [];
+  rows.forEach((on, y) => {
+    const last = runs[runs.length - 1];
+    if (on && last && y - last.end <= 1) last.end = y + 1;
+    else if (on) runs.push({ start: y, end: y + 1 });
+  });
+  const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+  const typical = runs.length ? median(runs.map((r) => r.end - r.start)) : 0;
+  // A run of only a quote mark or a comma is no line.
+  const lines = runs.filter((r) => r.end - r.start >= Math.max(4, typical * 0.6));
+  if (!lines.length) return null;
+  const pitches = lines.slice(1).map((r, i) => r.start - lines[i].start);
+  return { cap: median(lines.map((r) => r.end - r.start)), pitch: pitches.length ? median(pitches) : null };
+}
+
+/** The emoji a line ends with ("I GAVE IT 👇" → "👇"), joiners and skin tones included; "" when none. */
+export function trailingEmoji(text: string): string {
+  return text.trim().match(/\p{Extended_Pictographic}[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}‍️]*$/u)?.[0] ?? "";
+}
+
+/**
+ * A colour emoji inside a light caption box, from an RGB crop of the box: the biggest patch of
+ * saturated colour within the box's light columns (a tattooed arm beside the box is not in them),
+ * a little padded. Null when there is none worth keeping.
+ */
+export function findEmoji(rgb: Uint8Array, width: number, height: number): Rect | null {
+  const px = (x: number, y: number) => (y * width + x) * 3;
+  const cols: number[] = [];
+  for (let x = 0; x < width; x++) {
+    let n = 0;
+    for (let y = 0; y < height; y++) {
+      const i = px(x, y);
+      if (rgb[i] > 200 && rgb[i + 1] > 200 && rgb[i + 2] > 200) n++;
+    }
+    if (n >= height * 0.4) cols.push(x);
+  }
+  if (cols.length < 8) return null;
+  const [left, right] = [cols[0], cols[cols.length - 1]];
+  const colourful = (x: number, y: number) => {
+    const i = px(x, y);
+    const hi = Math.max(rgb[i], rgb[i + 1], rgb[i + 2]);
+    return hi > 110 && hi - Math.min(rgb[i], rgb[i + 1], rgb[i + 2]) > 70;
+  };
+  const seen = new Uint8Array(width * height);
+  let best: { n: number; x0: number; y0: number; x1: number; y1: number } | null = null;
+  for (let y = 0; y < height; y++) {
+    for (let x = left; x <= right; x++) {
+      if (seen[y * width + x] || !colourful(x, y)) continue;
+      const blob = { n: 0, x0: x, y0: y, x1: x, y1: y };
+      const stack = [[x, y]];
+      seen[y * width + x] = 1;
+      while (stack.length) {
+        const [cx, cy] = stack.pop()!;
+        blob.n++;
+        [blob.x0, blob.y0, blob.x1, blob.y1] = [Math.min(blob.x0, cx), Math.min(blob.y0, cy), Math.max(blob.x1, cx), Math.max(blob.y1, cy)];
+        for (const [nx, ny] of [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]]) {
+          if (nx < left || nx > right || ny < 0 || ny >= height || seen[ny * width + nx] || !colourful(nx, ny)) continue;
+          seen[ny * width + nx] = 1;
+          stack.push([nx, ny]);
+        }
+      }
+      if (!best || blob.n > best.n) best = blob;
+    }
+  }
+  if (!best || best.n < 40 || best.y1 - best.y0 < 8) return null;
+  const pad = 3;
+  const x = Math.max(0, best.x0 - pad);
+  const y = Math.max(0, best.y0 - pad);
+  return { x, y, width: Math.min(width, best.x1 + pad + 1) - x, height: Math.min(height, best.y1 + pad + 1) - y };
+}
+
+/**
+ * Boxed caption lines laid out the way Instagram draws them: one rounded box per line, touching the
+ * next, the block centred on the reference's box (as tall as it when the lines fit), letters as tall
+ * as the reference's (`look`, measured; else the reader's size) in our font, a line too wide squeezed.
+ * With the reference's own `emoji` kept in the footage (output pixels), the last line ends a space
+ * before it and its box stops short of it.
+ */
+function boxedEvents(overlay: TextOverlay, drawn: string[], metrics: FontMetrics, look: BoxedLook | undefined, at: string, emoji?: Rect): string[] {
+  const cell = metrics.ascent + metrics.descent;
+  const reader = overlay.size * OUT.height;
+  const measured = look && look.cap > reader * 0.5 && look.cap < reader * 2.5 ? look : undefined;
+  // The measured height carries quotes and commas; the capitals themselves are a little shorter.
+  const cap = measured ? measured.cap * 0.92 : reader;
+  const pitch = measured?.pitch && measured.pitch > cap * 1.1 && measured.pitch < cap * 3 ? measured.pitch : cap * 1.6;
+  let fs = Math.round((cap * cell) / metrics.capHeight);
+  const padX = Math.round(cap * 0.5);
+  const cx = Math.round((overlay.box.x + overlay.box.w / 2) * OUT.width);
+  const room = 2 * (Math.min(cx, OUT.width - cx) - OUT.width * 0.03) - 2 * padX;
+  let squeeze = 100;
+  const widest = Math.max(...drawn.map((line) => textWidth(line, fs, metrics)));
+  if (room > 0 && widest > room) {
+    squeeze = Math.max(75, Math.floor((100 * room) / widest));
+    if ((widest * squeeze) / 100 > room) fs = Math.floor((fs * room * 100) / (widest * squeeze));
+  }
+  const capPx = (metrics.capHeight * fs) / cell;
+  const refTop = overlay.box.y * OUT.height;
+  const refHeight = overlay.box.h * OUT.height;
+  const block = (drawn.length - 1) * pitch + capPx;
+  const top = refTop + (refHeight - block) / 2;
+  const half = (pitch - capPx) / 2;
+  const fits = block + 2 * half <= refHeight * 1.1;
+  const radius = Math.round(Math.min(pitch * 0.32, cap * 0.6));
+  const fill = assColour(overlay.background ?? "#FFFFFF");
+  const ink = assColour(overlay.color);
+  const events: string[] = [];
+  drawn.forEach((line, k) => {
+    const width = (textWidth(line, fs, metrics) * squeeze) / 100;
+    const capTop = top + k * pitch;
+    // Each box reaches up under the one before (no notch between rounded corners); the first and last reach the reference box's edges.
+    let y0 = capTop - half - (k ? radius : 0);
+    let y1 = capTop + capPx + half;
+    if (fits && k === 0) y0 = Math.min(y0, refTop);
+    if (fits && k === drawn.length - 1) y1 = Math.max(y1, refTop + refHeight);
+    let left = cx - width / 2;
+    let boxRight = left + width + padX;
+    if (emoji && k === drawn.length - 1 && emoji.x - width - (textWidth(" ", fs, metrics) * squeeze) / 100 > OUT.width * 0.03) {
+      left = emoji.x - (textWidth(" ", fs, metrics) * squeeze) / 100 - width;
+      boxRight = Math.min(left + width + padX, emoji.x - 1);
+    }
+    const x0 = left - padX;
+    events.push(`Dialogue: 1,${at},Text,,0,0,0,,{\\an7\\pos(${Math.round(x0)},${Math.round(y0)})\\bord0\\shad0\\1c${fill}\\p1}${roundedRect(boxRight - x0, y1 - y0, radius)}{\\p0}`);
+    const lineTop = capTop - ((metrics.ascent - metrics.capHeight) * fs) / cell;
+    events.push(`Dialogue: 2,${at},Text,,0,0,0,,{\\an7\\pos(${Math.round(left)},${Math.round(lineTop)})\\fs${fs}${squeeze < 100 ? `\\fscx${squeeze}` : ""}\\bord0\\shad0\\1c${ink}}${escapeAssText(line, "space")}`);
+  });
+  return events;
+}
+
 /**
  * The text overlays as an ASS file: each at its reference box (centred on the box, from its top),
  * at its letter size, colour, outline, shadow and background box, with our words. Emoji are left
- * out (libass cannot draw them). With the font's `metrics`, a line too wide for the frame in our
- * font (wider than most captions' condensed ones) is squeezed to as little as 75%, then made smaller.
+ * out (libass cannot draw them). With the font's `metrics`, a boxed caption is laid out line by line
+ * as Instagram draws it (boxedEvents, sized by `looks`, the reference's measured letters), and a
+ * line too wide for the frame in our font is squeezed to as little as 75%, then made smaller.
  */
-export function textsAss(items: Array<{ overlay: TextOverlay; lines: string[] }>, fontName = "Poppins ExtraBold", metrics?: FontMetrics): string {
+export function textsAss(items: Array<{ overlay: TextOverlay; lines: string[] }>, fontName = "Poppins ExtraBold", metrics?: FontMetrics, looks: Map<string, BoxedLook> = new Map(), emojis: Map<string, Rect> = new Map()): string {
   const time = (s: number) => {
     const cs = Math.max(0, Math.round(s * 100));
     return `${Math.floor(cs / 360000)}:${String(Math.floor(cs / 6000) % 60).padStart(2, "0")}:${String(Math.floor(cs / 100) % 60).padStart(2, "0")}.${String(cs % 100).padStart(2, "0")}`;
   };
+  // A boxed caption's lines share one look: a box measured without a second line takes the others' distance.
+  const pitches = [...looks.values()].map((l) => l.pitch).filter((p): p is number => p !== null);
+  const sharedPitch = pitches.length ? pitches.sort((a, b) => a - b)[Math.floor(pitches.length / 2)] : null;
   const events = items.flatMap(({ overlay, lines }) => {
     const drawn = lines.map((line) => line.replace(UNDRAWABLE, "").replace(/\s{2,}/g, " ").trim()).filter(Boolean);
     if (!drawn.length) return [];
+    if (overlay.background && metrics) {
+      const look = looks.get(overlay.id);
+      return boxedEvents(overlay, drawn, metrics, look ? { ...look, pitch: look.pitch ?? sharedPitch } : undefined, `${time(overlay.start)},${time(overlay.end)}`, emojis.get(overlay.id));
+    }
     let size = Math.round((overlay.size * OUT.height) / 0.7);
     const x = Math.round((overlay.box.x + overlay.box.w / 2) * OUT.width);
     const y = Math.round(overlay.box.y * OUT.height);
@@ -883,7 +1055,11 @@ export function overlayTexts(overlays: Array<Pick<TextOverlay, "lines" | "box" |
     if (!together) continue;
     const order = [...group].sort((a, b) => overlays[a].box.y - overlays[b].box.y);
     const parts = overlayLines(texts[i], order.map((k) => overlays[k].lines.join(" ")));
-    if (parts.length === order.length) order.forEach((k, j) => (out[k] = parts[j]));
+    if (parts.length !== order.length) continue;
+    // The split drops emoji; one the caption ends with goes back on the last box.
+    const tail = trailingEmoji(texts[i]);
+    if (tail) parts[parts.length - 1] = `${parts[parts.length - 1]} ${tail}`;
+    order.forEach((k, j) => (out[k] = parts[j]));
   }
   return out;
 }
@@ -1360,6 +1536,8 @@ export type RemakeInput = {
    * with only the burned-in words painted out, and nobody is re-performed.
    */
   people?: "keep";
+  /** A font file (.ttf) for the redrawn text overlays when the reference's letters are unlike ours (a condensed one); default Poppins ExtraBold. */
+  captionFont?: string;
   /** Prefix of every idempotency key: stable per video, so a rerun never pays twice. */
   idem: string;
   /** Personas still to make for this remake (their portraits count in the estimate). */
@@ -1783,6 +1961,40 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     }
   });
 
+  // Our words for each text overlay. A box we redraw with as many lines keeps the reference's shape
+  // (only its letters are painted out, so nothing smears beside a narrower line of ours), and an
+  // emoji our last line ends with too stays where the reference has it, our line ending before it.
+  const shares = overlayTexts(layout.texts, span.beats, lines.map((l) => l.on_screen_text ?? ""));
+  const texts = layout.texts
+    .map((overlay, k) => {
+      const i = overlayBeat(overlay, span.beats);
+      // A label that shows the spoken line shows ours (TikTok's read-out labels), in its letter case.
+      const spoken = labelSaysLine(overlay.lines, span.beats[i]?.line ?? "");
+      const ours = shares[k] || (spoken ? labelCase(lines[i]?.line ?? "", overlay.lines) : "");
+      return { overlay, spoken, share: ours, lines: overlayLines(ours, overlay.lines) };
+    })
+    .filter((t) => t.lines.length && t.overlay.start < end)
+    .map((t) => ({ ...t, overlay: { ...t.overlay, end: Math.min(end, t.overlay.end) } }));
+  const redraw = new Map<string, Redraw>();
+  const emojis = new Map<string, Rect>();
+  for (const t of texts) {
+    const theirs = t.overlay.lines.filter((l) => l.trim());
+    if (!t.overlay.background || t.lines.length < theirs.length) continue;
+    let keep: Rect | undefined;
+    const emoji = trailingEmoji(theirs[theirs.length - 1] ?? "");
+    const r = { x: Math.round(t.overlay.box.x * OUT.width - stage.x), y: Math.round(t.overlay.box.y * OUT.height - stage.y), width: Math.round(t.overlay.box.w * OUT.width), height: Math.round(t.overlay.box.h * OUT.height) };
+    const inside = r.width >= 16 && r.height >= 16 && r.x >= 0 && r.y >= 0 && r.x + r.width <= stage.width && r.y + r.height <= stage.height;
+    if (emoji && inside && t.lines.length === theirs.length && trailingEmoji(t.share) === emoji) {
+      const rgb = await grabRgb(input.referencePath, (t.overlay.start + t.overlay.end) / 2, r.width, r.height, toRef(r)).catch(() => null);
+      const found = rgb ? findEmoji(rgb, r.width, r.height) : null;
+      if (found) {
+        keep = { x: r.x + found.x, y: r.y + found.y, width: found.width, height: found.height };
+        emojis.set(t.overlay.id, { ...keep, x: keep.x + stage.x, y: keep.y + stage.y });
+      }
+    }
+    redraw.set(t.overlay.id, { fill: true, ...(keep ? { keep } : {}) });
+  }
+
   // 9. Graphics, then the filmed monitors (they show the screens the builder made).
   await graphicsJob;
   const built = new Map<string, { kind: "video" | "image"; path: string }>();
@@ -1797,7 +2009,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
       // Every cut inside the segment, also one a frame from its edge: the tracker treats each shot alone.
       const softCuts = (manifest.soft_cuts ?? cuts).filter((c) => c > layer.start + 0.03 && c < layer.end - 0.03);
       const path = keepScreens.has(layer.id)
-        ? await keptScreen(work, manifest, { layer, layout, stage, stageRef, reference: input.referencePath })
+        ? await keptScreen(work, manifest, { layer, layout, stage, stageRef, reference: input.referencePath, redraw })
         : await filmedMonitor(work, naive, manifest, { layer, segment, layout, stage, stageRef, reference: input.referencePath, built, product: input.product, mode: input.screens === "keep" ? "auto" : (input.screens ?? "auto"), cuts: manifest.real?.[layer.id] ?? [], softCuts, display: input.display, idem: `${input.idem}-${layer.id}` });
       if (!path) manifest.fallbacks[layer.id] ??= "the filmed monitor could not be rebuilt";
     } catch (error) {
@@ -1895,7 +2107,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
       }
     } else if (layer.kind === "keep") {
       // Faceless: kept footage has its burned-in words painted out, as a kept screen does, so ours are the only ones.
-      const kept = !people && burnedInText(layout, stage, layer).length ? await keptScreen(work, manifest, { layer, layout, stage, stageRef, reference: input.referencePath }) : null;
+      const kept = !people && burnedInText(layout, stage, layer).length ? await keptScreen(work, manifest, { layer, layout, stage, stageRef, reference: input.referencePath, redraw }) : null;
       stagePieces.push(kept ? { path: kept, kind: "video", from: 0, seconds: len } : { path: input.referencePath, kind: "video", from: layer.start, seconds: len, crop: stageRef });
     } else if (layer.kind === "screen" && !manifest.fallbacks[layer.id] && (await work.local(manifest.screens[layer.id]?.clip_key))) {
       stagePieces.push({ path: (await work.local(manifest.screens[layer.id].clip_key))!, kind: "video", from: 0, seconds: len });
@@ -1930,28 +2142,33 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   });
 
   const soundtrack = join(dir, "soundtrack.wav");
-  await ffmpeg(soundArgs({ voices: pieces, bed: reference.bed, duration: end, finish, out: soundtrack, voiceEq: input.voiceEq }));
+  // Nothing of ours is said: the reference's soundtrack plays as it is (no mono bed, ducking or loudness pass to flatten its drop).
+  if (!pieces.length && !saysAnything(scriptLines)) await ffmpeg(wholeSoundArgs(input.referencePath, end, soundtrack));
+  else await ffmpeg(soundArgs({ voices: pieces, bed: reference.bed, duration: end, finish, out: soundtrack, voiceEq: input.voiceEq }));
 
   const cut = join(dir, "cut");
   await rm(cut, { recursive: true, force: true });
   await mkdir(join(cut, "fonts"), { recursive: true });
   await copyFile(DEFAULT_FONT, join(cut, "fonts", basename(DEFAULT_FONT)));
   const ass: string[] = [];
-  const shares = overlayTexts(layout.texts, span.beats, lines.map((l) => l.on_screen_text ?? ""));
-  const texts = layout.texts
-    .map((overlay, k) => {
-      const i = overlayBeat(overlay, span.beats);
-      // A label that shows the spoken line shows ours (TikTok's read-out labels), in its letter case.
-      const spoken = labelSaysLine(overlay.lines, span.beats[i]?.line ?? "");
-      const ours = shares[k] || (spoken ? labelCase(lines[i]?.line ?? "", overlay.lines) : "");
-      return { overlay, spoken, lines: overlayLines(ours, overlay.lines) };
-    })
-    .filter((t) => t.lines.length && t.overlay.start < end)
-    .map((t) => ({ ...t, overlay: { ...t.overlay, end: Math.min(end, t.overlay.end) } }));
   const skipped = layout.texts.length - texts.length;
   if (skipped > 0) notes.push(`${skipped} text overlay${skipped > 1 ? "s" : ""} left out: the script gave no on-screen text for ${skipped > 1 ? "their beats" : "its beat"}`);
   if (texts.length) {
-    await writeFile(join(cut, "texts.ass"), textsAss(texts, undefined, await fontMetrics(DEFAULT_FONT)), "utf8");
+    // Redrawn text in the reference's kind of letters when one is given (a condensed font), else ours.
+    const textFont = input.captionFont && existsSync(input.captionFont) ? input.captionFont : DEFAULT_FONT;
+    if (textFont !== DEFAULT_FONT) await copyFile(textFont, join(cut, "fonts", basename(textFont)));
+    const textMetrics = await fontMetrics(textFont);
+    // The reference's own letters in each boxed caption, so ours are as tall and as far apart.
+    const looks = new Map<string, BoxedLook>();
+    for (const { overlay } of texts) {
+      if (!overlay.background) continue;
+      const r = { x: Math.round(overlay.box.x * OUT.width - stage.x), y: Math.round(overlay.box.y * OUT.height - stage.y), width: Math.round(overlay.box.w * OUT.width), height: Math.round(overlay.box.h * OUT.height) };
+      if (r.width < 16 || r.height < 16 || r.x < 0 || r.y < 0 || r.x + r.width > stage.width || r.y + r.height > stage.height) continue;
+      const grey = await grabGrey(input.referencePath, (overlay.start + overlay.end) / 2, r.width, r.height, toRef(r)).catch(() => null);
+      const look = grey ? measureBoxedText(grey, r.width, r.height) : null;
+      if (look) looks.set(overlay.id, look);
+    }
+    await writeFile(join(cut, "texts.ass"), textsAss(texts, textMetrics.family || undefined, textMetrics, looks, emojis), "utf8");
     ass.push("texts.ass");
   }
   // Word captions only where the reference has them (a voice-over ad's only words may be its graphics').
@@ -2101,9 +2318,9 @@ async function twinFrame(
  * burned-in captions painted out (OpenCV, as the tracker), so the edit's captions are the only words
  * on it. Without OpenCV, or with nothing to paint out, the footage itself.
  */
-async function keptScreen(work: Work, manifest: Manifest, o: { layer: CloneLayer; layout: RemakeLayout; stage: Stage; stageRef: Rect; reference: string }): Promise<string> {
+async function keptScreen(work: Work, manifest: Manifest, o: { layer: CloneLayer; layout: RemakeLayout; stage: Stage; stageRef: Rect; reference: string; redraw?: Map<string, Redraw> }): Promise<string> {
   const { layer, stage } = o;
-  const erase = burnedInText(o.layout, stage, layer);
+  const erase = burnedInText(o.layout, stage, layer, o.redraw);
   const python = trackerPython();
   const key = hash([layer.id, layer.start, layer.end, "keep", erase, python ? "erase" : ""]);
   const rec = (manifest.screens[layer.id] = manifest.screens[layer.id]?.key === key ? manifest.screens[layer.id] : { key });

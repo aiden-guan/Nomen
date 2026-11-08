@@ -91,7 +91,8 @@ export type TrackSpec = {
   anchors: Array<{ t: number; quad: Quad }>;
   out: string;
   /** Where the reference has burned-in captions or labels, painted out of its footage (stage pixels, absolute seconds). */
-  erase?: Array<Rect & { start: number; end: number; background?: string }>;
+  /** Burned-in words to paint out; `fill`: a box redrawn over keeps its shape (only its letters go), less `keep` (an emoji that stays). */
+  erase?: Array<Rect & { start: number; end: number; background?: string; fill?: boolean; keep?: Rect }>;
   /** How far our screen takes on the reference display's black level, white point and tint (0-1). */
   match?: number;
   quads_out?: string;

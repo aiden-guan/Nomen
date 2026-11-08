@@ -194,8 +194,15 @@ reference's own footage stays and only the product content and the voice change.
 - **A silent person in the footage** (someone at a desk under a caption, never talking to the
   camera) stays as filmed with `people: "keep"`: nobody is re-performed, and every kept shot of a
   faceless remake has its burned-in words painted out so the redrawn caption is the only one.
-- **Redrawn captions** leave out emoji (libass draws them as empty boxes) and squeeze a line our
-  font makes too wide for the frame (to 75%, then smaller).
+- **Redrawn captions** in boxes (Instagram's black on white) are laid out line by line as Instagram
+  draws them: one rounded box per line, letters as tall as the reference's own (measured in its
+  frame) in the font's true metrics, its line spacing, in `captionFont` when given (a condensed
+  face for condensed captions; Poppins otherwise). A caption in several boxes splits our text
+  between them by their words. The original box keeps its shape and only its letters are painted
+  out (no smear beside a narrower line of ours); an emoji our line ends with too stays as the
+  reference's own pixels, our line ending before it. Other emoji are left out (libass draws empty
+  boxes), and a line too wide for the frame is squeezed (to 75%, then smaller).
+- **Nothing said**: the reference's soundtrack plays as it is (stereo, its level and its drop).
 - **Labels a voice reads out** (TikTok's text to speech) show our line in their case; captions stay
   out of a label's window and never run across two lines.
 - **A voice-over ad** keeps no captions when the reference has none (`captions.present`), and a

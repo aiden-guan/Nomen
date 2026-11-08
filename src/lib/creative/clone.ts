@@ -406,6 +406,16 @@ export async function grabGrey(path: string, at: number, width: number, height: 
   return new Uint8Array(stdout as unknown as Buffer);
 }
 
+/** A frame's crop as RGB, 3 bytes a pixel, scaled to width x height. */
+export async function grabRgb(path: string, at: number, width: number, height: number, crop: Rect): Promise<Uint8Array> {
+  const { stdout } = await exec(
+    await ffmpegBin(),
+    ["-hide_banner", "-loglevel", "error", "-ss", fmt(Math.max(0, at)), "-i", path, "-frames:v", "1", "-vf", `crop=${crop.width}:${crop.height}:${crop.x}:${crop.y},scale=${width}:${height}`, "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1"],
+    { encoding: "buffer", maxBuffer: 32 * 1024 * 1024 },
+  );
+  return new Uint8Array(stdout as unknown as Buffer);
+}
+
 /** A stage rect in the reference's own pixels. */
 export function toReference(rect: Rect, stage: Stage, reference: { width: number; height: number }, out = { width: 1080, height: 1920 }): Rect {
   const sx = reference.width / out.width;

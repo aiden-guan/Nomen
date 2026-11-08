@@ -221,7 +221,9 @@ def erase_boxes(spec, i, scale=(1.0, 1.0)):
     out = []
     for e in spec.get("erase", []):
         if e["start"] - 0.05 <= t < e["end"] + 0.05:
-            out.append((int(e["x"] * scale[0]), int(e["y"] * scale[1]), max(1, int(e["width"] * scale[0])), max(1, int(e["height"] * scale[1])), e.get("background")))
+            keep = e.get("keep")
+            keep = (int(keep["x"] * scale[0]), int(keep["y"] * scale[1]), int(keep["width"] * scale[0]), int(keep["height"] * scale[1])) if keep else None
+            out.append((int(e["x"] * scale[0]), int(e["y"] * scale[1]), max(1, int(e["width"] * scale[0])), max(1, int(e["height"] * scale[1])), e.get("background"), bool(e.get("fill")), keep))
     return out
 
 
@@ -236,7 +238,7 @@ def exclusion(spec, frames, scale):
     def exclude(i):
         frame = frames[i]
         mask = np.zeros(frame.shape, np.uint8)
-        for x, y, w, h, _ in erase_boxes(spec, i, scale):
+        for x, y, w, h, *_ in erase_boxes(spec, i, scale):
             x0, y0 = max(0, x), max(0, y)
             roi = frame[y0:y + h, x0:x + w]
             if roi.size:
@@ -287,17 +289,52 @@ def box_mask(roi, background):
     return cv2.dilate(keep, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
 
 
+def box_letters(roi, background):
+    """
+    What sits inside a solid caption box that is not the box: its letters, and an emoji at a line's
+    end. The box is its exact colour (flat, unlike a white shirt beside it), its outline filled in,
+    holes and all; only ink far from that colour inside it counts (and the soft edge around it), so
+    the light shading of whatever touches the box is never painted over.
+    """
+    bg = np.array([int(background[5:7], 16), int(background[3:5], 16), int(background[1:3], 16)], np.int32)
+    diff = np.abs(roi.astype(np.int32) - bg).sum(axis=2)
+    near = (diff < 36).astype(np.uint8) * 255
+    k = max(9, (roi.shape[0] // 12) | 1)
+    closed = cv2.morphologyEx(near, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (k, k)))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(closed, connectivity=8)
+    shape = np.zeros_like(closed)
+    for i in range(1, count):
+        if stats[i, cv2.CC_STAT_AREA] >= 0.002 * roi.shape[0] * roi.shape[1] and stats[i, cv2.CC_STAT_HEIGHT] >= 6:
+            part = (labels == i).astype(np.uint8) * 255
+            contours, _ = cv2.findContours(part, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(shape, contours, -1, 255, thickness=-1)
+    ink = cv2.dilate((diff > 200).astype(np.uint8) * 255, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    return ink & shape, bg
+
+
 def erase_text(frame, boxes):
-    """The frame with the burned-in captions in `boxes` painted out from their surroundings."""
+    """
+    The frame with the burned-in captions in `boxes` painted out: from their surroundings, or (a box
+    our caption is redrawn over, `fill`) only its letters, in the box's colour, so the box itself
+    stays as the reference drew it and nothing smears where our lines are narrower. A `keep` rect
+    (an emoji our line ends with too) is left as it is.
+    """
     if not boxes:
         return frame
     out = frame.copy()
     H, W = out.shape[:2]
-    for x, y, w, h, background in boxes:
+    for x, y, w, h, background, fill, keep in boxes:
         x0, y0, x1, y1 = max(0, x), max(0, y), min(W, x + w), min(H, y + h)
         if x1 - x0 < 4 or y1 - y0 < 4:
             continue
         roi = out[y0:y1, x0:x1]
+        if background and fill:
+            mask, bg = box_letters(roi, background)
+            if keep:
+                kx, ky, kw, kh = keep
+                mask[max(0, ky - y0):max(0, ky - y0 + kh), max(0, kx - x0):max(0, kx - x0 + kw)] = 0
+            roi[mask > 0] = bg.astype(np.uint8)
+            continue
         mask = box_mask(roi, background) if background else text_mask(roi)
         if mask.any():
             out[y0:y1, x0:x1] = cv2.inpaint(roi, mask, 5, cv2.INPAINT_TELEA)
