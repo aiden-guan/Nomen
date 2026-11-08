@@ -55,14 +55,16 @@ export function ReferenceList({ references, onScreen }: { references: ReferenceV
 export function ReferenceCard({ reference: r, onScreen }: { reference: ReferenceView; onScreen?: (creativeId: string) => void }) {
   const [open, setOpen] = useState(false);
   const status = STATUS[r.status];
+  // A paid ad has no public view count (ad libraries hide it), so its engagement numbers are blank too.
+  const count = (label: string, value: number | null): Array<[string, string]> => (value === null || (r.paidAd && !value) ? [] : [[label, compact(value)]]);
   const stats: Array<[string, string]> = [
-    ["views", compact(r.views)],
-    ...(r.followers !== null ? ([["followers", compact(r.followers)]] as Array<[string, string]>) : []),
+    r.paidAd && !r.views ? ["views", "unknown (paid ad)"] : ["views", compact(r.views)],
+    ...count("followers", r.followers),
     ...(r.outlier ? ([["its followers", times(r.outlier)]] as Array<[string, string]>) : []),
-    ...(r.likes !== null ? ([["likes", compact(r.likes)]] as Array<[string, string]>) : []),
-    ...(r.saves !== null ? ([["saves", compact(r.saves)]] as Array<[string, string]>) : []),
-    ...(r.shares !== null ? ([["shares", compact(r.shares)]] as Array<[string, string]>) : []),
-    ...(r.comments !== null ? ([["comments", compact(r.comments)]] as Array<[string, string]>) : []),
+    ...count("likes", r.likes),
+    ...count("saves", r.saves),
+    ...count("shares", r.shares),
+    ...count("comments", r.comments),
   ];
   const note = r.status === "dropped" || r.status === "shortlisted" ? r.relevanceReason : (r.whyItWorks ?? r.relevanceReason);
   return (
@@ -90,12 +92,11 @@ export function ReferenceCard({ reference: r, onScreen }: { reference: Reference
             @{r.author.replace(/^@/, "") || "unknown"}
           </a>
           <span className="shrink-0 text-[11px] text-[var(--ink-faint)]">{platformName(r.platform)}</span>
+          {r.role && <RoleBadge role={r.role} />}
           <span className={`${styles.pixel} ml-auto shrink-0 text-[11px] ${status.tone}`}>{status.word}</span>
         </p>
         <p className="mt-0.5 text-[11px] text-[var(--ink-soft)]">
-          {[r.lane ? LANE_NAMES[r.lane] ?? r.lane : null, r.fit ? `fit ${r.fit.score}/10` : r.relevance !== null ? `relevance ${r.relevance}/10` : null, r.funnel ? (r.funnel === "reach" ? "for reach" : "for conversion") : null, r.conversion !== null ? `converts ${r.conversion}/10` : null]
-            .filter(Boolean)
-            .join(" · ")}
+          {[r.lane ? LANE_NAMES[r.lane] ?? r.lane : null, r.fit ? `fit ${r.fit.score}/10` : r.relevance !== null ? `relevance ${r.relevance}/10` : null].filter(Boolean).join(" · ")}
         </p>
         <p className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] tabular-nums text-[var(--ink-soft)]">
           {stats.map(([label, value]) => (
@@ -104,6 +105,12 @@ export function ReferenceCard({ reference: r, onScreen }: { reference: Reference
             </span>
           ))}
         </p>
+        {r.conversion !== null && (
+          <p className="mt-1 text-[11px] leading-snug text-[var(--ink-soft)]">
+            <b className="font-semibold text-[var(--ink)]">converts {r.conversion}/10</b>
+            {r.signals.length ? `: ${r.signals.join(" · ")}` : ""}
+          </p>
+        )}
         {r.hook?.line && <p className="mt-1.5 leading-snug">“{r.hook.line}”</p>}
         {note && <p className={`mt-1 leading-snug text-[12px] text-[var(--ink-soft)] ${open ? "" : "line-clamp-2"}`}>{note}</p>}
         {r.hook?.mechanic && open && <p className="mt-1 text-[12px] leading-snug text-[var(--ink-soft)]">Hook: {r.hook.mechanic}</p>}
@@ -136,12 +143,26 @@ export function ReferenceCard({ reference: r, onScreen }: { reference: Reference
   );
 }
 
+/** Reach or convert: what a reference (or one of our videos) is for in the campaign. */
+export function RoleBadge({ role }: { role: "reach" | "convert" }) {
+  return (
+    <span
+      className={`${styles.pixel} shrink-0 px-1.5 text-[10px] uppercase leading-[16px] tracking-wider text-[var(--paper)] ${role === "convert" ? "bg-[var(--crimson)]" : "bg-[var(--teal)]"}`}
+      title={role === "convert" ? "Built to make viewers act: judged on clicks and sign-ups" : "Built to be watched and shared: judged on views and shares"}
+    >
+      {role}
+    </span>
+  );
+}
+
 /** The reference a finished video remakes, as the screening room shows it. */
 export function RemakeOf({ creative, reference }: { creative: CreativeView; reference: ReferenceView | null }) {
   const ref = creative.reference;
   if (!ref) return null;
+  const paidAd = reference?.paidAd ?? ref.paidAd ?? false;
+  const views = reference?.views ?? ref.views;
   const stats = [
-    `${compact(reference?.views ?? ref.views)} views`,
+    paidAd && !views ? "a paid ad: views unknown" : `${compact(views)} views`,
     (reference?.followers ?? ref.followers) !== null ? `${compact(reference?.followers ?? ref.followers)} followers` : null,
     (reference?.outlier ?? ref.outlier) ? `${times((reference?.outlier ?? ref.outlier)!)} followers` : null,
     reference?.likes != null ? `${compact(reference.likes)} likes` : null,

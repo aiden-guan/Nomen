@@ -63,7 +63,10 @@ export const LANE_NAMES: Record<string, string> = {
 };
 
 /** "Remake of @creator, 1.2M views" for a video that remakes a reference. */
-export function remakeLine(reference: { author: string; views: number; outlier: number | null } | null | undefined) {
+export function remakeLine(reference: { author: string; views: number; outlier: number | null; paidAd?: boolean } | null | undefined) {
   if (!reference?.author) return null;
-  return `Remake of @${reference.author.replace(/^@/, "")}, ${compact(reference.views)} views${reference.outlier ? ` (${reference.outlier >= 10 ? Math.round(reference.outlier) : reference.outlier.toFixed(1)}× followers)` : ""}`;
+  const who = `@${reference.author.replace(/^@/, "")}`;
+  // Ad libraries publish no view counts: a paid ad's proof is that it kept running.
+  if (reference.paidAd && !reference.views) return `Remake of ${who}'s paid ad (views unknown)`;
+  return `Remake of ${who}, ${compact(reference.views)} views${reference.outlier ? ` (${reference.outlier >= 10 ? Math.round(reference.outlier) : reference.outlier.toFixed(1)}× followers)` : ""}`;
 }

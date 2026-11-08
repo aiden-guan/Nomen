@@ -108,8 +108,10 @@ describe("the reference view", () => {
       fit: { score: 9 },
       whyItWorks: "an absurd number in the first second",
       remadeBy: [{ title: "Twelve keys", creativeId: "crv_1" }],
-      funnel: null,
+      role: null,
       conversion: null,
+      signals: [],
+      paidAd: false,
     });
     expect(failed).toMatchObject({ lane: "competitor", error: "the video could not be downloaded", remadeBy: [] });
     // The screen's reason travels with a dropped video, and its lane comes from the search that found it.
@@ -123,9 +125,24 @@ describe("the reference view", () => {
     expect(studyView(running)).toMatchObject({ picked: 2, studied: 0, done: false, kept: 3, screened: 4, product: { name: "Monid", fromKit: 1 } });
   });
 
-  it("shows the funnel role and conversion score once the reference engine records them", () => {
-    const withFunnel: CreativeState = { ...state, breakdowns: [{ ...breakdown("ref_1", A, "dev"), funnel: "convert", conversion_score: 8 } as never] };
-    expect(referencesView(withFunnel, videos)[0]).toMatchObject({ funnel: "convert", conversion: 8 });
+  it("shows research steering's role, conversion score and signals, from the breakdown or the candidate", () => {
+    const steered: CreativeState = {
+      ...state,
+      breakdowns: [{ ...breakdown("ref_1", A, "dev"), role: "convert", conversion: { score: 8, signals: ["asks for the sale", "saves per like 2.1x the pool's"] } }],
+      candidates: state.candidates!.map((c) => (c.url === D ? { ...c, score: { ...c.score, role: "reach" as const, conversion: 2, signals: ["a meme format"] } } : c)),
+    };
+    const refs = referencesView(steered, videos);
+    expect(refs[0]).toMatchObject({ role: "convert", conversion: 8, signals: ["asks for the sale", "saves per like 2.1x the pool's"] });
+    expect(refs.find((r) => r.url === D)).toMatchObject({ role: "reach", conversion: 2, signals: ["a meme format"] });
+  });
+
+  it("marks a paid ad from an ad library, whose views are unknown", () => {
+    const AD = "https://www.facebook.com/ads/library/?id=42";
+    const ads = new Map([...videos, [AD, video(AD, { views: 0, likes: 0, saves: 0, shares: 0, comments: 0, followers: null, author: "rivalco", source: "meta_ads_conv_0", ad: { network: "meta", days: 94, active: true } as never })]]);
+    const withAd: CreativeState = { ...state, picked: [...state.picked!, AD], breakdowns: [...state.breakdowns!, { ...breakdown("ref_ad", AD, "rivalco"), views: 0, followers: null, outlier: null, origin: "ad", role: "convert", conversion: { score: 9, signals: ["ran 94 days"] } }] };
+    const ad = referencesView(withAd, ads).find((r) => r.url === AD)!;
+    expect(ad).toMatchObject({ status: "studied", lane: "ad", paidAd: true, views: 0, outlier: null, role: "convert", conversion: 9, signals: ["ran 94 days"] });
+    expect(remakeLine({ author: "rivalco", views: 0, outlier: null, paidAd: true })).toBe("Remake of @rivalco's paid ad (views unknown)");
   });
 
   it("is empty for campaigns from before the creative engine", () => {

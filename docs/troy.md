@@ -37,6 +37,7 @@ as types (`src/components/troy/api.ts` re-exports `BrandView`, `CampaignView`, `
 | `POST /api/brands/[id]/social {returnTo}` | The connect-accounts link before posting |
 | `GET /api/media/[id]/final.mp4` | Videos in the theatre and on its screen |
 | `GET/POST/DELETE /api/brands/[id]/brandkit` (and `/repo`, `/file`) | The camp's brand kit: drop files or a folder, link a repo |
+| `GET/POST /api/brands/[id]/loop` | The camp's autopilot: on/off, weekly budget, cadence, posting, the next run and the last decision |
 
 From the creative engine (docs/creative-engine.md) the camp reads, on the same `GET /api/brands/[id]`:
 - `campaign.study`: where the reference study is (product brief, site screenshots, relevance
@@ -44,12 +45,14 @@ From the creative engine (docs/creative-engine.md) the camp reads, on the same `
 - `campaign.references`: every viral video the agents broke down, are breaking down, or set aside,
   with its thumbnail, link, creator, platform, views, followers, views per follower, likes, saves,
   shares, comments, length, lane, hook, fit and why it works, the relevance screen's reason, and
-  which of our videos remake it. A funnel role (`reach`/`convert`) and a conversion score show
-  when the reference engine records them. The shortlist appears as soon as the breakdowns start;
-- `campaign.strategy.campaign.briefs` and `.concepts`: the director's briefs and the script room's
-  scripts, for the War tent;
-- `creative.reference` ("Remake of @creator, 1.2M views") and `creative.script` (length, critic
-  score) on every video.
+  which of our videos remake it. Research steering adds its `role` (reach or convert), its
+  `conversion` score (0-10) and the named `signals` behind it; a paid ad from an ad library has
+  `paidAd` set and no view count ("views unknown"). The shortlist appears as soon as the
+  breakdowns start;
+- `campaign.strategy.campaign.briefs` and `.concepts`: the director's briefs (with each one's role
+  and the metric it is judged on) and the script room's scripts, for the War tent;
+- `creative.reference` ("Remake of @creator, 1.2M views"), `creative.script` (length, critic
+  score) and `creative.role`/`creative.metric` on every video.
 
 Two things are matched on the core's wording, and both are pinned by `tests/troy/derive.test.ts`:
 
@@ -174,6 +177,11 @@ progress, and every agent's post and activity:
   and Oracle panels while it can still shape the product study) opens `camp/BrandKitDrawer.tsx`.
   Drop files or a whole folder, or link a repo; it uses the same intake as the workspace's Brand
   kit tab (`src/components/brandkit/intake.ts`). The demo has no brand kit.
+- **Autopilot:** the "Autopilot" button in the top bar (a pip shows whether it is on), and a
+  nudge in the Agora, open `camp/AutopilotDrawer.tsx`: on/off, the weekly budget, the cadence,
+  automatic posting, the next run, this week's spend and the last decision, with "skip these
+  videos" when the loop waits on a review. Same rules as the workspace's Autopilot tab: it can't
+  be turned on until the budget is filled in.
 - **Agora:** the herald trumpets while posts go out.
 
 A messenger rides along the sandbars when work changes hands (each stage change, each finished

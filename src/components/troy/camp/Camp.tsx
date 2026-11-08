@@ -10,6 +10,7 @@ import { STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
 import { DEMO_ID, type PublishMode } from "./demo";
+import { AutopilotDrawer, useAutopilot } from "./AutopilotDrawer";
 import { BrandKitDrawer } from "./BrandKitDrawer";
 import { Dispatches } from "./Dispatches";
 import { ago, money } from "./format";
@@ -32,6 +33,8 @@ export type CampActions = {
   screen: (creative: CreativeView) => void;
   /** Opens the brand kit (null in the demo, which has no server to upload to). */
   openKit: (() => void) | null;
+  /** Opens the brand's autopilot (null in the demo). */
+  openAutopilot: (() => void) | null;
 };
 
 type Bubble = { id: number; station: StationId; text: string; level: string };
@@ -45,8 +48,10 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [screening, setScreening] = useState<string | null>(null);
-  // The brand kit drawer takes the station panel's place while it is open.
-  const [kitOpen, setKitOpen] = useState(false);
+  // The brand kit or autopilot drawer takes the station panel's place while it is open.
+  const [drawer, setDrawer] = useState<"kit" | "autopilot" | null>(null);
+  // The brand's autopilot, for the top bar's button and its drawer (none in the demo).
+  const autopilot = useAutopilot(demo ? null : brandId);
   // The demo replays a campaign on a clock (./demo.ts) instead of reading the API.
   const player = useDemo(demo, arrived);
   const view = demo ? player.view : liveView;
@@ -141,10 +146,10 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const [focused, setFocused] = useState<StationId | null>(null);
   const current = stationOf(campaign?.stage ?? "research");
   const shown = selected ?? focused ?? current;
-  const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: (selected || kitOpen) && wide ? 440 : 0 }), [selected, kitOpen, wide]);
-  // Picking a station closes the brand kit.
+  const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: (selected || drawer) && wide ? 440 : 0 }), [selected, drawer, wide]);
+  // Picking a station closes the drawer.
   useEffect(() => {
-    if (selected) setKitOpen(false);
+    if (selected) setDrawer(null);
   }, [selected]);
   const frameCamera = useCallback(
     (duration: number) => {
@@ -198,6 +203,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         retry: () => undefined,
         screen,
         openKit: null,
+        openAutopilot: null,
       };
     }
     return {
@@ -214,7 +220,11 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
       screen,
       openKit: () => {
         setSelected(null);
-        setKitOpen(true);
+        setDrawer("kit");
+      },
+      openAutopilot: () => {
+        setSelected(null);
+        setDrawer("autopilot");
       },
     };
   }, [demo, player.approve, player.approveAll, player.publish, act, campaignId, brandId]);
@@ -237,8 +247,10 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         selected={selected}
         demo={demo ? player : undefined}
         home={home}
-        onKit={demo ? null : () => (kitOpen ? setKitOpen(false) : actions.openKit?.())}
-        kitOpen={kitOpen}
+        onKit={demo ? null : () => (drawer === "kit" ? setDrawer(null) : actions.openKit?.())}
+        onAutopilot={demo ? null : () => (drawer === "autopilot" ? setDrawer(null) : actions.openAutopilot?.())}
+        drawer={drawer}
+        autopilotOn={autopilot.view?.settings.enabled ?? null}
       />
 
       {arrived && view && !wide && (
@@ -303,8 +315,11 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         />
       )}
 
-      {arrived && kitOpen && !selected && view && !demo && (
-        <BrandKitDrawer brandId={view.brand.id} brandName={view.brand.name} stage={campaign?.stage ?? null} wide={wide} onClose={() => setKitOpen(false)} />
+      {arrived && drawer === "kit" && !selected && view && !demo && (
+        <BrandKitDrawer brandId={view.brand.id} brandName={view.brand.name} stage={campaign?.stage ?? null} wide={wide} onClose={() => setDrawer(null)} />
+      )}
+      {arrived && drawer === "autopilot" && !selected && view && !demo && (
+        <AutopilotDrawer brandId={view.brand.id} autopilot={autopilot} wide={wide} onClose={() => setDrawer(null)} onChange={() => reloadRef.current()} />
       )}
 
       {arrived && screening && finishedVideos.length > 0 && (
@@ -349,7 +364,9 @@ function TopBar({
   demo,
   home,
   onKit,
-  kitOpen,
+  onAutopilot,
+  drawer,
+  autopilotOn,
 }: {
   view: BrandView | null;
   spend: number;
@@ -358,9 +375,12 @@ function TopBar({
   selected: StationId | null;
   demo?: DemoPlayer;
   home: string;
-  /** Toggles the brand kit (absent in the demo). */
+  /** Toggle the brand kit and the autopilot (absent in the demo). */
   onKit: (() => void) | null;
-  kitOpen: boolean;
+  onAutopilot: (() => void) | null;
+  drawer: "kit" | "autopilot" | null;
+  /** Whether the brand's autopilot is on (null until known). */
+  autopilotOn: boolean | null;
 }) {
   const campaign = view?.campaign ?? null;
   const plan = useMemo(() => derive(view), [view]);
@@ -421,8 +441,21 @@ function TopBar({
           {money(spend)} spent
         </span>
       )}
+      {view && onAutopilot && (
+        <button
+          type="button"
+          onClick={onAutopilot}
+          aria-pressed={drawer === "autopilot"}
+          className={`${styles.link} ${styles.pixel} pointer-events-auto flex shrink-0 items-center gap-1.5 text-[13px] ${drawer === "autopilot" ? "text-[var(--crimson)]" : ""}`}
+          title={autopilotOn ? "Autopilot is on: the next campaign starts by itself" : "Autopilot is off"}
+        >
+          <Pip state={autopilotOn ? "working" : "waiting"} />
+          <span className="hidden sm:inline">Autopilot</span>
+          <span className="sm:hidden">Auto</span>
+        </button>
+      )}
       {view && onKit && (
-        <button type="button" onClick={onKit} aria-pressed={kitOpen} className={`${styles.link} ${styles.pixel} pointer-events-auto shrink-0 text-[13px] ${kitOpen ? "text-[var(--crimson)]" : ""}`}>
+        <button type="button" onClick={onKit} aria-pressed={drawer === "kit"} className={`${styles.link} ${styles.pixel} pointer-events-auto shrink-0 text-[13px] ${drawer === "kit" ? "text-[var(--crimson)]" : ""}`}>
           <span className="sm:hidden">Kit</span>
           <span className="hidden sm:inline">Brand kit</span>
         </button>

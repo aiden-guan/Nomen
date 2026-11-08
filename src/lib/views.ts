@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { parse, store } from "./db";
 import { MIN_RELEVANCE } from "./creative/relevance";
-import type { ReferenceBreakdown, ReferenceCandidate } from "./creative/types";
+import type { FunnelRole, ReferenceBreakdown, ReferenceCandidate } from "./creative/types";
 import { type BrandRow, type CampaignOptions, type CampaignRow, type CreativeState, creativeState, defaultOptions, originOf } from "./pipeline";
 import { mediaRoot } from "./store/sqlite";
 import type { CreativeRow, ShotState } from "./production";
@@ -127,8 +127,11 @@ function creativeView(creative: CreativeRow, videos: Map<string, Video> = new Ma
     concept,
     /** The viral video this one remakes, with its numbers ("remake of @creator, 1.2M views"). */
     reference: ref?.url
-      ? { id: ref.id, url: ref.url, author: ref.author, platform: video?.platform ?? null, views: ref.views, followers: ref.followers, outlier: ref.outlier, thumbnail: video?.thumbnail ?? null, format: ref.format }
+      ? { id: ref.id, url: ref.url, author: ref.author, platform: video?.platform ?? null, views: ref.views, followers: ref.followers, outlier: ref.outlier, thumbnail: video?.thumbnail ?? null, format: ref.format, paidAd: Boolean(video?.ad) }
       : null,
+    /** Its job in the campaign and what it is judged on, from the director's brief (research steering). */
+    role: concept?.brief?.role ?? null,
+    metric: concept?.brief?.metric ?? null,
     /** The script room's result: length and the critic's last score. */
     script: concept?.script ? { seconds: concept.script.total_seconds, beats: concept.script.beats.length, critic: concept.script.review?.score ?? null, notes: concept.script.review?.notes ?? [] } : null,
     caption: creative.caption,
@@ -190,9 +193,16 @@ export type ReferenceView = {
   whyItWorks: string | null;
   beats: number;
   error: string | null;
-  /** Where it sits in the funnel and how well it converts, when the reference engine records them. */
-  funnel: "reach" | "convert" | null;
+  /**
+   * Research steering (docs/research-steering.md): reach or convert, the 0-10 conversion evidence and
+   * the named signals behind it ("ran 94 days"). From the breakdown, else the candidate's score;
+   * null on studies from before it.
+   */
+  role: FunnelRole | null;
   conversion: number | null;
+  signals: string[];
+  /** A paid ad from an ad library: libraries publish no views, so `views` is 0 and means unknown. */
+  paidAd: boolean;
   /** Our videos that remake it (or the director's briefs, before the videos exist). */
   remadeBy: Array<{ title: string; creativeId: string | null }>;
 };
@@ -200,28 +210,6 @@ export type ReferenceView = {
 type ReferenceUse = { id: string | null; url: string | null; title: string; creativeId: string | null };
 
 const MAX_SET_ASIDE = 12;
-
-const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
-
-/** The funnel role, read loosely: the reference engine is adding it, and older studies lack it. */
-function funnelOf(...sources: unknown[]): ReferenceView["funnel"] {
-  for (const source of sources) {
-    const record = (source ?? {}) as Record<string, unknown>;
-    const role = record.funnel ?? record.funnel_role ?? record.role;
-    if (role === "reach" || role === "convert") return role;
-  }
-  return null;
-}
-
-function conversionOf(...sources: unknown[]): number | null {
-  for (const source of sources) {
-    const record = (source ?? {}) as Record<string, unknown>;
-    const score = record.score && typeof record.score === "object" ? (record.score as Record<string, unknown>) : {};
-    const value = num(record.conversion_score) ?? num(record.conversion) ?? num(score.conversion);
-    if (value !== null) return value;
-  }
-  return null;
-}
 
 export function referencesView(state: CreativeState | null, videos: Map<string, Video>, uses: ReferenceUse[] = []): ReferenceView[] {
   if (!state) return [];
@@ -239,7 +227,9 @@ export function referencesView(state: CreativeState | null, videos: Map<string, 
     const verdict = screened.get(url);
     const views = breakdown?.views ?? video?.views ?? candidate?.views ?? 0;
     const followers = breakdown?.followers ?? video?.followers ?? candidate?.followers ?? null;
-    const outlier = breakdown?.outlier ?? candidate?.score.outlier ?? (followers ? Math.round((views / Math.max(followers, 1000)) * 10) / 10 : null);
+    const lane = breakdown?.origin ?? candidate?.origin ?? (video ? (video.ad ? "ad" : originOf(video)) : null);
+    const paidAd = lane === "ad";
+    const outlier = paidAd ? null : (breakdown?.outlier ?? candidate?.score.outlier ?? (followers ? Math.round((views / Math.max(followers, 1000)) * 10) / 10 : null));
     out.push({
       url,
       status,
@@ -255,7 +245,7 @@ export function referencesView(state: CreativeState | null, videos: Map<string, 
       shares: video?.shares ?? null,
       comments: video?.comments ?? null,
       duration: breakdown?.duration ?? video?.duration ?? null,
-      lane: candidate?.origin ?? (video ? originOf(video) : null),
+      lane,
       why: candidate?.score.why ?? null,
       relevance: verdict?.relevance ?? candidate?.relevance ?? null,
       relevanceReason: verdict?.reason ?? candidate?.relevance_reason ?? null,
@@ -266,8 +256,10 @@ export function referencesView(state: CreativeState | null, videos: Map<string, 
       whyItWorks: breakdown?.why_it_works ?? null,
       beats: breakdown?.beats.length ?? 0,
       error: failures.get(url) ?? null,
-      funnel: funnelOf(breakdown, candidate),
-      conversion: conversionOf(breakdown, candidate),
+      role: breakdown?.role ?? candidate?.score.role ?? null,
+      conversion: breakdown?.conversion?.score ?? candidate?.score.conversion ?? null,
+      signals: breakdown?.conversion?.signals ?? candidate?.score.signals ?? [],
+      paidAd,
       remadeBy: uses.filter((use) => (breakdown && use.id === breakdown.id) || use.url === url).map(({ title, creativeId }) => ({ title, creativeId })),
     });
   };

@@ -5,7 +5,7 @@ import type { CreativeView, ReferenceView } from "../api";
 import styles from "../troy.module.css";
 import type { CampActions } from "./Camp";
 import { money, platformName } from "./format";
-import { RemakeOf } from "./References";
+import { RemakeOf, RoleBadge } from "./References";
 import { crispIfTiny } from "./StationPanel";
 
 /**
@@ -109,6 +109,12 @@ export function Screening({
             {concept && (
               <p className="mt-1 text-[12px] text-[var(--ink-soft)]">
                 {[concept.format, concept.angle].filter(Boolean).join(" · ")}
+              </p>
+            )}
+            {creative.role && (
+              <p className="mt-1.5 flex items-center gap-2 text-[12px] text-[var(--ink-soft)]">
+                <RoleBadge role={creative.role} />
+                {creative.metric ? `judged on ${creative.metric.replace(/_/g, " ")}` : null}
               </p>
             )}
             {creative.reference && (

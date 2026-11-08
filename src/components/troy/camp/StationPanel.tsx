@@ -9,7 +9,10 @@ import styles from "../troy.module.css";
 import { Avatar } from "./Avatar";
 import { type CampActions, Pip } from "./Camp";
 import { money, platformName, remakeLine, when } from "./format";
-import { ReferenceList } from "./References";
+import { ReferenceList, RoleBadge } from "./References";
+
+/** What a brief's video is judged on once posted, as the War tent says it. */
+const METRIC_WORDS: Record<string, string> = { views: "views", shares: "shares", saves: "saves", link_clicks: "link clicks", sign_ups: "sign-ups", purchases: "purchases" };
 
 const STATE_WORD: Record<string, string> = { waiting: "Waiting", working: "Working", done: "Done", failed: "Stopped", skipped: "Skipped", yours: "Your turn" };
 
@@ -119,7 +122,7 @@ export function StationPanel({
         {id === "tent" && <Tent view={view} />}
         {id === "workshop" && <Workshop view={view} busy={busy} actions={actions} />}
         {id === "theatre" && <Theatre view={view} busy={busy} actions={actions} />}
-        {id === "agora" && <Agora view={view} />}
+        {id === "agora" && <Agora view={view} actions={actions} />}
       </div>
 
       <footer className="border-t-2 border-[rgba(43,29,20,0.12)] px-5 py-3 text-[12px] text-[var(--ink-soft)]">
@@ -320,6 +323,12 @@ function Tent({ view }: { view: BrandView }) {
                   <p className="font-semibold">
                     {i + 1}. {brief.title} <span className="font-normal text-[var(--ink-faint)]">· {brief.format.replace(/_/g, " ")}</span>
                   </p>
+                  {(brief.role || brief.metric) && (
+                    <p className="mt-1 flex items-center gap-2 text-[12px] text-[var(--ink-soft)]">
+                      {brief.role && <RoleBadge role={brief.role} />}
+                      {brief.metric && <span>judged on {METRIC_WORDS[brief.metric] ?? brief.metric.replace(/_/g, " ")}</span>}
+                    </p>
+                  )}
                   {reference && <p className="mt-0.5 text-[12px] text-[var(--crimson)]">{remakeLine(reference)}</p>}
                   <p className="mt-0.5 leading-snug text-[var(--ink-soft)]">{brief.hook_plan || brief.angle}</p>
                   <p className="mt-0.5 text-[12px] text-[var(--ink-faint)]">
@@ -376,6 +385,7 @@ function Workshop({ view, busy, actions }: { view: BrandView; busy: string | nul
             <li key={creative.id} className="text-[13px]">
               <div className="flex items-baseline gap-2">
                 <span className="min-w-0 flex-1 truncate font-semibold">{creative.concept?.title ?? `Video ${creative.idx + 1}`}</span>
+                {creative.role && <RoleBadge role={creative.role} />}
                 <Status value={creative.status} />
               </div>
               {creative.reference && (
@@ -516,37 +526,47 @@ export function crispIfTiny(event: SyntheticEvent<HTMLImageElement>) {
   if (event.currentTarget.naturalWidth < 120) event.currentTarget.style.imageRendering = "pixelated";
 }
 
-function Agora({ view }: { view: BrandView }) {
+function Agora({ view, actions }: { view: BrandView; actions: CampActions }) {
   const campaign = view.campaign;
   if (!campaign) return null;
   const posts = campaign.posts;
   return (
-    <Section title={`Posts · ${posts.length}`}>
-      {posts.length === 0 ? (
-        <p className="text-[13px] text-[var(--ink-soft)]">Approve videos in the theatre, then send them out. The herald posts each one to the brand&apos;s own accounts.</p>
-      ) : (
-        <ul className="space-y-2.5">
-          {posts.map((post) => {
-            const title = campaign.creatives.find((c) => c.id === post.creativeId)?.concept?.title ?? "Video";
-            const numbers = post.analytics ? Object.entries(post.analytics).filter(([, v]) => typeof v === "number").slice(0, 3) : [];
-            return (
-              <li key={post.id} className="text-[13px]">
-                <div className="flex items-baseline gap-2">
-                  <span className="min-w-0 flex-1 truncate font-semibold">{title}</span>
-                  <Status value={post.status} />
-                </div>
-                <p className="text-[12px] text-[var(--ink-soft)]">
-                  {post.platforms.map(platformName).join(", ")}
-                  {post.scheduledAt ? ` · ${when(post.scheduledAt)}` : ""}
-                </p>
-                {numbers.length > 0 && <p className="text-[12px] text-[var(--ink-faint)]">{numbers.map(([k, v]) => `${k} ${v}`).join(" · ")}</p>}
-                {post.error && <p className="text-[12px] text-[var(--crimson-dark)]">{post.error}</p>}
-              </li>
-            );
-          })}
-        </ul>
+    <>
+      {actions.openAutopilot && (
+        <p className="mb-6 bg-[rgba(45,123,152,0.1)] px-3 py-2 text-[12px] leading-snug">
+          Once these posts are out, autopilot can send the next campaign by itself, every few days and within a weekly budget you set.{" "}
+          <button type="button" className={`${styles.link} ${styles.pixel} underline decoration-dotted underline-offset-4`} onClick={actions.openAutopilot}>
+            Open autopilot
+          </button>
+        </p>
       )}
-    </Section>
+      <Section title={`Posts · ${posts.length}`}>
+        {posts.length === 0 ? (
+          <p className="text-[13px] text-[var(--ink-soft)]">Approve videos in the theatre, then send them out. The herald posts each one to the brand&apos;s own accounts.</p>
+        ) : (
+          <ul className="space-y-2.5">
+            {posts.map((post) => {
+              const title = campaign.creatives.find((c) => c.id === post.creativeId)?.concept?.title ?? "Video";
+              const numbers = post.analytics ? Object.entries(post.analytics).filter(([, v]) => typeof v === "number").slice(0, 3) : [];
+              return (
+                <li key={post.id} className="text-[13px]">
+                  <div className="flex items-baseline gap-2">
+                    <span className="min-w-0 flex-1 truncate font-semibold">{title}</span>
+                    <Status value={post.status} />
+                  </div>
+                  <p className="text-[12px] text-[var(--ink-soft)]">
+                    {post.platforms.map(platformName).join(", ")}
+                    {post.scheduledAt ? ` · ${when(post.scheduledAt)}` : ""}
+                  </p>
+                  {numbers.length > 0 && <p className="text-[12px] text-[var(--ink-faint)]">{numbers.map(([k, v]) => `${k} ${v}`).join(" · ")}</p>}
+                  {post.error && <p className="text-[12px] text-[var(--crimson-dark)]">{post.error}</p>}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
+    </>
   );
 }
 
