@@ -36,6 +36,20 @@ as types (`src/components/troy/api.ts` re-exports `BrandView`, `CampaignView`, `
 | `POST /api/creatives/[id]` | "Send back for another take" |
 | `POST /api/brands/[id]/social {returnTo}` | The connect-accounts link before posting |
 | `GET /api/media/[id]/final.mp4` | Videos in the theatre and on its screen |
+| `GET/POST/DELETE /api/brands/[id]/brandkit` (and `/repo`, `/file`) | The camp's brand kit: drop files or a folder, link a repo |
+
+From the creative engine (docs/creative-engine.md) the camp reads, on the same `GET /api/brands/[id]`:
+- `campaign.study`: where the reference study is (product brief, site screenshots, relevance
+  screen, breakdowns), for the Oracle's status line;
+- `campaign.references`: every viral video the agents broke down, are breaking down, or set aside,
+  with its thumbnail, link, creator, platform, views, followers, views per follower, likes, saves,
+  shares, comments, length, lane, hook, fit and why it works, the relevance screen's reason, and
+  which of our videos remake it. A funnel role (`reach`/`convert`) and a conversion score show
+  when the reference engine records them. The shortlist appears as soon as the breakdowns start;
+- `campaign.strategy.campaign.briefs` and `.concepts`: the director's briefs and the script room's
+  scripts, for the War tent;
+- `creative.reference` ("Remake of @creator, 1.2M views") and `creative.script` (length, critic
+  score) on every video.
 
 Two things are matched on the core's wording, and both are pinned by `tests/troy/derive.test.ts`:
 
@@ -142,13 +156,24 @@ progress, and every agent's post and activity:
 - **Scouts:** one per research source. They queue while it is pending, walk off the island while
   it runs, and come back with a scroll when it finishes (or empty-handed when it fails). The lookout
   stays on the tower.
-- **Oracle:** watches the top videos on a CRT during the format study.
-- **War tent:** the strategist points at the map while the strategy is written, and a scribe
-  takes notes.
+- **Oracle:** watches the top videos on a CRT during the reference study: reading the product,
+  screenshotting the site, screening the viral videos, breaking the best down. Its panel lists the
+  references live (`camp/References.tsx`): the ones broken down or being broken down, then, folded,
+  the ones set aside with the screen's reason. Each links to the original and names the videos that
+  remake it.
+- **War tent:** the creative director points at the map while it picks which reference each video
+  remakes, and the script room writes each script (the panel shows every brief, the reference it
+  remakes, and the script's length and critic score as it lands).
 - **Workshop:** one desk per video. The CRT is blue while a shot renders, green when the video is
   ready and red when it failed. The painter works the easel while first frames are made, and the
-  inspector visits the desk whose shot is in QC.
-- **Theatre:** finished videos play on the screen as pixelated frames, with an audience.
+  inspector visits the desk whose shot is in QC. Faceless videos (no presenter) show their screens,
+  voice-over and edit instead of shots.
+- **Theatre:** finished videos play on the screen as pixelated frames, with an audience. Each card
+  says which viral video it remakes; the screening room shows that video's numbers and the script.
+- **Brand kit:** not an island: the "Brand kit" button in the top bar (and a nudge in the Scouts
+  and Oracle panels while it can still shape the product study) opens `camp/BrandKitDrawer.tsx`.
+  Drop files or a whole folder, or link a repo; it uses the same intake as the workspace's Brand
+  kit tab (`src/components/brandkit/intake.ts`). The demo has no brand kit.
 - **Agora:** the herald trumpets while posts go out.
 
 A messenger rides along the sandbars when work changes hands (each stage change, each finished
@@ -196,6 +221,8 @@ npx vitest run tests/troy
 
 They cover:
 - the plan for every campaign state and event routing;
+- the creative engine in the camp (`tests/troy/references.test.ts`): the reference list and its
+  numbers, the study's steps, the script room, faceless videos and the engine's event lines;
 - that the website box accepts exactly what the server's `normalizeDomain` accepts;
 - deterministic baking and the door timeline;
 - the gate and the demo-only switch;

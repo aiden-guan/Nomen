@@ -86,6 +86,16 @@ These videos are posted by the brand on its own accounts and labeled AI-generate
 - **Video:** about $0.40 per presenter second, plus QC re-renders (`qc_max_retries`). Faceless
   formats cost cents.
 
+## Where its work is kept
+
+Rows go through the store (SQLite locally, Convex on Vercel; docs/convex.md). The reference study
+lives in the campaign's `style_json` (`CreativeState` in src/lib/pipeline.ts: the product brief,
+the screened candidates, the shortlist being broken down, the breakdowns), so the UI shows each
+step as it lands. Files that must outlive a tick (captured screenshots, renders, frames, screens,
+the voice-over, the cut) are kept in `store().files` by key; downloads and the edit's intermediates
+use a scratch folder for one tick. The Troy camp shows the references live in the Oracle
+(`campaign.references` in src/lib/views.ts) and which reference each video remakes.
+
 ## What is not done yet
 
 - **Untested against the live API:** whether speech-to-text returns timestamps for every model,

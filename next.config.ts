@@ -4,8 +4,9 @@ const nextConfig: NextConfig = {
   // better-sqlite3 is a native module; it must be loaded by Node, not bundled.
   serverExternalPackages: ["better-sqlite3", "ffmpeg-static"],
   // ffmpeg-static finds its binary by path at run time, so tracing can't see it: ship it with the
-  // API functions, which cut videos and take QC frames on serverless hosts (src/lib/media.ts).
-  outputFileTracingIncludes: { "/api/**/*": ["./node_modules/ffmpeg-static/ffmpeg"] },
+  // API functions, which cut videos and take QC frames on serverless hosts (src/lib/media.ts). The
+  // edit burns captions in with the bundled font (assets/fonts, src/lib/creative/edit.ts).
+  outputFileTracingIncludes: { "/api/**/*": ["./node_modules/ffmpeg-static/ffmpeg", "./assets/fonts/**"] },
   images: { unoptimized: true },
 };
 
