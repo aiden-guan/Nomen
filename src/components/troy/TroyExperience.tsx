@@ -9,6 +9,7 @@ import { pixelFont } from "./fonts";
 import { CampScene } from "./scenes/camp";
 import { LandingScene, OPEN_SECONDS } from "./scenes/landing";
 import { Camp } from "./camp/Camp";
+import { useReducedMotion } from "./hooks";
 import styles from "./troy.module.css";
 
 type View = "landing" | "camp";
@@ -115,7 +116,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
     const el = formAnchorRef.current;
     if (!e || !el) return;
     return e.stage.anchor(el, () => ({ x: FORM_AT, y: FORM_AT, z: 0 }));
-  }, [phase === "loading"]);
+  }, [engineReady]);
 
   // Returning visitors: their camps, from the core's brand list.
   useEffect(() => {
@@ -181,7 +182,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
         </header>
       )}
 
-      {view === "landing" && phase !== "loading" && (
+      {view === "landing" && engineReady && (
         <div ref={formAnchorRef} className="pointer-events-none absolute left-0 top-0 will-change-transform">
           <form
             key={shakeKey}
@@ -257,15 +258,14 @@ function frame(e: { stage: Stage; camp: CampScene } | null, view: View, animate:
 const FORM_AT = 64;
 
 export function landingCamera(stage: Stage) {
-  const { width, height, dpr } = stage.size;
+  const { width, height } = stage.size;
   const formHeight = 168;
   const top = -150; // the horse's ears
   const bottom = FORM_AT;
   // On phones the island's rim may run off the sides; the horse itself must fit.
   const halfWidth = width < 640 ? 94 : 170;
   const fit = Math.min((height - formHeight - 40) / (bottom - top), (width - 24) / (halfWidth * 2), 3.5);
-  // Whole device pixels per art pixel keep the art crisp.
-  const zoom = Math.max(1 / dpr, Math.floor(fit * dpr + 0.02) / dpr);
+  const zoom = stage.fitZoom(fit);
   const total = (bottom - top) * zoom + formHeight;
   const topPx = Math.max(20, (height - total) / 2);
   return { x: 0, y: top - (topPx - height / 2) / zoom, zoom };
@@ -334,17 +334,6 @@ export function stageWord(stage: string, status: string) {
   return { research: "scouting", style: "studying", strategy: "planning", production: "filming", review: "review", live: "live" }[stage] ?? stage;
 }
 
-function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(query.matches);
-    const change = () => setReduced(query.matches);
-    query.addEventListener("change", change);
-    return () => query.removeEventListener("change", change);
-  }, []);
-  return reduced;
-}
 
 /**
  * These pages cover the whole window. If an app layout renders chrome around them (a header),

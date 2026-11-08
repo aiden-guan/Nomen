@@ -12,6 +12,7 @@ import styles from "../troy.module.css";
 import { Dispatches } from "./Dispatches";
 import { ago, money } from "./format";
 import { StationPanel } from "./StationPanel";
+import { useReducedMotion, useWide } from "../hooks";
 
 export type Engine = { stage: Stage; baker: Baker; landing: LandingScene; camp: CampScene };
 
@@ -110,6 +111,7 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
   // Narrow screens can't show six islands at a readable size: they follow one station at a time,
   // picked from a strip of cards along the bottom.
   const wide = useWide();
+  const reduced = useReducedMotion();
   const [focused, setFocused] = useState<StationId | null>(null);
   const current = stationOf(campaign?.stage ?? "research");
   const shown = selected ?? focused ?? current;
@@ -120,9 +122,9 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
       if (!e) return;
       e.camp.insets = { ...insets, bottom: selected && !wide ? Math.round(window.innerHeight * 0.58) : insets.bottom };
       const target = wide ? (selected ? e.camp.focus(selected, e.camp.insets) : e.camp.camera(e.camp.insets)) : e.camp.focus(shown, e.camp.insets);
-      e.stage.look(target, duration, easeInOutCubic);
+      e.stage.look(target, reduced ? 0 : duration, easeInOutCubic);
     },
-    [engine, insets, selected, wide, shown],
+    [engine, insets, selected, wide, shown, reduced],
   );
   useEffect(() => {
     if (arrived) frameCamera(0.9);
@@ -473,16 +475,5 @@ function StationStrip({ plan, shown, bubbles, onPick }: { plan: ReturnType<typeo
   );
 }
 
-function useWide() {
-  const [wide, setWide] = useState(true);
-  useEffect(() => {
-    const query = window.matchMedia("(min-width: 900px)");
-    setWide(query.matches);
-    const change = () => setWide(query.matches);
-    query.addEventListener("change", change);
-    return () => query.removeEventListener("change", change);
-  }, []);
-  return wide;
-}
 
 export { ago };

@@ -80,13 +80,13 @@ export class CampScene {
 
   /** The camera that frames the whole camp, leaving room for the panels around it. */
   camera(insets: { top: number; bottom: number; right: number } = this.insets): CameraTarget {
-    const { width, height, dpr } = this.stage.size;
+    const { width, height } = this.stage.size;
     const spanX = 2 * (196 + ISLAND_RADIUS + 34);
     const spanY = 76 + 80 + 140 + 46;
     const usableW = width - insets.right - 24;
     const usableH = height - insets.top - insets.bottom;
     const fit = Math.min(usableW / spanX, usableH / spanY, 3.5);
-    const zoom = Math.max(1 / dpr, Math.floor(fit * dpr) / dpr);
+    const zoom = this.stage.fitZoom(fit);
     const midY = CAMP_CENTER.sy - 4;
     return { x: CAMP_CENTER.sx + insets.right / 2 / zoom, y: midY + (insets.bottom - insets.top) / 2 / zoom, zoom };
   }
@@ -98,7 +98,7 @@ export class CampScene {
     const base = this.camera(insets);
     const station = STATION[id];
     // Close enough to see who is doing what, in whole device pixels.
-    const zoom = Math.min(this.stage.snapZoom(Math.max(2, base.zoom * 1.6)), this.stage.snapZoom(4));
+    const zoom = Math.min(this.stage.fitZoom(Math.max(2, base.zoom * 1.6)), 4);
     const sx = projectX(station.x, station.y);
     const sy = projectY(station.x, station.y, 4);
     return { x: sx + insets.right / 2 / zoom, y: sy + (insets.bottom - insets.top) / 2 / zoom, zoom };

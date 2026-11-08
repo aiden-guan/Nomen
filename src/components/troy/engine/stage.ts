@@ -85,6 +85,16 @@ export class Stage {
     return device / this.dpr;
   }
 
+  /**
+   * The largest zoom that fits, in whole device pixels when that costs little (crisp art), else in
+   * quarter steps: on a 1x screen, 1.75 with a few doubled pixels beats a camp drawn at 1.
+   */
+  fitZoom(fit: number) {
+    const whole = Math.floor(fit * this.dpr + 0.02) / this.dpr;
+    if (whole >= fit * 0.85) return Math.max(1 / this.dpr, whole);
+    return Math.max(1 / this.dpr, Math.floor(fit * 4) / 4);
+  }
+
   add<T extends Entity>(entity: T): T {
     this.entities.push(entity);
     return entity;
