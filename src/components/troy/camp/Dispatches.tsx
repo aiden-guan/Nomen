@@ -17,7 +17,7 @@ export function Dispatches({ events, wide }: { events: EventView[]; wide: boolea
   return (
     <section
       aria-label="Dispatches"
-      className={`${styles.boxSoft} ${styles.enter} absolute bottom-4 left-4 z-10 flex flex-col ${open ? "max-h-[min(460px,60vh)]" : ""}`}
+      className={`${styles.boxSoft} ${styles.enter} absolute left-4 z-10 flex flex-col ${wide ? "bottom-4" : "bottom-[124px]"} ${open ? "max-h-[min(460px,60vh)]" : ""}`}
       style={{ width: wide ? 380 : "calc(100vw - 32px)" }}
     >
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">

@@ -107,27 +107,38 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
   }, [bubbles]);
 
   // --- Camera: frame the camp, or zoom to a station when its panel is open. ---------------------
+  // Narrow screens can't show six islands at a readable size: they follow one station at a time,
+  // picked from a strip of cards along the bottom.
   const wide = useWide();
-  const insets = useMemo(() => ({ top: wide ? 84 : 72, bottom: wide ? 76 : 96, right: selected && wide ? 440 : 0 }), [selected, wide]);
+  const [focused, setFocused] = useState<StationId | null>(null);
+  const current = stationOf(campaign?.stage ?? "research");
+  const shown = selected ?? focused ?? current;
+  const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: selected && wide ? 440 : 0 }), [selected, wide]);
+  const frameCamera = useCallback(
+    (duration: number) => {
+      const e = engine.current;
+      if (!e) return;
+      e.camp.insets = { ...insets, bottom: selected && !wide ? Math.round(window.innerHeight * 0.58) : insets.bottom };
+      const target = wide ? (selected ? e.camp.focus(selected, e.camp.insets) : e.camp.camera(e.camp.insets)) : e.camp.focus(shown, e.camp.insets);
+      e.stage.look(target, duration, easeInOutCubic);
+    },
+    [engine, insets, selected, wide, shown],
+  );
   useEffect(() => {
-    const e = engine.current;
-    if (!e || !arrived) return;
-    e.camp.insets = { ...insets, bottom: selected && !wide ? Math.round(window.innerHeight * 0.58) : insets.bottom };
-    const target = selected ? e.camp.focus(selected, e.camp.insets) : e.camp.camera(e.camp.insets);
-    e.stage.look(target, 0.9, easeInOutCubic);
-  }, [engine, selected, insets, arrived, wide]);
+    if (arrived) frameCamera(0.9);
+  }, [arrived, frameCamera]);
   useEffect(() => {
     const e = engine.current;
     if (!e) return;
     const previous = e.stage.onResize;
     e.stage.onResize = () => {
       if (!arrived) return previous?.(0, 0);
-      e.stage.look(selected ? e.camp.focus(selected, e.camp.insets) : e.camp.camera(e.camp.insets), 0);
+      frameCamera(0);
     };
     return () => {
       e.stage.onResize = previous;
     };
-  }, [engine, selected, arrived]);
+  }, [engine, arrived, frameCamera]);
 
   const act = useCallback(async (key: string, run: () => Promise<unknown>) => {
     setBusy(key);
@@ -148,8 +159,24 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
     <>
       <TopBar view={view} spend={spend} visible={arrived} onSelect={setSelected} selected={selected} />
 
+      {arrived && view && !wide && (
+        <StationStrip
+          plan={plan}
+          shown={shown}
+          bubbles={bubbles}
+          onPick={(id) => {
+            if (id === shown) setSelected(id);
+            else {
+              setSelected(null);
+              setFocused(id);
+            }
+          }}
+        />
+      )}
+
       {arrived &&
         view &&
+        wide &&
         STATIONS.map((station) => (
           <StationTag
             key={station.id}
@@ -396,6 +423,53 @@ function StationTag({
         )}
       </div>
     </>
+  );
+}
+
+/** Narrow screens: one card per station; the camera follows the picked one. */
+function StationStrip({ plan, shown, bubbles, onPick }: { plan: ReturnType<typeof derive>; shown: StationId; bubbles: Bubble[]; onPick: (id: StationId) => void }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const card = listRef.current?.querySelector<HTMLElement>(`[data-station="${shown}"]`);
+    card?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [shown]);
+  return (
+    <nav aria-label="Stations" className="absolute inset-x-0 bottom-0 z-10 pb-[max(12px,env(safe-area-inset-bottom))]">
+      <div ref={listRef} className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-3 [scrollbar-width:none]">
+        {STATIONS.map((station) => {
+          const p = plan.stations[station.id];
+          const bubble = bubbles.filter((b) => b.station === station.id).slice(-1)[0];
+          const active = station.id === shown;
+          const segments = 8;
+          const filled = p.progress === null ? 0 : Math.round(p.progress * segments);
+          return (
+            <button
+              key={station.id}
+              type="button"
+              data-station={station.id}
+              onClick={() => onPick(station.id)}
+              aria-current={active ? "true" : undefined}
+              aria-label={`${station.name}, ${station.role}: ${STATE_WORD[p.state]}. ${p.status}${active ? ". Tap again for details." : ""}`}
+              className={`${active ? styles.box : styles.boxSoft} w-[200px] shrink-0 snap-center px-3 py-2.5 text-left`}
+            >
+              <span className="flex items-center gap-2">
+                <Pip state={p.state} />
+                <span className={`${styles.pixel} text-[14px] font-semibold uppercase tracking-wide`}>{station.name}</span>
+                <span className="ml-auto text-[11px] text-[var(--ink-soft)]">{station.role}</span>
+              </span>
+              <span className="mt-1 line-clamp-2 block min-h-[32px] text-[12px] leading-snug text-[var(--ink-soft)]">{bubble ? `› ${bubble.text}` : p.status}</span>
+              {p.progress !== null && (
+                <span className="mt-1.5 flex gap-[3px]" aria-hidden="true">
+                  {Array.from({ length: segments }, (_, i) => (
+                    <span key={i} className="h-[4px] flex-1" style={{ background: i < filled ? (p.state === "done" ? "var(--olive)" : p.state === "yours" ? "var(--teal)" : "var(--crimson)") : "rgba(43,29,20,0.1)" }} />
+                  ))}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
