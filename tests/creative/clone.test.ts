@@ -429,3 +429,12 @@ describe("Monid's media runs", () => {
     expect(runError({ runId: "r", status: "TIMED_OUT" }, "kling").retryable).toBe(true);
   });
 });
+
+describe("syllables in words that mix letters and numbers", () => {
+  it("counts them without looping forever", () => {
+    expect(syllables("v1")).toBe(2); // "v" + "one"
+    expect(syllables("Part67")).toBe(5); // "part" + "sixty seven"
+    expect(syllables("$400,000")).toBe(7); // "four hundred thousand dollars"
+    expect(phraseSyllables("Click Deploy on Naive Short Form v1")).toBeGreaterThan(8);
+  });
+});

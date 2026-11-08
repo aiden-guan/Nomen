@@ -109,7 +109,12 @@ export function spoken(token: string): string {
  * with numbers counted as they are said. Close enough to compare a phrase with the one it replaces.
  */
 export function syllables(word: string): number {
-  if (/\d/.test(word)) return spoken(word).split(/\s+/).reduce((sum, w) => sum + syllables(w), 0);
+  if (/\d/.test(word)) {
+    // Split letters from numbers first ("v1" → "v" + "1"): a token spoken() can't read comes back
+    // unchanged, still with its digits, and counting it again recursed forever (the Jordan remake).
+    const parts = word.match(/[$€£]?\d[\d,]*(?:\.\d+)?(?:k\+|m\+|[kmb%+x])?|[^\d$€£]+/gi) ?? [];
+    return parts.reduce((sum, part) => sum + (/\d/.test(part) ? spoken(part).split(/\s+/).filter((w) => !/\d/.test(w)).reduce((n, w) => n + syllables(w), 0) : syllables(part)), 0);
+  }
   const w = word.toLowerCase().replace(/[^a-z]/g, "");
   if (!w) return 0;
   if (w.length <= 3) return 1;
