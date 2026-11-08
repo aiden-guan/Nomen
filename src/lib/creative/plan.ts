@@ -44,9 +44,12 @@ export function planProduction(script: Script, brief: CreativeBrief, product: Pr
     // The references change the graphic on almost every line. A beat with no visual, or one that
     // would show the same still as the beat before it (or a third time), gets a screen of its own
     // line instead; the still stays as its fallback if the build fails.
-    // For software and services, a site photo or logo filling the whole frame is a blurred-edge
-    // letterbox; a screen built around it looks like the product. Screenshots and clips stay.
-    const weakStill = still?.kind === "photo" && product.kind !== "physical" && beat.visual === "product";
+    // For software and services, a site photo or logo in a graphic beat is a blurred-edge letterbox;
+    // a screen built around it looks like the product. Screenshots and clips stay.
+    // A banner-shaped image (a 1920x330 diagram) is a thin strip in any panel, and in the monid.ai
+    // run filled four split beats with grey. Both get a screen built around them instead.
+    const wide = Boolean(still?.width && still?.height && still.width / still.height > 2);
+    const weakStill = Boolean(still) && (wide || (still?.kind === "photo" && product.kind !== "physical"));
     const stale = !still || weakStill || still.id === previous || (used.get(still.id) ?? 0) >= 2;
     const brief = beat.screen ?? (stale && beat.line ? screenFromLine(beat.line, still) : "");
     // A built screen wins over a still: it shows what the product does, the way the reference did.
