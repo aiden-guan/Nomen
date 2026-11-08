@@ -2,6 +2,11 @@
   "version": 1,
   "scripts": [
     {
+      "id": "mobilerun-ai",
+      "domain": "mobilerun.ai",
+      "name": "Mobilerun"
+    },
+    {
       "id": "monid-ai",
       "domain": "monid.ai",
       "name": "Monid"

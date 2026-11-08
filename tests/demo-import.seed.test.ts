@@ -75,6 +75,7 @@ describe.skipIf(!manifest)("import side-session videos into a campaign for its d
       }
       await store().files.putFile(`${id}/shot0-frame.png`, poster, "image/png");
 
+      const at = entry.made_at ?? new Date().toISOString();
       const views = ref!.views ?? 0;
       const followers = ref!.followers ?? null;
       const author = ref!.author ?? "a creator";
@@ -93,6 +94,8 @@ describe.skipIf(!manifest)("import side-session videos into a campaign for its d
         ...(entry.internal ? { internal: true } : {}),
         ...(old ? { previous: old.previous ?? { title: old.title, format: old.format, hook: old.hook, note: "the first version, before this remake" } } : {}),
       };
+      // save() only updates: a new video is inserted first.
+      if (!before) await store().insert("creatives", { id, campaign_id: entry.campaign, idx, generation: 1, concept_json: "{}", shots_json: "[]", status: "ready", caption: "", platforms_json: "[]", created_at: at, updated_at: at });
       await save("creatives", id, {
         campaign_id: entry.campaign,
         idx,
@@ -112,7 +115,6 @@ describe.skipIf(!manifest)("import side-session videos into a campaign for its d
       });
 
       // Its production lines, once, worded as the production job logs them.
-      const at = entry.made_at ?? new Date().toISOString();
       const lines = [`"${entry.title}": made as a ${entry.genre} from @${author}'s video in the research (${evidence})`, `"${entry.title}" is ready`];
       const logged = new Set((await store().find<{ message: string }>("events", { campaign_id: entry.campaign })).map((e) => e.message));
       for (const [i, message] of lines.entries()) {

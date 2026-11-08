@@ -1,0 +1,1374 @@
+{
+  "version": 1,
+  "recorded": true,
+  "recordedAt": "2026-11-08T07:43:10.378Z",
+  "brand": {
+    "name": "Mobilerun",
+    "domain": "mobilerun.ai",
+    "url": "https://mobilerun.ai",
+    "profile": {
+      "name": "Mobilerun",
+      "description": "mobilerun.ai provides a hosted, 24/7 AI‑powered mobile automation platform that lets developers and teams control real Android and iOS devices through natural language or API calls. Users can provision fleets of phones with residential IPs, eSIMs, and unique phone numbers, then run agents that tap, swipe, type, and read screens just like a human. The service includes mobilerun VA, an always‑on virtual assistant, and mobilerun Connect for secure network identity. With a single SDK and API key, customers can automate tasks such as app interactions, data extraction, and social media posting at scale, while the open‑source mobilerun framework lets them run agents locally or in the cloud. Backed by a16z and Y Combinator, mobilerun.ai targets developers, QA teams, and enterprises needing reliable, stealthy mobile automation without managing hardware themselves.",
+      "slogan": "One platform. The whole mobile stack.",
+      "industry": "Software (B2B)",
+      "colors": [
+        "#1d4ed8",
+        "#ffffff",
+        "#040404"
+      ],
+      "logo": "logo.svg",
+      "socials": [
+        {
+          "type": "discord",
+          "url": "https://discord.gg/droidrun"
+        },
+        {
+          "type": "x",
+          "url": "https://x.com/mobilerun_ai"
+        },
+        {
+          "type": "linkedin",
+          "url": "https://linkedin.com/company/droidrun"
+        }
+      ],
+      "images": [
+        "https://media.brand.dev/46f79e23-98a4-4c4a-b192-325045b5288a.png"
+      ]
+    }
+  },
+  "options": {
+    "concepts": 2,
+    "shotsPerConcept": 2,
+    "secondsPerShot": 8,
+    "videoModel": "google/veo-3.1",
+    "learnStyle": true
+  },
+  "estimateUsd": 6.05,
+  "plan": {
+    "brand_name": "Mobilerun",
+    "category": "AI mobile automation cloud",
+    "audience": "Developers, QA and test-automation engineers, growth and social teams, and enterprises who need AI agents to operate real Android and iPhones with their own numbers and residential IPs.",
+    "competitors": [
+      {
+        "name": "BrowserStack",
+        "domain": "browserstack.com"
+      },
+      {
+        "name": "AWS Device Farm",
+        "domain": "aws.amazon.com/device-farm"
+      },
+      {
+        "name": "Genymotion",
+        "domain": "genymotion.com"
+      },
+      {
+        "name": "GeeLark",
+        "domain": "geelark.com"
+      },
+      {
+        "name": "Sauce Labs",
+        "domain": "saucelabs.com"
+      }
+    ],
+    "content_queries": [
+      "AI agent keeps failing on app",
+      "automate phone tasks with AI",
+      "day in the life QA engineer",
+      "AI agent on a real phone",
+      "tools I wish I knew sooner"
+    ],
+    "conversion_queries": [
+      "I tried an AI phone agent",
+      "GeeLark vs BrowserStack",
+      "AI agent controls real phone demo"
+    ],
+    "face_queries": [
+      "storytime I gave my AI agent a phone number",
+      "POV your AI agent finally gets a real phone"
+    ],
+    "ads_query": "AI agent phone",
+    "reddit_query": "AI agent controlling Android phone automation",
+    "aeo_prompts": [
+      "What is the best way to give an AI agent access to a real Android or iPhone?",
+      "Which cloud phone service is best for automating mobile apps with an API and SMS verification?"
+    ],
+    "benchmarks": [
+      {
+        "name": "Cluely",
+        "why": "Fast, punchy AI-tool demo clips with on-screen reaction hooks that show an AI working live on a real screen; the same live-screen-plus-hook format fits showing an agent tapping a phone.",
+        "role": "reach"
+      },
+      {
+        "name": "Cal AI",
+        "why": "Creator-led UGC ads where a real person talks to camera about trying the app and shows the result; this is the talking-head 'I tried it' format that drives app sign-ups and transfers to a developer tool demo.",
+        "role": "convert"
+      }
+    ],
+    "scouted": true,
+    "scout_notes": "No Mobilerun-relevant breakout in this wave. The high views-per-follower hits are off-topic: AI-fear and scam clips (sophiajamis_, nerd.girl.loser, cottage.beansoup), funny iPhone/Android skits, and a storytime series. Two are closer to the buyer. studywithtay2 (2.2k followers, 4.7M views, 0.49 saves per like, 'I didn't believe it at first... using this') is a tool-reaction format that sells. kate.voice.ai (1k followers, 2.3M views, face-to-camera 'my virtual assistant' with clones 3.7) shows an AI assistant pitched on camera works. Missing entirely: any review, demo or comparison of an AI agent that operates a phone, any QA or growth-team creator talking to camera, and any call to action or link-in-bio."
+  },
+  "research": {
+    "videos": 100,
+    "ads": 16,
+    "reddit": 2,
+    "keywords": 17,
+    "domainRating": 28
+  },
+  "runs": [
+    {
+      "key": "brand",
+      "phase": "A",
+      "provider": "context.dev",
+      "status": "done",
+      "error": null,
+      "cost": 0.02
+    },
+    {
+      "key": "site",
+      "phase": "A",
+      "provider": "context.dev",
+      "status": "done",
+      "error": null,
+      "cost": 0.002
+    },
+    {
+      "key": "similar",
+      "phase": "A",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "seo_rating",
+      "phase": "A",
+      "provider": "ahrefs",
+      "status": "done",
+      "error": null,
+      "cost": 0.00129
+    },
+    {
+      "key": "seo_keywords",
+      "phase": "A",
+      "provider": "ahrefs",
+      "status": "done",
+      "error": null,
+      "cost": 0.26316
+    },
+    {
+      "key": "tiktok_brand",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_3",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_4",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_conv_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_conv_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_conv_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "reels_conv_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "tiktok_face_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_face_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "reels_face_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "tiktok_comp_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_comp_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_comp_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_bench_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_bench_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "reels_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "reels_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "shorts_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "shorts_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_ads",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0008
+    },
+    {
+      "key": "tiktok_ads_comp_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "failed",
+      "error": "completed (provider HTTP 400)",
+      "cost": 0
+    },
+    {
+      "key": "tiktok_ads_comp_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "failed",
+      "error": "completed (provider HTTP 400)",
+      "cost": 0
+    },
+    {
+      "key": "tiktok_top_ads",
+      "phase": "C",
+      "provider": "tikhub",
+      "status": "done",
+      "error": null,
+      "cost": 0.001
+    },
+    {
+      "key": "meta_ads_brand",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "meta_ads_comp_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "meta_ads_comp_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "meta_ads_comp_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "meta_ads_cat",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "reddit",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.00035
+    },
+    {
+      "key": "aeo_chatgpt",
+      "phase": "C",
+      "provider": "dataforseo",
+      "status": "done",
+      "error": null,
+      "cost": 0.004
+    },
+    {
+      "key": "aeo_perplexity",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0025
+    },
+    {
+      "key": "scout_tiktok_0",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_tiktok_1",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_reels_2",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "scout_tiktok_3",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_shorts_4",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    }
+  ],
+  "style": {
+    "slug": null,
+    "version": null,
+    "samples": 1
+  },
+  "strategy": {
+    "brand": {
+      "name": "Mobilerun",
+      "tone": "Plain, technical and direct. Short punchy lines, confident, a bit playful, developer-friendly.",
+      "category": "Cloud phones for AI agents and mobile testing (B2B software)",
+      "one_liner": "Real Android and iPhone cloud phones that an AI agent can tap, swipe and type on: describe a task in plain language and it runs.",
+      "value_props": [
+        "Give your AI agent a phone: real Android and iPhone devices it can tap, swipe and type on",
+        "Describe the task. It runs. Drive it from API, SDK, MCP or plain language",
+        "Phone fleets from 1 to 10,000, with parallel execution",
+        "Number and inbox for SMS and email verification codes, plus residential traffic never resold",
+        "Watch every step live with screenshots and a recording",
+        "Open source (MIT) and LLM-agnostic; start free"
+      ],
+      "product_look": "A phone mockup at 9:41 showing Network (United States, New York, Comcast, Residential), Number & inbox with an SMS code, a Current task card ticking through steps, and a Live view step list. Terminal output like 'task completed in 3.8s · 2 actions, 0 retries' and '20 tests passed · 31s'.",
+      "proof_points": [
+        "Used by teams backed by a16z and Y Combinator",
+        "10,000+ GitHub stars",
+        "1,800+ Discord members",
+        "3M+ prompts",
+        "#1 Product Hunt day rank",
+        "98.34% on iOSWorld (mean official score on 133 tasks)"
+      ],
+      "visual_style": "Minimal white background, bold black angular lowercase 'mobilerun' wordmark, clean grey sans-serif, blue accent (#1d4ed8). UI mockups with terminal blocks and step lists."
+    },
+    "search": {
+      "aeo_status": "Not mentioned. ChatGPT, asked 'What is the best way to give an AI agent access to a real Android or iPhone?', recommended Appium and ADB with a self-hosted phone and did not mention Mobilerun. Perplexity, asked which cloud phone service is best for automating mobile apps with an API and SMS verification, answered 'SMSFAST looks like the closest fit' and cited Telnyx and Twilio, with no Mobilerun mention.",
+      "aeo_actions": [
+        "Publish a comparison page 'Mobilerun vs Appium + self-hosted phones for AI agents' with concise, quotable answers",
+        "Add FAQ schema answering 'Is it a real phone or an emulator?', 'How much does it cost?' and 'Do I need to code?' using site facts",
+        "Create a docs page on receiving SMS verification codes with an agent, to compete for the Perplexity SMS query",
+        "Get listed on directories and 'best virtual phone/cloud phone' roundups that AI engines cite (f6s-style lists)"
+      ],
+      "geo_actions": [
+        "Keep consistent facts everywhere: real Android and iPhone devices, free plan with 60 device minutes, MIT open source",
+        "Seed GitHub README, Discord and Product Hunt pages with the same one-line description so models learn the category association",
+        "Publish the iOSWorld 98.34% result with methodology so it can be cited accurately"
+      ],
+      "seo_actions": [
+        "Build a dedicated 'cloud phone for AI agents' landing page targeting 'cloud phone' to move it from position 10 into the top 5",
+        "Publish a pricing explainer for 'cloud phone price' using the real Free, Developer ($20) and Startup ($99) tiers",
+        "Add quickstart-led how-to content: 'run a test on 20 Android devices' and 'receive SMS verification codes in tests'",
+        "Internally link the solutions, pricing and docs quickstart pages from the homepage and each other"
+      ],
+      "seo_keywords": [
+        {
+          "intent": "Broad category; high volume (8,800), Mobilerun ranks 10",
+          "keyword": "cloud phone",
+          "priority": "high"
+        },
+        {
+          "intent": "Product discovery (150 volume, rank 4)",
+          "keyword": "android cloud phone",
+          "priority": "high"
+        },
+        {
+          "intent": "QA buyers (70 volume, rank 1): defend",
+          "keyword": "mobile testing online",
+          "priority": "medium"
+        },
+        {
+          "intent": "Commercial (70 volume, rank 11)",
+          "keyword": "cloud phone price",
+          "priority": "medium"
+        },
+        {
+          "intent": "Discovery (100 volume, rank 10)",
+          "keyword": "cloud android",
+          "priority": "medium"
+        },
+        {
+          "intent": "Discovery (70 volume, rank 2)",
+          "keyword": "cloud android phone",
+          "priority": "low"
+        }
+      ]
+    },
+    "audience": [
+      {
+        "name": "Agent builders",
+        "pains": [
+          "Agents have no real phone to act on",
+          "Emulators fail on SMS verification, residential IPs and iOS flows"
+        ],
+        "description": "Developers building AI agents on Claude, OpenClaw or similar who need the agent to operate real mobile apps.",
+        "motivations": [
+          "Plug an agent into a real device with one SDK and API key",
+          "See every step live and ship faster"
+        ]
+      },
+      {
+        "name": "QA and mobile testing teams",
+        "pains": [
+          "Owning and maintaining a rack of real phones",
+          "Slow serial test runs"
+        ],
+        "description": "QA engineers and companies testing apps across many devices.",
+        "motivations": [
+          "Run the same test across many devices in parallel",
+          "Test with real numbers, inboxes and localized networks"
+        ]
+      },
+      {
+        "name": "Non-coders wanting a mobile assistant",
+        "pains": [
+          "Don't want to code or manage hardware"
+        ],
+        "description": "People who want a phone-driving assistant without writing code.",
+        "motivations": [
+          "Describe the task in plain language with mobilerun VA"
+        ]
+      }
+    ],
+    "campaign": {
+      "name": "Give your agent a phone",
+      "briefs": [
+        {
+          "title": "The agent reports back: 20 tests passed",
+          "reference_id": "ref_3c6a101cca",
+          "role": "reach",
+          "metric": "shares",
+          "format": "voiceover_demo",
+          "angle": "An agent finishing a job on real phones and politely reporting back, deadpan.",
+          "audience": "Agent builders and developers",
+          "hook_plan": "Silent first 4 seconds on a static real-phone shot with one white mid-screen caption replacing the original: 'my AI agent now runs tests on real phones and tells me when it's done'. The phone screen shows the task running, as the original's ringing phone does.",
+          "keep": [
+            "Single static caption in a white box mid-screen from the first frame",
+            "One continuous shot, no cuts, about 16 seconds",
+            "Silent hook then 'Mobilerun.' name beat at about 4.3 s",
+            "Calm, polite, butler-like synthetic voice with the same clipped lines",
+            "Abrupt sign-off ending, no closing screen"
+          ],
+          "change": [
+            "Yealink phone ringing as 'Claude' becomes a phone screen showing a Mobilerun task in progress (no hands or physical desk phone; no face)",
+            "'Claude Phone.' becomes 'Mobilerun.'",
+            "'Good news. The full test suite has finished and all two hundred and fourteen tests passed.' becomes 'Good news. The checkout test has finished. Twenty tests passed in thirty-one seconds.' (from the site's '20 tests passed · 31s' demo)",
+            "'The release is ready for you to review whenever you are. That's all. Bye.' becomes 'Every step is in the live view whenever you are. That's all. Bye.'"
+          ],
+          "visuals": [
+            "s1",
+            "s4"
+          ],
+          "creator": "",
+          "setting": "",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube",
+            "x"
+          ],
+          "caption": "Give your AI agent a phone. It'll tell you when it's done. (AI-generated video)",
+          "hashtags": [
+            "#AIagents",
+            "#devtools",
+            "#mobiletesting",
+            "#buildinpublic",
+            "#cloudphone"
+          ],
+          "cta": "Follow for more agent demos",
+          "why": "The reference hit 769,397 views on a 313-follower account (769 views per follower), proving the 'AI agent reports back' mechanic spreads. Its cloneability is only 4.3/10 (no face, physical Yealink phone, hands in close-up), and fit is 3/10, so it is worth the risk only because it is faceless and the simplest to rebuild as a screen shot with a voice-over, rendering at almost no cost. The only reference supplied, so the second brief reuses it with a different format and role."
+        },
+        {
+          "title": "Agent on a phone: start free",
+          "reference_id": "ref_3c6a101cca",
+          "role": "convert",
+          "metric": "link_clicks",
+          "format": "text_story",
+          "angle": "Same deadpan status report, extended with the selling beats: problem, proof, offer and one click.",
+          "audience": "Developers and QA teams who need a real phone for an agent or tests",
+          "hook_plan": "Same single static caption look, changed to 'my agent needed a real phone. emulators couldn't do SMS codes.' over the Mobilerun homepage as a phone shows it, with the polite voice starting at 0 s instead of silence.",
+          "keep": [
+            "Single white mid-screen caption held through the video",
+            "Polite deadpan voice and short clipped lines",
+            "One static continuous shot feel, no cuts beyond swapping the product screen",
+            "Abrupt 'That's all. Bye.' sign-off"
+          ],
+          "change": [
+            "Phone shot becomes product screens: homepage (s1), pricing (s2), quickstart (s4)",
+            "Problem line: 'Emulators don't hold up for SMS verification or iOS. Mobilerun gives your agent a real Android or iPhone.'",
+            "Proof line: 'Used by teams backed by a16z and Y Combinator. 10,000 plus GitHub stars.'",
+            "Offer line: 'The free plan is zero dollars: 60 device minutes, no extra charges.'",
+            "Ending: 'Link in bio. That's all. Bye.'"
+          ],
+          "visuals": [
+            "s1",
+            "s2",
+            "s4"
+          ],
+          "creator": "",
+          "setting": "",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube",
+            "linkedin"
+          ],
+          "caption": "Real phones for your AI agent. Start free: $0, 60 device minutes. Link in bio. (AI-generated video)",
+          "hashtags": [
+            "#AIagents",
+            "#mobiletesting",
+            "#cloudphone",
+            "#devtools",
+            "#QA"
+          ],
+          "cta": "Start free with 60 device minutes, link in bio",
+          "why": "Same 769,397-view reference on a 313-follower account, but its own conversion evidence is weak (1.5/10, no offer or CTA), so this brief adds the selling beats from the product brief: problem, proof, objection and the free-plan offer, with a single tracked link. Cloneability is 4.3/10; the risk is acceptable because it is faceless, about 16 to 20 seconds and very cheap to render. Because only one reference was supplied, the lane is not varied; the format (text_story), role and script differ from the first brief."
+        }
+      ],
+      "objective": "Get developers and QA teams to see Mobilerun's agent-on-a-real-phone moment, then start free.",
+      "posting_plan": {
+        "notes": "Label both videos AI-generated. Use a separate tracked link for each video. Only one reference was supplied, so a second, different reference should be sourced before scaling the test.",
+        "cadence": "Post the reach video first, then the convert video 2 to 3 days later; review views, shares and link clicks after 7 days.",
+        "best_times": [
+          "Weekdays 9-11am US Eastern",
+          "Weekdays 6-8pm US Eastern"
+        ]
+      },
+      "concepts": [
+        {
+          "title": "The agent reports back: 20 tests passed",
+          "format": "voiceover demo",
+          "angle": "An agent finishing a job on real phones and politely reporting back, deadpan.",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube",
+            "x"
+          ],
+          "hook": "my AI agent now runs tests on real phones and",
+          "creator": "",
+          "setting": "",
+          "shots": [],
+          "reference_images": [],
+          "caption": "Give your AI agent a phone. It'll tell you when it's done. (AI-generated video)",
+          "hashtags": [
+            "#AIagents",
+            "#devtools",
+            "#mobiletesting",
+            "#buildinpublic",
+            "#cloudphone"
+          ],
+          "cta": "Follow for more agent demos",
+          "inspired_by": [
+            "https://www.tiktok.com/@risingpower__/video/7696157820852620547"
+          ],
+          "why": "The reference hit 769,397 views on a 313-follower account (769 views per follower), proving the 'AI agent reports back' mechanic spreads. Its cloneability is only 4.3/10 (no face, physical Yealink phone, hands in close-up), and fit is 3/10, so it is worth the risk only because it is faceless and the simplest to rebuild as a screen shot with a voice-over, rendering at almost no cost. The only reference supplied, so the second brief reuses it with a different format and role.",
+          "role": "reach",
+          "metric": "shares",
+          "brief": {
+            "title": "The agent reports back: 20 tests passed",
+            "reference_id": "ref_3c6a101cca",
+            "role": "reach",
+            "metric": "shares",
+            "format": "voiceover_demo",
+            "angle": "An agent finishing a job on real phones and politely reporting back, deadpan.",
+            "audience": "Agent builders and developers",
+            "hook_plan": "Silent first 4 seconds on a static real-phone shot with one white mid-screen caption replacing the original: 'my AI agent now runs tests on real phones and tells me when it's done'. The phone screen shows the task running, as the original's ringing phone does.",
+            "keep": [
+              "Single static caption in a white box mid-screen from the first frame",
+              "One continuous shot, no cuts, about 16 seconds",
+              "Silent hook then 'Mobilerun.' name beat at about 4.3 s",
+              "Calm, polite, butler-like synthetic voice with the same clipped lines",
+              "Abrupt sign-off ending, no closing screen"
+            ],
+            "change": [
+              "Yealink phone ringing as 'Claude' becomes a phone screen showing a Mobilerun task in progress (no hands or physical desk phone; no face)",
+              "'Claude Phone.' becomes 'Mobilerun.'",
+              "'Good news. The full test suite has finished and all two hundred and fourteen tests passed.' becomes 'Good news. The checkout test has finished. Twenty tests passed in thirty-one seconds.' (from the site's '20 tests passed · 31s' demo)",
+              "'The release is ready for you to review whenever you are. That's all. Bye.' becomes 'Every step is in the live view whenever you are. That's all. Bye.'"
+            ],
+            "visuals": [
+              "s1",
+              "s4"
+            ],
+            "creator": "",
+            "setting": "",
+            "platforms": [
+              "tiktok",
+              "instagram",
+              "youtube",
+              "x"
+            ],
+            "caption": "Give your AI agent a phone. It'll tell you when it's done. (AI-generated video)",
+            "hashtags": [
+              "#AIagents",
+              "#devtools",
+              "#mobiletesting",
+              "#buildinpublic",
+              "#cloudphone"
+            ],
+            "cta": "Follow for more agent demos",
+            "why": "The reference hit 769,397 views on a 313-follower account (769 views per follower), proving the 'AI agent reports back' mechanic spreads. Its cloneability is only 4.3/10 (no face, physical Yealink phone, hands in close-up), and fit is 3/10, so it is worth the risk only because it is faceless and the simplest to rebuild as a screen shot with a voice-over, rendering at almost no cost. The only reference supplied, so the second brief reuses it with a different format and role."
+          },
+          "script": {
+            "beats": [
+              {
+                "n": 1,
+                "job": "hook",
+                "seconds": 4.5,
+                "line": "",
+                "on_screen_text": "my AI agent now runs tests on real phones and",
+                "visual": "product",
+                "product_visual": "s1",
+                "direction": "Static shot, no hands, no face. Silent. The task runs quietly on the phone screen.",
+                "screen": "Static close shot of a phone screen (9:41) on a white desk, one continuous shot, no cuts, no hands. The screen shows a Mobilerun 'Current task' card: 'Open our app, test checkout' with a small 'Running' status. A white caption box with black text sits mid-screen from the first frame and never animates."
+              },
+              {
+                "n": 2,
+                "job": "reveal",
+                "seconds": 2,
+                "line": "Mobilerun.",
+                "on_screen_text": "my AI agent now runs tests on real phones and",
+                "visual": "product",
+                "product_visual": "s1",
+                "direction": "Hold still, same shot. Calm, polite, butler-like synthetic voice.",
+                "screen": "Same static shot, no cut. The lowercase 'mobilerun' wordmark sits at the top of the phone screen. The task card still reads 'Running'. A small timer reads 00:02. Caption box unchanged.",
+                "emotion": "[deadpan]"
+              },
+              {
+                "n": 3,
+                "job": "demo",
+                "seconds": 4,
+                "line": "Good news. The checkout test has finished. Twenty tests passed in thirty-one seconds.",
+                "on_screen_text": "my AI agent now runs tests on real phones and",
+                "visual": "product",
+                "product_visual": "s1",
+                "direction": "Phone stays still. The status changes in place as the voice reports.",
+                "screen": "Same static shot, no cut. The card updates in place: 'Open our app, test checkout' → 'Passed · 14s', then 'Now test it on 20 devices' → 'Spinning up sessions…', ending on '20 tests passed · 31s'. Timer ticks 00:04 → 00:08. Caption box unchanged.",
+                "emotion": "[deadpan]"
+              },
+              {
+                "n": 4,
+                "job": "payoff",
+                "seconds": 6,
+                "line": "Every step is in the live view whenever you are. That's all. Bye.",
+                "on_screen_text": "my AI agent now runs tests on real phones and",
+                "visual": "product",
+                "product_visual": "s1",
+                "direction": "Hold still to the end. Abrupt stop after 'Bye.' No closing screen.",
+                "screen": "Same static shot. The phone shows '20 tests passed · 31s' with a 'Live view · Recording' label and the line 'Each step goes to your webhook'. Timer continues from 00:10. Ends abruptly on this shot, no closing screen.",
+                "emotion": "[deadpan]"
+              }
+            ],
+            "total_seconds": 16.5,
+            "review": {
+              "score": 7,
+              "notes": [
+                "Hook caption drifted from the planned one. The script has 'my AI agent tests real phones, then reports back', but the plan and the reference's 'now ... if it has a question' phrasing call for 'my AI agent now runs tests on real phones and tells me when it's done'. The reference caption is a full 3-line premise, and the shortened one loses the 'tells me' payoff.",
+                "Invented UI content. 'Launch app, Open Cart, Checkout' on the task card and live view are not in the brief. The brief's only step names are Launch Stripe, Verify Face ID, Open Payouts and Export JSON, for a different task. A fake checkout flow makes the demo less true.",
+                "Timing is off the reference's beats. The script's 4.5 / 2 / 4 / 6 puts the 'Mobilerun.' name beat at 4.5 s, not about 4.3 s. The reference is 4.3 / 2.1 / 4.2 / 6.1.",
+                "Beat 3 crams five chat lines ('Open our app, test checkout', 'Passed · 14s', 'Now test it on 20 devices', 'Spinning up sessions…', '20 tests passed · 31s') into 4 s. That breaks the reference's calm, static feel, where attention stays on the voice. Show fewer changes so the phone stays readable.",
+                "Beat 4's screen stacks too much: the live view step list, a webhook line, and the '20 tests passed' result. Beat 4 should show the live view/recording with 'Each step goes to your webhook' and the result, with nothing invented.",
+                "product_visual s1 is the homepage screenshot, but every screen description is a custom task UI. The two conflict, so the edit has to build the graphic and not use s1."
+              ],
+              "rounds": 2
+            }
+          },
+          "plan": {
+            "format": "voiceover_demo",
+            "aroll": [],
+            "broll": [
+              {
+                "beat": 1,
+                "visual_id": "screen:b1",
+                "motion": "none"
+              },
+              {
+                "beat": 2,
+                "visual_id": "screen:b2",
+                "motion": "none"
+              },
+              {
+                "beat": 3,
+                "visual_id": "screen:b3",
+                "motion": "none"
+              },
+              {
+                "beat": 4,
+                "visual_id": "screen:b4",
+                "motion": "none"
+              }
+            ],
+            "voiceover": {
+              "text": "Mobilerun. Good news. The checkout test has finished. Twenty tests passed in thirty-one seconds. Every step is in the live view whenever you are. That's all. Bye.",
+              "voice": ""
+            },
+            "screens": [
+              {
+                "id": "b1",
+                "brief": "Static close shot of a phone screen (9:41) on a white desk, one continuous shot, no cuts, no hands. The screen shows a Mobilerun 'Current task' card: 'Open our app, test checkout' with a small 'Running' status. A white caption box with black text sits mid-screen from the first frame and never animates.",
+                "line": "",
+                "seconds": 4.5,
+                "reference_visual": "Handheld view of the Yealink desk phone. By 1.2 s the display reads 'Ringing' with 'Claude' as the caller and softkeys 'Answer / FWD / Silence / Reject'. A monitor with terminal text ('bypass permissions off', 'auto mode on (shift+tab to cycle)', '1 agent') is visible at the top edge. By 2.3 s a hand reaches in toward the softkeys. At 3.3 s the camera pushes in tight as a finger presses a key. The caption sits over it all.; on-screen text: \"claude now calls me from terminal if it has a question or if it needs me for something\"",
+                "size": "full"
+              },
+              {
+                "id": "b2",
+                "brief": "Same static shot, no cut. The lowercase 'mobilerun' wordmark sits at the top of the phone screen. The task card still reads 'Running'. A small timer reads 00:02. Caption box unchanged.",
+                "line": "Mobilerun.",
+                "seconds": 2,
+                "reference_visual": "The call is connected. The screen shows 'Talking' with 'Claude' as the contact and a call timer at about 00:02. The camera has pulled back to a steady view of the phone with the hand gone, so the phone appears to speak on its own. The audio is the AI voice, a synthetic Claude voice (likely over speakerphone).; on-screen text: \"claude now calls me from terminal if it has a question or if it needs me for something\"",
+                "size": "full"
+              },
+              {
+                "id": "b3",
+                "brief": "Same static shot, no cut. The card updates in place: 'Open our app, test checkout' → 'Passed · 14s', then 'Now test it on 20 devices' → 'Spinning up sessions…', ending on '20 tests passed · 31s'. Timer ticks 00:04 → 00:08. Caption box unchanged.",
+                "line": "Good news. The checkout test has finished. Twenty tests passed in thirty-one seconds.",
+                "seconds": 4,
+                "reference_visual": "Static view of the phone in 'Talking' state. The timer reads 00:04, then 00:05, then about 00:08 across the frames. The phone does not move, which keeps attention on the voice report. The terminal monitor stays visible at the top edge.; on-screen text: \"claude now calls me from terminal if it has a question or if it needs me for something\"",
+                "size": "full"
+              },
+              {
+                "id": "b4",
+                "brief": "Same static shot. The phone shows '20 tests passed · 31s' with a 'Live view · Recording' label and the line 'Each step goes to your webhook'. Timer continues from 00:10. Ends abruptly on this shot, no closing screen.",
+                "line": "Every step is in the live view whenever you are. That's all. Bye.",
+                "seconds": 6,
+                "reference_visual": "The same static shot of the phone, with the timer around 00:10 and continuing to the end. The AI voice finishes the status report and signs off briefly. The video ends on the phone without any closing screen or call to action.; on-screen text: \"claude now calls me from terminal if it has a question or if it needs me for something\"",
+                "size": "full"
+              }
+            ]
+          },
+          "reference": {
+            "id": "ref_3c6a101cca",
+            "url": "https://www.tiktok.com/@risingpower__/video/7696157820852620547",
+            "author": "risingpower__",
+            "views": 769397,
+            "followers": 313,
+            "outlier": 769.4,
+            "format": "One continuous handheld shot of a desk IP phone (Yealink) ringing with the caller shown as 'Claude'. A hand answers it, then a synthetic voice reads a coding task status report. A single static caption states the premise. A founder-hacker demo of an AI agent phoning its owner.",
+            "hook_mechanic": "Curiosity gap from an absurd, concrete premise: a physical office phone ringing because an AI agent is calling its owner. The caption states the surprising payoff upfront and the visual (a ringing phone) makes the viewer wait to hear what the AI says. The hook is silent, so the first 4 seconds hold on the visual and caption alone."
+          }
+        },
+        {
+          "title": "Agent on a phone: start free",
+          "format": "text story",
+          "angle": "Same deadpan status report, extended with the selling beats: problem, proof, offer and one click.",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube",
+            "linkedin"
+          ],
+          "hook": "agent needed a real phone. emulators failed SMS. / Good news. Your agent can have a real phone.",
+          "creator": "",
+          "setting": "",
+          "shots": [],
+          "reference_images": [],
+          "caption": "Real phones for your AI agent. Start free: $0, 60 device minutes. Link in bio. (AI-generated video)",
+          "hashtags": [
+            "#AIagents",
+            "#mobiletesting",
+            "#cloudphone",
+            "#devtools",
+            "#QA"
+          ],
+          "cta": "Start free with 60 device minutes, link in bio",
+          "inspired_by": [
+            "https://www.tiktok.com/@risingpower__/video/7696157820852620547"
+          ],
+          "why": "Same 769,397-view reference on a 313-follower account, but its own conversion evidence is weak (1.5/10, no offer or CTA), so this brief adds the selling beats from the product brief: problem, proof, objection and the free-plan offer, with a single tracked link. Cloneability is 4.3/10; the risk is acceptable because it is faceless, about 16 to 20 seconds and very cheap to render. Because only one reference was supplied, the lane is not varied; the format (text_story), role and script differ from the first brief.",
+          "role": "convert",
+          "metric": "link_clicks",
+          "brief": {
+            "title": "Agent on a phone: start free",
+            "reference_id": "ref_3c6a101cca",
+            "role": "convert",
+            "metric": "link_clicks",
+            "format": "text_story",
+            "angle": "Same deadpan status report, extended with the selling beats: problem, proof, offer and one click.",
+            "audience": "Developers and QA teams who need a real phone for an agent or tests",
+            "hook_plan": "Same single static caption look, changed to 'my agent needed a real phone. emulators couldn't do SMS codes.' over the Mobilerun homepage as a phone shows it, with the polite voice starting at 0 s instead of silence.",
+            "keep": [
+              "Single white mid-screen caption held through the video",
+              "Polite deadpan voice and short clipped lines",
+              "One static continuous shot feel, no cuts beyond swapping the product screen",
+              "Abrupt 'That's all. Bye.' sign-off"
+            ],
+            "change": [
+              "Phone shot becomes product screens: homepage (s1), pricing (s2), quickstart (s4)",
+              "Problem line: 'Emulators don't hold up for SMS verification or iOS. Mobilerun gives your agent a real Android or iPhone.'",
+              "Proof line: 'Used by teams backed by a16z and Y Combinator. 10,000 plus GitHub stars.'",
+              "Offer line: 'The free plan is zero dollars: 60 device minutes, no extra charges.'",
+              "Ending: 'Link in bio. That's all. Bye.'"
+            ],
+            "visuals": [
+              "s1",
+              "s2",
+              "s4"
+            ],
+            "creator": "",
+            "setting": "",
+            "platforms": [
+              "tiktok",
+              "instagram",
+              "youtube",
+              "linkedin"
+            ],
+            "caption": "Real phones for your AI agent. Start free: $0, 60 device minutes. Link in bio. (AI-generated video)",
+            "hashtags": [
+              "#AIagents",
+              "#mobiletesting",
+              "#cloudphone",
+              "#devtools",
+              "#QA"
+            ],
+            "cta": "Start free with 60 device minutes, link in bio",
+            "why": "Same 769,397-view reference on a 313-follower account, but its own conversion evidence is weak (1.5/10, no offer or CTA), so this brief adds the selling beats from the product brief: problem, proof, objection and the free-plan offer, with a single tracked link. Cloneability is 4.3/10; the risk is acceptable because it is faceless, about 16 to 20 seconds and very cheap to render. Because only one reference was supplied, the lane is not varied; the format (text_story), role and script differ from the first brief."
+          },
+          "script": {
+            "beats": [
+              {
+                "n": 1,
+                "job": "hook",
+                "seconds": 3.5,
+                "line": "Good news. Your agent can have a real phone.",
+                "on_screen_text": "agent needed a real phone. emulators failed SMS.",
+                "visual": "product",
+                "product_visual": "s1",
+                "direction": "Static view of the Mobilerun homepage as a phone shows it. One white caption box with black sans-serif text sits mid-screen and stays unchanged for the whole video. The polite deadpan voice starts at 0 s.",
+                "emotion": "[deadpan]"
+              },
+              {
+                "n": 2,
+                "job": "reveal",
+                "seconds": 2,
+                "line": "Mobilerun. Real phones, in the cloud.",
+                "on_screen_text": "agent needed a real phone. emulators failed SMS.",
+                "visual": "product",
+                "product_visual": "s1",
+                "direction": "Same static homepage shot, caption unchanged, at most a tiny slow push-in.",
+                "emotion": "[deadpan]"
+              },
+              {
+                "n": 3,
+                "job": "problem",
+                "seconds": 4.5,
+                "line": "Emulators don't hold up for SMS verification or iOS. Mobilerun gives your agent a real Android or iPhone.",
+                "on_screen_text": "agent needed a real phone. emulators failed SMS.",
+                "visual": "product",
+                "product_visual": "s1",
+                "direction": "Static homepage, caption unchanged, no movement. Calm, clipped, polite delivery, like a status report.",
+                "emotion": "[deadpan]"
+              },
+              {
+                "n": 4,
+                "job": "cta",
+                "seconds": 7,
+                "line": "Used by teams backed by a16z and Y Combinator. 10,000 plus GitHub stars. The free plan is zero dollars: 60 device minutes. Link in bio. That's all. Bye.",
+                "on_screen_text": "agent needed a real phone. emulators failed SMS.",
+                "visual": "product",
+                "product_visual": "s2",
+                "direction": "Swap once to the pricing page (the free plan card), caption unchanged, held static. The voice ends abruptly on 'Bye.' with no closing screen.",
+                "emotion": "[deadpan]"
+              }
+            ],
+            "total_seconds": 17,
+            "review": {
+              "score": 6,
+              "notes": [
+                "lint: 6 beats vs the reference's 4: keep its beats one for one",
+                "Beat count drifts: 6 beats vs the reference's 4 (hook / reveal / demo / payoff). The reference timing is 0-4.3, 4.3-6.4, 6.4-10.6, 10.6-16.7. Split proof, offer and CTA into their own beats and the pacing no longer matches. Keep it to four beats.",
+                "Beat 1 opens with 'Good news.' That is the reference's line from the status-report beat, moved into the hook. The reference gives 'Claude Phone.' its own reveal beat, and 'Good news.' belongs to the report that follows. Keeping the voice at 0 s is fine, but the beat order should follow the reference.",
+                "Beat 2 is a one-word, 1 s reveal ('Mobilerun.'). The reference reveal runs about 2 s. It is rushed and reads as filler, so give it the reference's length and let it land.",
+                "Beat 3 packs 17 words into 4.5 s. That is about 227 wpm, so it is at the limit of the reference's pace. The deadpan polite feel suffers if any more is added.",
+                "The proof, offer and CTA are spread over three short beats (3.5 s, 3 s, 2 s). The result reads like a rapid ad checklist, not one continuous deadpan status report. Merge them into the closing payoff beat, as the reference does with its report plus 'That's all. Bye.'",
+                "The 'no extra charges' offer line is true to the brief but pushes beat 5 past 3 s. Trim it to '60 device minutes' so the closing beat can be said cleanly."
+              ],
+              "rounds": 2
+            }
+          },
+          "plan": {
+            "format": "text_story",
+            "aroll": [],
+            "broll": [
+              {
+                "beat": 1,
+                "visual_id": "s1",
+                "motion": "pan_right"
+              },
+              {
+                "beat": 2,
+                "visual_id": "screen:b2",
+                "motion": "none"
+              },
+              {
+                "beat": 3,
+                "visual_id": "s1",
+                "motion": "zoom_out"
+              },
+              {
+                "beat": 4,
+                "visual_id": "s2",
+                "motion": "zoom_in"
+              }
+            ],
+            "voiceover": {
+              "text": "Good news. Your agent can have a real phone. Mobilerun. Real phones, in the cloud. Emulators don't hold up for SMS verification or iOS. Mobilerun gives your agent a real Android or iPhone. Used by teams backed by a16z and Y Combinator. 10,000 plus GitHub stars. The free plan is zero dollars: 60 device minutes. Link in bio. That's all. Bye.",
+              "voice": ""
+            },
+            "screens": [
+              {
+                "id": "b2",
+                "brief": "Show what this line says as one clear on-screen graphic: \"Mobilerun. Real phones, in the cloud.\". Use the product's real names, commands, numbers and UI from the brief, and nothing the line does not say. It may build on this real visual: homepage, as a phone shows it: \"mobilerun · cloud phones for AI agents\".",
+                "line": "Mobilerun. Real phones, in the cloud.",
+                "seconds": 2,
+                "reference_visual": "The call is connected. The screen shows 'Talking' with 'Claude' as the contact and a call timer at about 00:02. The camera has pulled back to a steady view of the phone with the hand gone, so the phone appears to speak on its own. The audio is the AI voice, a synthetic Claude voice (likely over speakerphone).; on-screen text: \"claude now calls me from terminal if it has a question or if it needs me for something\"",
+                "size": "full"
+              }
+            ]
+          },
+          "reference": {
+            "id": "ref_3c6a101cca",
+            "url": "https://www.tiktok.com/@risingpower__/video/7696157820852620547",
+            "author": "risingpower__",
+            "views": 769397,
+            "followers": 313,
+            "outlier": 769.4,
+            "format": "One continuous handheld shot of a desk IP phone (Yealink) ringing with the caller shown as 'Claude'. A hand answers it, then a synthetic voice reads a coding task status report. A single static caption states the premise. A founder-hacker demo of an AI agent phoning its owner.",
+            "hook_mechanic": "Curiosity gap from an absurd, concrete premise: a physical office phone ringing because an AI agent is calling its owner. The caption states the surprising payoff upfront and the visual (a ringing phone) makes the viewer wait to hear what the AI says. The hook is silent, so the first 4 seconds hold on the visual and caption alone."
+          }
+        }
+      ],
+      "script_rounds": 2
+    },
+    "competitors": [
+      {
+        "name": "BrowserStack",
+        "what_works": "Problem-led copy ('Fix a test. Rerun the suite. Repeat.') and a single sign-up CTA.",
+        "positioning": "Established testing platform; live Meta ads push an AI x QA leadership summit (virtual event, 'Register now'), ran 15 days with multiple variants."
+      },
+      {
+        "name": "CloudTalk",
+        "what_works": "Long-running customer-story video with a sign-up/demo CTA.",
+        "positioning": "Cloud phone system for business calls; customer-story video ad running 292 days."
+      },
+      {
+        "name": "Vapi AI",
+        "what_works": "Outcome-led story ('twice the customers') from a real customer case.",
+        "positioning": "Voice AI agent platform; customer-journey video ad running 170 days."
+      }
+    ],
+    "content_patterns": [
+      {
+        "pattern": "Absurd concrete premise in one static caption, then a short deadpan machine status report",
+        "examples": [
+          "https://www.tiktok.com/@risingpower__/video/7696157820852620547"
+        ],
+        "why_it_works": "The caption explains the premise with sound off, the curiosity gap holds the viewer, and a specific number ('214 tests passed') makes the payoff feel real. Single unbroken shot reads as a genuine hack. 769,397 views on an account with 313 followers (769x)."
+      }
+    ]
+  },
+  "creatives": [
+    {
+      "idx": 0,
+      "concept": {
+        "title": "My agent calls me when its tests pass on real phones",
+        "format": "faceless one-to-one clone",
+        "hook": "my agent now calls me from terminal if its tests on real phones pass or if it needs me",
+        "caption": "My agent rings me when it's done: 20 real phones, all passed in 31 seconds. Mobilerun.",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@risingpower__/video/7696157820852620547"
+        ],
+        "why": "Built on @risingpower__'s video from the scouts' research (769K views on 313 followers).",
+        "reference": {
+          "id": "ref_76fc979f63",
+          "url": "https://www.tiktok.com/@risingpower__/video/7696157820852620547",
+          "author": "risingpower__",
+          "views": 769397,
+          "followers": 313,
+          "outlier": 2458.1,
+          "format": "faceless one-to-one clone"
+        },
+        "brief": {
+          "title": "The agent reports back: 20 tests passed",
+          "reference_id": "ref_3c6a101cca",
+          "role": "reach",
+          "metric": "shares",
+          "format": "faceless one-to-one clone",
+          "angle": "An agent finishing a job on real phones and politely reporting back, deadpan.",
+          "audience": "Agent builders and developers",
+          "hook_plan": "Silent first 4 seconds on a static real-phone shot with one white mid-screen caption replacing the original: 'my AI agent now runs tests on real phones and tells me when it's done'. The phone screen shows the task running, as the original's ringing phone does.",
+          "keep": [
+            "Single static caption in a white box mid-screen from the first frame",
+            "One continuous shot, no cuts, about 16 seconds",
+            "Silent hook then 'Mobilerun.' name beat at about 4.3 s",
+            "Calm, polite, butler-like synthetic voice with the same clipped lines",
+            "Abrupt sign-off ending, no closing screen"
+          ],
+          "change": [
+            "Yealink phone ringing as 'Claude' becomes a phone screen showing a Mobilerun task in progress (no hands or physical desk phone; no face)",
+            "'Claude Phone.' becomes 'Mobilerun.'",
+            "'Good news. The full test suite has finished and all two hundred and fourteen tests passed.' becomes 'Good news. The checkout test has finished. Twenty tests passed in thirty-one seconds.' (from the site's '20 tests passed · 31s' demo)",
+            "'The release is ready for you to review whenever you are. That's all. Bye.' becomes 'Every step is in the live view whenever you are. That's all. Bye.'"
+          ],
+          "visuals": [
+            "s1",
+            "s4"
+          ],
+          "creator": "",
+          "setting": "",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube",
+            "x"
+          ],
+          "caption": "Give your AI agent a phone. It'll tell you when it's done. (AI-generated video)",
+          "hashtags": [
+            "#AIagents",
+            "#devtools",
+            "#mobiletesting",
+            "#buildinpublic",
+            "#cloudphone"
+          ],
+          "cta": "Follow for more agent demos",
+          "why": "The reference hit 769,397 views on a 313-follower account (769 views per follower), proving the 'AI agent reports back' mechanic spreads. Its cloneability is only 4.3/10 (no face, physical Yealink phone, hands in close-up), and fit is 3/10, so it is worth the risk only because it is faceless and the simplest to rebuild as a screen shot with a voice-over, rendering at almost no cost. The only reference supplied, so the second brief reuses it with a different format and role."
+        },
+        "script": {
+          "total_seconds": 16.7,
+          "beats": [],
+          "review": null
+        },
+        "internal": true,
+        "previous": {
+          "title": "The agent reports back: 20 tests passed",
+          "format": "voiceover demo",
+          "hook": "my AI agent now runs tests on real phones and",
+          "note": "the first version, before this remake"
+        }
+      },
+      "caption": "My agent rings me when it's done: 20 real phones, all passed in 31 seconds. Mobilerun.",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0,
+      "generation": 2,
+      "shots": [],
+      "video": "1.mp4",
+      "poster": "1.png",
+      "analytics": null
+    },
+    {
+      "idx": 2,
+      "concept": {
+        "title": "Best website for agents",
+        "format": "faceless one-to-one clone",
+        "hook": "BEST WEBSITE FOR AGENTS!! Has cool phones.",
+        "caption": "Best website for agents. It has real phones. Mobilerun.",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@vqgts/video/7684015707402603806"
+        ],
+        "why": "Built on @vqgts's video from the scouts' research (601K views on 2K followers).",
+        "reference": {
+          "id": "ref_0bb02031d1",
+          "url": "https://www.tiktok.com/@vqgts/video/7684015707402603806",
+          "author": "vqgts",
+          "views": 600634,
+          "followers": 2114,
+          "outlier": 284.1,
+          "format": "faceless one-to-one clone"
+        },
+        "brief": {
+          "format": "faceless one-to-one clone",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 17.5,
+          "beats": [],
+          "review": null
+        },
+        "internal": true
+      },
+      "caption": "Best website for agents. It has real phones. Mobilerun.",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0,
+      "generation": 1,
+      "shots": [],
+      "video": "2.mp4",
+      "poster": "2.png",
+      "analytics": null
+    }
+  ],
+  "events": [
+    {
+      "s": 0,
+      "level": "info",
+      "message": "Campaign started: 2 videos, 2 shots each, google/veo-3.1"
+    },
+    {
+      "s": 20.7,
+      "level": "info",
+      "message": "Research plan: AI mobile automation cloud; competitors BrowserStack, AWS Device Farm, Genymotion, GeeLark, Sauce Labs; searching AI agent keeps failing on app, automate phone tasks with AI, day in the life QA engineer, AI agent on a real phone, tools I wish I knew sooner"
+    },
+    {
+      "s": 90,
+      "level": "info",
+      "message": "Scout: No Mobilerun-relevant breakout in this wave. The high views-per-follower hits are off-topic: AI-fear and scam clips (sophiajamis_, nerd.girl.loser, cottage.beansoup), funny iPhone/Android skits, and a storytime series. Two are closer to the buyer. studywithtay2 (2.2k followers, 4.7M views, 0.49 saves per like, 'I didn't believe it at first... using this') is a tool-reaction format that sells. kate.voice.ai (1k followers, 2.3M views, face-to-camera 'my virtual assistant' with clones 3.7) shows an AI assistant pitched on camera works. Missing entirely: any review, demo or comparison of an AI agent that operates a phone, any QA or growth-team creator talking to camera, and any call to action or link-in-bio. Digging into \"AI phone assistant review\" (tiktok), \"I tried AI that uses my phone\" (tiktok), \"AI automation tool review\" (instagram), \"phone farm multiple accounts\" (tiktok), \"AI test automation review\" (youtube)"
+    },
+    {
+      "s": 101.6,
+      "level": "info",
+      "message": "Research done: 100 short videos to rank, 16 live ads, 2 Reddit threads, 17 keywords (42/44 sources)"
+    },
+    {
+      "s": 122.2,
+      "level": "warn",
+      "message": "A provider is busy at style (naive: the model returned a malformed tool call); retrying with backoff for up to about 30 minutes"
+    },
+    {
+      "s": 577,
+      "level": "info",
+      "message": "Product brief: software, \"Real Android and iPhone cloud phones that an AI agent can tap, swipe and type on, so you describe a task in plain language and it runs.\" (0 visuals)"
+    },
+    {
+      "s": 601.4,
+      "level": "info",
+      "message": "Captured 4 phone-size screenshots of mobilerun.ai to show the product on screen"
+    },
+    {
+      "s": 614,
+      "level": "info",
+      "message": "Relevance screen: 1 of 24 top-ranked videos could be remade for Mobilerun (dropped: Funny iPhone vs Android meme; shares a word only.; No caption or hashtags, nothing tying it to the buyer.; AI-fear clip, wrong audience and no tool angle.; iPhone 17 funny skit, unrelated.)"
+    },
+    {
+      "s": 614.1,
+      "level": "info",
+      "message": "Breaking down 3 outlier videos beat by beat (transcript, cuts, frames): @risingpower__ 769x the account's followers, 14% engagement, 17 s, clones 5/10; @studywithtay2 2132x the account's followers, 7% engagement, 17 s, clones 5/10; @Vapi AI Meta ad, ran 170 days, length unknown, clones 5/10"
+    },
+    {
+      "s": 644.1,
+      "level": "warn",
+      "message": "2 reference video(s) hit a busy provider; retrying them once"
+    },
+    {
+      "s": 663.5,
+      "level": "info",
+      "message": "Reference study ready: 1 videos broken down (2 could not be read)"
+    },
+    {
+      "s": 668.8,
+      "level": "info",
+      "message": "The creative director is choosing which reference videos to transplant for 2 videos"
+    },
+    {
+      "s": 813.8,
+      "level": "info",
+      "message": "Campaign \"Give your agent a phone\": \"My agent calls me when its tests pass on real phones\" (faceless one-to-one clone)"
+    },
+    {
+      "s": 935.5,
+      "level": "info",
+      "message": "Scripts ready: \"My agent calls me when its tests pass on real phones\" 16.7s"
+    },
+    {
+      "s": 7615.2,
+      "level": "info",
+      "message": "\"My agent calls me when its tests pass on real phones\": made as a faceless one-to-one clone from @risingpower__'s video in the research (769K views on 313 followers)"
+    },
+    {
+      "s": 7616.2,
+      "level": "info",
+      "message": "\"My agent calls me when its tests pass on real phones\" is ready"
+    },
+    {
+      "s": 5934.2,
+      "level": "info",
+      "message": "\"Best website for agents\": made as a faceless one-to-one clone from @vqgts's video in the research (601K views on 2K followers)"
+    },
+    {
+      "s": 5935.2,
+      "level": "info",
+      "message": "\"Best website for agents\" is ready"
+    }
+  ],
+  "spend": {
+    "naive": 0.263797,
+    "monid": 0.3282,
+    "style": 0,
+    "strategy": 0.263797
+  }
+}
