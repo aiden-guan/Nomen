@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { editFfmpeg, renderTimeline } from "@/lib/creative/edit";
 import { extractFormulas, fallbackFormulas, type Formula, formulaDigest, normalizeFormulas } from "@/lib/creative/formulas";
-import { lintOrganic, normalizeOrganic, type OrganicContext, organicConcept, organicTarget, PUNCH_IN, personaFor, planOrganic, readPersona, takeSeconds, writeOrganicScript } from "@/lib/creative/organic";
+import { lintOrganic, normalizeOrganic, type OrganicContext, organicConcept, organicTarget, PUNCH_IN, personaFor, planOrganic, readPersona, sayable, takeSeconds, writeOrganicScript } from "@/lib/creative/organic";
 import { buildTimeline, planProduction } from "@/lib/creative/plan";
 import { normalizeScript } from "@/lib/creative/script";
 import type { CreativeBrief, ProductBrief, ReferenceBreakdown, Script } from "@/lib/creative/types";
@@ -360,6 +360,16 @@ describe("the organic plan shape", () => {
     // A remake's presenter is unchanged.
     const remake = planProduction(goodScript(), { ...brief, mode: undefined, creator: "a woman in her twenties" }, product);
     expect(remake.aroll[0].video_prompt).toContain("propped up");
+  });
+
+  it("has her say the brand and its address the way they are spoken, while the captions keep them written", () => {
+    expect(sayable("Sign up at usenaive.ai, then open Naïve Studio.", "Naïve")).toBe("Sign up at use naive dot A I, then open Naive Studio.");
+    expect(sayable("Go to monid.ai/skill and read docs.monid.com", "Monid")).toBe("Go to monid dot A I slash skill and read docs dot monid dot com");
+    const script = normalizeScript([{ ...goodBeats[0] }, { ...goodBeats[4], line: "It's called Naïve. Sign up at usenaive.ai." }] as never, ctx);
+    const plan = planOrganic(script, brief, product, still);
+    expect(plan.aroll[1].video_prompt).toContain('She says: "It\'s called Naive. Sign up at use naive dot A I."');
+    const timeline = buildTimeline(script, plan, { aroll: plan.aroll.map((shot) => ({ path: `/tmp/t${shot.n}.mp4`, duration: 3 })), voiceover: null, visuals: new Map() });
+    expect(timeline.captions.map((c) => c.text).join(" ")).toContain("usenaive.ai");
   });
 
   it("sizes a take to its words at a fast natural pace, between Kling's shortest and ten seconds", () => {

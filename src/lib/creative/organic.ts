@@ -90,6 +90,32 @@ const CALM: Record<string, string> = {
 };
 export const calmTag = (tag: string) => tag.replace(/[\p{L}-]+/gu, (word) => CALM[word.toLowerCase()] ?? word);
 
+const SPOKEN_TLD: Record<string, string> = { ai: "A I", io: "I O", com: "com", co: "co", app: "app", dev: "dev", so: "so", net: "net", org: "org" };
+
+/**
+ * A line as the presenter should say it: Kling read "Naïve" as "Knive" and ran "usenaive.ai" into
+ * one word in the first organic run. Accents are dropped, and a web address is said the way people
+ * say one ("use naive dot A I slash docs"), splitting the brand's name out of a run-together domain.
+ * Captions keep the written line.
+ */
+export function sayable(line: string, productName: string): string {
+  const name = productName.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const plain = line.normalize("NFD").replace(/\p{M}/gu, "");
+  return plain.replace(/\b((?:[a-z0-9-]+\.)+)(ai|io|com|co|app|dev|so|net|org)\b((?:\/[\w-]+)*)/gi, (_match, labels: string, tld: string, path: string) => {
+    const said = labels
+      .split(".")
+      .filter(Boolean)
+      .map((label) => {
+        const lower = label.toLowerCase();
+        const at = name ? lower.indexOf(name) : -1;
+        if (at < 0 || lower === name) return label;
+        return [label.slice(0, at), label.slice(at, at + name.length), label.slice(at + name.length)].filter(Boolean).join(" ");
+      });
+    const spokenPath = path ? path.split("/").filter(Boolean).map((part) => ` slash ${part}`).join("") : "";
+    return `${[...said, SPOKEN_TLD[tld.toLowerCase()] ?? tld].join(" dot ")}${spokenPath}`;
+  });
+}
+
 /** A take's render length: the line at the take pace plus a little room, in whole seconds (Kling bills what is asked). */
 export const takeSeconds = (line: string) => Math.min(MAX_TAKE, Math.max(MIN_TAKE, Math.ceil(words(line).length / TAKE_WPS + TAKE_PAD)));
 
@@ -136,7 +162,7 @@ export function planOrganic(script: Script, brief: CreativeBrief, product: Produ
   const aroll = groupTakes(script).map((beats, i) => {
     const shot = presenterShot(
       i + 1,
-      persona ? beats.map((beat) => (beat.emotion ? { ...beat, emotion: calmTag(beat.emotion) } : beat)) : beats,
+      beats.map((beat) => ({ ...beat, line: sayable(beat.line, product.name), ...(persona && beat.emotion ? { emotion: calmTag(beat.emotion) } : {}) })),
       shotBrief,
       product,
       delivery,
