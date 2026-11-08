@@ -33,7 +33,11 @@ export type PropId =
   | "crystal"
   | "beacon"
   | "huts"
-  | "gate";
+  | "gate"
+  // The battle below the agora (engine/models/battle.ts).
+  | "catapult"
+  | "ballista"
+  | "fort";
 
 export type Placement = { prop: PropId; x: number; y: number; v?: number; key?: string; sort?: number };
 

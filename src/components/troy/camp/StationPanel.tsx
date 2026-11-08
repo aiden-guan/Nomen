@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import type { BrandView, CreativeView } from "../api";
 import type { Baker } from "../engine/baker";
+import type { BattlePlan } from "../scenes/battle";
 import { type AgentPlan, type CampPlan, runLabel, stationForEvent } from "../scenes/derive";
 import { LAND, landFor, STATION, type StationId } from "../scenes/layout";
 import styles from "../troy.module.css";
@@ -53,7 +54,9 @@ export function StationPanel({
   const state = plan.stations[id];
   const here = plan.agents.filter((a) => a.station === id);
   // Scouts who already brought their findings back have gone home: count them instead of listing.
-  const agents = here.filter((a) => !a.returning);
+  // The agora's army is shown a company at a time: its first hoplite, one archer, one crewman.
+  const army = here.filter((a) => /^(hoplite|archer|crew):/.test(a.id));
+  const agents = here.filter((a) => !a.returning && (!/^(hoplite|archer|crew):/.test(a.id) || a.id.endsWith(":0")));
   const away = here.filter((a) => a.away).length;
   const back = here.filter((a) => a.returning === "scroll").length;
   const empty = here.filter((a) => a.returning === "empty").length;
@@ -108,11 +111,13 @@ export function StationPanel({
           </div>
         </div>
 
+        {id === "agora" && <Battle battle={plan.battle} category={view.campaign?.plan?.category ?? null} />}
+
         <Section
           title="Agents"
           aside={
             <span className="text-[11px] text-[var(--ink-faint)]">
-              {[away && `${away} out on runs`, back && `${back} back with findings`, empty && `${empty} came back empty`].filter(Boolean).join(" · ") || "Click one to follow them"}
+              {[away && `${away} out on runs`, back && `${back} back with findings`, empty && `${empty} came back empty`, army.length && `an army of ${army.length}, one of each company shown`].filter(Boolean).join(" · ") || "Click one to follow them"}
             </span>
           }
         >
@@ -450,6 +455,55 @@ function VideoCard({ creative, busy, actions }: { creative: CreativeView; busy: 
 }
 
 export { crispIfTiny };
+
+/**
+ * The battle below the agora, in numbers: each video's company and how its posts do against the
+ * category's top videos, which is what moves the line on the map.
+ */
+function Battle({ battle, category }: { battle: BattlePlan; category: string | null }) {
+  if (battle.phase === "none") return null;
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const rival = battle.rival?.name ?? "the rival";
+  const lean = battle.score?.ratio ? Math.max(0.06, Math.min(0.94, 0.5 + Math.log2(battle.score.ratio) * 0.45)) : 0.5;
+  return (
+    <Section title="The battle" aside={battle.rival ? <span className="text-[11px] text-[var(--ink-faint)]">against {rival}{battle.rival.ads ? `, ${battle.rival.ads} live ads` : ""}</span> : undefined}>
+      <p className="text-[12px] leading-relaxed text-[var(--ink-soft)]">
+        Below the agora your army fights the legion of {rival}: a company for each video. Once a video is posted, its company pushes as far as the video does against the top videos
+        {category ? ` in ${category}` : ""} the scouts found, by likes per view.
+      </p>
+      <div className="mt-3 bg-[rgba(43,29,20,0.04)] p-2.5">
+        <p className="flex items-center justify-between text-[11px]">
+          <span className={`${styles.pixel} text-[var(--olive)]`}>Your videos {battle.score ? pct(battle.score.engagement) : "–"}</span>
+          <span className={`${styles.pixel} text-[var(--crimson)]`}>Top videos {battle.benchmark ? pct(battle.benchmark.engagement) : "–"}</span>
+        </p>
+        <p className="relative mt-1.5 h-[8px] bg-[var(--crimson)]" aria-hidden="true">
+          <span className="absolute inset-y-0 left-0 bg-[var(--olive)]" style={{ width: `${lean * 100}%` }} />
+          <span className="absolute inset-y-[-3px] left-1/2 w-[2px] bg-[var(--ink)]" />
+        </p>
+        <p className="mt-1.5 text-[11px] text-[var(--ink-faint)]">
+          {battle.benchmark ? `Median of ${battle.benchmark.videos} top videos.` : "Too few of the top videos had numbers to compare against."}
+          {battle.score ? ` Yours: ${battle.score.likes.toLocaleString()} likes on ${battle.score.views.toLocaleString()} views.` : " Yours show here once posts have numbers."}
+        </p>
+      </div>
+      <ul className="mt-3 space-y-1.5">
+        {battle.companies.map((company) => {
+          const ahead = company.ratio !== null && company.ratio >= 1;
+          return (
+            <li key={company.creativeId} className="flex items-center gap-2 text-[12px]">
+              <span className={`${styles.pixel} bg-[var(--ink)] px-1 text-[11px] leading-[15px] text-[var(--paper)]`}>{company.idx + 1}</span>
+              <span className="min-w-0 flex-1 truncate">{company.title}</span>
+              <span className={`${styles.pixel} shrink-0 text-[11px]`} style={{ color: company.ratio === null ? "var(--ink-faint)" : ahead ? "var(--olive)" : "var(--crimson)" }}>
+                {company.ratio !== null
+                  ? `${ahead ? "▲" : "▼"} ${Math.abs(Math.round((company.ratio - 1) * 100))}%${company.views ? ` · ${pct((company.likes ?? 0) / company.views)}` : ""}`
+                  : { formed: "formed up", approved: "approved", sent: "going out", engaged: "posted", failed: "post failed" }[company.state]}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </Section>
+  );
+}
 
 function Agora({ view }: { view: BrandView }) {
   const campaign = view.campaign;

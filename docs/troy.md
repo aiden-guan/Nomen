@@ -161,10 +161,13 @@ progress, and every agent's post and activity:
   painter works the easel while first frames are made, and the inspector walks to the desk whose
   shot is in QC.
 - **Theatre:** finished videos play on the screen as pixelated frames. The audience waits beside
-  the theatre and takes its seats when there is a cut to watch.
+  the theatre and takes its seats when there is a cut to watch. While the campaign waits for your
+  review, the theatre calls for you: a bobbing "N videos ready" marker over the screen opens its
+  panel, its tag and its step in the top bar say "Your turn" and pulse, and on phones its card in
+  the strip does the same.
 - **Agora:** the herald climbs the podium and trumpets while posts go out. While the core says
   "publishing" (its stage is still "review"), the theatre is done and the agora has the work; once
-  every post is out the agora is done too.
+  every post is out the agora is done too. Below it, the army fights (see "The battle").
 
 A courier with a horse of his own rides each piece of work along the sandbars when it changes
 hands (each stage change, each finished video), then rides back to the stable. New event lines
@@ -192,6 +195,40 @@ website or API the research reads (`LANDS` in `scenes/layout.ts`; landmarks in
 
 A scout ties its horse in one of four spots by the shore and gathers in front of the landmark. A
 label under each land names it, says what is fetched there and counts the scouts out on it.
+
+### The battle
+
+Below the agora is a plain where your army fights the rival's legion. The Romans stand for the
+first competitor in the research plan, camped before their fort with its towers, gate, ballistae
+and eagle; a banner under the fort names them, with the count of their ads the scouts found
+running. The Greeks are camp agents (`armyPlans()` in `scenes/derive.ts`), so they march out of
+the horse like everyone else and can be clicked; the legion, the engines and everything in the
+air are `scenes/battlefield.ts`.
+
+- **One company per finished video:** six hoplites each, with four archers and two catapult crews
+  behind them. They march out once the first video is ready and form up below the agora, a tag
+  over each company naming its video.
+- **The posts go out:** the herald trumpets, the companies close up, archers loose volleys, the
+  catapults throw stones and the ballistae answer. Legionaries hit are knocked flat and get up
+  again; nobody dies and nobody appears or vanishes in the open.
+- **A post is out:** its company engages the century facing it. Once the post has numbers, the
+  company fights as far forward as its video does, by likes per view against the median of the
+  top videos the scouts found in the category (`scenes/battle.ts`): level is the middle of the
+  field; 15% better or more routs the century back to its gate and the company cheers there;
+  worse pushes the company back, but it holds. Its tag shows the difference ("▲ 19% vs top
+  videos").
+- **Missing numbers never become a result:** a post without views and likes fights in the middle;
+  without at least three top videos with numbers there is no comparison, and the panels say so.
+
+The camera moves to the battle while posts go out (a scoreboard under it gives your likes per view
+against the top videos'), the agora's panel opens with the battle in numbers, and a hoplite's card
+shows the video his company fights for. Analytics can come in any shape: `postNumbers()` reads
+views and likes from the shallowest level that has them, so a total beside a per-platform
+breakdown is not counted twice.
+
+The demo replays the same: the sample's top-video numbers are made up like the rest of it, and
+`npm run demo:export` records a real campaign's (the top videos' median views and likes per view,
+and each rival's ad count).
 
 ### Agents are people
 
@@ -287,6 +324,9 @@ Measured in headless Chromium at 1440×900, 2x (software rendering, so real GPUs
   pressing the button: the doors, the column marching into the camp, the camera following it, and
   the scouts riding out to the lands with the camera pulled back. Over four runs, the slowest frame
   was 117 ms once, 50 ms twice, and under 34 ms once.
+- **The battle:** over 20 s of fighting (an army of 30, the legion of 25, arrows, stones and
+  bolts), a median of 16.7 ms and a 95th percentile of 16.8 ms; 7 of 1,164 frames took over 34 ms,
+  the slowest 67 ms.
 - **Bake cost:** the horse body takes about 250 ms and a soldier frame about 5 ms, all in workers.
 
 ## Tests
@@ -311,7 +351,11 @@ They cover:
   that every agent has a name of its own;
 - the gate and the demo-only switch;
 - the demo's clock: research paced to the rides, the review that waits, posting now or one a day,
-  autoplay, skips, where event lines land, and loading recordings.
+  autoplay, skips, where event lines land, and loading recordings;
+- the battle: reading views and likes from any shape of analytics, the top videos' benchmark, a
+  company per finished video, the phases, how far each company pushes, no result without numbers,
+  the army marching out of the horse to the field and into the fight, and legionaries knocked down
+  getting up again.
 
 ## Not done yet
 

@@ -1,9 +1,10 @@
 import { HORSE_ISLAND, island, sandbar } from "./grounds";
+import { ballista, catapult, romanFort } from "./models/battle";
 import { doorPose, horseBody, horseLeaves, horsePlank } from "./models/horse";
 import { adBillboards, answerShrine, brandGate, crystalSpire, instagramGallery, lookalikeHuts, rankBeacon, redditForum, tiktokPhone, youtubeScreen } from "./models/lands";
 import { amphora, banner, campfire, easel, editDesk, hitchingRail, mapTable, mount, oliveTree, pavilion, PLATFORM_FLAGS, podium, reels, screenFrame, scrollBasket, shrine, signpost, tier, tvOnTripod, watchtower } from "./models/props";
-import { GENERAL, type Look, look, type Pose, soldierInto, soldierModel, STANDING } from "./models/soldier";
-import { LAND, type LandId, LANDS, landIsland, sandbars, STATIONS, type StationId, stationIsland, worldTrails } from "../scenes/layout";
+import { type Look, lookByIndex, type Pose, soldierInto, soldierModel, STANDING } from "./models/soldier";
+import { BATTLE_LINES, battlePoint, CATAPULT_B, FIELD, fieldIsland, LAND, type LandId, LANDS, landIsland, sandbars, STATIONS, type StationId, stationIsland, worldTrails } from "../scenes/layout";
 import { LAND_SPOTS, PROPS, type PropId } from "../scenes/stations";
 import { bake, type BakeOptions, Model, mul, type Prim, rotZ, type Sprite, translate } from "./tracer";
 
@@ -15,7 +16,28 @@ export const LEAF_STEPS = 16;
 export const PLANK_STEPS = 26;
 export const PLANK_FROM = 0.36;
 
-export type Act = "stand" | "march" | "carry" | "climb" | "type" | "paint" | "inspect" | "read" | "lookout" | "herald" | "point" | "cheer" | "sit" | "watch";
+export type Act =
+  | "stand"
+  | "march"
+  | "carry"
+  | "climb"
+  | "type"
+  | "paint"
+  | "inspect"
+  | "read"
+  | "lookout"
+  | "herald"
+  | "point"
+  | "cheer"
+  | "sit"
+  | "watch"
+  // The battle below the agora: thrusting the spear (a Roman stabs with his gladius), charging
+  // with it levelled, loosing arrows, knocked flat, and hauling a catapult's arm down.
+  | "fight"
+  | "charge"
+  | "shoot"
+  | "fallen"
+  | "haul";
 
 export type Job =
   | { k: "horse-island" }
@@ -31,6 +53,8 @@ export type Job =
   | { k: "land"; id: LandId }
   /** The crossroads on the high road. */
   | { k: "junction" }
+  /** The battlefield below the agora, with the fort's and the catapults' shadows on it. */
+  | { k: "field" }
   | { k: "prop"; id: PropId; v: number }
   /** A mounted soldier. `f` is the gallop frame, or -1 standing still; `c` 1 carries a scroll case. */
   | { k: "rider"; look: number; dir: number; f: number; c?: number; h?: number }
@@ -38,10 +62,13 @@ export type Job =
   | { k: "steed"; dir: number; h?: number };
 
 /** Frames in each act's loop. */
-export const ACT_FRAMES: Record<Act, number> = { stand: 1, march: 8, carry: 8, climb: 4, type: 4, paint: 4, inspect: 4, read: 2, lookout: 2, herald: 2, point: 4, cheer: 2, sit: 1, watch: 2 };
+export const ACT_FRAMES: Record<Act, number> = { stand: 1, march: 8, carry: 8, climb: 4, type: 4, paint: 4, inspect: 4, read: 2, lookout: 2, herald: 2, point: 4, cheer: 2, sit: 1, watch: 2, fight: 4, charge: 8, shoot: 4, fallen: 1, haul: 4 };
 
 /** Seconds per frame for each act (walks are driven by distance instead). */
-export const ACT_RATE: Record<Act, number> = { stand: 1, march: 0.09, carry: 0.09, climb: 0.14, type: 0.13, paint: 0.22, inspect: 0.4, read: 0.9, lookout: 1.2, herald: 0.5, point: 0.35, cheer: 0.25, sit: 1, watch: 1.6 };
+export const ACT_RATE: Record<Act, number> = { stand: 1, march: 0.09, carry: 0.09, climb: 0.14, type: 0.13, paint: 0.22, inspect: 0.4, read: 0.9, lookout: 1.2, herald: 0.5, point: 0.35, cheer: 0.25, sit: 1, watch: 1.6, fight: 0.17, charge: 0.07, shoot: 0.32, fallen: 1, haul: 0.26 };
+
+/** The frame of the "shoot" loop on which the arrow leaves the string. */
+export const SHOOT_RELEASE = 3;
 
 /** Fixed canvas shared by every soldier frame so feet never jump between frames. */
 export const SOLDIER_FRAME = { w: 44, h: 58, ax: 22, ay: 48 };
@@ -68,6 +95,8 @@ export function jobKey(job: Job): string {
       return `l.${job.id}`;
     case "junction":
       return "jn";
+    case "field":
+      return "fd";
     case "prop":
       return `p.${job.id}.${job.v}`;
     case "rider":
@@ -140,6 +169,15 @@ export function propModel(id: PropId, v = 0): Model {
       break;
     case "rail":
       hitchingRail(m);
+      break;
+    case "catapult":
+      catapult(m, v);
+      break;
+    case "ballista":
+      ballista(m, v);
+      break;
+    case "fort":
+      romanFort(m);
       break;
     case "phone":
       tiktokPhone(m);
@@ -214,7 +252,7 @@ export function dirFor(dx: number, dy: number) {
 }
 
 function lookFor(index: number): Look {
-  return index < 0 ? GENERAL : look(index);
+  return lookByIndex(index);
 }
 
 export function poseFor(act: Act, dir: number, f: number): Pose {
@@ -253,6 +291,20 @@ export function poseFor(act: Act, dir: number, f: number): Pose {
       return { ...base, sit: 4.2, armL: 0.6, armR: 0.6, hold: "none", shield: false, lean: 0.12 };
     case "watch":
       return { ...base, sit: 2.4, armL: 0.75, armR: 0.75, hold: "none", shield: false, lean: -0.05, nod: f % 2 ? -0.08 : 0 };
+    case "fight": {
+      // Shield up, spear (or gladius) back, thrust, hold, recover.
+      const thrust = [0, 1, 0.75, 0.2][f % 4];
+      return { ...base, hold: "lance", armR: 1.2 + thrust * 0.32, armL: 0.35, lean: 0.08 + thrust * 0.26, walk: 0.25, stride: 0.25 + thrust * 0.2 };
+    }
+    case "charge":
+      return { ...base, walk: phase, stride: 1.15, lean: 0.24, hold: "lance", armR: 1.3, armL: 0.3 };
+    case "shoot":
+      // Nock, draw, full draw, loose.
+      return { ...base, hold: "bow", shield: false, armL: 1.5, draw: [0, 0.55, 1, 0][f % 4], lean: 0.04, nod: -0.05 };
+    case "fallen":
+      return { ...base, fallen: true };
+    case "haul":
+      return { ...base, hold: "none", shield: false, armL: 1.15 + wave * 0.5, armR: 1.15 + wave * 0.5, lean: 0.32 + wave * 0.08 };
   }
 }
 
@@ -304,6 +356,16 @@ export function bakeJob(job: Job): Sprite {
       const holder = new Model();
       holder.with(translate(-3, -3, 0), () => holder.include(propModel("signpost")));
       return bake([], { ground: island({ cx: 0, cy: 0, rx: 13, ry: 12, seed: 61, rim: 8, wobble: 6, grass: 0.4 }), shadowCasters: holder.prims });
+    }
+    case "field": {
+      const holder = new Model();
+      const fort = battlePoint(BATTLE_LINES.fort, 0);
+      holder.with(translate(fort.x - FIELD.x, fort.y - FIELD.y, 0), () => holder.include(propModel("fort")));
+      for (const b of CATAPULT_B) {
+        const p = battlePoint(BATTLE_LINES.catapults, b);
+        holder.with(translate(p.x - FIELD.x, p.y - FIELD.y, 0), () => holder.include(propModel("catapult", 0)));
+      }
+      return bake([], { ground: island(fieldIsland()), shadowCasters: holder.prims });
     }
     case "prop":
       return withOptions(propModel(job.id, job.v));

@@ -236,6 +236,23 @@ const events = rows
   .filter((e) => e.level !== "error" && !SKIP.test(e.message))
   .map((e) => ({ s: Math.max(0, Math.round((Date.parse(e.ts) - start) / 100) / 10), level: e.level, message: e.message }));
 
+/**
+ * The category's top videos as the camp's battle reads them: their median views, and likes at their
+ * median likes per view (see benchmarkOf in src/components/troy/scenes/battle.ts).
+ */
+function benchmarkOf(videos) {
+  const real = videos.filter((v) => typeof v.views === "number" && typeof v.likes === "number" && v.views >= 100);
+  if (real.length < 3) return null;
+  const median = (list) => {
+    const sorted = list.slice().sort((a, b) => a - b);
+    const mid = sorted.length >> 1;
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+  const views = Math.round(median(real.map((v) => v.views)));
+  const rate = median(real.map((v) => v.likes / v.views));
+  return { views, likes: Math.round(views * rate) };
+}
+
 // --- Write it ---------------------------------------------------------------------------------
 
 const research = campaign.research;
@@ -248,7 +265,18 @@ const script = {
   estimateUsd: campaign.estimateUsd ?? null,
   plan: campaign.plan,
   research: research
-    ? { videos: research.videos?.length ?? 0, ads: research.ads?.length ?? 0, reddit: research.reddit?.length ?? 0, keywords: research.seo?.keywords?.length ?? 0, domainRating: research.seo?.domain_rating ?? null }
+    ? {
+        videos: research.videos?.length ?? 0,
+        ads: research.ads?.length ?? 0,
+        reddit: research.reddit?.length ?? 0,
+        keywords: research.seo?.keywords?.length ?? 0,
+        domainRating: research.seo?.domain_rating ?? null,
+        benchmark: benchmarkOf(research.videos ?? []),
+        rivalAds: (campaign.plan?.competitors ?? []).map((c) => ({
+          name: c.name,
+          ads: (research.ads ?? []).filter((ad) => typeof ad.advertiser === "string" && ad.advertiser.toLowerCase().includes(c.name.toLowerCase())).length,
+        })),
+      }
     : null,
   runs: campaign.runs.map((r) => ({ key: r.key, phase: r.phase, provider: r.provider, status: r.status === "done" ? "done" : "failed", error: r.status === "done" ? null : (r.error ?? "no result"), cost: r.cost ?? 0 })),
   style: campaign.style ? { slug: campaign.style.slug ?? null, version: campaign.style.version ?? null, samples: campaign.style.samples?.length ?? 0 } : null,

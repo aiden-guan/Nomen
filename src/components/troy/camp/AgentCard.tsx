@@ -196,6 +196,54 @@ function Dossier({ agent, info, view, plan }: { agent: AgentPlan; info: AgentInf
     );
   }
 
+  if (/^(hoplite|archer|crew):/.test(agent.id)) {
+    const battle = plan.battle;
+    const idx = agent.id.startsWith("hoplite:") ? Number(agent.id.split(":")[1]) : null;
+    const company = idx === null ? null : battle.companies.find((c) => c.idx === idx) ?? null;
+    const creative = company ? creatives.find((c) => c.id === company.creativeId) : null;
+    const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+    return (
+      <Section title={company ? `Company ${company.idx + 1}` : "The battle"} aside={battle.rival ? <span className="text-[11px] text-[var(--ink-faint)]">against {battle.rival.name}</span> : undefined}>
+        {company ? (
+          <Parchment>
+            <div className="flex gap-3">
+              {creative?.posterUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={creative.posterUrl} alt="" onLoad={crispIfTiny} className="aspect-[9/16] w-[44px] shrink-0 self-start bg-[var(--ink)] object-cover" />
+              ) : (
+                <span className="aspect-[9/16] w-[44px] shrink-0 self-start bg-[var(--ink)]" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className={`${styles.pixel} text-[15px] leading-snug`}>{company.title}</p>
+                <p className="mt-1 text-[12px] text-[var(--ink-soft)]">
+                  {company.ratio !== null && company.views
+                    ? `${pct((company.likes ?? 0) / company.views)} likes per view against ${pct(battle.benchmark!.engagement)} for the top videos: ${company.ratio >= 1 ? "ahead" : "behind"} by ${Math.abs(Math.round((company.ratio - 1) * 100))}%.`
+                    : company.state === "engaged"
+                      ? "Posted. The company fights in the middle of the field until the numbers come in."
+                      : company.state === "sent"
+                        ? "Its post is going out; the company has closed up, ready to advance."
+                        : company.state === "failed"
+                          ? "Its post failed, so the company holds back."
+                          : "Formed up below the agora, waiting for the video to be approved and sent."}
+                </p>
+                {company.views !== null && (
+                  <p className="mt-1.5 text-[11px] text-[var(--ink-faint)]">
+                    {company.views.toLocaleString()} views · {(company.likes ?? 0).toLocaleString()} likes
+                  </p>
+                )}
+              </div>
+            </div>
+          </Parchment>
+        ) : (
+          <p className="text-[13px] leading-relaxed text-[var(--ink-soft)]">
+            {agent.id.startsWith("archer:") ? "Archers stand behind the phalanx and loose volleys at the legion while the videos go out." : "The crew winds the catapult's arm down and hurls stones at the legion's rear ranks."}
+            {battle.score?.ratio ? ` So far your videos are ${Math.abs(Math.round((battle.score.ratio - 1) * 100))}% ${battle.score.ratio >= 1 ? "ahead of" : "behind"} the top videos.` : ""}
+          </p>
+        )}
+      </Section>
+    );
+  }
+
   if (agent.id === "lookout") {
     const runs = campaign.runs;
     return (

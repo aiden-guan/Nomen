@@ -1,12 +1,13 @@
-import { type Act, ACT_FRAMES, ACT_RATE, dirFor, type Job, RIDER_FRAMES } from "../engine/jobs";
+import { type Act, ACT_FRAMES, ACT_RATE, dirFor, type Job, RIDER_FRAMES, SHOOT_RELEASE } from "../engine/jobs";
 import { exitPath } from "../engine/models/horse";
 import { SCREEN } from "../engine/models/props";
 import type { CameraTarget, Entity, Stage } from "../engine/stage";
 import { projectX, projectY } from "../engine/tracer";
 import type { Point } from "../engine/walker";
+import { Battlefield } from "./battlefield";
 import type { AgentPlan, CampPlan } from "./derive";
 import type { LandingScene } from "./landing";
-import { CAMP_CENTER, hub, ISLAND_RADIUS, JUNCTION, LAND, type LandId, LANDS, LANDS_VIEW, type Node, roadToLand, sandbars, scoutLand, STATION, type StationId, STATIONS, travel, WORLD_VIEW, worldTrails } from "./layout";
+import { BATTLE_VIEW, CAMP_CENTER, hub, ISLAND_RADIUS, JUNCTION, LAND, type LandId, LANDS, LANDS_VIEW, MAP_BOUNDS, type Node, roadToLand, sandbars, scoutLand, STATION, type StationId, STATIONS, travel, WORLD_VIEW, worldTrails } from "./layout";
 import { COURIER_STALL, DESK_SLOTS, LAND_SPOTS, PROPS, SPOTS, STABLE_AISLE, STABLE_GATE, STALLS, type Waypoint } from "./stations";
 
 // The camp: station islands, their furniture and the agents, below the horse. This file owns the
@@ -88,6 +89,8 @@ type Agent = {
   trip: Trip;
   /** A scout at a land: its spot there (and its horse's). */
   slot: number | null;
+  /** The frame of its act it was last drawn at (an archer looses on the release frame). */
+  frame: number;
 };
 
 type Where = "queued" | "moving" | "posted" | "afield" | "home";
@@ -116,6 +119,11 @@ const ACT_WORDS: Record<Act, string> = {
   cheer: "Cheering",
   sit: "Sitting",
   watch: "Watching the screen",
+  fight: "Fighting in the front rank",
+  charge: "Charging",
+  shoot: "Loosing arrows at the enemy",
+  fallen: "Knocked down",
+  haul: "Winding the catapult",
 };
 
 /** What the camp can say about one agent, for the agent card. */
@@ -173,6 +181,8 @@ export class CampScene {
   /** The agent whose card is open, and the one under the pointer. */
   selected: string | null = null;
   hovered: string | null = null;
+  /** The battle below the agora: the rival's legion, the engines and what flies (the Greeks are agents). */
+  private readonly battlefield: Battlefield;
   /** `big`: around a rider rather than a soldier on foot. */
   private readonly ring: Entity & { big: boolean };
   private readonly hoverRing: Entity & { big: boolean };
@@ -217,6 +227,18 @@ export class CampScene {
     const signpost = stage.add({ x: JUNCTION.x - 3, y: JUNCTION.y - 3, z: 0, job: { k: "prop", id: "signpost", v: 0 }, reveal: 0, priority: 3.9 });
     this.props.push(signpost);
     this.revealAt.set(signpost, 2);
+    // The battlefield below the agora, appearing after the camp's own islands.
+    this.battlefield = new Battlefield(stage, {
+      ground: (entity, at) => {
+        this.grounds.push(entity);
+        this.revealAt.set(entity, at);
+      },
+      prop: (entity, at) => {
+        this.props.push(entity);
+        this.revealAt.set(entity, at);
+      },
+      greeks: () => [...this.agents.values()].filter((a) => a.plan.id.startsWith("hoplite:") && this.stage.has(a.entity)).map((a) => a.entity),
+    });
     // Horses tied at the scouts' rail; they leave with a rider and come back with one.
     const scouts = STATION.scouts;
     for (const stall of STALLS) {
@@ -261,6 +283,7 @@ export class CampScene {
     for (const steed of this.landSteeds.values()) this.stage.remove(steed);
     this.landSteeds.clear();
     this.landSpots.clear();
+    this.battlefield.reset();
     this.timers.length = 0;
     this.planned = false;
     this.entering = false;
@@ -293,6 +316,11 @@ export class CampScene {
     return this.fitView(WORLD_VIEW, insets);
   }
 
+  /** The camera that shows the agora and the battle below it. */
+  battleView(insets: { top: number; bottom: number; right: number } = this.insets): CameraTarget {
+    return this.fitView(BATTLE_VIEW, insets);
+  }
+
   /** The lands and the roads to them, with the scouts' island: the scouts' errands on a narrow screen. */
   lands(insets: { top: number; bottom: number; right: number } = this.insets): CameraTarget {
     return this.fitView(LANDS_VIEW, insets);
@@ -311,7 +339,7 @@ export class CampScene {
   limits(insets: { top: number; bottom: number; right: number } = this.insets) {
     const widest = Math.min(this.world(insets).zoom, this.lands(insets).zoom);
     const { dpr } = this.stage.size;
-    return { bounds: { ...WORLD_VIEW }, zoom: { min: Math.max(1 / dpr, widest * 0.8), max: 6 } };
+    return { bounds: { ...MAP_BOUNDS }, zoom: { min: Math.max(1 / dpr, widest * 0.8), max: 6 } };
   }
 
   /** How many scouts are out on an errand (riding, gathering or riding back). */
@@ -419,6 +447,7 @@ export class CampScene {
       } else this.settle(agent);
     }
     this.updateBasket();
+    this.battlefield.apply(plan.battle, instantly);
   }
 
   /** The courier carries work from one station to the next (each stage change, each finished video). */
@@ -461,7 +490,7 @@ export class CampScene {
 
   private create(plan: AgentPlan): Agent {
     const entity: Figure = { x: 0, y: 0, z: 0, look: plan.look, act: plan.act, dir: plan.dir, coat: 0, sort: plan.sort ?? 0, shadow: 5, priority: 3, job: null };
-    return { plan, entity, where: "queued", busy: false, node: "horse", up: null, dismissed: false, finished: false, delivered: false, stall: null, onFoot: false, gatherSince: 0, phase: Math.random() * 10, lane: 0, doing: "Waiting inside the horse", errand: null, deliveries: 0, trip: "camp", slot: null };
+    return { plan, entity, where: "queued", busy: false, node: "horse", up: null, dismissed: false, finished: false, delivered: false, stall: null, onFoot: false, gatherSince: 0, phase: Math.random() * 10, lane: 0, doing: "Waiting inside the horse", errand: null, deliveries: 0, trip: "camp", slot: null, frame: -1 };
   }
 
   /** Puts an agent straight at its post (opening a camp directly, not through the march). */
@@ -590,6 +619,12 @@ export class CampScene {
   private toPost(agent: Agent) {
     const plan = agent.plan;
     const far = agent.node !== plan.station;
+    // Already in by the same way (a soldier moving up on the battlefield): straight to the new post.
+    if (!far && agent.up && plan.via && this.sameWay(agent.up, this.viaSteps(plan))) {
+      agent.doing = "Moving up";
+      this.run(agent, [{ ...this.postPoint(plan), dir: plan.dir }], plan.act === "fight" || plan.act === "cheer" ? SPEED.run : SPEED.walk, () => undefined);
+      return;
+    }
     const steps: Step[] = [...this.descend(agent)];
     if (far) steps.push(...travel(agent.node, plan.station));
     steps.push(...this.approach(plan));
@@ -1112,6 +1147,10 @@ export class CampScene {
     return (plan.via ?? []).map((w: Waypoint) => ({ ...this.rel(plan.station, w.x, w.y, w.z), act: w.act, dir: w.dir }));
   }
 
+  private sameWay(a: Step[], b: Step[]) {
+    return a.length === b.length && a.every((p, i) => Math.abs(p.x - b[i].x) < 0.01 && Math.abs(p.y - b[i].y) < 0.01 && Math.abs(p.z - b[i].z) < 0.01);
+  }
+
   /** From the island's hub up to the post: any waypoints (ladder, step), then the post itself. */
   private approach(plan: AgentPlan): Step[] {
     return [...this.viaSteps(plan), { ...this.postPoint(plan), dir: plan.dir }];
@@ -1203,6 +1242,9 @@ export class CampScene {
       const frames = ACT_FRAMES[act];
       const f = frames > 1 ? Math.floor((this.time + agent.phase) / ACT_RATE[act]) % frames : 0;
       e.job = { k: "soldier", look: e.look, act, dir: e.dir, f };
+      // An archer's arrow leaves the string on the release frame.
+      if (act === "shoot" && f === SHOOT_RELEASE && agent.frame !== f) this.battlefield.loose(e);
+      agent.frame = f;
       if ((e.reveal ?? 1) < 1 && this.revealT > 0.6) e.reveal = Math.min(1, (e.reveal ?? 0) + dt * 1.6);
     }
     for (const steed of this.landSteeds.values()) if ((steed.reveal ?? 1) < 1 && this.revealT > 2.4) steed.reveal = Math.min(1, (steed.reveal ?? 0) + dt * 1.6);
@@ -1220,6 +1262,7 @@ export class CampScene {
     }
     const shrine = this.keyed.get("oracle:shrine");
     if (shrine?.job?.k === "prop") shrine.job = { k: "prop", id: "shrine", v: this.tvOn ? 1 + (Math.floor(this.time / 0.3) % 4) : 0 };
+    this.battlefield.tick(dt);
   }
 
   private revealTick(dt: number) {

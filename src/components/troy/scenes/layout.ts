@@ -323,3 +323,75 @@ export const WORLD_VIEW = { x0: SIDE_SX.far - 62, x1: 300, y0: ROW_SY[0] - 48, y
 
 /** The lands and the roads west, out to the scouts' island (the east edge of the scouts' errands). */
 export const LANDS_VIEW = { ...WORLD_VIEW, x1: CAMP_CENTER.sx - COLUMN + ISLAND_RADIUS + 40 };
+
+// --- The battle below the agora --------------------------------------------------------------------
+//
+// Once videos are made, the agora's army forms up on a plain below it, and fights the rival's Roman
+// legion, camped further down. The battle runs along +x (down and to the right on screen): the
+// Greeks face +x, the Romans -x. `a` measures along that line from the battle's origin, `b` across it.
+
+/** The battle's origin (world), between the two armies. */
+export const BATTLE = { x: STATION.agora.x + 191, y: STATION.agora.y + 145 };
+
+/** A point on the battlefield, `a` along the battle and `b` across it (world). */
+export function battlePoint(a: number, b: number): Point {
+  return { x: BATTLE.x + a, y: BATTLE.y + b, z: 0 };
+}
+
+/** Where things stand along the battle (`a`, world units from the origin). */
+export const BATTLE_LINES = {
+  /** The Greek companies' front rank when formed up, and the archers and catapults behind them. */
+  muster: -60,
+  archers: -90,
+  catapults: -100,
+  /** The Greeks wait here, closed up, while their videos go out. */
+  ready: -32,
+  /** The Romans' front rank at rest, the centurion behind them, and their gate. */
+  romans: 35,
+  centurion: 52,
+  gate: 80,
+  /** The fort's centre. */
+  fort: 115,
+};
+
+/** The two catapults, on the Greeks' flanks (`b`). */
+export const CATAPULT_B = [-76, 76];
+
+/** The plain itself: an island joined to the agora's by a land bridge, with room for the fort. */
+export const FIELD = { x: BATTLE.x + 15, y: BATTLE.y + 5 };
+
+export function fieldIsland(): IslandSpec {
+  return {
+    cx: 0,
+    cy: 0,
+    rx: 150,
+    ry: 122,
+    seed: 97,
+    rim: 13,
+    wobble: 16,
+    grass: 0.55,
+    trodden: 0.45,
+    lobes: [
+      // The land bridge up to the agora.
+      { cx: STATION.agora.x + 76 - FIELD.x, cy: STATION.agora.y + 70 - FIELD.y, r: 70 },
+      // Room round the fort.
+      { cx: BATTLE.x + BATTLE_LINES.fort - FIELD.x, cy: BATTLE.y - FIELD.y, r: 58 },
+    ],
+  };
+}
+
+/**
+ * The way from the agora's road ends down to the plain, past the podium (agora-relative), so the
+ * army never marches through the herald.
+ */
+export const FIELD_ENTRY = [
+  { x: -14, y: 2, z: 0 },
+  { x: 8, y: 30, z: 0 },
+  { x: 34, y: 36, z: 0 },
+];
+
+/** The screen rectangle (art px) that frames the agora and the whole battle. */
+export const BATTLE_VIEW = { x0: -345, x1: 60, y0: 322, y1: 672 };
+
+/** Everywhere the camera may go: the world, and the battlefield below the camp. */
+export const MAP_BOUNDS = { x0: WORLD_VIEW.x0, x1: WORLD_VIEW.x1, y0: WORLD_VIEW.y0, y1: BATTLE_VIEW.y1 };

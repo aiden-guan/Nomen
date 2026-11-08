@@ -18,6 +18,10 @@ const NAMES = [
   "Agis", "Hermon", "Lykos", "Phaidon", "Alkaios", "Doros", "Menon", "Polemon", "Straton", "Timon", "Aristos", "Kritias",
   "Eudoros", "Kleitos", "Philippos", "Antiochos", "Nikandros", "Hippias", "Isokrates", "Laches", "Meidias", "Pasion", "Simon", "Lykon",
   "Thrasyllos", "Xenokles", "Zenon", "Ariston", "Diodoros", "Euthymos", "Kallistratos", "Mnason", "Nikon", "Phormion", "Sostratos", "Chairon",
+  // Enough for the army below the agora too.
+  "Andronikos", "Archelaos", "Aristeides", "Dion", "Hagnon", "Iason", "Kallimachos", "Kleomenes", "Lysias", "Megakles", "Nearchos", "Pausanias",
+  "Perdikkas", "Pelopidas", "Philotas", "Sokles", "Telamon", "Theodoros", "Thrasyboulos", "Timoleon", "Xenon", "Zopyros", "Agathon", "Akastos",
+  "Charmides", "Dexippos", "Eumenes", "Glaukias", "Hieron", "Krateros", "Lykourgos", "Nikostratos", "Alkimos", "Bion", "Eudemos", "Hipponikos",
 ];
 const FIXED: Record<string, string> = { general: "Themistokles", herald: "Stentor" };
 const named = new Map<string, string>();

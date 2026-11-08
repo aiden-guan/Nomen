@@ -43,7 +43,20 @@ export type DemoScript = {
   options: Campaign["options"];
   estimateUsd: number | null;
   plan: Campaign["plan"];
-  research: { videos: number; ads: number; reddit: number; keywords: number; domainRating: number | null } | null;
+  research: {
+    videos: number;
+    ads: number;
+    reddit: number;
+    keywords: number;
+    domainRating: number | null;
+    /**
+     * The category's top videos: their median views, and likes at their median likes per view.
+     * The battle compares the campaign's own posts against this. Missing in older recordings.
+     */
+    benchmark?: { views: number; likes: number } | null;
+    /** How many of the running ads the scouts found were each rival's. */
+    rivalAds?: Array<{ name: string; ads: number }>;
+  } | null;
   runs: Array<{ key: string; phase: string; provider: string; status: "done" | "failed"; error: string | null; cost: number }>;
   style: { slug: string | null; version: number | null; samples: number } | null;
   strategy: Campaign["strategy"];
@@ -124,6 +137,12 @@ export function marks(script: DemoScript) {
 }
 
 const ordered = (script: DemoScript) => script.creatives.slice().sort((a, b) => a.idx - b.idx);
+
+/** Stand-ins for the running ads the scouts found, each with its advertiser where the recording knows it. */
+function rivalAds(research: NonNullable<DemoScript["research"]>) {
+  const known = (research.rivalAds ?? []).flatMap((r) => Array.from({ length: r.ads }, () => ({ advertiser: r.name })));
+  return [...known, ...Array.from({ length: Math.max(0, research.ads - known.length) }, () => ({}))];
+}
 const between = (a: number, b: number, t: number) => (b <= a ? (t >= b ? 1 : 0) : Math.max(0, Math.min(1, (t - a) / (b - a))));
 
 /** When the research plan comes back: once the first sweep is in. */
@@ -364,7 +383,18 @@ export function replay(script: DemoScript, state: DemoState): BrandView {
       plan: t >= planAt ? script.plan : null,
       research:
         t >= tl.research[1] && research
-          ? { domain: script.brand.domain, brand: {}, site_excerpt: "", similar_sites: [], seo: { domain_rating: research.domainRating, keywords: Array(research.keywords).fill({}) }, videos: Array(research.videos).fill({}), ads: Array(research.ads).fill({}), reddit: Array(research.reddit).fill({}), aeo: [] }
+          ? {
+              domain: script.brand.domain,
+              brand: {},
+              site_excerpt: "",
+              similar_sites: [],
+              seo: { domain_rating: research.domainRating, keywords: Array(research.keywords).fill({}) },
+              // The recording keeps the top videos' numbers as one benchmark, so every stand-in has it.
+              videos: Array(research.videos).fill(research.benchmark ? { views: research.benchmark.views, likes: research.benchmark.likes } : {}),
+              ads: rivalAds(research),
+              reddit: Array(research.reddit).fill({}),
+              aeo: [],
+            }
           : null,
       style: script.style && tl.style && t >= tl.style[1] ? { slug: script.style.slug, version: script.style.version, skill_md: "", samples: Array(script.style.samples).fill("") } : null,
       strategy: t >= tl.strategy[1] ? script.strategy : null,

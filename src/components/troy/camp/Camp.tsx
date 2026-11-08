@@ -7,12 +7,14 @@ import { easeInOutCubic, type Stage } from "../engine/stage";
 import { projectX, projectY } from "../engine/tracer";
 import type { CampScene } from "../scenes/camp";
 import { activeStation, derive, stationForEvent } from "../scenes/derive";
-import { type Land, LAND_RADIUS, type LandId, LANDS, STATION, type StationId, STATIONS } from "../scenes/layout";
+import { type BattlePlan, type Company, companyB, companyFront } from "../scenes/battle";
+import { BATTLE_LINES, battlePoint, type Land, LAND_RADIUS, type LandId, LANDS, STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
 import { DEMO_ID, type PublishMode } from "./demo";
 import { AgentCard } from "./AgentCard";
 import { Dispatches } from "./Dispatches";
+import { Icon } from "./ui";
 import { ago, money } from "./format";
 import { Screening } from "./Screening";
 import { StationPanel } from "./StationPanel";
@@ -161,6 +163,8 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const shown = selected ?? focused ?? current;
   const panel = Boolean(selected || agentId);
   const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: panel && wide ? 440 : 0 }), [panel, wide]);
+  // Once the videos go out, the agora's army fights the rival's legion below it: the camera goes there.
+  const battling = plan.battle.phase === "advance" || plan.battle.phase === "clash";
 
   // What the map shows changes with the camp, not only with the data: polled a few times a second.
   const [away, setAway] = useState(false);
@@ -196,23 +200,29 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
     (duration: number) => {
       const e = engine.current;
       if (!e) return;
-      e.camp.insets = { ...insets, bottom: panel && !wide ? Math.round(window.innerHeight * 0.64) : insets.bottom };
+      e.camp.insets = { ...insets, bottom: panel && !wide ? Math.round(window.innerHeight * 0.64) : battling && wide && !panel ? 128 : insets.bottom };
       // While a soldier's card is open the camera follows them instead (below); a viewer who moved
       // the camera keeps it.
       if ((agentId && following) || manualRef.current) return;
       const ins = e.camp.insets;
       const target = wide
         ? selected
-          ? e.camp.focus(selected, ins)
+          ? selected === "agora" && battling
+            ? e.camp.battleView(ins)
+            : e.camp.focus(selected, ins)
           : away
             ? e.camp.world(ins)
-            : e.camp.camera(ins)
+            : battling
+              ? e.camp.battleView(ins)
+              : e.camp.camera(ins)
         : away && shown === "scouts" && !panel
           ? e.camp.lands(ins)
-          : e.camp.focus(shown, ins);
+          : battling && shown === "agora" && !panel
+            ? e.camp.battleView(ins)
+            : e.camp.focus(shown, ins);
       e.stage.look(target, reduced ? 0 : duration, easeInOutCubic);
     },
-    [engine, insets, selected, wide, shown, reduced, agentId, following, panel, away],
+    [engine, insets, selected, wide, shown, reduced, agentId, following, panel, away, battling],
   );
   useEffect(() => {
     if (arrived) frameCamera(1);
@@ -501,6 +511,12 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   }, [screening, finishedVideos]);
 
   const spend = campaign ? campaign.spend.naive + campaign.spend.monid : 0;
+  // Finished videos waiting for you: the theatre calls for attention until they are approved and sent.
+  const review = useMemo(() => {
+    if (plan.stations.theatre.state !== "yours" || !campaign) return null;
+    const ready = campaign.creatives.filter((c) => c.status === "ready");
+    return ready.length ? { ready: ready.length, approved: ready.filter((c) => c.approved).length } : null;
+  }, [plan, campaign]);
 
   return (
     <>
@@ -531,13 +547,23 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
             id={station.id}
             plan={plan.stations[station.id]}
             active={selected === station.id}
-            compact={detail < 2}
+            compact={detail < 2 || (battling && !manual && !selected)}
             onClick={() => openStation(selected === station.id && !agentId ? null : station.id)}
             bubble={bubbles.filter((b) => b.station === station.id).slice(-1)[0]}
           />
         ))}
 
       {arrived && view && LANDS.map((land) => <LandTag key={land.id} engine={engine} land={land} scouts={busyLands[land.id] ?? 0} detail={detail} />)}
+
+      {arrived && view && plan.battle.phase !== "none" && (
+        <>
+          {plan.battle.companies.map((company, k) => (
+            <CompanyTag key={company.creativeId} engine={engine} company={company} index={k} count={plan.battle.companies.length} detail={detail} />
+          ))}
+          {plan.battle.rival && <RivalBanner engine={engine} rival={plan.battle.rival} detail={detail} />}
+        </>
+      )}
+      {arrived && view && wide && battling && !panel && <Scoreboard battle={plan.battle} category={campaign?.plan?.category ?? null} onOpen={() => openStation("agora")} />}
 
       {arrived && view && (wide || !panel) && <ZoomControls wide={wide} panel={panel} manual={manual || (Boolean(agentId) && following)} onZoom={zoomBy} onFit={fitView} />}
 
@@ -557,6 +583,8 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
       )}
 
       {arrived && view && <Dispatches events={view.events} wide={wide} />}
+
+      {arrived && review && selected !== "theatre" && !screening && <ReviewBeacon engine={engine} ready={review.ready} approved={review.approved} onOpen={() => openStation("theatre")} />}
 
       {arrived && selected && !agentId && view && (
         <StationPanel
@@ -597,7 +625,7 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
         />
       )}
 
-      {arrived && !hinted && !agentId && !selected && (
+      {arrived && !hinted && !agentId && !selected && !battling && (
         <p role="status" className={`${styles.boxSoft} ${styles.rise} pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 px-3 py-1.5 text-[12px] ${wide ? "bottom-5" : "top-[64px]"}`}>
           <span className={`${styles.pixel} text-[var(--crimson)]`}>Tip </span>Click any soldier to follow them. Scroll or pinch to zoom, drag to look around.
         </p>
@@ -698,6 +726,7 @@ function TopBar({
               >
                 <Pip state={state} />
                 {name}
+                {state === "yours" && <span className="bg-[var(--teal)] px-1 text-[11px] text-[var(--paper)]">your turn</span>}
               </button>
             );
           })}
@@ -783,7 +812,7 @@ export function Pip({ state }: { state: string }) {
   return (
     <span
       aria-hidden="true"
-      className={state === "working" ? "animate-pulse" : ""}
+      className={state === "working" ? "animate-pulse" : state === "yours" ? styles.blink : ""}
       style={{ width: 8, height: 8, background: color, boxShadow: `0 0 0 2px ${state === "waiting" || state === "skipped" ? "var(--ink-faint)" : color}`, display: "inline-block" }}
     />
   );
@@ -826,6 +855,7 @@ function StationTag({
   }, [engine, station, bubble]);
   const segments = 8;
   const filled = plan.progress === null ? 0 : Math.round(plan.progress * segments);
+  const yours = plan.state === "yours";
   const glyph = bubble ? (bubble.level === "error" ? "!" : /ready|done|learned|approved|posted/i.test(bubble.text) ? "✓" : "!") : "";
   const tone = bubble?.level === "error" ? "var(--crimson)" : bubble?.level === "warn" ? "var(--bronze)" : glyph === "✓" ? "var(--olive)" : "var(--teal)";
   return (
@@ -837,13 +867,20 @@ function StationTag({
           aria-pressed={active}
           aria-label={`${station.name}, ${station.role}: ${STATE_WORD[plan.state]}. ${plan.status}`}
           title={compact ? `${station.role}: ${plan.status}` : undefined}
-          className={`${active ? styles.box : styles.boxSoft} ${styles.enter} pointer-events-auto block -translate-x-1/2 text-left transition-transform hover:-translate-y-0.5 ${compact ? "whitespace-nowrap px-2 py-1" : "w-[208px] px-3 py-2"}`}
+          className={`${active || yours ? styles.box : styles.boxSoft} ${styles.enter} ${yours && !active ? styles.beckon : ""} pointer-events-auto block -translate-x-1/2 text-left transition-transform hover:-translate-y-0.5 ${compact ? "whitespace-nowrap px-2 py-1" : "w-[208px] px-3 py-2"}`}
         >
           <span className="flex items-center gap-2">
             <Pip state={plan.state} />
             <span className={`${styles.pixel} font-semibold uppercase tracking-wide ${compact ? "text-[12px]" : "text-[14px]"}`}>{station.name}</span>
             {!compact && <span className="ml-auto text-[11px] text-[var(--ink-soft)]">{station.role}</span>}
+            {compact && yours && <span className={`${styles.pixel} bg-[var(--teal)] px-1.5 text-[11px] text-[var(--paper)]`}>Your turn</span>}
           </span>
+          {yours && !compact && (
+            <span className={`${styles.pixel} mt-1.5 flex items-center justify-between bg-[var(--teal)] px-2 py-1 text-[12px] text-[var(--paper)]`}>
+              Your turn: {id === "theatre" ? "review the videos" : "take a look"}
+              <span aria-hidden="true">→</span>
+            </span>
+          )}
           {compact ? null : bubble ? (
             // A fresh dispatch replaces the status line for a few seconds.
             <span key={bubble.id} className={`${styles.fadeIn} mt-1 line-clamp-2 block text-[12px] leading-snug`} style={{ color: tone }} role="status">
@@ -888,6 +925,48 @@ function StationTag({
 }
 
 /**
+ * Over the theatre while the campaign waits for your review: a bobbing call that is hard to miss,
+ * one click from the cut.
+ */
+function ReviewBeacon({ engine, ready, approved, onOpen }: { engine: RefObject<Engine | null>; ready: number; approved: number; onOpen: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const e = engine.current;
+    if (!e || !ref.current) return;
+    const theatre = STATION.theatre;
+    // Just above the screen's top edge.
+    return e.stage.anchor(ref.current, () => ({ x: theatre.x - 15, y: theatre.y - 15, z: 30 }));
+  }, [engine]);
+  const left = ready - approved;
+  return (
+    <div ref={ref} className="pointer-events-none absolute left-0 top-0 z-[7] will-change-transform">
+      <div className={`${styles.bob} flex -translate-x-1/2 -translate-y-full flex-col items-center`}>
+        <button
+          type="button"
+          onClick={onOpen}
+          className={`${styles.box} ${styles.beckon} ${styles.enter} pointer-events-auto flex items-center gap-2.5 whitespace-nowrap px-3 py-2 text-left text-[var(--paper)]`}
+          style={{ background: "var(--teal)" }}
+          aria-label={`${ready} ${ready === 1 ? "video is" : "videos are"} ready for your review. Open the theatre.`}
+        >
+          <Icon name="film" size={18} />
+          <span>
+            <span className={`${styles.pixel} block text-[15px] font-semibold leading-tight`}>
+              {ready} {ready === 1 ? "video" : "videos"} ready
+            </span>
+            <span className="block text-[12px] leading-tight opacity-90">{approved ? `${approved} approved, ${left} to go` : "Your turn: review and approve"} →</span>
+          </span>
+        </button>
+        {/* A pixel arrow down to the screen. */}
+        <svg width="18" height="10" viewBox="0 0 9 5" shapeRendering="crispEdges" aria-hidden="true" className="-mt-px">
+          <path d="M0 0h9v1h-1v1h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1v-1h-1v-1h-1z" fill="var(--ink)" />
+          <path d="M1 0h7v1h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1v-1h-1z" fill="var(--teal)" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+/**
  * A land's name on the map, under its shore: the site or API the scouts ride to, what they fetch
  * there, and how many scouts are out on that errand now. Zoomed far out it is just a marker in the
  * land's colour (and the count), so neighbouring labels don't pile up.
@@ -922,6 +1001,103 @@ function LandTag({ engine, land, scouts, detail }: { engine: RefObject<Engine | 
         </div>
       )}
     </div>
+  );
+}
+
+/** "▲ 19%" or "▼ 9%": a ratio against the top videos, as a difference. */
+function versus(ratio: number) {
+  const pct = Math.round((ratio - 1) * 100);
+  return pct === 0 ? "level" : `${pct > 0 ? "▲" : "▼"} ${Math.abs(pct)}%`;
+}
+
+/** "Your videos are 14% ahead of", "… level with", "… 9% behind". */
+function standing(ratio: number) {
+  const pct = Math.round((ratio - 1) * 100);
+  return pct === 0 ? "Your videos are level with" : `Your videos are ${Math.abs(pct)}% ${pct > 0 ? "ahead of" : "behind"}`;
+}
+
+const COMPANY_WORD: Record<Company["state"], string> = { formed: "formed up", approved: "approved", sent: "going out", engaged: "posted", failed: "post failed" };
+
+/** Over each company of the army: which video it fights for, and how that video is doing. */
+function CompanyTag({ engine, company, index, count, detail }: { engine: RefObject<Engine | null>; company: Company; index: number; count: number; detail: 0 | 1 | 2 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const front = companyFront(company);
+  const b = companyB(index, count);
+  useLayoutEffect(() => {
+    const e = engine.current;
+    if (!e || !ref.current) return;
+    const p = battlePoint(front - 6, b);
+    return e.stage.anchor(ref.current, () => ({ ...p, z: 27 }));
+  }, [engine, front, b]);
+  const result = company.ratio !== null ? versus(company.ratio) : null;
+  const tone = company.ratio === null ? "var(--ink)" : company.ratio >= 1 ? "var(--olive)" : "var(--crimson)";
+  return (
+    <div ref={ref} className="pointer-events-none absolute left-0 top-0 z-[5] will-change-transform">
+      <div className={`${styles.boxSoft} ${styles.fadeIn} flex -translate-x-1/2 -translate-y-full items-center gap-1.5 whitespace-nowrap px-1.5 py-0.5`} title={company.title}>
+        <span className={`${styles.pixel} bg-[var(--ink)] px-1 text-[11px] leading-[15px] text-[var(--paper)]`}>{company.idx + 1}</span>
+        {detail > 0 && (
+          <span className={`${styles.pixel} text-[11px]`} style={{ color: result ? tone : "var(--ink-soft)" }}>
+            {result ? `${result} vs top videos` : COMPANY_WORD[company.state]}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Over the rival's fort: whose legion this is, and how many of its ads the scouts found running. */
+function RivalBanner({ engine, rival, detail }: { engine: RefObject<Engine | null>; rival: { name: string; ads: number | null }; detail: 0 | 1 | 2 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const e = engine.current;
+    if (!e || !ref.current) return;
+    // Under the fort's near corner, clear of the fighting.
+    const p = battlePoint(BATTLE_LINES.fort + 36, 36);
+    return e.stage.anchor(ref.current, () => ({ ...p, z: 0 }));
+  }, [engine]);
+  return (
+    <div ref={ref} className="pointer-events-none absolute left-0 top-0 z-[5] will-change-transform">
+      <div className={`${styles.box} ${styles.fadeIn} -translate-x-1/2 translate-y-2 whitespace-nowrap px-2.5 py-1 text-center`} style={{ background: "var(--crimson)", color: "var(--paper)" }}>
+        <span className={`${styles.pixel} block text-[13px] font-semibold uppercase tracking-wide`}>{rival.name}</span>
+        {detail > 0 && <span className="block text-[11px] leading-tight opacity-90">The rival{rival.ads ? ` · ${rival.ads} live ${rival.ads === 1 ? "ad" : "ads"} found` : ""}</span>}
+      </div>
+    </div>
+  );
+}
+
+/** While the battle holds the camera: your videos against the category's top videos, in numbers. */
+function Scoreboard({ battle, category, onOpen }: { battle: BattlePlan; category: string | null; onOpen: () => void }) {
+  const score = battle.score;
+  const posted = battle.companies.filter((c) => c.state === "engaged").length;
+  const going = battle.companies.filter((c) => c.state === "sent").length;
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  // Where the line stands: the middle is level with the top videos.
+  const lean = score?.ratio ? Math.max(0.06, Math.min(0.94, 0.5 + Math.log2(score.ratio) * 0.45)) : 0.5;
+  return (
+    <button type="button" onClick={onOpen} className={`${styles.box} ${styles.rise} absolute bottom-4 left-1/2 z-10 w-[min(560px,calc(100vw-420px))] -translate-x-1/2 px-4 py-2.5 text-left`}>
+      <span className="flex items-center gap-2">
+        <span className={`${styles.pixel} text-[13px] font-semibold uppercase tracking-wide`}>The battle</span>
+        <span className="text-[12px] text-[var(--ink-soft)]">
+          {score?.ratio
+            ? `${standing(score.ratio)} the top videos${category ? ` in ${category}` : ""}`
+            : posted
+              ? "Posted. Waiting for the first numbers"
+              : going
+                ? `${going} ${going === 1 ? "video is" : "videos are"} going out`
+                : "Formed up"}
+        </span>
+        <span className="ml-auto text-[11px] text-[var(--ink-faint)]">Details →</span>
+      </span>
+      <span className="mt-2 flex items-center gap-2 text-[11px]">
+        <span className={`${styles.pixel} w-[92px] shrink-0 text-[var(--olive)]`}>You {score ? pct(score.engagement) : "–"}</span>
+        <span className="relative h-[8px] flex-1 bg-[var(--crimson)]" aria-hidden="true">
+          <span className="absolute inset-y-0 left-0 bg-[var(--olive)] transition-[width] duration-700" style={{ width: `${lean * 100}%` }} />
+          <span className="absolute inset-y-[-3px] left-1/2 w-[2px] bg-[var(--ink)]" />
+        </span>
+        <span className={`${styles.pixel} w-[110px] shrink-0 text-right text-[var(--crimson)]`}>Top videos {battle.benchmark ? pct(battle.benchmark.engagement) : "–"}</span>
+      </span>
+      <span className="mt-1 block text-[10px] text-[var(--ink-faint)]">Likes per view of your posted videos against the median of the top videos the scouts found.</span>
+    </button>
   );
 }
 
@@ -977,7 +1153,7 @@ function StationStrip({ plan, shown, bubbles, onPick }: { plan: ReturnType<typeo
               onClick={() => onPick(station.id)}
               aria-current={active ? "true" : undefined}
               aria-label={`${station.name}, ${station.role}: ${STATE_WORD[p.state]}. ${p.status}${active ? ". Tap again for details." : ""}`}
-              className={`${active ? styles.box : styles.boxSoft} w-[200px] shrink-0 snap-center px-3 py-2.5 text-left`}
+              className={`${active || p.state === "yours" ? styles.box : styles.boxSoft} ${p.state === "yours" ? styles.beckon : ""} w-[200px] shrink-0 snap-center px-3 py-2.5 text-left`}
             >
               <span className="flex items-center gap-2">
                 <Pip state={p.state} />

@@ -353,10 +353,46 @@
   }
 }
 
+/* Something waits on you: a teal ring swells out from the box and fades, again and again. */
+.beckon {
+  outline: 3px solid var(--teal);
+  animation: beckon 1.5s ease-out infinite;
+}
+
+@keyframes beckon {
+  0% {
+    outline-offset: 1px;
+    outline-color: rgba(45, 123, 152, 0.95);
+  }
+  100% {
+    outline-offset: 13px;
+    outline-color: rgba(45, 123, 152, 0);
+  }
+}
+
+/* A marker over the map that bobs in whole pixels, like a sprite. */
+.bob {
+  animation: bob 1.2s steps(4, jump-none) infinite alternate;
+}
+
+@keyframes bob {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-6px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .emote {
     animation: none;
     transform: translate(-50%, -100%);
+  }
+
+  .beckon,
+  .bob {
+    animation: none;
   }
 
   .enter,

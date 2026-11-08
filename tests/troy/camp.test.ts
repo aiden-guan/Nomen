@@ -294,3 +294,56 @@ describe("the stage", () => {
     expect(stage.entities).toEqual([first, neighbour]);
   });
 });
+
+describe("the battle below the agora", () => {
+  const videoNumbers = (views: number, likes: number) => ({ platform: "tiktok", url: "", caption: "", views, likes, comments: 0, shares: 0, saves: 0, duration: null, author: "", followers: null, paid: false, thumbnail: null, media_url: null, source: "" });
+  const research = { domain: "acme.com", seo: { domain_rating: null, keywords: [] }, reddit: [], aeo: [], ads: [], videos: [videoNumbers(1000, 60), videoNumbers(2000, 120), videoNumbers(3000, 180)] };
+  const plan = { brand_name: "Acme", category: "soap", audience: "", competitors: [{ name: "Rival Co" }], content_queries: [], ads_query: "", reddit_query: "", aeo_prompts: [] };
+  const creative = (idx: number, approved: boolean) => ({ id: `crv_${idx}`, idx, generation: 1, status: "ready", concept: { title: `Concept ${idx}` }, caption: "", platforms: ["tiktok"], approved, videoUrl: null, posterUrl: null, qcScore: null, cost: 0, error: null, continuity: null, shots: [] });
+  const post = (idx: number, status: string, analytics: Record<string, number> | null = null) => ({ id: `pst_${idx}`, creativeId: `crv_${idx}`, platforms: ["tiktok"], scheduledAt: null, status, error: null, analytics });
+  const at = (stage: string, status: string, extra: Record<string, unknown>) => view({ stage, status, plan, research, ...extra });
+
+  it("marches the army out of the horse to the field, closes it up while posts go out, then fights", async () => {
+    const { STATION } = await import("@/components/troy/scenes/layout");
+    const { stage, camp, internals, run: tick } = world(false);
+    camp.apply(derive(at("production", "running", { creatives: [] })));
+    tick(1);
+    // Two videos ready: two companies, the archers and the catapult crews come out of the horse.
+    camp.apply(derive(at("review", "review", { creatives: [creative(0, false), creative(1, false)] })));
+    tick(70);
+    const army = [...internals.agents.values()].filter((a) => /^(hoplite|archer|crew):/.test(a.plan.id));
+    expect(army).toHaveLength(2 * 6 + 4 + 2);
+    for (const agent of army) expect(atPost(stage, agent, STATION.agora), `${agent.plan.id} formed up`).toBe(true);
+
+    // The posts go out: the companies close up, the archers loose and the catapults throw.
+    camp.apply(derive(at("review", "publishing", { creatives: [creative(0, true), creative(1, true)], posts: [post(0, "pending"), post(1, "pending")] })));
+    tick(12);
+    for (const agent of army) expect(atPost(stage, agent, STATION.agora), `${agent.plan.id} closed up`).toBe(true);
+    const act = (id: string) => (internals.agents.get(id)!.entity as Entity & { act?: string }).act;
+    expect(act("archer:0")).toBe("shoot");
+
+    // Out, with numbers: video 0 beats the top videos (10% against 6%) and its company cheers at
+    // the Romans' gate; video 1 (4%) fights on in the field.
+    camp.apply(derive(at("live", "live", { creatives: [creative(0, true), creative(1, true)], posts: [post(0, "posted", { views: 1000, likes: 100 }), post(1, "posted", { views: 1000, likes: 40 })] })));
+    tick(20);
+    expect(act("hoplite:0:0")).toBe("cheer");
+    expect(act("hoplite:1:0")).toBe("fight");
+    for (const agent of army) expect(atPost(stage, agent, STATION.agora), `${agent.plan.id} in the fight`).toBe(true);
+  });
+
+  it("knocks legionaries flat with stones and arrows, and they get up again", () => {
+    const { camp, internals, run: tick } = world(false);
+    camp.apply(derive(at("review", "publishing", { creatives: [creative(0, true), creative(1, true)], posts: [post(0, "pending"), post(1, "pending")] })));
+    const romans = (internals as unknown as { battlefield: { romans: Array<{ down: number; entity: { job: { act?: string } | null } }> } }).battlefield.romans;
+    let knocked = 0;
+    for (let s = 0; s < 40; s++) {
+      tick(1);
+      knocked = Math.max(knocked, romans.filter((r) => r.down > 0).length);
+    }
+    expect(knocked).toBeGreaterThan(0);
+    // The fighting stops (the demo stepped back): everyone is up again within a few seconds.
+    camp.apply(derive(at("review", "review", { creatives: [creative(0, false), creative(1, false)] })));
+    tick(6);
+    expect(romans.every((r) => r.down <= 0 && r.entity.job?.act !== "fallen")).toBe(true);
+  });
+});
