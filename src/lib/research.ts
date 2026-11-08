@@ -1,3 +1,4 @@
+import { ApiError } from "./http";
 import type { MonidInput } from "./monid";
 import type { NaiveClient } from "./naive";
 import { getSetting } from "./settings";
@@ -279,7 +280,8 @@ export async function planResearch(naive: NaiveClient, input: { domain: string; 
   try {
     const reply = await naive.message({
       model: getSetting("planner_model"),
-      max_tokens: 1200,
+      // The plan now carries conversion searches and benchmark roles: 1200 tokens cut it off mid-call.
+      max_tokens: 3000,
       system:
         "You plan market research for a marketing team that makes short videos to grow a customer's sales, not just its views: it needs both what gets watched in this category and what makes people buy (reviews, demos, comparisons, ads that keep running). Call the research_plan tool exactly once. Be concrete and use the words real customers use.",
       messages: [
@@ -298,7 +300,10 @@ export async function planResearch(naive: NaiveClient, input: { domain: string; 
     const call = reply.content.find((block) => block.type === "tool_use" && block.name === PLAN_TOOL.name);
     const raw = (call?.input ?? extractJson(reply.content.map((block) => block.text ?? "").join("\n"))) as Partial<ResearchPlan> | null;
     return raw ? mergePlan(raw, fallback) : fallback;
-  } catch {
+  } catch (error) {
+    // A busy or failing model is worth waiting for: a generic plan searches the brand's name and
+    // fills the research with noise (the first naive run pulled in music, anime and NIVEA ads).
+    if (error instanceof ApiError && error.retryable) throw error;
     return fallback;
   }
 }

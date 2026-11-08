@@ -122,18 +122,34 @@ export function clients() {
   return { naive: build(() => new NaiveClient()), monid: build(() => new MonidClient()) };
 }
 
+/** How many times in a row a step may hit a busy or failing provider before the campaign fails. */
+const RETRY_LIMIT = 12;
+/** The wait before retrying such a step: 5 s doubling to 5 min, about half an hour in all. */
+export const retryDelayMs = (attempts: number) => Math.min(300, 5 * 2 ** Math.max(0, attempts - 1)) * 1000;
+/**
+ * When each campaign may retry, in memory: the campaign row is rewritten every tick (spend), so it
+ * can't hold this. A restart only means one retry comes sooner.
+ */
+const retryAfter = new Map<string, number>();
+
 export async function advanceCampaign(id: string) {
   const campaign = await getCampaign(id);
   if (!campaign || campaign.status !== "running") return;
+  if ((retryAfter.get(id) ?? 0) > Date.now()) return;
   try {
     if (campaign.stage === "research") await stepResearch(campaign);
     else if (campaign.stage === "style") await stepStyle(campaign);
     else if (campaign.stage === "strategy") await stepStrategy(campaign);
     else if (campaign.stage === "production") await stepProduction(campaign);
     if (campaign.attempts) await save("campaigns", id, { attempts: 0 });
+    retryAfter.delete(id);
   } catch (error) {
-    if (error instanceof ApiError && error.retryable && campaign.attempts < 10) {
-      await save("campaigns", id, { attempts: campaign.attempts + 1 });
+    if (error instanceof ApiError && error.retryable && campaign.attempts < RETRY_LIMIT) {
+      const attempts = campaign.attempts + 1;
+      retryAfter.set(id, Date.now() + retryDelayMs(attempts));
+      await save("campaigns", id, { attempts });
+      // Say so once, not on every retry.
+      if (attempts === 1) await logEvent({ brandId: campaign.brand_id, campaignId: id, level: "warn", message: `A provider is busy at ${campaign.stage} (${error.message}); retrying with backoff for up to about 30 minutes` });
     } else {
       const message = error instanceof Error ? error.message : String(error);
       await save("campaigns", id, { status: "failed", error: message });

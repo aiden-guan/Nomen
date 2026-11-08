@@ -269,3 +269,26 @@ describe("parsing helpers", () => {
     expect(extractJson("no json here")).toBeNull();
   });
 });
+
+describe("the research planner when the model is busy", () => {
+  const input = { domain: "usenaive.ai", brand: { name: "Naive", description: "", slogan: "", industry: "", colors: [], logo: "", socials: [], images: [] }, siteExcerpt: "", similar: [] };
+
+  it("waits for a busy model instead of falling back to a generic plan", async () => {
+    const { ApiError } = await import("@/lib/http");
+    const busy = { message: async () => Promise.reject(new ApiError("naive", 429, "rate_limited", "the service is at capacity")) };
+    await expect(planResearch(busy as never, input as never)).rejects.toThrow(/capacity/);
+  });
+
+  it("still falls back when the model's answer is unusable", async () => {
+    const broken = { message: async () => Promise.reject(new Error("unexpected reply")) };
+    const plan = await planResearch(broken as never, input as never);
+    expect(plan.content_queries.length).toBeGreaterThan(0);
+  });
+});
+
+describe("campaign retries after a busy provider", () => {
+  it("back off from 5 s to 5 min", async () => {
+    const { retryDelayMs } = await import("@/lib/pipeline");
+    expect([1, 2, 3, 6, 7, 12].map(retryDelayMs)).toEqual([5000, 10000, 20000, 160000, 300000, 300000]);
+  });
+});
