@@ -188,9 +188,20 @@ export async function reviewCodeAd(naive: Pick<NaiveClient, "message">, input: {
     "Fail it for: broken rendering (black or blank frames, objects through the developer or the desk, things floating), text a viewer cannot read (the caption or a callout over the developer's face, cut off, illegible wall screen when it matters), the product's name or logo wrong or missing, a frame where nothing shows what the line says, anything off-brand or crude.",
     "By design: the callouts sit in the lower third, over the desk; banknotes, boxes or confetti may cover the developer for a moment during their gag. Do not fail it for its cartoon style, the robots or the jokes: they are the format. Call the qc_verdict tool once.",
   ].join("\n");
-  const content = [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: input.sheet.toString("base64") } }, { type: "text", text: rubric }];
-  const reply = await naive.message({ model: QC_MODEL, max_tokens: 1500, messages: [{ role: "user", content }], tools: [VERDICT_TOOL] });
-  const raw = (reply.content.find((block) => block.type === "tool_use" && block.name === VERDICT_TOOL.name)?.input ?? extractJson(reply.content.map((block) => block.text ?? "").join("\n"))) as Partial<Verdict> | null;
+  const image = { type: "image", source: { type: "base64", media_type: "image/jpeg", data: input.sheet.toString("base64") } };
+  const ask = (text: string, tools?: object[]) => naive.message({ model: QC_MODEL, max_tokens: 1500, messages: [{ role: "user", content: [image, { type: "text", text }] }], tools });
+  let raw: Partial<Verdict> | null = null;
+  try {
+    const reply = await ask(rubric, [VERDICT_TOOL]);
+    raw = (reply.content.find((block) => block.type === "tool_use" && block.name === VERDICT_TOOL.name)?.input ?? extractJson(reply.content.map((block) => block.text ?? "").join("\n"))) as Partial<Verdict> | null;
+  } catch (error) {
+    if (!(error instanceof ApiError) || !/tool/i.test(error.message)) throw error;
+  }
+  if (!raw || typeof raw.score !== "number") {
+    // the model fumbled the tool call: the same verdict as plain JSON (qc.ts does the same for shots)
+    const reply = await ask(`${rubric.replace("Call the qc_verdict tool once.", "")}\n\nAnswer with only a JSON object: {"score": 1-10, "pass": true|false, "issues": ["..."], "fix_prompt": "..."}`);
+    raw = extractJson(reply.content.map((block) => block.text ?? "").join("\n")) as Partial<Verdict> | null;
+  }
   if (!raw || typeof raw.score !== "number") throw new ApiError("naive", 502, "qc_unreadable", "the code-ad check returned no verdict");
   const score = Math.max(1, Math.min(10, Math.round(raw.score)));
   return { score, pass: Boolean(raw.pass) && score >= 7, issues: Array.isArray(raw.issues) ? raw.issues.filter((i): i is string => typeof i === "string").slice(0, 8) : [], fix_prompt: typeof raw.fix_prompt === "string" ? raw.fix_prompt : "" };

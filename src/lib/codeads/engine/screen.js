@@ -47,11 +47,12 @@ function windowChrome(g, title, sans, fg, logo) {
 }
 
 function terminal(g, lines, u, t, mono, fg, accent) {
-  const rows = lines.slice(0, 5), total = rows.reduce((n, l) => n + l.replace(/^>\s?/, '').length, 0) || 1;
+  const rows = lines.slice(0, 5), total = rows.reduce((n, l) => n + l.replace(/^>\s?/, '').replace(/^\$\s*/, '').length, 0) || 1;
   let left = Math.floor(clamp(u) * total * 1.02), y = 170, cx = 70, cy = y;
   g.font = `600 64px ${mono}`; g.textAlign = 'left'; g.textBaseline = 'middle';
   for (const l of rows) {
-    const out = l.startsWith('>'), text = out ? l.replace(/^>\s?/, '') : l, shown = text.slice(0, Math.max(0, left));
+    // the screen draws its own "$" prompt: a command written with one keeps a single prompt
+    const out = l.startsWith('>'), text = out ? l.replace(/^>\s?/, '') : l.replace(/^\$\s*/, ''), shown = text.slice(0, Math.max(0, left));
     if (left <= 0 && shown === '') break;
     left -= text.length;
     if (!out) { g.fillStyle = accent; g.fillText('$', 60, y); }
