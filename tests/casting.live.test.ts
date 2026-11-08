@@ -6,6 +6,7 @@
 //
 //   NOMEN_CASTING_LIVE=1 npx vitest run tests/casting.live.test.ts
 //   NOMEN_CASTING_CAMPAIGN=cmp_… to pick the campaign (default: the Monid campaign)
+//   NOMEN_CASTING_ONLY=crv_…,crv_… to cast only these briefs
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -30,7 +31,8 @@ describe.skipIf(!live)("real-creator mode on a researched campaign (live, Naive)
     const db = new Database(join(data, "nomen.db"), { readonly: true, fileMustExist: true });
     const campaign = db.prepare("select brand_id, strategy_json, research_json, style_json from campaigns where id = ?").get(CAMPAIGN) as { brand_id: string; strategy_json: string; research_json: string; style_json: string };
     const brand = db.prepare("select name, domain from brands where id = ?").get(campaign.brand_id) as { name: string; domain: string };
-    const rows = db.prepare("select id, concept_json from creatives where campaign_id = ? and rejected = 0 order by idx").all(CAMPAIGN) as Array<{ id: string; concept_json: string }>;
+    const only = process.env.NOMEN_CASTING_ONLY?.split(",").map((id) => id.trim()).filter(Boolean);
+    const rows = (db.prepare("select id, concept_json from creatives where campaign_id = ? and rejected = 0 order by idx").all(CAMPAIGN) as Array<{ id: string; concept_json: string }>).filter((row) => !only?.length || only.includes(row.id));
     db.close();
     const strategy = JSON.parse(campaign.strategy_json) as Strategy;
     const product = (JSON.parse(campaign.style_json) as { product: ProductBrief }).product;
