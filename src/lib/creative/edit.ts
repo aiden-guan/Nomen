@@ -569,37 +569,43 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
   } else {
     graph.push(`anullsrc=r=48000:cl=stereo,atrim=end=${num(duration)}[${sound}]`);
   }
-  if (options.finish) graph.push(`[araw]${VOICE_CHAIN}[avoice]`);
-  // What goes under the voice: room tone (finished), a music bed ducked by the voice, sound effects.
-  const under: string[] = [];
+  // The voice: finished (the voice chain, room tone under it, loudness for phones) or as it came.
+  let voice = "[avoice]";
   if (options.finish) {
-    graph.push(`${roomTone(duration)},aformat=sample_fmts=fltp:channel_layouts=stereo[aroom]`);
-    under.push("[aroom]");
-  }
-  let voiceOut = "[avoice]";
-  if (timeline.music) {
-    const m = input("-stream_loop", "-1", "-i", resolve(timeline.music.path));
-    const level = timeline.music.level ?? MUSIC_LEVEL;
-    const fadeOut = Math.max(0, duration - 1.2);
     graph.push(
-      `[avoice]asplit=2[avmix][avkey]`,
-      `[${m}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=end=${num(duration)},asetpts=PTS-STARTPTS,volume=${num(level)},afade=t=in:d=0.6,afade=t=out:st=${num(fadeOut)}:d=1.2[abed]`,
-      `[abed][avkey]${DUCK}[aduck]`,
+      `[araw]${VOICE_CHAIN}[avchain]`,
+      `${roomTone(duration)},aformat=sample_fmts=fltp:channel_layouts=stereo[aroom]`,
+      `[avchain][aroom]amix=inputs=2:normalize=0:duration=first,${LOUDNESS},aresample=48000,atrim=end=${num(duration)}[${scored ? "avoicen" : "aout"}]`,
     );
-    voiceOut = "[avmix]";
-    under.push("[aduck]");
+    voice = "[avoicen]";
   }
-  (timeline.sfx ?? []).forEach((effect, i) => {
-    if (!(effect.at >= 0 && effect.at < duration)) return;
-    const e = input("-i", resolve(effect.path));
-    const ms = Math.round(effect.at * 1000);
-    graph.push(`[${e}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${num(effect.level ?? SFX_LEVEL)},adelay=${ms}|${ms}[asfx${i}]`);
-    under.push(`[asfx${i}]`);
-  });
-  if (options.finish || scored) {
-    // The voice first and longest: the mix runs exactly its length. Loudness for phones when finished.
-    const end = options.finish ? `,${LOUDNESS},aresample=48000` : "";
-    graph.push(`${voiceOut}${under.join("")}amix=inputs=${1 + under.length}:normalize=0:duration=first${end},atrim=end=${num(duration)}[aout]`);
+  if (scored) {
+    // A music bed and sound effects go over the finished voice at their own levels: mixed before the
+    // loudness pass they took its gain too (Kling's quiet takes get about +15 dB, and a pop meant to
+    // sit at -16 dB came out at -1 dB). A limiter catches what they add on top.
+    const over: string[] = [];
+    if (timeline.music) {
+      const m = input("-stream_loop", "-1", "-i", resolve(timeline.music.path));
+      const level = timeline.music.level ?? MUSIC_LEVEL;
+      const fadeOut = Math.max(0, duration - 1.2);
+      graph.push(
+        `${voice}asplit=2[avmix][avkey]`,
+        `[${m}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=end=${num(duration)},asetpts=PTS-STARTPTS,volume=${num(level)},afade=t=in:d=0.6,afade=t=out:st=${num(fadeOut)}:d=1.2[abed]`,
+        `[abed][avkey]${DUCK}[aduck]`,
+      );
+      voice = "[avmix]";
+      over.push("[aduck]");
+    }
+    (timeline.sfx ?? []).forEach((effect, i) => {
+      if (!(effect.at >= 0 && effect.at < duration)) return;
+      const e = input("-i", resolve(effect.path));
+      const ms = Math.round(effect.at * 1000);
+      graph.push(`[${e}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${num(effect.level ?? SFX_LEVEL)},adelay=${ms}|${ms}[asfx${i}]`);
+      over.push(`[asfx${i}]`);
+    });
+    // The voice first and longest: the mix runs exactly its length.
+    const limit = options.finish ? ",alimiter=limit=0.84:level=disabled" : "";
+    graph.push(`${voice}${over.join("")}amix=inputs=${1 + over.length}:normalize=0:duration=first${limit},atrim=end=${num(duration)}[aout]`);
   }
 
   // Inset: keep a copy of the A-roll before any B-roll covers it, for the presenter window.

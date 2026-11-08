@@ -588,6 +588,21 @@ describe.skipIf(!ffmpeg)("the punch-in", () => {
     expect(await pauseLevel(scored)).toBeGreaterThan((await pauseLevel(plain)) + 20);
   }, 120_000);
 
+  it("lays sound effects over the finished, normalized voice at their own level, so loudness never pumps them", async () => {
+    // A quiet voice (Kling renders around -30 dB) that starts late, and a full-scale pop before it.
+    const voice = join(dir, "late-voice.mp4");
+    await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=540x960:rate=30:duration=3", "-f", "lavfi", "-i", "aevalsrc='if(gt(t,1),0.04*sin(2*PI*300*t),0)':s=48000:d=3", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", voice]);
+    const pop = join(dir, "loud-pop.wav");
+    await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "aevalsrc='sin(2*PI*1000*t)':s=48000:d=0.1", pop]);
+    const out = join(dir, "finished-pop.mp4");
+    await renderTimeline({ aroll: [{ path: voice }], audio: null, segments: [], captions: [], overlays: [], sfx: [{ at: 0.2, path: pop, level: 0.15 }] }, out, { workDir: dir, finish: true });
+    const { stderr } = await exec(ffmpeg!, ["-hide_banner", "-nostats", "-ss", "0.1", "-t", "0.4", "-i", out, "-vn", "-af", "astats=measure_perchannel=none", "-f", "null", "-"]);
+    const peak = Number(/Peak level dB: (\S+)/.exec(stderr)?.[1]);
+    // 0.15 of full scale is about -16.5 dB; mixed before the normalizer it came out near 0 dB.
+    expect(peak).toBeLessThan(-10);
+    expect(peak).toBeGreaterThan(-24);
+  }, 120_000);
+
   it("hears whether a generated sound effect is audible: a near-silent one is not used", async () => {
     const tone = join(dir, "tone.wav");
     const hush = join(dir, "hush.wav");
