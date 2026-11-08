@@ -604,8 +604,34 @@ def composite(spec, quads, n, sharp=None):
     return written
 
 
+def erase_only(spec):
+    """
+    The reference's footage as it is, its screen untouched, with only its burned-in captions painted
+    out (a generic screen, a phone ringing, keeps itself; our caption is drawn over it in the edit).
+    """
+    W, H = spec["size"]["width"], spec["size"]["height"]
+    n = int(round(spec["seconds"] * FPS))
+    writer = subprocess.Popen(
+        [spec["ffmpeg"], "-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "pipe:0",
+         "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", spec["out"]],
+        stdin=subprocess.PIPE,
+    )
+    written = 0
+    for i, frame in enumerate(read_frames(spec["ffmpeg"], segment_args(spec, W, H), W, H, n)):
+        writer.stdin.write(erase_text(frame, erase_boxes(spec, i)).tobytes())
+        written += 1
+    writer.stdin.close()
+    writer.wait()
+    if writer.returncode != 0 or written == 0:
+        raise SystemExit("ffmpeg could not write the kept footage")
+    return written
+
+
 def main():
     spec = json.load(open(sys.argv[1]))
+    if not spec.get("screen"):
+        print(json.dumps({"ok": True, "frames": erase_only(spec), "shots": []}))
+        return
     quads, shots, n, sharp = track(spec)
     if spec.get("quads_out"):
         with open(spec["quads_out"], "w") as f:

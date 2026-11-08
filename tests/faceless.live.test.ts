@@ -55,6 +55,8 @@ type Case = {
   display?: DeviceDisplay;
   /** A filter on our voice (PHONE_EQ when the reference's voice comes out of a phone). */
   voiceEq?: string;
+  /** "keep": the reference's own screen stays (it is generic); only the sound and the caption change. */
+  screens?: "keep";
   brief: Omit<CreativeBrief, "reference_id" | "format" | "creator" | "setting" | "visuals">;
   stats: string;
 };
@@ -157,6 +159,8 @@ const CASES: Case[] = [
     speech: "naive",
     display: { describe: "the desk phone's small backlit display (a Yealink-style IP phone screen), not the computer monitor at the top edge", width: 960, height: 720 },
     voiceEq: PHONE_EQ,
+    // Dylan: a phone ringing looks the same for any product; keep its own display, change the voice and caption.
+    screens: "keep",
     stats: "769,397 views · 313 followers (769x) · 63,982 likes · 7,036 saves · 14,268 shares · 16.7 s",
     brief: {
       title: "My agent calls me when the phone tests pass",
@@ -291,6 +295,7 @@ describe.skipIf(!live)("faceless one-to-one remakes (live, paid)", () => {
             voice: "fresh",
             display: c.display,
             voiceEq: c.voiceEq,
+            screens: c.screens,
             finish: process.env.NOMEN_REMAKE_FINISH !== "0",
             idem: `faceless-live-${c.name}-${tag}`,
             onEvent: log,

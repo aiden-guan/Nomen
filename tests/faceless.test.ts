@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { editFfmpeg } from "@/lib/creative/edit";
-import { balanceLines, burnedInText, overlayLines, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, staticCaption, wordCaptions } from "@/lib/creative/remake";
+import { balanceLines, burnedInText, overlayLines, parseScreenPolicy, screenPolicy, screenPolicyPrompt, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, staticCaption, wordCaptions } from "@/lib/creative/remake";
 import { readScreenCorners } from "@/lib/creative/clone";
 import { beatsOfWords, fitSegments, freshVoiceArgs, PHONE_EQ, soundArgs, timeOurLines, timeOurWords, wordsFromSegments } from "@/lib/creative/dub";
 import { referenceFrameNote } from "@/lib/creative/screens";
@@ -264,6 +264,38 @@ describe("faceless remakes: motion graphics", () => {
   it("keeps a plain graphic's brief as it was", () => {
     const request = stageGraphic("fb-s2", { stage: { width: 1080, height: 890 }, seconds: 3, line: "we spent three dollars", shows: "", product: { name: "Monid", one_liner: "one balance" } });
     expect(request.brief).not.toContain("appear on it in turn");
+  });
+});
+
+describe("faceless remakes: keep the reference's screen, or put ours on it", () => {
+  const segments = [
+    { n: 1, shows: "A desk phone ringing; a hand answers it", screen: "Ringing, caller Claude, softkeys Answer and Reject" },
+    { n: 2, shows: "A laptop showing a school website's desktop", screen: "Serum Browser, Spotify, games: the website being shown off" },
+  ];
+
+  it("asks to keep a generic screen and replace one that sells another product", () => {
+    const prompt = screenPolicyPrompt(segments, { name: "Mobilerun", one_liner: "real phones for AI agents" });
+    expect(prompt).toContain("a phone ringing or a call screen");
+    expect(prompt).toContain("When unsure, keep: false");
+    expect(prompt).toContain("Serum Browser");
+  });
+
+  it("reads the model's verdicts, and leaves out what it did not decide as not kept", () => {
+    const policy = parseScreenPolicy({ segments: [{ n: 1, keep: true, why: "a ringing phone looks the same for any product" }] }, segments);
+    expect(policy[1]).toEqual({ keep: true, why: "a ringing phone looks the same for any product" });
+    expect(policy[2]).toEqual({ keep: false, why: "" });
+    expect(parseScreenPolicy(null, segments)[1].keep).toBe(false);
+  });
+
+  it("asks once with the tool and reads its answer", async () => {
+    const naive = {
+      async message() {
+        return { content: [{ type: "tool_use", name: "screen_policy", input: { segments: [{ n: 1, keep: true, why: "generic" }, { n: 2, keep: false, why: "sells the school site" }] } }] };
+      },
+    } as unknown as Parameters<typeof screenPolicy>[0];
+    const policy = await screenPolicy(naive, segments, { name: "Mobilerun", one_liner: "real phones for AI agents" });
+    expect(policy[1].keep).toBe(true);
+    expect(policy[2].keep).toBe(false);
   });
 });
 

@@ -1113,6 +1113,59 @@ function layoutPrompt(breakdown: ReferenceBreakdown, beats: ReferenceBeat[], end
 type Messenger = Pick<NaiveClient, "message">;
 
 /** The vision pass: sampled frames of the reference (up to `end`) and its breakdown → its layout. */
+// ---------- keep the reference's screen, or put ours on it ----------
+
+const SCREEN_POLICY_TOOL = {
+  name: "screen_policy",
+  description: "For each filmed-screen segment, keep the reference's own screen or put our product's on it.",
+  input_schema: {
+    type: "object",
+    required: ["segments"],
+    properties: {
+      segments: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["n", "keep", "why"],
+          properties: { n: { type: "integer" }, keep: { type: "boolean" }, why: { type: "string" } },
+        },
+      },
+    },
+  },
+};
+
+/**
+ * Dylan's rule for faceless remakes: a filmed screen that is generic for the story (a phone ringing,
+ * a lock screen, a chat that names no rival product) stays as it is, and only the sound and the
+ * caption change; our product goes on a screen only where the original's would sell someone else's
+ * (its own product, a competitor, a walkthrough of an app the viewer must read as the advertised one).
+ */
+export function screenPolicyPrompt(segments: Array<Pick<RemakeSegment, "n" | "shows" | "screen">>, product: Pick<ProductBrief, "name" | "one_liner">): string {
+  return [
+    `We are remaking a viral video one to one as an ad for ${product.name} (${product.one_liner}). Its footage films a screen in these segments:`,
+    JSON.stringify(segments.map((s) => ({ n: s.n, shows: s.shows, screen: s.screen }))),
+    `For each, keep the reference's own screen (keep: true) when it is generic for the story: a phone ringing or a call screen, a caller or assistant's name that does not compete with ${product.name}, a lock screen, a chat or terminal that sells nothing; then only the voice and the captions change. Put ${product.name}'s screen on it instead (keep: false) when the screen shows the product the original was selling, a competitor of ${product.name}, or an app, site or walkthrough the viewer would read as the thing being advertised. When unsure, keep: false.`,
+    "Call the screen_policy tool once.",
+  ].join("\n");
+}
+
+/** The policy as the model gave it: segment number to keep; segments it left out are not kept. */
+export function parseScreenPolicy(raw: unknown, segments: Array<Pick<RemakeSegment, "n">>): Record<number, { keep: boolean; why: string }> {
+  const list = Array.isArray((raw as { segments?: unknown })?.segments) ? ((raw as { segments: Array<Record<string, unknown>> }).segments ?? []) : [];
+  const out: Record<number, { keep: boolean; why: string }> = {};
+  for (const s of segments) {
+    const found = list.find((x) => num(x?.n) === s.n);
+    out[s.n] = { keep: found?.keep === true, why: text(found?.why, 200) };
+  }
+  return out;
+}
+
+export async function screenPolicy(naive: Messenger, segments: Array<Pick<RemakeSegment, "n" | "shows" | "screen">>, product: Pick<ProductBrief, "name" | "one_liner">): Promise<Record<number, { keep: boolean; why: string }>> {
+  const reply = await naive.message({ model: QC_MODEL, max_tokens: 1500, messages: [{ role: "user", content: screenPolicyPrompt(segments, product) }], tools: [SCREEN_POLICY_TOOL] });
+  const call = reply.content.find((block) => block.type === "tool_use" && block.name === SCREEN_POLICY_TOOL.name);
+  return parseScreenPolicy(call?.input ?? extractJson(reply.content.map((block) => block.text ?? "").join("\n")), segments);
+}
+
 export async function analyzeReference(naive: Messenger, input: { referencePath: string; breakdown: ReferenceBreakdown; beats: ReferenceBeat[]; end: number }): Promise<RemakeLayout> {
   const times = sampleTimes(input.beats, input.end);
   const frames: Array<{ t: number; jpeg: Buffer }> = [];
@@ -1241,8 +1294,12 @@ export type RemakeInput = {
   voiceMatch?: boolean;
   /** The picture and sound finish (contrast, grain, the voice chain, ducking, loudness); off for an A/B. */
   finish?: boolean;
-  /** Filmed monitors: tracked into the reference's footage, a plate, or tracked when the corners hold up. */
-  screens?: "auto" | "track" | "plate";
+  /**
+   * Filmed screens: tracked into the reference's footage, a plate, or tracked when the corners hold
+   * up; "keep" leaves the reference's own screen as it is (a generic screen: a phone ringing), with
+   * only its burned-in captions painted out.
+   */
+  screens?: "auto" | "track" | "plate" | "keep";
   /** The display the reference films when it is not a computer's (a desk phone's LCD): its b-roll is then tracked and our screens, built at this size, go on it. */
   display?: DeviceDisplay;
   /** An ffmpeg filter for our voice before the finish (PHONE_EQ: heard through a phone's speaker, as the reference's is). */
@@ -1281,7 +1338,7 @@ export type RemakeResult = {
 export class OverBudget extends Error {}
 
 type TakeRecord = { key: string; frame_key?: string; frame_tries?: number; frame_fix?: string; frame_done?: boolean; frame_micro?: number; render: RenderRecord; voice?: RenderVoice; failed?: string };
-type ScreenRecord = { key: string; mode?: "track" | "plate"; reason?: string; clip_key?: string; plate?: PlateRecord; plate_key?: string; /** The tracker's corner reads and when they were taken: a re-track reuses them. */ anchors?: QuadKey[]; anchor_times?: number[] };
+type ScreenRecord = { key: string; mode?: "track" | "plate" | "keep"; reason?: string; clip_key?: string; plate?: PlateRecord; plate_key?: string; /** The tracker's corner reads and when they were taken: a re-track reuses them. */ anchors?: QuadKey[]; anchor_times?: number[] };
 
 type Manifest = {
   version: 3;
@@ -1290,6 +1347,8 @@ type Manifest = {
   /** The softer cut list (SOFT_CUT_THRESHOLD) a filmed screen's tracker splits its shots at. */
   soft_cuts?: number[];
   real?: Record<string, number[]>;
+  /** Which filmed-screen segments keep the reference's own screen (Dylan's rule), and the question's key. */
+  screen_policy?: { key: string; segments: Record<number, { keep: boolean; why: string }> };
   estimate?: CostEstimate;
   audio: AudioRecord;
   /** Per render ("s1-c1"): its twin frame, its presenter job and clip, its own voice. */
@@ -1472,7 +1531,32 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     layer.chunks = chunkTakes(layer.takes, presenter.price.maxSeconds, presenter.multiShot);
   }
 
-  // 3. Graphics and the screens the filmed monitors show.
+  // 3. Graphics and the screens the filmed monitors show. A screen kept as it is needs none.
+  // Never a screen with the original person cut out over it: kept footage would keep them.
+  const screenLayers = layers.filter((l) => l.kind === "screen" && !segments.find((s) => s.n === l.segment)?.presenter.inset);
+  const keepScreens = new Set(input.screens === "keep" ? screenLayers.map((l) => l.id) : []);
+  if ((input.screens ?? "auto") === "auto" && screenLayers.length) {
+    // Dylan's rule: a generic screen stays as it is; ours goes only where the original's would sell someone else's.
+    const asked = segments.filter((s) => screenLayers.some((l) => l.segment === s.n));
+    const key = hash([asked.map((s) => [s.n, s.shows, s.screen]), input.product.name]);
+    if (manifest.screen_policy?.key !== key) {
+      try {
+        manifest.screen_policy = { key, segments: await screenPolicy(naive, asked, input.product) };
+      } catch (error) {
+        if (stopping(error)) throw error;
+        manifest.screen_policy = { key, segments: {} };
+        notes.push(`screen policy unavailable (${error instanceof Error ? error.message : String(error)}); our screens go on every filmed screen`);
+      }
+      await save();
+    }
+    for (const layer of screenLayers) {
+      const verdict = manifest.screen_policy.segments[layer.segment];
+      if (verdict?.keep) {
+        keepScreens.add(layer.id);
+        say(`Keeping the reference's own screen in segment ${layer.segment} (${verdict.why || "generic"})`);
+      }
+    }
+  }
   const scriptLines = lines.map((l) => l.line);
   // Elements inside a full-stage graphic segment are drawn by that segment's own graphic.
   const graphicSegments = segments.filter((s) => s.kind === "graphic");
@@ -1482,7 +1566,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   for (const layer of layers) {
     const segment = segments.find((s) => s.n === layer.segment)!;
     if (layer.kind === "graphic") requests.push(stageGraphic(layer.id, { stage, seconds: layer.end - layer.start, line: lineAt(span.beats, scriptLines, layer.start, layer.end), shows: segment.shows, product: input.product, elements: segmentElements(segment, layout.graphics) }));
-    if (layer.kind === "screen") requests.push(...screenRequests(layer, segment, span.beats, scriptLines, input.product, input.display));
+    if (layer.kind === "screen" && !keepScreens.has(layer.id)) requests.push(...screenRequests(layer, segment, span.beats, scriptLines, input.product, input.display));
   }
   // The designer sees the reference's own frame at each graphic's moment, to copy its look.
   for (const request of requests) {
@@ -1656,7 +1740,9 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     try {
       // Every cut inside the segment, also one a frame from its edge: the tracker treats each shot alone.
       const softCuts = (manifest.soft_cuts ?? cuts).filter((c) => c > layer.start + 0.03 && c < layer.end - 0.03);
-      const path = await filmedMonitor(work, naive, manifest, { layer, segment, layout, stage, stageRef, reference: input.referencePath, built, product: input.product, mode: input.screens ?? "auto", cuts: manifest.real?.[layer.id] ?? [], softCuts, display: input.display, idem: `${input.idem}-${layer.id}` });
+      const path = keepScreens.has(layer.id)
+        ? await keptScreen(work, manifest, { layer, layout, stage, stageRef, reference: input.referencePath })
+        : await filmedMonitor(work, naive, manifest, { layer, segment, layout, stage, stageRef, reference: input.referencePath, built, product: input.product, mode: input.screens === "keep" ? "auto" : (input.screens ?? "auto"), cuts: manifest.real?.[layer.id] ?? [], softCuts, display: input.display, idem: `${input.idem}-${layer.id}` });
       if (!path) manifest.fallbacks[layer.id] ??= "the filmed monitor could not be rebuilt";
     } catch (error) {
       if (stopping(error)) throw error;
@@ -1949,6 +2035,33 @@ async function twinFrame(
     await work.save();
   }
   return work.host(twin, "image/png");
+}
+
+/**
+ * A filmed screen kept as it is: the reference's footage with only its burned-in captions painted
+ * out (OpenCV, as the tracker), so the edit's captions are the only words on it. Without OpenCV, or
+ * with nothing to paint out, the footage itself.
+ */
+async function keptScreen(work: Work, manifest: Manifest, o: { layer: CloneLayer; layout: RemakeLayout; stage: Stage; stageRef: Rect; reference: string }): Promise<string> {
+  const { layer, stage } = o;
+  const erase = burnedInText(o.layout, stage, layer);
+  const python = trackerPython();
+  const key = hash([layer.id, layer.start, layer.end, "keep", erase, python ? "erase" : ""]);
+  const rec = (manifest.screens[layer.id] = manifest.screens[layer.id]?.key === key ? manifest.screens[layer.id] : { key });
+  const kept = await work.local(rec.clip_key);
+  if (kept) return kept;
+  const out = join(work.dir, `${layer.id}-kept.mp4`);
+  const seconds = round(layer.end - layer.start);
+  if (python && erase.length) {
+    await trackScreen(python, { ffmpeg: await ffmpegBin(), reference: o.reference, start: layer.start, seconds, crop: o.stageRef, size: { width: stage.width, height: stage.height }, screen: "", screen_size: { width: 2, height: 2 }, cuts: [], anchors: [], erase, out }, work.dir);
+  } else {
+    await ffmpeg(stageArgs([{ path: o.reference, kind: "video", from: layer.start, seconds, crop: o.stageRef }], stage, out));
+  }
+  work.say(`Kept the reference's own screen for ${layer.start.toFixed(1)}-${layer.end.toFixed(1)} s${python && erase.length ? ", its captions painted out" : ""}`);
+  rec.mode = "keep";
+  rec.clip_key = await work.keep(`screens/${layer.id}.mp4`, out, "video/mp4");
+  await work.save();
+  return out;
 }
 
 /**
