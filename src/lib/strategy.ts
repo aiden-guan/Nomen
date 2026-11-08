@@ -29,6 +29,10 @@ export type Concept = {
   script?: Script;
   plan?: ProductionPlan;
   reference?: { id: string; url: string; author: string; views: number; followers: number | null; outlier: number | null; format: string; hook_mechanic: string };
+  /** For internal review only (one-to-one remakes): publishing refuses it unless `cleared` is set. */
+  internal?: boolean;
+  /** Who cleared an internal video for posting, when and why. */
+  cleared?: { at: string; by: string; note: string };
 };
 
 export type Strategy = {
@@ -145,7 +149,19 @@ export const STRATEGY_SCHEMA = {
 export type StrategyOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string };
 
 /** The first message of a strategist session: the brief, the research and the house rules for this run. */
-export type PastResult = { title: string; format: string; hook: string; platforms: string[]; status: string; analytics: Record<string, unknown> | null };
+export type PastResult = {
+  /** One earlier post: what it was, where it went, and what it did (stats read from its analytics). */
+  title: string;
+  format: string;
+  hook: string;
+  platforms: string[];
+  status: string;
+  url: string | null;
+  stats: { views?: number; likes?: number; comments?: number; shares?: number; saves?: number } | null;
+  /** Why it failed, for a failed post. */
+  error: string | null;
+  analytics: Record<string, unknown> | null;
+};
 
 /** What the director sees of a reference: its numbers, mechanics and beats, not its raw transcript. */
 export function referenceDigest(breakdowns: ReferenceBreakdown[]) {

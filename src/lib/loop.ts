@@ -96,7 +96,7 @@ export type LoopCampaign = {
   spent_at: string;
   /** Recorded spend plus the untracked allowance (campaignSpendMicro). */
   spend_micro: number;
-  /** Finished videos that were not rejected. */
+  /** Finished videos that were not rejected and have no post on its way or out. */
   ready: number;
 };
 
@@ -259,8 +259,12 @@ type CampaignSpendRow = {
 export async function loopHistory(brandId: string, now = new Date()): Promise<Pick<LoopInput, "campaigns" | "posts">> {
   const rows = await store().find<CampaignSpendRow>("campaigns", { brand_id: brandId }, { order: [["created_at", "asc"]] });
   const ids = rows.map((row) => row.id);
-  const creatives = ids.length ? await store().find<{ campaign_id: string; status: string; rejected: number; cost_micro: number }>("creatives", { campaign_id: { in: ids } }) : [];
+  const creatives = ids.length ? await store().find<{ id: string; campaign_id: string; status: string; rejected: number; cost_micro: number }>("creatives", { campaign_id: { in: ids } }) : [];
   const runs = ids.length ? await store().find<{ campaign_id: string; cost_micro: number }>("monid_runs", { campaign_id: { in: ids } }) : [];
+  type Post = { creative_id: string; status: string; scheduled_at: string | null; created_at: string };
+  const allPosts = await store().find<Post>("posts", { brand_id: brandId });
+  // A video with a post on its way or out is not waiting for anyone; a failed post can be sent again.
+  const sent = new Set(allPosts.filter((p) => p.status !== "failed").map((p) => p.creative_id));
   const campaigns = rows.map((row) => {
     const mine = creatives.filter((c) => c.campaign_id === row.id);
     const totals = {
@@ -276,11 +280,10 @@ export async function loopHistory(brandId: string, now = new Date()): Promise<Pi
       created_at: row.created_at,
       spent_at: row.updated_at > row.created_at ? row.updated_at : row.created_at,
       spend_micro: campaignSpendMicro(totals),
-      ready: mine.filter((c) => c.status === "ready" && !c.rejected).length,
+      ready: mine.filter((c) => c.status === "ready" && !c.rejected && !sent.has(c.id)).length,
     };
   });
-  type Post = { status: string; scheduled_at: string | null; created_at: string };
-  const posts = await store().find<Post>("posts", { brand_id: brandId, status: { in: ["pending", "processing", "scheduled"] } });
+  const posts = allPosts.filter((p) => p.status === "pending" || p.status === "processing" || p.status === "scheduled");
   const stuckBefore = new Date(now.getTime() - STUCK_POST_MS).toISOString();
   const inFlight = posts.filter((p) => (p.status === "pending" || p.status === "processing") && (p.scheduled_at ?? p.created_at) > stuckBefore).length;
   const until = posts.reduce<string | null>((latest, p) => (p.scheduled_at && (!latest || p.scheduled_at > latest) ? p.scheduled_at : latest), null);
