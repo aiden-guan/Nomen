@@ -1,0 +1,134 @@
+# Troy: the landing page and the camp
+
+Troy is the pixel-art front door of Nomen. `/` is a white page with a Trojan horse and one box:
+the company's website. Submitting it starts a real campaign; the horse's doors open, a gangplank
+drops and an endless column of hoplites marches out to the camp. `/camp/[brandId]` is the camp:
+the campaign's agents, one island per pipeline stage, doing the work the core track reports.
+
+## Who owns what
+
+This track owns these paths; the core track owns everything else.
+
+- `src/components/troy/**` (engine, models, scenes, UI)
+- `src/app/page.tsx` (the landing; it replaced the brand list, which moved to `/brands`)
+- `src/app/brands/page.tsx` (the core's `HomeView`, unchanged, at its new address)
+- `src/app/camp/**`
+- `tests/troy/**`
+- `docs/troy.md`
+
+Troy reads the core's code but changes none of it.
+
+## The contract it relies on
+
+Troy talks to the core over HTTP only. Its response types are the core's own view types, imported
+as types (`src/components/troy/api.ts` re-exports `BrandView`, `CampaignView`, `CreativeView` and
+`BrandListItem` from `src/lib/views.ts`), so a change to a field Troy reads fails `npm run typecheck`.
+
+| Call | Used for |
+| --- | --- |
+| `POST /api/brands {url}` | The landing's box: creates the brand and starts its campaign |
+| `GET /api/brands` | "Your camps" on the landing |
+| `GET /api/brands/[id]` | The camp, polled every 2.5 s while agents work (9 s otherwise, paused in hidden tabs) |
+| `POST /api/campaigns/[id] {action}` | Retry, approve all, publish now / one a day |
+| `PATCH /api/creatives/[id] {approved}` | Approving one video |
+| `POST /api/creatives/[id]` | "Send back for another take" |
+| `POST /api/brands/[id]/social {returnTo}` | The connect-accounts link before posting |
+| `GET /api/media/[id]/final.mp4` | Videos in the theatre and on its screen |
+
+Two things are matched on the core's wording, and both are pinned by `tests/troy/derive.test.ts`:
+
+- **Stages:** `research → style → strategy → production → review → live` map to the Scouts,
+  Oracle, War tent, Workshop, Theatre and Agora.
+- **Event lines:** `stationForEvent()` in `scenes/derive.ts` routes each `logEvent` line (for
+  example `QC sent "…" shot 1 back`) to the station it is about. If you reword a `logEvent` call,
+  run the tests.
+
+## The demo camp
+
+`/camp/demo` plays a made-up brand (Olive & Ash, on the reserved `.example` domain) through every
+stage in about a minute and a half, from `camp/demo.ts`, with no keys and no spending. It builds
+the same `BrandView` the API returns, so it drives the real camp code. It is labeled as a demo in the
+top bar and the panels, and its buttons only explain that it's a demo. The landing links to it under
+the website box.
+
+## Under the core's layout
+
+The core's root layout renders a dark header around every page. Troy's pages cover the window
+(`position: fixed; z-index: 60`) and mark everything outside themselves `inert` while mounted, so
+the header is neither visible nor reachable by keyboard. The landing links to `/settings` (where the
+keys live) and to `/brands`.
+
+A cleaner end state, for the core track to decide: move the header into an `(app)` route group's
+layout so `/` and `/camp/*` never render it.
+
+## How the camp maps the campaign
+
+`scenes/derive.ts` turns a `BrandView` into a plan: each station's state (`waiting`, `working`,
+`done`, `failed`, `skipped`, or `yours` when the campaign waits on the user), a one-line status and
+progress, and every agent's post and activity:
+
+- **Scouts:** one per research source. They queue while it is pending, walk off the island while
+  it runs, and come back with a scroll when it finishes (or empty-handed when it fails). The lookout
+  stays on the tower.
+- **Oracle:** watches the top videos on a CRT during the format study.
+- **War tent:** the strategist points at the map while the strategy is written, and a scribe
+  takes notes.
+- **Workshop:** one desk per video. The CRT is blue while a shot renders, green when the video is
+  ready and red when it failed. The painter works the easel while first frames are made, and the
+  inspector visits the desk whose shot is in QC.
+- **Theatre:** finished videos play on the screen as pixelated frames, with an audience.
+- **Agora:** the herald trumpets while posts go out.
+
+A messenger rides along the sandbars when work changes hands (each stage change, each finished
+video). New event lines flash in the station's label with a pop-up emote.
+
+## The art
+
+Nothing is a bitmap. `engine/tracer.ts` is a small analytic ray tracer:
+- **Models:** unions of boxes, ellipsoids, cylinders, capsules and frustums, with clip planes and
+  carved holes.
+- **Camera:** an orthographic 2:1 isometric camera, one ray per art pixel.
+- **Light:** a sun with hard shadows on objects and dithered soft shadows on the ground.
+- **Colour:** hand-picked 6-step ramps (`engine/palette.ts`) with ordered dithering on curved
+  surfaces only.
+- **Grounds:** islands whose rims dissolve into scattered grains.
+
+- `engine/models/*`: the horse (body, door leaves and gangplank as separate layers), the hoplite
+  (a pose is a few joint angles; looks vary skin, crest, tunic, shield emblem) and the station
+  props.
+- `engine/jobs.ts`: every drawable as a serialisable job (`{ k: "soldier", look, act, dir, f }`).
+  `engine/bake.worker.ts` bakes jobs in a pool of up to three workers, with an inline fallback.
+  `engine/baker.ts` caches the results as `ImageBitmap`s.
+- `engine/stage.ts`: one canvas, a camera in art pixels and whole device pixels per art pixel where
+  that costs little (quarter steps otherwise). It depth-sorts entities isometrically, draws soft blob
+  shadows and pixel-dissolve reveals, and keeps HTML anchored to world points.
+
+To add a prop: write a builder in `engine/models/props.ts`, add a case to `propModel()` in
+`jobs.ts`, and place it in `scenes/stations.ts`. The island bakes its shadow automatically. To add
+an activity, add an `Act` and its pose in `poseFor()`.
+
+## Numbers
+
+Measured in headless Chromium at 1440×900, 2x (software rendering, so real GPUs do better):
+- **Landing:** the website box appears about 0.5 s after load, and the horse about 1 s after load
+  in dev mode.
+- **Frame time:** a median of 16.7 ms and a 95th percentile of 16.8 ms through the door opening
+  and the march.
+- **Bake cost:** the horse body takes about 250 ms and a soldier frame about 5 ms, all in workers.
+
+## Tests
+
+```bash
+npx vitest run tests/troy
+```
+
+They cover the plan for every campaign state, event routing, that the website box accepts exactly
+what the server's `normalizeDomain` accepts, deterministic baking and the door timeline.
+
+## Not done yet
+
+- **Phones:** the warm-up track (`/api/phones/*`) isn't shown in the camp yet; a soldier scrolling a
+  phone would fit the Agora.
+- **Linking:** the brand workspace (`/brands/[id]`, core) doesn't link to the camp yet; the camp
+  links to the workspace.
+- **Theme:** the core's pages keep their dark theme.

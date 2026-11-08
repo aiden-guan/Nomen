@@ -230,6 +230,9 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
             <p id="troy-site-hint" className="mt-4 text-center text-[13px] leading-relaxed text-[var(--ink-soft)]">
               Inside: an army of agents that researches your market, writes the strategy, films the ads and posts them.
               {cost && <span className="mt-1 block text-[12px] text-[var(--ink-faint)]">Each campaign: {cost}.</span>}
+              <a href="/camp/demo" className={`${styles.link} ${styles.pixel} mt-2 inline-block text-[13px] underline decoration-dotted underline-offset-4`}>
+                Or watch a demo camp →
+              </a>
             </p>
             <p id="troy-site-error" role="alert" className="mt-2 min-h-5 text-center text-[13px] font-medium text-[var(--crimson)]">
               {error}

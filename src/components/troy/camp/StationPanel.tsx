@@ -7,6 +7,7 @@ import { type CampPlan, runLabel } from "../scenes/derive";
 import { STATION, type StationId } from "../scenes/layout";
 import styles from "../troy.module.css";
 import { Avatar } from "./Avatar";
+import { DEMO_ID } from "./demo";
 import { Pip } from "./Camp";
 import { money, platformName, when } from "./format";
 
@@ -121,9 +122,13 @@ export function StationPanel({
       </div>
 
       <footer className="border-t-2 border-[rgba(43,29,20,0.12)] px-5 py-3 text-[12px] text-[var(--ink-soft)]">
-        <a href={`/brands/${encodeURIComponent(view.brand.id)}`} className={`${styles.link} ${styles.pixel}`}>
-          Open the full workspace ↗
-        </a>
+        {view.brand.id === DEMO_ID ? (
+          <span>Demo camp: sample data, nothing is spent.</span>
+        ) : (
+          <a href={`/brands/${encodeURIComponent(view.brand.id)}`} className={`${styles.link} ${styles.pixel}`}>
+            Open the full workspace ↗
+          </a>
+        )}
       </footer>
     </aside>
   );

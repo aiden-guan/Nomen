@@ -9,6 +9,7 @@ import { derive, stationForEvent, stationOf } from "../scenes/derive";
 import { STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
+import { DEMO_ID, DEMO_SECONDS, demoView } from "./demo";
 import { Dispatches } from "./Dispatches";
 import { ago, money } from "./format";
 import { StationPanel } from "./StationPanel";
@@ -30,9 +31,22 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
   const viewRef = useRef(view);
   viewRef.current = view;
   const reloadRef = useRef<() => void>(() => undefined);
+  const demo = brandId === DEMO_ID;
+  const [demoRun, setDemoRun] = useState(0);
+
+  // --- The demo plays a made-up campaign on a clock instead of reading the API. -----------------
+  useEffect(() => {
+    if (!demo || !arrived) return;
+    const start = performance.now();
+    const step = () => setView(demoView(Math.min(DEMO_SECONDS, (performance.now() - start) / 1000)));
+    step();
+    const timer = setInterval(step, 500);
+    return () => clearInterval(timer);
+  }, [demo, arrived, demoRun]);
 
   // --- Live data: fast while agents work, slower when the camp is waiting on you. ------------
   useEffect(() => {
+    if (demo) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
@@ -59,7 +73,7 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [brandId]);
+  }, [brandId, demo]);
 
   // --- The world follows the data. ------------------------------------------------------------
   useEffect(() => {
@@ -143,6 +157,10 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
   }, [engine, arrived, frameCamera]);
 
   const act = useCallback(async (key: string, run: () => Promise<unknown>) => {
+    if (demo) {
+      setActionError("This is a demo camp, so its buttons don't do anything. Start a real campaign from the horse.");
+      return;
+    }
     setBusy(key);
     setActionError(null);
     try {
@@ -153,13 +171,13 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
     } finally {
       setBusy(null);
     }
-  }, []);
+  }, [demo]);
 
   const spend = campaign ? campaign.spend.naive + campaign.spend.monid : 0;
 
   return (
     <>
-      <TopBar view={view} spend={spend} visible={arrived} onSelect={setSelected} selected={selected} />
+      <TopBar view={view} spend={spend} visible={arrived} onSelect={setSelected} selected={selected} demo={demo ? () => setDemoRun((n) => n + 1) : undefined} />
 
       {arrived && view && !wide && (
         <StationStrip
@@ -245,7 +263,21 @@ export function Camp({ brandId, arrived, engine }: { brandId: string; arrived: b
 
 const STEP_NAMES = ["Scouts", "Oracle", "War tent", "Workshop", "Theatre", "Agora"];
 
-function TopBar({ view, spend, visible, onSelect, selected }: { view: BrandView | null; spend: number; visible: boolean; onSelect: (id: StationId | null) => void; selected: StationId | null }) {
+function TopBar({
+  view,
+  spend,
+  visible,
+  onSelect,
+  selected,
+  demo,
+}: {
+  view: BrandView | null;
+  spend: number;
+  visible: boolean;
+  onSelect: (id: StationId | null) => void;
+  selected: StationId | null;
+  demo?: () => void;
+}) {
   const campaign = view?.campaign ?? null;
   const plan = useMemo(() => derive(view), [view]);
   const stateFor = (i: number) => plan.stations[STATIONS[i].id].state;
@@ -273,6 +305,11 @@ function TopBar({ view, spend, visible, onSelect, selected }: { view: BrandView 
         </div>
       )}
 
+      {demo && (
+        <button type="button" onClick={demo} className={`${styles.pixel} pointer-events-auto shrink-0 bg-[var(--teal)] px-2 py-1 text-[12px] text-[var(--paper)]`} title="Sample data. Replay from the start">
+          Demo · replay ↺
+        </button>
+      )}
       {campaign && (
         <nav aria-label="Campaign progress" className="pointer-events-auto ml-auto hidden items-center gap-1 lg:flex">
           {STEP_NAMES.map((name, i) => {
@@ -304,7 +341,7 @@ function TopBar({ view, spend, visible, onSelect, selected }: { view: BrandView 
           {money(spend)} spent
         </span>
       )}
-      {view && (
+      {view && !demo && (
         <a href={`/brands/${encodeURIComponent(view.brand.id)}`} className={`${styles.link} ${styles.pixel} pointer-events-auto hidden shrink-0 text-[13px] sm:inline`}>
           Workspace ↗
         </a>
