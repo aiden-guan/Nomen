@@ -941,8 +941,8 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
     try {
       let path = visual.url;
       if (/^https?:/.test(visual.url)) {
-        path = join(dir, "visuals", `${visual.id}${extname(new URL(visual.url).pathname).slice(0, 6) || ".jpg"}`);
-        if (!existsSync(path)) await download(visual.url, path);
+        path = join(/*turbopackIgnore: true*/ dir, "visuals", `${visual.id}${extname(new URL(visual.url).pathname).slice(0, 6) || ".jpg"}`);
+        if (!existsSync(/*turbopackIgnore: true*/ path)) await download(visual.url, path);
       }
       if (existsSync(path)) visuals.set(visual.id, { path, kind: visual.kind === "video" ? "video" : "image" });
     } catch {

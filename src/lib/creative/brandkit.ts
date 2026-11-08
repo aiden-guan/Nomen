@@ -251,7 +251,7 @@ export const brandkitsRoot = () => process.env.NOMEN_BRANDKITS_DIR || join(proce
 
 function kitDir(brandId: string) {
   if (!BRAND_ID.test(brandId)) throw new BrandKitError(400, "Invalid brand id.");
-  return join(brandkitsRoot(), brandId);
+  return join(/*turbopackIgnore: true*/ brandkitsRoot(), brandId);
 }
 
 const filesDir = (brandId: string) => join(kitDir(brandId), "files");

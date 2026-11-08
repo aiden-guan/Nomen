@@ -99,10 +99,10 @@ const metricsCache = new Map<string, Promise<FontMetrics>>();
 
 /** Metrics of a font file (cached), used to size the overlay box. */
 export function fontMetrics(path = DEFAULT_FONT): Promise<FontMetrics> {
-  const key = resolve(path);
+  const key = resolve(/*turbopackIgnore: true*/ path);
   let cached = metricsCache.get(key);
   if (!cached) {
-    cached = readFile(key).then((bytes) => parseFontMetrics(bytes));
+    cached = readFile(/*turbopackIgnore: true*/ key).then((bytes) => parseFontMetrics(bytes));
     cached.catch(() => metricsCache.delete(key));
     metricsCache.set(key, cached);
   }
@@ -486,7 +486,7 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
   if (!bin) throw new Error("No ffmpeg with libass found: install the ffmpeg-static package or set FFMPEG_PATH to an ffmpeg built with libass.");
 
   const out = resolve(outPath);
-  const fontPath = resolve(options.fontPath ?? DEFAULT_FONT);
+  const fontPath = resolve(/*turbopackIgnore: true*/ options.fontPath ?? DEFAULT_FONT);
   const files = [...timeline.aroll.map((c) => c.path), ...(timeline.audio ? [timeline.audio.path] : []), fontPath];
   for (const segment of timeline.segments) if (segment.layer !== "aroll" && segment.broll) files.push(segment.broll.path, ...(segment.layer === "filmed" && segment.plate ? [segment.plate.path] : []));
   for (const file of files) if (!existsSync(resolve(file))) throw new Error(`edit: missing file ${file}`);
@@ -650,7 +650,7 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
     base = "baseinset";
   }
 
-  const scratch = options.workDir ? resolve(options.workDir) : tmpdir();
+  const scratch = options.workDir ? resolve(/*turbopackIgnore: true*/ options.workDir) : tmpdir();
   await mkdir(scratch, { recursive: true });
   await mkdir(dirname(out), { recursive: true });
   const work = await mkdtemp(join(scratch, "nomen-edit-"));

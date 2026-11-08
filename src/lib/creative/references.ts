@@ -599,7 +599,7 @@ async function extractAudio(bin: string, video: string, dir: string): Promise<{ 
 async function transcribe(naive: BreakdownClient, video: string, dir: string, id: string, options: BreakdownOptions): Promise<{ text: string; segments: TranscriptSegment[] }> {
   const bin = (await ffmpegPath())!;
   const audio = await extractAudio(bin, video, dir);
-  const fileId = await naive.uploadFile(`${id}-audio.${audio.ext}`, audio.contentType, await readFile(audio.path));
+  const fileId = await naive.uploadFile(`${id}-audio.${audio.ext}`, audio.contentType, await readFile(/*turbopackIgnore: true*/ audio.path));
   const language = options.language === undefined ? "en" : options.language;
   let job = await naive.transcribe({ file_id: fileId, model: "stt/auto", timestamps: true, ...(language ? { language } : {}) }, `nomen-ref-stt-${fileId}`);
   const deadline = Date.now() + (options.transcriptionTimeoutMs ?? 180_000);

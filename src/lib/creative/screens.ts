@@ -157,7 +157,7 @@ export function allowedRoots(kit: BrandKit | null, product?: ProductBrief | null
     const path = localPath(visual.url);
     if (path) roots.push(path);
   }
-  return [...new Set(roots.map((r) => resolve(r)))];
+  return [...new Set(roots.map((r) => resolve(/*turbopackIgnore: true*/ r)))];
 }
 
 function localPath(url: string): string | null {
@@ -604,7 +604,7 @@ async function referenceImages(ctx: ScreenContext): Promise<Array<{ type: "image
   for (const a of ctx.kit?.assets ?? []) if ((a.kind === "screenshot" || a.kind === "logo") && a.path && existsSync(a.path) && /\.(png|jpe?g|webp|gif)$/i.test(a.path)) paths.push(a.path);
   for (const v of ctx.product.visuals) {
     const p = localPath(v.url);
-    if (p && v.kind === "screenshot" && existsSync(p)) paths.push(p);
+    if (p && v.kind === "screenshot" && existsSync(/*turbopackIgnore: true*/ p)) paths.push(p);
   }
   const bin = await ffmpegBin();
   if (!bin || !paths.length) return [];
@@ -680,7 +680,7 @@ export function findChrome(options: { env?: Record<string, string | undefined>; 
   const dirs = (env.PATH ?? "").split(delimiter).filter(Boolean);
   for (const name of PATH_CHROMES) {
     for (const dir of dirs) {
-      const candidate = join(dir, name);
+      const candidate = join(/*turbopackIgnore: true*/ dir, name);
       if (isExecutable(candidate)) return candidate;
     }
   }
