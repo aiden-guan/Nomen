@@ -152,9 +152,9 @@ export function speakingPrompt(input: Pick<PresenterInput, "persona" | "action" 
   const tags = input.emotion.match(/\[[^\]]+\]/g) ?? (input.emotion ? [input.emotion] : []);
   return [
     input.shots.length > 1 ? `${shotList(input.shots)} The first frame is shot 1; every shot keeps this person, outfit and place.` : "The first frame is exact: keep the set, the light, and the person's position and size as they are in it.",
-    creatorDirection({ who, arc: emotionArc(tags), action: input.shots.length > 1 ? "" : input.action, line: input.line, listening: !input.line, green: input.green }),
     SAFE,
-    NO_TEXT,
+    // Last, as in the head-to-head: the direction, the line, then the no-text line.
+    creatorDirection({ who, arc: emotionArc(tags), action: input.shots.length > 1 ? "" : input.action, line: input.line, listening: !input.line, green: input.green }),
   ]
     .filter(Boolean)
     .join(" ");

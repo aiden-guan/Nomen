@@ -598,7 +598,7 @@ export function warpOptions(keys: Array<{ frame: number; quad: Quad }>, grow = 2
 /**
  * The tracked filmed monitor for one segment (stage size, silent):
  *
- *   the reference footage ─ the host's old cut-out and the caption strip blurred dark
+ *   the reference footage ─ the host's old cut-out blurred in place (ours covers it)
  *     └─ our screens (cut together, stretched to the frame, a 2 px black border)
  *          ─ perspective per frame onto the tracked corners; a white frame warped the same way
  *            is the mask (the black border keeps everything outside the display at zero)
@@ -622,7 +622,8 @@ export function trackedScreenArgs(input: {
     `[0:v]crop=${input.crop.width}:${input.crop.height}:${input.crop.x}:${input.crop.y},scale=${W}:${H}:flags=lanczos,setsar=1,fps=30,trim=end_frame=${frames},setpts=PTS-STARTPTS[f0]`,
   ];
   input.cover.forEach((r, i) => {
-    graph.push(`[f${i}]split[f${i}a][f${i}b]`, `[f${i}b]crop=${r.width}:${r.height}:${r.x}:${r.y},boxblur=24:3,eq=brightness=-0.28:saturation=0.4[c${i}]`, `[f${i}a][c${i}]overlay=${r.x}:${r.y}[f${i + 1}]`);
+    // Blurred in place (no colour change, which shows as a box): our cut-out covers the middle.
+    graph.push(`[f${i}]split[f${i}a][f${i}b]`, `[f${i}b]crop=${r.width}:${r.height}:${r.x}:${r.y},boxblur=28:3[c${i}]`, `[f${i}a][c${i}]overlay=${r.x}:${r.y}[f${i + 1}]`);
   });
   const base = `f${input.cover.length}`;
   graph.push(
