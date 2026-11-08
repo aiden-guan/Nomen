@@ -286,6 +286,16 @@ describe("the organic script room", () => {
     expect(script.beats.map((b) => b.visual)).toEqual(["product", "product"]);
   });
 
+  it("gives the ask to the presenter: a last beat that asks the viewer for something is said to camera", () => {
+    const ask = { n: 3, job: "payoff", seconds: 3, line: "Send this to the friend who keeps saying they'll start a channel.", on_screen_text: "", visual: "product", product_visual: "s1", screen: "the queue", direction: "a warm smile" };
+    const script = normalizeOrganic([{ ...goodBeats[0] }, { ...goodBeats[2] }, ask] as never, ctx);
+    expect(script.beats[2]).toMatchObject({ visual: "creator", product_visual: null });
+    expect(script.beats[2].screen).toBeUndefined();
+    // A last beat that shows the result, and asks nothing, stays on the product.
+    const result = normalizeOrganic([{ ...goodBeats[0] }, { ...goodBeats[3], n: 2, job: "payoff" }] as never, ctx);
+    expect(result.beats[1].visual).toBe("product");
+  });
+
   it("keeps large text to the presenter's beats: on a product beat it would sit on the screen's own UI", () => {
     const script = normalizeOrganic([{ ...goodBeats[0] }, { ...goodBeats[2], on_screen_text: "1. Pick 2. Deploy" }] as never, ctx);
     expect(script.beats.map((b) => b.on_screen_text)).toEqual(["Deleting this in 24h", ""]);

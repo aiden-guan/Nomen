@@ -312,12 +312,24 @@ export function lintOrganic(script: Script, ctx: OrganicContext): string[] {
   return issues;
 }
 
-/** A script made renderable, the organic way: the presenter is on camera or the product fills the screen, nothing in between. */
+/** A line that asks the viewer to do something: a step, or a share, follow, save or comment. */
+const ASKS = (line: string) => ASK.test(line) || /\b(share|send|follow|save|tag)\b/i.test(line);
+
+/**
+ * A script made renderable, the organic way: the presenter is on camera or the product fills the
+ * screen, nothing in between. The ask is hers: a last beat that asks the viewer for something is said
+ * to camera, as every formula ends (writers sometimes leave it over a screen).
+ */
 export function normalizeOrganic(beats: Array<Partial<ScriptBeat>>, ctx: Pick<OrganicContext, "product" | "brief">): Script {
   const script = normalizeScript(beats, { ...ctx, brief: { ...ctx.brief, format: "talking_head_broll" } });
+  const last = script.beats.length - 1;
   return {
     ...script,
-    beats: script.beats.map((beat) => {
+    beats: script.beats.map((beat, i) => {
+      if (i === last && beat.visual !== "creator" && (beat.job === "cta" || ASKS(beat.line))) {
+        const { screen: _screen, ...rest } = beat;
+        return { ...rest, visual: "creator" as const, product_visual: null };
+      }
       const visual = beat.visual === "split" || beat.visual === "inset" ? "product" : beat.visual;
       // Large text belongs to the presenter's beats (the hook's sticker, the ask): over a product
       // screen it lands on the screen's own UI.
