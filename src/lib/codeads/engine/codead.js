@@ -149,6 +149,8 @@ export async function build(studio, story) {
     // every framing holds until its gag has landed (ED Studio's `until`: a gag must finish in frame)
     const add = (t, f, extra = {}) => frames.push({ t: Math.max(0, t), until: Math.min(b.t1, b.hit + 0.75), ...f, ...extra });
     // a versus ad opens on the whole house, then glides to the first floor that plays
+    // (a hook with no big gag, "Two founders, one goal", plays on both floors at once)
+    if (b.i === 0 && versus && E.wide && (b.gag === 'hack' || b.gag === 'idle')) { frames.push({ t: 0, until: b.t1, ...E.wide(0) }); continue; }
     if (b.i === 0 && versus && E.wide && b.hit > 2.6) { frames.push({ t: 0, until: Math.min(b.t1, 1.0), ...E.wide(0) }); at = Math.min(1.2, Math.max(0.3, b.hit - 1.0)); }
     switch (b.gag) {
       // a beat whose screen carries the point shows the whole screen above the character (the callouts sit in the lower third)
