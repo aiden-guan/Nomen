@@ -136,6 +136,25 @@ describe("the reference view", () => {
     expect(refs.find((r) => r.url === D)).toMatchObject({ role: "reach", conversion: 2, signals: ["a meme format"] });
   });
 
+  it("shows cloneability from the breakdown, else the candidate's guess, else the caption's, and flags the hard ones", () => {
+    const parts = [
+      { name: "people" as const, points: 2.5, signal: "one person on camera" },
+      { name: "product" as const, points: -1.5, signal: "hands using the product in close-up" },
+    ];
+    const cloned: CreativeState = {
+      ...state,
+      breakdowns: [{ ...breakdown("ref_1", A, "dev"), cloneability: { score: 8.5, basis: "breakdown", parts }, footage: { people: 1, face_to_camera: 0.9, camera: "static", set: "plain", product: "close_up", overlays: "separable", audio: "speech", script: "template", hardest: "Her hands open the jar in close-up." } }],
+      candidates: state.candidates!.map((c) => (c.url === D ? { ...c, score: { ...c.score, cloneability: { score: 2.5, basis: "metadata" as const, parts: [] } } } : c)),
+    };
+    const dancing = new Map([...videos, [C, video(C, { caption: "dance challenge with my bestie" })]]);
+    const refs = referencesView(cloned, dancing);
+    expect(refs[0]).toMatchObject({ cloneability: 8.5, cloneBasis: "breakdown", hardToClone: false, cloneSignals: ["one person on camera +2.5", "hands using the product in close-up -1.5"], hardestToClone: "Her hands open the jar in close-up." });
+    expect(refs.find((r) => r.url === D)).toMatchObject({ cloneability: 2.5, cloneBasis: "metadata", hardToClone: true, hardestToClone: null });
+    // A study from before cloneability: the research video's caption still gives a guess.
+    expect(refs.find((r) => r.url === C)).toMatchObject({ cloneability: 1, cloneBasis: "metadata", hardToClone: true });
+    expect(refs.find((r) => r.url === C)!.cloneSignals).toContain('caption suggests a song or dance ("dance") -1.5');
+  });
+
   it("marks a paid ad from an ad library, whose views are unknown", () => {
     const AD = "https://www.facebook.com/ads/library/?id=42";
     const ads = new Map([...videos, [AD, video(AD, { views: 0, likes: 0, saves: 0, shares: 0, comments: 0, followers: null, author: "rivalco", source: "meta_ads_conv_0", ad: { network: "meta", days: 94, active: true } as never })]]);

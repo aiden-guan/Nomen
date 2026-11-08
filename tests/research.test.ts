@@ -84,6 +84,19 @@ describe("research specs", () => {
     expect(phaseCSpecs(plan).some((spec) => spec.key.startsWith("tiktok_conv_"))).toBe(false);
   });
 
+  it("phase C searches for one person talking to camera: the face queries on TikTok and the first on Reels", () => {
+    const specs = phaseCSpecs({ ...plan, conversion_queries: ["I tried prebiotic soda"], face_queries: ["storytime prebiotic soda", "i tried prebiotic soda ", "green screen gut health"] });
+    const byKey = new Map(specs.map((spec) => [spec.key, spec]));
+    // The second face query repeats a conversion search, so it is skipped rather than paid for twice.
+    expect(byKey.get("tiktok_face_0")?.input.body).toMatchObject({ query: "storytime prebiotic soda" });
+    expect(byKey.get("tiktok_face_1")?.input.body).toMatchObject({ query: "green screen gut health" });
+    expect(byKey.has("tiktok_face_2")).toBe(false);
+    expect(byKey.get("reels_face_0")).toMatchObject({ endpoint: "/instagram.reels_search", input: { body: { query: "storytime prebiotic soda" } } });
+    expect(VIDEO_RUN.test("tiktok_face_1") && VIDEO_RUN.test("reels_face_0")).toBe(true);
+    expect(new Set(specs.map((spec) => spec.key)).size).toBe(specs.length);
+    expect(phaseCSpecs(plan).some((spec) => spec.key.includes("_face_"))).toBe(false);
+  });
+
   it("falls back to a usable plan without a model", () => {
     const fallback = fallbackPlan("acme.com", { ...pack.brand, name: "", industry: "" }, ["rival.com"]);
     expect(fallback.brand_name).toBe("Acme");
@@ -241,6 +254,9 @@ describe("the research plan", () => {
     };
     const planned = await planResearch(naive as never, { domain: "drinkolipop.com", brand: pack.brand, siteExcerpt: "", similar: [] });
     expect(tools[0].input_schema.required).toContain("conversion_queries");
+    expect(tools[0].input_schema.required).toContain("face_queries");
+    // The fixture plan predates face queries: the fallback's fill in.
+    expect(planned.face_queries).toEqual(fallbackPlan("drinkolipop.com", pack.brand, []).face_queries);
     expect(tools[0].input_schema.properties.benchmarks.items?.required).toContain("role");
     expect(planned.conversion_queries).toEqual(["olipop vs poppi", "prebiotic soda review"]);
     expect(planned.benchmarks).toEqual([
@@ -252,6 +268,23 @@ describe("the research plan", () => {
 
   it("falls back to review and 'I tried' searches", () => {
     expect(fallbackPlan("acme.com", { ...pack.brand, industry: "running shoes" }, []).conversion_queries).toEqual(["running shoes review", "I tried running shoes"]);
+  });
+
+  it("asks for face-to-camera UGC searches, keeps the model's, and falls back to storytime and testimonial", async () => {
+    let system = "";
+    let tools: Array<{ input_schema: { properties: Record<string, { description?: string }> } }> = [];
+    const naive = {
+      message: async (request: { system: string; tools: typeof tools }) => {
+        system = request.system;
+        tools = request.tools;
+        return { content: [{ type: "tool_use", name: "research_plan", input: { ...plan, face_queries: ["storytime gut health", "", "POV you switched sodas", "extra"] } }] };
+      },
+    };
+    const planned = await planResearch(naive as never, { domain: "drinkolipop.com", brand: pack.brand, siteExcerpt: "", similar: [] });
+    expect(planned.face_queries).toEqual(["storytime gut health", "POV you switched sodas"]);
+    expect(system).toMatch(/one person talking to camera/);
+    expect(tools[0].input_schema.properties.face_queries.description).toMatch(/talking-head testimonial or 'I tried X', storytime, a POV reaction, or green-screen commentary/);
+    expect(fallbackPlan("acme.com", { ...pack.brand, industry: "running shoes" }, []).face_queries).toEqual(["running shoes storytime", "running shoes testimonial"]);
   });
 });
 

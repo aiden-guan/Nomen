@@ -15,18 +15,22 @@ import {
   DEFAULT_BASELINE,
   detectCuts,
   frameTimes,
+  orderBreakdowns,
   pickForBreakdown,
+  pickOrder,
   poolBaseline,
+  reachValue,
   readBreakdown,
   ReferenceUnavailableError,
   referenceId,
   referenceRole,
   scoreCandidates,
   scoreVideo,
+  sellValue,
   wordsPerMinute,
   type BreakdownClient,
 } from "@/lib/creative/references";
-import type { ReferenceCandidate } from "@/lib/creative/types";
+import type { ReferenceBreakdown, ReferenceCandidate } from "@/lib/creative/types";
 import { ApiError } from "@/lib/http";
 import { ffmpegPath } from "@/lib/media";
 import type { Transcription } from "@/lib/naive";
@@ -407,6 +411,90 @@ describe("pickForBreakdown for a funnel mix", () => {
   });
 });
 
+describe("picking with cloneability", () => {
+  // A candidate with a breakdown-grade cloneability, so each test sets it exactly.
+  const pc = (over: Partial<ReferenceCandidate> & { total: number; role?: "reach" | "convert"; conversion?: number; clone?: number }) => {
+    const { total, role = "reach", conversion = 0, clone, ...rest } = over;
+    const cloneability = clone === undefined ? {} : { cloneability: { score: clone, basis: "breakdown" as const, parts: [] } };
+    return { ...video(rest), origin: rest.origin ?? "category", score: { outlier: 5, engagement: 0.05, total, why: "", role, conversion, signals: [], ...cloneability }, ...rest } as ReferenceCandidate;
+  };
+
+  it("scores every candidate's cloneability prior next to its reach and conversion, without changing the reach ranking", () => {
+    const score = scoreVideo(video({ caption: "POV: your agent pays for its own tools", duration: 20 }));
+    expect(score.cloneability).toMatchObject({ score: 7, basis: "metadata" });
+    const ranked = scoreCandidates(
+      [video({ author: "dancer", caption: "dance challenge with my bestie", views: 2_000_000, followers: 20_000 }), video({ author: "talker", caption: "storytime", views: 200_000, followers: 20_000 })],
+      category,
+    );
+    expect(ranked.map((c) => c.author)).toEqual(["dancer", "talker"]);
+    expect(ranked.map((c) => c.score.cloneability?.score)).toEqual([1, 7]);
+  });
+
+  it("adds 1.5 reach points and half a conversion point per cloneability point", () => {
+    const c = pc({ total: 40, conversion: 6, clone: 8, duration: 65 });
+    expect(reachValue(c)).toBe(40 + 1.5 * 8);
+    expect(sellValue(c)).toBe(6 - 2 + 0.5 * 8);
+  });
+
+  it("prefers the cloneable one between two videos that went about as far, but not over a real breakout", () => {
+    const talker = pc({ author: "talker", total: 40, clone: 9 });
+    const walker = pc({ author: "walker", total: 44, clone: 5 });
+    const breakout = pc({ author: "breakout", total: 60, clone: 5 });
+    expect(pickOrder([walker, talker]).map((c) => c.author)).toEqual(["talker", "walker"]);
+    expect(pickForBreakdown([walker, talker], 1).map((c) => c.author)).toEqual(["talker"]);
+    expect(pickOrder([talker, breakout]).map((c) => c.author)).toEqual(["breakout", "talker"]);
+  });
+
+  it("picks a hard-to-clone video only as a last resort, however far it went", () => {
+    const pool = [pc({ author: "dance", total: 80, clone: 2 }), pc({ author: "a", total: 40, clone: 7 }), pc({ author: "b", total: 35, clone: 6 }), pc({ author: "c", total: 30, clone: 5 })];
+    expect(pickForBreakdown(pool, 3).map((c) => c.author)).toEqual(["a", "b", "c"]);
+    expect(pickForBreakdown(pool, 4).map((c) => c.author)).toEqual(["a", "b", "c", "dance"]);
+  });
+
+  it("gives the convert seat to the converter the clone can reproduce when the evidence is close", () => {
+    const pool = [
+      pc({ author: "r1", total: 50, clone: 6 }),
+      pc({ author: "montage-ad", origin: "ad", total: 3, role: "convert", conversion: 7, clone: 4.5 }),
+      pc({ author: "testimonial", total: 10, role: "convert", conversion: 5, clone: 9 }),
+    ];
+    // 5 + 0.5 x 9 = 9.5 beats 7 + 0.5 x 4.5 = 9.25.
+    expect(pickForBreakdown(pool, 2).map((c) => c.author)).toEqual(["r1", "testimonial"]);
+  });
+
+  it("keeps the funnel mix: a job with nothing cloneable gets its one best hard reference rather than none", () => {
+    const pool = [
+      ...["r1", "r2", "r3", "r4"].map((author, i) => pc({ author, total: 50 - i, clone: 6 })),
+      pc({ author: "ad", origin: "ad", total: 3, role: "convert", conversion: 8, clone: 2 }),
+      pc({ author: "ad2", origin: "ad", total: 3, role: "convert", conversion: 6, clone: 3 }),
+    ];
+    expect(pickForBreakdown(pool, 4).map((c) => c.author)).toEqual(["r1", "r2", "r3", "ad"]);
+  });
+
+  it("gives a lane's seat only to a cloneable reference", () => {
+    const pool = [pc({ author: "r1", total: 50, clone: 7 }), pc({ author: "comp", origin: "competitor", total: 45, clone: 2 }), pc({ author: "r2", total: 40, clone: 6 })];
+    expect(pickForBreakdown(pool, 2).map((c) => c.author)).toEqual(["r1", "r2"]);
+    expect(pickForBreakdown(pool, 3).map((c) => c.author)).toEqual(["r1", "r2", "comp"]);
+  });
+
+  it("keeps the relevance screen's order behind the gate", () => {
+    const screened = [pc({ author: "hard", total: 60, clone: 2 }), pc({ author: "x", total: 20, clone: 6 }), pc({ author: "y", total: 30, clone: 8 })];
+    expect(pickForBreakdown(screened, 3, { keepOrder: true }).map((c) => c.author)).toEqual(["x", "y", "hard"]);
+    expect(pickForBreakdown(screened, 2, { keepOrder: true }).map((c) => c.author)).toEqual(["x", "y"]);
+  });
+
+  it("guesses from the caption for candidates scored before cloneability existed", () => {
+    const pool = [pc({ author: "duet", total: 50, caption: "duet with @x, dancing" }), pc({ author: "story", total: 30, caption: "storytime: my first client" })];
+    expect(pool.every((c) => c.score.cloneability === undefined)).toBe(true);
+    expect(pickForBreakdown(pool, 1).map((c) => c.author)).toEqual(["story"]);
+  });
+
+  it("orders the breakdowns for the director: cloneable first, then by fit, then by cloneability", () => {
+    const ref = (id: string, fit: number, clone?: number) => ({ id, fit: { score: fit, reason: "" }, ...(clone === undefined ? {} : { cloneability: { score: clone, basis: "breakdown" as const, parts: [] } }) }) as unknown as ReferenceBreakdown;
+    const ordered = orderBreakdowns([ref("hard", 9, 3), ref("good", 7, 8), ref("best", 7, 9), ref("legacy", 8)]);
+    expect(ordered.map((b) => b.id)).toEqual(["legacy", "best", "good", "hard"]);
+  });
+});
+
 describe("referenceRole", () => {
   const anatomy = { role: "convert" as const, structure: "demo" as const, problem: "", proof: "", offer: "", cta: "link in bio", objection: "" };
   it("trusts ad origin and conversion evidence, else a video built to sell that asks for the click", () => {
@@ -576,6 +664,7 @@ describe.skipIf(!bin)("breakdownReference on a synthetic video with three hard c
     delivery: "fast, conversational, a little exasperated",
     why_it_works: "Opens on a promise of a secret, then pays it off with a concrete number.",
     conversion: { role: "convert", structure: "before_after", problem: "I used to spend forty minutes every Sunday.", proof: "Now it takes me ten.", offer: "", cta: "Link is in my bio.", objection: "" },
+    clone: { people: 1, face_to_camera: 0.6, camera: "static", set: "plain", product: "brief", overlays: "separable", audio: "speech", script: "template", hardest: "She holds the container up to the lens." },
     fit: { score: 14, reason: "Same before/after structure works for the containers." },
   };
 
@@ -673,6 +762,14 @@ describe.skipIf(!bin)("breakdownReference on a synthetic video with three hard c
     expect(breakdown.role).toBe("convert");
     expect(breakdown.conversion).toEqual({ score: reference(clip).score.conversion, signals: reference(clip).score.signals });
 
+    // what the footage clone needs: the model's read of the footage, scored with ffmpeg's cuts
+    expect((request.tools[0] as unknown as { input_schema: { required: string[] } }).input_schema.required).toContain("clone");
+    expect(request.system).toMatch(/clone records what the footage is made of/);
+    expect(breakdown.footage).toEqual(toolInput.clone);
+    // 2.5 one person + 1.2 face 60% + 0.64 takes (3 cuts in 7 s) + 1 static + 1 plain + 1.5 speech + 0.5 template - 0.5 held up
+    expect(breakdown.cloneability).toMatchObject({ score: 7.8, basis: "breakdown" });
+    expect(breakdown.cloneability!.parts.find((part) => part.name === "takes")).toMatchObject({ points: 0.64, signal: "4.3 cuts per 10 s" });
+
     // the scratch folder is gone; the source file is untouched
     expect(await readdir(work)).toEqual([]);
     expect(existsSync(clip)).toBe(true);
@@ -726,6 +823,17 @@ describe.skipIf(!bin)("breakdownReference on a synthetic video with three hard c
     expect(breakdown.transcript).toBe("");
     expect(breakdown.beats.every((b) => b.line === "")).toBe(true);
     expect(breakdown.hook.line).toBe("");
+    // The model said speech, but nothing was said: scored as music only (0.5, not 1.5).
+    expect(breakdown.cloneability!.parts.find((part) => part.name === "audio")).toEqual({ name: "audio", points: 0.5, signal: "music only, no speech" });
+    expect(breakdown.cloneability!.score).toBe(6.8);
+  }, 60_000);
+
+  it("keeps the caption's guess, with the real length, when the model leaves out the clone block", async () => {
+    const { clone: _clone, ...withoutClone } = toolInput;
+    const { client } = stubClient({ transcribe: vi.fn(async () => job("completed")), message: vi.fn(async () => ({ content: [{ type: "tool_use", name: "reference_breakdown", input: withoutClone }], stop_reason: "tool_use" })) });
+    const breakdown = await breakdownReference(client, reference(clip, { caption: "storytime: meal prep" }), { workDir: join(root, "work-no-clone"), brand });
+    expect(breakdown.footage).toBeUndefined();
+    expect(breakdown.cloneability).toMatchObject({ score: 7, basis: "metadata" });
   }, 60_000);
 
   it("throws a clear, non-retryable error when the video cannot be downloaded", async () => {

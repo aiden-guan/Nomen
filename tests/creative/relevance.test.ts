@@ -77,6 +77,41 @@ describe("the relevance screen", () => {
     expect(sent).toContain("from: ad is a paid ad");
   });
 
+  it("gives the screen's seats to videos the footage clone can reproduce before the ones it cannot", () => {
+    // Three duets that went furthest (cloneability 1 from the caption), then plain videos (5).
+    const duets = [0, 1, 2].map((i) => candidate(`duet-${i}`, 200 - i, { caption: "duet dance challenge" }));
+    const plain = Array.from({ length: 26 }, (_, i) => candidate(`plain-${i}`, 100 - i));
+    expect(screenPool([...duets, ...plain]).map((c) => c.url)).toEqual(plain.slice(0, 24).map((c) => c.url));
+    // With fewer cloneable videos than seats, the hard ones fill in last.
+    expect(screenPool([...duets, ...plain.slice(0, 22)]).map((c) => c.url)).toEqual([...plain.slice(0, 22).map((c) => c.url), "duet-0", "duet-1"]);
+  });
+
+  it("shows the screen each candidate's cloneability and asks it to favour one person talking to camera", async () => {
+    let sent = "";
+    const naive = {
+      message: async (request: { system?: string; messages: Array<{ content: unknown }> }) => {
+        sent = `${request.system}\n${String(request.messages[0].content)}`;
+        return { stop_reason: "tool_use", content: [{ type: "tool_use", name: "relevance_screen", input: { videos: [] } }] };
+      },
+    };
+    await screenRelevance(naive, [candidate("story", 30, { caption: "storytime: my agent bill" })], { product });
+    expect(sent).toContain('"clones":"7/10 guessed from the caption and length: not watched yet: 5 to start, caption names a face-to-camera format (\\"storytime\\") +2"');
+    expect(sent).toMatch(/one person, in continuous takes/);
+    expect(sent).toMatch(/talking-head testimonial, 'I tried X', storytime, a POV reaction, green-screen commentary/);
+    expect(sent).toMatch(/take 1-2 points off and say so in the reason/);
+  });
+
+  it("breaks a relevance tie by reach and cloneability together", () => {
+    const story = candidate("story", 30, { caption: "storytime: my agent bill" }); // 30 + 1.5 x 7 = 40.5
+    const plain = candidate("plain", 32); // 32 + 1.5 x 5 = 39.5
+    const kept = applyRelevance([plain, story, candidate("c", 10)], [
+      { url: "plain", relevance: 8, reason: "" },
+      { url: "story", relevance: 8, reason: "" },
+      { url: "c", relevance: 9, reason: "" },
+    ]);
+    expect(kept.map((c) => c.url)).toEqual(["c", "story", "plain"]);
+  });
+
   it("tops up with the best of the rest when fewer than three pass", () => {
     const kept = applyRelevance(ranked, [
       { url: "meme", relevance: 2, reason: "" },
