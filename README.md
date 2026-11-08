@@ -70,6 +70,9 @@ Measured on this account in November 2026:
 | A post through Naive Social | $0.013 per post, $0.0325 when it includes X |
 | A static ad pack (4 concepts at 14 sizes, research included) | about $0.56: $0.08 on Monid, $0.48 on Naive, measured on a static-ads-only campaign |
 
+For these costs set against Higgsfield, a Claude subscription and human UGC creators, with the
+arithmetic, see `docs/sales-numbers.md`.
+
 When Naive runs out of credits mid-campaign, new renders switch to Kling 3.0 on Monid automatically
 and the campaign says so. Research always runs on Monid, so Naive's balance goes to video.
 
