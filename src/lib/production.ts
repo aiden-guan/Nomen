@@ -569,7 +569,8 @@ async function submitRender(ctx: ProductionContext, shot: ShotState) {
         {
           model: getSetting("video_model"),
           prompt: shot.prompt,
-          seconds: shot.seconds,
+          // An organic take asks for its planned length (its line plus room), as on Monid.
+          seconds: shot.duration ?? shot.seconds,
           aspect_ratio: "9:16",
           image_urls: shot.frame_file_id && !shot.text_only ? [shot.frame_file_id] : undefined,
         },

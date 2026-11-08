@@ -548,6 +548,41 @@ describe("organic videos in production", () => {
     expect(runs.map((r) => r.body.resolution)).toEqual(["1080p", "1080p", "720p", "1080p"]);
     expect(runs.map((r) => r.body.duration)).toEqual(plan.aroll.map((shot) => shot.duration));
   });
+
+  it("renders a take at its planned length on Naive's video models too (Naive's Kling 3.0, when Monid is empty)", async () => {
+    const { setSetting, deleteSetting } = await import("@/lib/settings");
+    const brandId = await createBrand("organic-naive.example");
+    const campaignId = await startCampaign(brandId, { concepts: 1, shotsPerConcept: 2, secondsPerShot: 4, videoModel: "kwaivgi/kling-v3.0-pro", learnStyle: false });
+    const script = goodScript();
+    const plan = planOrganic(script, brief, product, personaFor(persona, "bedroom"));
+    const { conceptFrom } = await import("@/lib/strategy");
+    await insertCreative(campaignId, 0, conceptFrom(brief, script, plan, undefined, product, { formula: insider, persona: personaFor(persona, "bedroom") }));
+    const videos: Array<{ model: string; seconds: number; image_urls?: string[] }> = [];
+    const naive = {
+      generateImage: async () => {
+        throw new Error("no frames for a persona");
+      },
+      fileUrl: async (fileId: string) => ({ url: `https://files.invalid/${fileId}.png`, expires_at: "" }),
+      generateVideo: async (input: { model: string; seconds: number; image_urls?: string[] }) => (videos.push(input), { id: `med_${videos.length}`, status: "queued", model: input.model, result: null, error: null, cost_micro_usd: null }),
+      getMediaJob: async (id: string) => ({ id, status: "processing", model: "kwaivgi/kling-v3.0-pro", result: null, error: null, cost_micro_usd: null }),
+      message: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: '{"pass": true, "issues": []}' }] }),
+    };
+    const ctx = { campaignId, brandId, naive, monid: null, naiveOut: () => false, markNaiveOut: async () => undefined, strategy: { brand: {} } } as unknown as ProductionContext;
+    await setSetting("presenter_engine", "naive");
+    await setSetting("video_model", "kwaivgi/kling-v3.0-pro");
+    try {
+      for (let tick = 0; tick < 2; tick++) {
+        const [row] = await listCreatives(campaignId);
+        await advanceCreative(ctx, row);
+      }
+    } finally {
+      await deleteSetting("presenter_engine");
+      await deleteSetting("video_model");
+    }
+    expect(videos.map((v) => v.model)).toEqual(Array(4).fill("kwaivgi/kling-v3.0-pro"));
+    expect(videos.map((v) => v.seconds)).toEqual(plan.aroll.map((shot) => shot.duration));
+    expect(videos.every((v) => v.image_urls?.[0] === "fil_bedroom")).toBe(true);
+  });
 });
 
 const ffmpeg = await editFfmpeg();
