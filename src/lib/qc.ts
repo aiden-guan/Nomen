@@ -72,10 +72,20 @@ export async function reviewShot(
  * costs dollars and then into every later shot that takes it as its identity; a new still costs cents.
  */
 export async function reviewFrame(
-  naive: NaiveClient,
-  input: { image: Buffer; creator: string; setting: string; prompt: string; identity?: Buffer | null },
+  naive: Pick<NaiveClient, "message">,
+  input: {
+    image: Buffer;
+    creator: string;
+    setting: string;
+    prompt: string;
+    identity?: Buffer | null;
+    /** Remakes: our presenter's photo, whom the frame must show. */
+    persona?: Buffer | null;
+    /** Remakes: the reference frame it remakes; composition must match, and none of its overlays may remain. */
+    reference?: Buffer | null;
+  },
 ): Promise<{ pass: boolean; issues: string[] }> {
-  const images = [input.image, ...(input.identity ? [input.identity] : [])].map((image) => ({
+  const images = [input.image, ...(input.identity ? [input.identity] : []), ...(input.persona ? [input.persona] : []), ...(input.reference ? [input.reference] : [])].map((image) => ({
     type: "image",
     source: { type: "base64", media_type: "image/jpeg", data: image.toString("base64") },
   }));
@@ -90,15 +100,22 @@ export async function reviewFrame(
           {
             type: "text",
             text: [
-              "The first image is the opening frame of a vertical UGC-style video shot. A video model will animate it next, so every defect in it ends up in the video.",
+              `The first image is the opening frame of ${input.reference ? "a video shot that remakes the last image" : "a vertical UGC-style video shot"}. A video model will animate it next, so every defect in it ends up in the video.`,
               input.identity
                 ? "The second image is shot 1 of the same video: the person, outfit and room must match it (that matters more than the wording below)."
                 : `The person should be: ${input.creator}`,
+              input.persona ? "The next image is our presenter: the person in the first image must be this person (face, hair, skin, build, outfit); its background does not matter." : "",
+              input.reference
+                ? "The last image is the frame of the viral video this one remakes. The first image must match its composition, background, camera framing and lighting, and the person's pose, position and size, with our presenter in place of its person and none of its edited-in captions, posts, pictures, stickers or text."
+                : "",
               `The setting should be: ${input.setting}`,
               `The prompt it was made from:\n${input.prompt.slice(0, 1500)}`,
-              "Fail it only for what a viewer would notice: any phone or app interface (status bar, clock, reply box, buttons, home bar); readable or garbled text, captions, cards or logos; a screen facing the camera; deformed face, eyes, teeth or hands; more than one person; clearly the wrong outfit or setting; a frame that does not look like a real phone photo.",
+              `Fail it only for what a viewer would notice: any phone or app interface (status bar, clock, reply box, buttons, home bar); readable or garbled text, captions, cards or logos; a screen facing the camera; deformed face, eyes, teeth or hands; more than one person; clearly the wrong outfit or setting; a frame that does not look like a real ${input.reference ? "photo" : "phone photo"}.`,
+              input.reference ? "Also fail it for: anything overlaid in the reference left in (a caption, card, picture or sticker), the original person still there, or a clearly different composition, pose or framing." : "",
               'Answer with only JSON: {"pass": true|false, "issues": ["each defect, concretely, most severe first"]}',
-            ].join("\n"),
+            ]
+              .filter(Boolean)
+              .join("\n"),
           },
         ],
       },

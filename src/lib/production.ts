@@ -7,6 +7,7 @@ import { db, logEvent, newId, now, parse, update } from "./db";
 import { ApiError } from "./http";
 import { chunkCaptions } from "./creative/captions";
 import { renderTimeline } from "./creative/edit";
+import { advanceRemake } from "./creative/remake-job";
 import { buildTimeline, type RenderedAssets, screenVisualId } from "./creative/plan";
 import { buildScreens } from "./creative/screens";
 import { trimSilence } from "./creative/trim";
@@ -186,6 +187,8 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
   if (creative.status === "ready" || creative.status === "failed") return;
   const concept = parse<Concept | null>(creative.concept_json, null);
   if (!concept) return update("creatives", creative.id, { status: "failed", error: "concept is unreadable" });
+  // One-to-one remakes rebuild the reference's own footage in their own module, off this tick.
+  if (concept.brief?.format === "remake") return advanceRemake(ctx, creative, concept);
   const shots = parse<ShotState[]>(creative.shots_json, []);
   const save = (fields: Record<string, unknown> = {}) =>
     update("creatives", creative.id, {

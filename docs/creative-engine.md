@@ -78,6 +78,29 @@ These videos are posted by the brand on its own accounts and labeled AI-generate
 | `split_screen` | the presenter on top, the product below | the presenter | about $0.40 per second |
 | `voiceover_demo` | the product only | text-to-speech | cents |
 | `text_story` | the product only, with large text | text-to-speech | cents |
+| `remake` | the reference itself, rebuilt one to one: our presenter, our graphics, its layout | the presenter (Veo native audio) | about $0.40 per second of the reference, internal only |
+
+## One-to-one remakes (`remake`)
+
+`src/lib/creative/remake.ts` rebuilds the reference from its own frames. Video models cannot
+re-voice existing footage with lip-sync, so every shot is re-rendered from a clean frame of it.
+
+1. **Layout:** a vision pass over sampled frames. It reads a full frame or a centre band with a
+   blurred fill, the presenter's box, framing and motion per beat, every overlaid graphic (kind,
+   box, time window, entrance) and the caption look.
+2. **Shots:** each beat is split at the reference's cuts and at 8 s. A shot's clean first frame is
+   the reference frame with our persona in place of the person and every overlay removed (an
+   image edit), checked by the first-frame gate against the reference.
+3. **Renders:** Veo animates each clean frame with the reference's motion, and the presenter says
+   our line. Lines are budgeted per beat at the reference's words per minute.
+4. **Graphics:** the screen builder makes each one at its exact box size, as the same kind of
+   element, about our product.
+5. **The cut:** shots in the band, graphics at their boxes, the blurred fill, and captions in the
+   reference's case, slant, size and height.
+
+Remakes are marked `internal`, and publishing refuses them unless a person clears them
+(`clearForPosting`). `tests/remake.live.test.ts` runs a paid remake of the first 15 s of the
+Cluely reference for monid.ai.
 
 ## Costs
 

@@ -119,6 +119,19 @@ export class NaiveClient {
     return this.call<MediaJob>("POST", "/v1/media/videos", input, idempotencyKey);
   }
 
+  /**
+   * Person swap on existing footage (Mira, about $1.48 per clip of at most 15 s): the same motion,
+   * framing and timing with the person replaced by the one in `references`. It keeps the clip's
+   * original audio, so callers mute it.
+   */
+  editVideo(input: { video: string; prompt: string; references?: string[] }, idempotencyKey: string) {
+    return this.call<MediaJob>("POST", "/v1/media/edits", input, idempotencyKey);
+  }
+
+  getVideoEdit(id: string) {
+    return this.call<MediaJob>("GET", `/v1/media/edits/${id}`);
+  }
+
   async mediaModels(kind: "video" | "image") {
     const page = await this.call<Page<{ id: string }>>("GET", `/v1/media/models?kind=${kind}&limit=100`);
     return page.data.map((model) => model.id);

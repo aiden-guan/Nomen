@@ -46,6 +46,10 @@ voice, footage or music.
     This is the look of most viral dev-tool tutorials.
   - `voiceover_demo`: no face. The product is on screen with a voice-over and captions.
   - `text_story`: no face. The product is on screen with large text.
+  - `remake`: a one-to-one remake of the reference's footage, layout and graphics with our persona
+    and product. The framing, moves, cuts, graphic placement and caption look are the reference's;
+    only the presenter, the words and the facts are ours. Internal only: never posted unless a
+    person clears it. It renders the reference's full length, about $0.40 per second.
 - **hook_plan**: the reference's hook, with exactly which words change for this product.
 - **keep**: everything that stays, concretely. For example: "hook 'POV: you just found…' word for
   word, 6 beats, cuts every 2 s, deadpan delivery, white outlined captions".

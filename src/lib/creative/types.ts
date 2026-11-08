@@ -138,7 +138,9 @@ export type VideoFormat =
   /** No voice: the product on screen with large on-screen text. */
   | "text_story"
   /** Product graphics full screen, the presenter in a small rounded window (the dev-tutorial look). */
-  | "presenter_inset";
+  | "presenter_inset"
+  /** One-to-one remake of the reference's footage, layout and graphics with our persona and product (internal only). */
+  | "remake";
 
 /** The creative director's brief for one video: which viral video it remakes and what changes for this product. */
 export type CreativeBrief = {
@@ -314,6 +316,8 @@ export type ScreenRequest = {
   reference_visual: string;
   /** Full screen (1080x1920) or the half a split layout gives it (1080x960). */
   size: "full" | "half";
+  /** An exact canvas in px, overriding `size`: a remake's graphic built at its reference box (a post card, a chart). */
+  box?: { width: number; height: number };
 };
 
 /** A rendered screen: a short clip (or a still when it does not move) ready for the edit. */

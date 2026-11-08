@@ -29,6 +29,8 @@ export function screenFromLine(line: string, still?: { caption: string }): strin
 }
 
 export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief, delivery = "", referenceBeats: ReferenceBeat[] = []): ProductionPlan {
+  // A one-to-one remake plans its own shots from the reference's frames (creative/remake.ts).
+  if (brief.format === "remake") return { format: "remake", aroll: [], broll: [], voiceover: null, screens: [] };
   const visuals = new Map(product.visuals.map((v) => [v.id, v]));
   const broll: BRollClip[] = [];
   const screens: ScreenRequest[] = [];
@@ -155,7 +157,7 @@ const CAMERA =
   "The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens.";
 const CALM =
   "Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking.";
-const SAFE =
+export const SAFE =
   "Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.";
 
 function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product: ProductBrief, delivery: string): ARollShot {

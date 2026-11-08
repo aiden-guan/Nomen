@@ -165,7 +165,7 @@ function writerSystem() {
     "- Real footage of the product exists only as the listed visuals (ids like p1, s2, k3). Every beat where the reference cuts away to a product, a screen or a demo shows this product's best-matching visual. If the reference never cuts away, still show the product on the beat that names what it does.",
     "- When the reference shows a graphic (a terminal with a command typing, step cards, a timer, a list of results, an app window, a dashboard), write a `screen` for that beat: the same kind of graphic, built for this product from the brief's real wording, commands and numbers. A screen builder renders it in the brand's colors and fonts. Real photos and screenshots are still best for 'this is the product' beats; screens are best for 'this is what it does' beats.",
     "- Creator beats: the reference's action and expression, kept small and calm (video models distort big gestures): no pointing at the lens, no thumbs up, no fast head turns, no hands near the face.",
-    "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; presenter_inset uses inset beats (product graphics full screen, the presenter in a small window; the hook may be a creator beat); talking_head_broll mixes creator, product and inset beats.",
+    "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; presenter_inset uses inset beats (product graphics full screen, the presenter in a small window; the hook may be a creator beat); talking_head_broll mixes creator, product and inset beats; remake rebuilds the reference's own footage, layout and graphics one to one, so it has exactly one beat per reference beat with the same seconds, every beat is a creator beat, and each line stays within its word budget (the graphics are rebuilt from the reference automatically).",
     "",
     "Call the script tool once with every beat.",
   ].join("\n");
@@ -190,7 +190,22 @@ function contextBlock(ctx: ScriptContext) {
       why_it_works: reference.why_it_works,
     })}\n</reference>`,
     `Target length: about ${ctx.targetSeconds} seconds. Format: ${brief.format}.`,
+    ...(brief.format === "remake" ? [remakeBudgets(reference)] : []),
   ].join("\n\n");
+}
+
+/**
+ * The most words a remade line may have: what the reference's speaker fits in the beat at their own
+ * pace. A remake keeps the reference's timing one to one, so a longer line would run over its beat.
+ */
+export function beatWordBudget(seconds: number, wordsPerMinute: number | null) {
+  const wps = (wordsPerMinute && wordsPerMinute > 0 ? wordsPerMinute : 165) / 60;
+  return Math.max(1, Math.floor(seconds * wps));
+}
+
+function remakeBudgets(reference: ReferenceBreakdown) {
+  const rows = reference.beats.map((beat, i) => `beat ${i + 1} (${(beat.end - beat.start).toFixed(1)} s): at most ${beatWordBudget(beat.end - beat.start, reference.pacing.words_per_minute)} words`);
+  return `<word_budgets>\nOne line per reference beat, said in that beat's time at the reference's pace (${reference.pacing.words_per_minute ?? "about 165"} wpm):\n${rows.join("\n")}\n</word_budgets>`;
 }
 
 export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promise<Script> {
@@ -271,6 +286,7 @@ const clean = (value: unknown) =>
 export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptContext): Script {
   const ids = new Set(ctx.product.visuals.map((v) => v.id));
   const fallbackVisual = ctx.brief.visuals.find((id) => ids.has(id)) ?? ctx.product.visuals[0]?.id ?? null;
+  if (ctx.brief.format === "remake") return normalizeRemake(beats, ctx);
   const out: ScriptBeat[] = beats.slice(0, 12).map((beat, i) => {
     let visual: ScriptBeat["visual"] = beat.visual === "product" || beat.visual === "split" || beat.visual === "inset" ? beat.visual : "creator";
     if (ctx.brief.format === "voiceover_demo" || ctx.brief.format === "text_story") visual = "product";
@@ -294,6 +310,33 @@ export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptCo
     };
   });
   return { beats: out, total_seconds: out.reduce((sum, beat) => sum + beat.seconds, 0), review: null };
+}
+
+/**
+ * A remake's script: exactly one presenter beat per reference beat, timed like the reference (no
+ * 8 s cap: the remake splits long beats into shots itself). Missing beats are kept silent rather
+ * than shifting every later line onto the wrong beat.
+ */
+function normalizeRemake(beats: Array<Partial<ScriptBeat>>, ctx: ScriptContext): Script {
+  const reference = ctx.reference.beats;
+  const count = reference.length || Math.min(beats.length, 30);
+  const numbered = beats.some((b) => Number(b.n) > 0);
+  const out: ScriptBeat[] = Array.from({ length: count }, (_, i) => {
+    const beat = (numbered ? beats.find((b) => Number(b.n) === i + 1) : beats[i]) ?? {};
+    const ref = reference[i];
+    const seconds = ref ? Math.round((ref.end - ref.start) * 10) / 10 : Math.min(8, Math.max(1, Number(beat.seconds) || 3));
+    return {
+      n: i + 1,
+      job: JOBS.includes(beat.job as BeatJob) ? (beat.job as BeatJob) : (ref?.job ?? (i === 0 ? "hook" : "other")),
+      seconds,
+      line: clean(beat.line),
+      on_screen_text: clean(beat.on_screen_text).split(" ").slice(0, 10).join(" "),
+      visual: "creator",
+      product_visual: null,
+      direction: clean(beat.direction),
+    };
+  });
+  return { beats: out, total_seconds: Math.round(out.reduce((sum, beat) => sum + beat.seconds, 0) * 10) / 10, review: null };
 }
 
 // ---------- the linter ----------
@@ -336,12 +379,20 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
     if (refHook && hook && Math.abs(hook.seconds - (refHook.end - refHook.start)) > 1.5) issues.push(`hook beat is ${hook.seconds}s vs the reference's ${(refHook.end - refHook.start).toFixed(1)}s`);
   }
 
-  // Pace: as fast as the reference, not faster than a person can say it.
+  // Pace: as fast as the reference, not faster than a person can say it. A remake keeps every
+  // beat's timing, so each line must fit its own beat at the reference's pace.
   const referenceWps = reference.pacing.words_per_minute ? reference.pacing.words_per_minute / 60 : 2.8;
   const maxWps = Math.max(3.4, referenceWps * 1.15);
+  const remake = ctx.brief.format === "remake";
+  if (remake && reference.beats.length && script.beats.filter((b) => b.line).length < reference.beats.filter((b) => b.line).length) {
+    issues.push("a remake needs a line for every reference beat that has one");
+  }
   for (const beat of script.beats) {
     const count = words(beat.line).length;
-    if (count && count / beat.seconds > maxWps) issues.push(`beat ${beat.n} is too fast: ${count} words in ${beat.seconds}s`);
+    const ref = reference.beats[beat.n - 1];
+    const budget = remake && ref ? beatWordBudget(ref.end - ref.start, reference.pacing.words_per_minute) : null;
+    if (budget !== null && count > budget) issues.push(`beat ${beat.n} is ${count} words; the reference fits ${budget} in its ${(ref!.end - ref!.start).toFixed(1)}s`);
+    else if (budget === null && count && count / beat.seconds > maxWps) issues.push(`beat ${beat.n} is too fast: ${count} words in ${beat.seconds}s`);
     if (words(beat.on_screen_text).length > 12) issues.push(`beat ${beat.n} on-screen text is over 12 words`);
   }
 
@@ -361,6 +412,8 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
  * about $0.40 per second to render, so remakes with a presenter stop at 24 s; faceless ones at 40 s.
  */
 export function targetSeconds(reference: Pick<ReferenceBreakdown, "duration">, format: CreativeBrief["format"] = "voiceover_demo") {
+  // A one-to-one remake keeps the reference's whole length (and costs about $0.40 a second of it).
+  if (format === "remake") return Math.round(Math.min(90, Math.max(4, reference.duration || 18)));
   const cap = format === "talking_head_broll" || format === "split_screen" || format === "presenter_inset" ? 24 : 40;
   return Math.round(Math.min(cap, Math.max(8, reference.duration || 18)));
 }
