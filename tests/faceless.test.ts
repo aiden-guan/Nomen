@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { editFfmpeg } from "@/lib/creative/edit";
-import { burnedInText, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenSegmentKind, stageOf, wordCaptions } from "@/lib/creative/remake";
+import { burnedInText, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenSegmentKind, segmentElements, stageGraphic, stageOf, wordCaptions } from "@/lib/creative/remake";
 import { referenceFrameNote } from "@/lib/creative/screens";
 import { shotReadTimes, trackerPython, trackScreen, trackSpecJson } from "@/lib/creative/track";
 import type { Quad, ReferenceBeat } from "@/lib/creative/types";
@@ -96,6 +96,23 @@ describe("faceless remakes: filmed screens, labels and captions", () => {
     expect(boxes[1].y + boxes[1].height / 2).toBeCloseTo(960, -1);
     const silent = burnedInText(layout({ texts: [], captions: { ...layout().captions, present: false } }), stage, { start: 0, end: 5 });
     expect(silent).toEqual([]);
+  });
+});
+
+describe("faceless remakes: motion graphics", () => {
+  const graphic = (id: string, start: number, end: number, shows: string): RemakeGraphic => ({ id, kind: "other", box: { x: 0.17, y: 0.48, w: 0.66, h: 0.11 }, start, end, shows, entrance: "fade" });
+
+  it("draws the elements laid over a graphic segment inside that segment's own graphic", () => {
+    const elements = segmentElements({ start: 20.7, end: 25.7 }, [graphic("g5", 20.95, 25.7, "a chat pill revealing the agent's reply"), graphic("g6", 25.95, 28.1, "five channel icons")]);
+    expect(elements).toEqual([{ at: 0.25, until: 5, box: { x: 0.17, y: 0.48, w: 0.66, h: 0.11 }, shows: "a chat pill revealing the agent's reply", entrance: "fade" }]);
+    const request = stageGraphic("s4", { stage: { width: 1080, height: 1080 }, seconds: 5, line: "I've queued your video.", shows: "A frosted chat pill on a green gradient", product: { name: "Naïve", one_liner: "AI agents run your company" }, elements });
+    expect(request.brief).toContain("0.3-5.0 s, centre, 66% wide and 11% tall, fade: a chat pill revealing the agent's reply");
+    expect(request.box).toEqual({ width: 1080, height: 1080 });
+  });
+
+  it("keeps a plain graphic's brief as it was", () => {
+    const request = stageGraphic("fb-s2", { stage: { width: 1080, height: 890 }, seconds: 3, line: "we spent three dollars", shows: "", product: { name: "Monid", one_liner: "one balance" } });
+    expect(request.brief).not.toContain("appear on it in turn");
   });
 });
 
