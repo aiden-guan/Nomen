@@ -445,7 +445,9 @@ describe("the ending", () => {
     const args = endCardArgs({ image: "in.png", site: "monid.ai", font: "/f.ttf", width: 1080, height: 1920, out: "out.png" });
     const graph = args[args.indexOf("-filter_complex") + 1];
     expect(graph).toContain("text='monid.ai'");
-    expect(graph).toContain("overlay=(W-w)/2:230");
+    expect(graph).toContain("scale=908:998[card]"); // a tall frame: the card is about square
+    const band = endCardArgs({ image: "in.png", site: "monid.ai", font: "/f.ttf", width: 1080, height: 880, out: "o.png" });
+    expect(band[band.indexOf("-filter_complex") + 1]).toContain("scale=908:484[card]"); // a short band: a wide card
     expect(endCardArgs({ image: "in.png", site: "a:b's", font: "/f.ttf", width: 1080, height: 1920, out: "o.png" }).join(" ")).toContain("text='a\\:b\u2019s'");
     expect(endCardArgs({ image: "in.png", site: null, font: "/f.ttf", width: 1080, height: 1920, out: "o.png" }).join(" ")).not.toContain("drawtext");
   });

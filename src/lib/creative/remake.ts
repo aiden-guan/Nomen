@@ -1141,24 +1141,30 @@ export function endCardVisual(product: Pick<ProductBrief, "visuals">): { url: st
 const drawtextSafe = (text: string) => text.replace(/\\/g, "\\\\").replace(/'/g, "\u2019").replace(/:/g, "\\:").replace(/%/g, "\\%");
 
 /**
- * ffmpeg arguments for the closing card: the site's picture as a card near the top over a blurred,
- * darkened copy of itself filling the frame, and the site's address under it.
+ * ffmpeg arguments for the closing card, at the stage's size (a band stage is short and wide, a
+ * full-frame one tall): the top of the site's page as a card over a blurred, darkened copy of
+ * itself, and the site's address under it, the two centred a little above the middle.
  */
 export function endCardArgs(o: { image: string; site: string | null; font: string; width: number; height: number; out: string }): string[] {
   const { width: W, height: H } = o;
-  const cardW = 2 * Math.round((W * 0.84) / 2);
-  const cardH = 2 * Math.round((H * 0.5) / 2);
-  const top = Math.round(H * 0.12);
+  const even = (n: number) => 2 * Math.round(n / 2);
+  const cardW = even(W * 0.84);
+  const cardH = even(Math.min(H * 0.55, cardW * 1.1));
+  const size = Math.round(Math.max(40, H * 0.05));
+  const gap = Math.round(H * 0.035);
+  const block = cardH + (o.site ? gap + size : 0);
+  const top = Math.round(Math.max(H * 0.05, (H - block) / 2 - H * 0.04));
   const filter = [
     `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=40:2,eq=brightness=-0.35[bg]`,
-    `[0:v]scale=${cardW}:-2,crop=${cardW}:'min(ih,${cardH})':0:0[card]`,
+    // The top of the page in the card's shape (a tall phone capture shows its hero, a wide picture its middle).
+    `[0:v]crop='min(iw,ih*${cardW}/${cardH})':'min(ih,iw*${cardH}/${cardW})':'(iw-ow)/2':0,scale=${cardW}:${cardH}[card]`,
     `[bg][card]overlay=(W-w)/2:${top}${o.site ? "[v0]" : "[v]"}`,
-    ...(o.site ? [`[v0]drawtext=fontfile='${o.font}':text='${drawtextSafe(o.site)}':fontcolor=white:fontsize=${Math.round(H * 0.05)}:x=(w-text_w)/2:y=${top + cardH + Math.round(H * 0.05)}:borderw=5:bordercolor=black@0.55[v]`] : []),
+    ...(o.site ? [`[v0]drawtext=fontfile='${o.font}':text='${drawtextSafe(o.site)}':fontcolor=white:fontsize=${size}:x=(w-text_w)/2:y=${top + cardH + gap}:borderw=5:bordercolor=black@0.55[v]`] : []),
   ];
   return ["-hide_banner", "-loglevel", "error", "-y", "-i", o.image, "-filter_complex", filter.join(";"), "-map", "[v]", "-frames:v", "1", o.out];
 }
 
-async function endCard(work: Work, input: Pick<RemakeInput, "product" | "site">, dir: string): Promise<string | null> {
+async function endCard(work: Work, input: Pick<RemakeInput, "product" | "site">, dir: string, size: { width: number; height: number }): Promise<string | null> {
   const visual = endCardVisual(input.product);
   if (!visual) return null;
   let image = visual.key ? await work.local(visual.key) : null;
@@ -1169,7 +1175,7 @@ async function endCard(work: Work, input: Pick<RemakeInput, "product" | "site">,
   }
   if (!image) return null;
   const out = join(dir, "end-card.png");
-  await ffmpeg(endCardArgs({ image, site: input.site?.trim() || null, font: DEFAULT_FONT, width: OUT.width, height: OUT.height, out }));
+  await ffmpeg(endCardArgs({ image, site: input.site?.trim() || null, font: DEFAULT_FONT, width: size.width, height: size.height, out }));
   return out;
 }
 
@@ -1601,11 +1607,13 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
 
   // The closing card: the product's own site over the end of the last line (Dylan: "make sure the
   // plug is good... flash their site or the product").
-  const card = await endCard(work, input, dir).catch((error: unknown) => {
+  // Graphics sit on the stage (a band layout then blurs the stage into its fill), so the card is the stage's size.
+  const card = await endCard(work, input, dir, stage).catch((error: unknown) => {
     notes.push(`end card skipped: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   });
-  if (card && end > END_CARD_SECONDS + 1) graphics.push({ path: card, kind: "image", start: round(end - END_CARD_SECONDS), end, x: 0, y: 0, width: OUT.width, height: OUT.height, entrance: "fade" });
+  const cardFrom = card && end > END_CARD_SECONDS + 1 ? round(end - END_CARD_SECONDS) : null;
+  if (card && cardFrom !== null) graphics.push({ path: card, kind: "image", start: cardFrom, end, x: 0, y: 0, width: stage.width, height: stage.height, entrance: "fade" });
 
   const soundtrack = join(dir, "soundtrack.wav");
   await ffmpeg(soundArgs({ voices: pieces, bed: reference.bed, duration: end, finish, out: soundtrack }));
@@ -1625,7 +1633,8 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     await writeFile(join(cut, "texts.ass"), textsAss(texts), "utf8");
     ass.push("texts.ass");
   }
-  const captions = wordCaptions(captionWords, layout.captions.words, end);
+  // No captions over the closing card: it shows the site's address itself.
+  const captions = wordCaptions(captionWords, layout.captions.words, cardFrom ?? end);
   if (captions.length) {
     const metrics = await fontMetrics(DEFAULT_FONT);
     await writeFile(join(cut, "captions.ass"), toAss({ captions, overlays: [] }, { width: OUT.width, height: OUT.height, metrics, caption: captionStyle(layout.captions) }), "utf8");
