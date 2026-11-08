@@ -50,8 +50,8 @@ Two things are matched on the core's wording, and both are pinned by `tests/troy
 `/` is the real product: the box starts a campaign, which spends real credits. `/demo` is the
 same horse and camp with nothing spent. Its box marches into `/camp/demo?site=<domain>`, which
 replays a finished campaign on a clock: research, the format study, the strategy, production,
-your review, then posting. That takes about two minutes, plus as long as the presenter spends on
-the review.
+your review, then posting and the expedition. That takes about two and a half minutes, plus as
+long as the presenter spends on the review.
 
 **What it replays.** A `DemoScript` (`camp/demo.ts`):
 - **A recording:** a real campaign exported with its videos. The recording for the typed website
@@ -167,7 +167,7 @@ progress, and every agent's post and activity:
   the strip does the same.
 - **Agora:** the herald climbs the podium and trumpets while posts go out. While the core says
   "publishing" (its stage is still "review"), the theatre is done and the agora has the work; once
-  every post is out the agora is done too. Below it, the army fights (see "The battle").
+  every post is out the agora is done too. Below it, the army sails (see "The expedition").
 
 A courier with a horse of his own rides each piece of work along the sandbars when it changes
 hands (each stage change, each finished video), then rides back to the stable. New event lines
@@ -175,7 +175,8 @@ flash in the station's label with a pop-up emote beside the island.
 
 ### The lands
 
-West of the camp, a road leaves the stable's gate for a crossroads with a signpost. From there the
+Far to the west of the camp, out of view until you zoom out, a road leaves the stable's gate for a
+crossroads with a signpost. From there the
 high road runs north and south between two columns of lands, with a spur to each. Each land is the
 website or API the research reads (`LANDS` in `scenes/layout.ts`; landmarks in
 `engine/models/lands.ts`):
@@ -196,39 +197,62 @@ website or API the research reads (`LANDS` in `scenes/layout.ts`; landmarks in
 A scout ties its horse in one of four spots by the shore and gathers in front of the landmark. A
 label under each land names it, says what is fetched there and counts the scouts out on it.
 
-### The battle
+### The expedition
 
-Below the agora is a plain where your army fights the rival's legion. The Romans stand for the
-first competitor in the research plan, camped before their fort with its towers, gate, ballistae
-and eagle; a banner under the fort names them, with the count of their ads the scouts found
-running. The Greeks are camp agents (`armyPlans()` in `scenes/derive.ts`), so they march out of
-the horse like everyone else and can be clicked; the legion, the engines and everything in the
-air are `scenes/battlefield.ts`.
+Below the agora is a harbour: a quay where four Greek ships lie alongside, with cranes, cargo and
+a fire tower at its end. Beyond it the sea runs south, past three islets, to the rival's city: a
+Roman port with a lighthouse on its mole, a temple over its forum, a wall with towers and a
+gatehouse, and beyond the wall red-roofed houses, an amphitheatre and an aqueduct. The legion
+stands in the forum for the first competitor in the research plan; a banner by the gate names it,
+with the count of its ads the scouts found running. The harbour, the sea and the city appear grain
+by grain as they come into view, whether you pan down to them or the camera takes you there.
 
-- **One company per finished video:** six hoplites each, with four archers and two catapult crews
-  behind them. They march out once the first video is ready and form up below the agora, a tag
-  over each company naming its video.
-- **The posts go out:** the herald trumpets, the companies close up, archers loose volleys, the
-  catapults throw stones and the ballistae answer. Legionaries hit are knocked flat and get up
-  again; nobody dies and nobody appears or vanishes in the open.
-- **A post is out:** its company engages the century facing it. Once the post has numbers, the
-  company fights as far forward as its video does, by likes per view against the median of the
-  top videos the scouts found in the category (`scenes/battle.ts`): level is the middle of the
-  field; 15% better or more routs the century back to its gate and the company cheers there;
-  worse pushes the company back, but it holds. Its tag shows the difference ("▲ 19% vs top
-  videos").
-- **Missing numbers never become a result:** a post without views and likes fights in the middle;
-  without at least three top videos with numbers there is no comparison, and the panels say so.
+The Greeks are camp agents (`armyPlans()` in `scenes/derive.ts`): they march out of the horse
+like everyone else and can be clicked. The camp walks them down to the quay and hands each one to
+`scenes/expedition.ts`, which owns the ships, the legion, the engines on the walls and everything
+in the air, and moves the soldiers from then on.
 
-The camera moves to the battle while posts go out (a scoreboard under it gives your likes per view
-against the top videos'), the agora's panel opens with the battle in numbers, and a hoplite's card
-shows the video his company fights for. Analytics can come in any shape: `postNumbers()` reads
+- **One company per finished video:** six hoplites and an archer, mustered on the quay beside the
+  ship that will carry it (`shipsFor()` in `scenes/battle.ts`). Past four videos, two companies
+  share a ship, with four hoplites each.
+- **A post goes out:** its company's leader calls "To the ships, men of Achaea!", the company goes
+  up the gangplank, and once everyone is aboard the ship rows out, sets its sail and crosses the
+  sea, the four ships abreast, each with its wake. A ship whose post is still going out waits off
+  the city.
+- **The post is out:** its ship runs in bow first at the city's quay, the company goes down the
+  bow's plank ("Ashore! Shields up, and at them!") and forms up on the quay. The archer looses at
+  the legion from the deck as the ship runs in.
+- **Its numbers are in:** the company charges the century facing it, the archer shoots over the
+  phalanx and the ballistae on the gate towers answer; legionaries hit by arrows are knocked flat
+  and get up again. After six and a half seconds the attack ends the way the video does, by likes
+  per view against the median of the top videos the scouts found in the category
+  (`outcomeOf()` in `scenes/battle.ts`): 15% better or more routs the century, which runs into the
+  dark of the gate's passage, and the company follows to the gate and cheers; within 13% either
+  way it holds its ground; worse, it falls back to the quay. Then it stands: the fight does not go
+  on forever. Numbers that change later replay the attack.
+- **Every video wins:** the whole legion runs for the gate, the legion's banners on the gate
+  towers come down and the Greeks' go up, the leader calls "Rome is ours! Raise our colours on the
+  gate!", and the rival's banner turns green: taken.
+- **Missing numbers never become a result:** a landed company without views and likes waits on
+  the quay; without at least three top videos with numbers there is no comparison, and the panels
+  say so.
+- **Going back:** if the plan steps back (the demo going back or starting over), the companies go
+  back aboard wherever they are, the ships sail home, the soldiers march back into the horse, and
+  the legion walks back out of its gate.
+
+While the posts go out the camera goes with the expedition: the harbour while the army boards,
+riding along with the fleet across the sea, then the city once a company lands (closer up on
+phones). A tag over each company says where it is in its story (boarding, under sail, landing,
+fighting) and then its result ("▲ 19% vs top videos"); a scoreboard under the city gives your likes
+per view against the top videos'. The agora's panel has the expedition in numbers, and a soldier's
+card shows the video his company sails for. Analytics can come in any shape: `postNumbers()` reads
 views and likes from the shallowest level that has them, so a total beside a per-platform
 breakdown is not counted twice.
 
-The demo replays the same: the sample's top-video numbers are made up like the rest of it, and
-`npm run demo:export` records a real campaign's (the top videos' median views and likes per view,
-and each rival's ad count).
+The demo replays the same. The sample's numbers are made up like the rest of it: the top videos
+get 4.5% likes per view and every sample video beats them, so the demo ends with the city taken.
+`npm run demo:export` records a real campaign's numbers (the top videos' median views and likes
+per view, and each rival's ad count).
 
 ### Agents are people
 
@@ -238,7 +262,8 @@ open (`scenes/camp.ts`, tested in `tests/troy/camp.test.ts`):
 - **The march.** Submitting the box mounts the camp while the doors open, so its first plan is
   known when the plank lands. The soldiers that step out of the horse are those agents, in plan
   order (scouts first); each walks the sandbars to its station and on to its post, and the camera
-  follows the column down.
+  follows the column down. The first one out leads the column and calls "Men of Achaea, out of the
+  horse! Let's roll out!" in a speech bubble over his head.
 - **Roads.** The sandbars form a ring (the horse's road joins it at the scouts, and the agora
   links back to the scouts), and `travel()` in `scenes/layout.ts` takes the shortest way round it.
   A walker crossing an island goes by its crossing points (`HUBS`), set clear of the shrine, the
@@ -266,9 +291,9 @@ at the bottom right do the same, as do the keys + − 0. Zooms settle on whole d
 pixel, so the art stays crisp. Once you move the camera it stays yours (the fit button turns red)
 until you press fit (or 0), open a station or click a soldier.
 
-Left alone, the camera frames the camp. While scouts are out it pulls back to show the lands as
-well; on phones it shows the lands and the scouts' island. Zoomed out, the station tags shrink to
-their names. The land labels shrink to their names, then to a marker in the land's colour with the
+Left alone, the camera frames the camp; the lands stay out of view to the west, and the harbour
+and the sea below, until you zoom or pan out to them. While posts go out it goes with the
+expedition (see above). Zoomed out, the station tags shrink to their names. The land labels shrink to their names, then to a marker in the land's colour with the
 count of scouts out.
 
 **Agents.** Every soldier on the map can be clicked (hover shows a ring and a pointer; a tap works
@@ -301,7 +326,17 @@ Nothing is a bitmap. `engine/tracer.ts` is a small analytic ray tracer:
 
 - `engine/models/*`: the horse (body, door leaves and gangplank as separate layers), the hoplite
   (a pose is a few joint angles; looks vary skin, crest, tunic, shield emblem), the riding horse in
-  five coats, the station props and the lands' landmarks.
+  five coats, the station props and the lands' landmarks. `ships.ts` has the trireme in two
+  sprites, the hull (a clipped box: pointed ends, raked bow and stern; the ram, the eye, the band,
+  shields, oars in four strokes, gangplanks) and the rig (mast, yard, a bellying sail that is a
+  slice of a cylinder), so soldiers on deck sort between them; and the harbour's furniture.
+  `rome.ts` has the city, designed small and drawn twice the size through `engine/scaled.ts` (a
+  model wrapper that scales positions, sizes and clip planes while materials keep seeing design
+  units), so the buildings tower over the soldiers.
+- `engine/grounds.ts`: islands, sandbars, the sea (a rounded box with a wandering coast, foam
+  where it laps a shore, shallows, swell and glints) and towns (an island cut straight along its
+  quays, paved as quay blocks, a forum's marble with a medallion, or cobbled streets). The big
+  ones bake in tiles, each with the shadows of what stands near it.
 - `engine/jobs.ts`: every drawable as a serialisable job (`{ k: "soldier", look, act, dir, f }`).
   `engine/bake.worker.ts` bakes jobs in a pool of up to three workers, with an inline fallback.
   `engine/baker.ts` caches the results as `ImageBitmap`s.
@@ -324,9 +359,10 @@ Measured in headless Chromium at 1440×900, 2x (software rendering, so real GPUs
   pressing the button: the doors, the column marching into the camp, the camera following it, and
   the scouts riding out to the lands with the camera pulled back. Over four runs, the slowest frame
   was 117 ms once, 50 ms twice, and under 34 ms once.
-- **The battle:** over 20 s of fighting (an army of 30, the legion of 25, arrows, stones and
-  bolts), a median of 16.7 ms and a 95th percentile of 16.8 ms; 7 of 1,164 frames took over 34 ms,
-  the slowest 67 ms.
+- **The expedition:** over 40 s from the posts going out (boarding, the voyage with the camera
+  riding along, the landing and the battle in the city: an army of 28, the legion of 25, arrows and
+  bolts), a median of 16.7 ms and a 95th percentile of 33.4 ms; 13 of 1,827 frames took over
+  34 ms, the slowest 150 ms.
 - **Bake cost:** the horse body takes about 250 ms and a soldier frame about 5 ms, all in workers.
 
 ## Tests
@@ -352,9 +388,11 @@ They cover:
 - the gate and the demo-only switch;
 - the demo's clock: research paced to the rides, the review that waits, posting now or one a day,
   autoplay, skips, where event lines land, and loading recordings;
-- the battle: reading views and likes from any shape of analytics, the top videos' benchmark, a
-  company per finished video, the phases, how far each company pushes, no result without numbers,
-  the army marching out of the horse to the field and into the fight, and legionaries knocked down
+- the expedition: reading views and likes from any shape of analytics, the top videos' benchmark,
+  a company per finished video and a ship for each, the phases, how each attack ends, no result
+  without numbers; on the real scene, the army mustering on the quay, sailing when the posts go
+  out, routing or falling back by its numbers and then standing still, the city taken only when
+  every video wins, everyone home again when the demo starts over, and legionaries knocked down
   getting up again.
 
 ## Not done yet

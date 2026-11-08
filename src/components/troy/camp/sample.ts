@@ -97,14 +97,15 @@ export const SAMPLE: DemoScript = {
     reddit_query: "best olive oil soap",
     aeo_prompts: [],
   } as unknown as DemoScript["plan"],
-  // Made up, like the rest of the sample: the top videos' median views and likes, and the rivals' ads.
+  // Made up, like the rest of the sample: the top videos' median views and likes (4.5% likes per
+  // view, which every one of the sample's videos beats), and the rivals' ads.
   research: {
     videos: 24,
     ads: 12,
     reddit: 10,
     keywords: 18,
     domainRating: 41,
-    benchmark: { views: 182000, likes: 11800 },
+    benchmark: { views: 182000, likes: 8200 },
     rivalAds: [
       { name: "Dr. Bronner's", ads: 7 },
       { name: "Savon de Marseille", ads: 3 },

@@ -1,9 +1,9 @@
 import type { BrandView, CampaignView } from "../api";
-import { BATTLE_LINES } from "./layout";
+import { ROME_BERTHS_B } from "./layout";
 
-// The battle below the agora, from the campaign: one Greek company per finished video, the rival
-// the Romans stand for, and how each video's posts are doing against the category's top videos.
-// Pure, so it is easy to test; scenes/battlefield.ts draws it and derive.ts posts the army.
+// The expedition against the rival, from the campaign: one Greek company per finished video, the
+// rival the Romans stand for, and how each video's posts are doing against the category's top
+// videos. Pure, so it is easy to test; scenes/expedition.ts plays it out and derive.ts posts the army.
 //
 // What the battle shows is a real comparison, never a made-up one: likes per view of each posted
 // video against the median likes per view of the top videos the scouts found in the category.
@@ -136,24 +136,19 @@ export function deriveBattle(view: BrandView | null): BattlePlan {
   return { phase, companies, rival, benchmark, score };
 }
 
-/**
- * Where a company's front rank stands along the battle (`a`): formed up below the agora, closed up
- * and waiting while its post goes out, then in the fight. An engaged company pushes as far as its
- * video does against the top videos: level is the middle of the field, twice as good is near the
- * Romans' gate, half as good is pushed back toward its own lines. With no numbers yet it fights
- * in the middle.
- */
-export function companyFront(company: Company): number {
-  if (company.state === "sent") return BATTLE_LINES.ready;
-  if (company.state !== "engaged") return BATTLE_LINES.muster;
-  if (company.ratio === null) return 0;
-  if (company.ratio >= VICTORY) return BATTLE_LINES.gate - 22;
-  return Math.max(-28, Math.min(48, Math.round(42 * Math.log2(company.ratio))));
+/** How a company's attack ends: it routs the legion, holds level, or is thrown back; null until its numbers are in. */
+export type Outcome = "won" | "held" | "repulsed";
+
+export function outcomeOf(company: Company): Outcome | null {
+  if (company.state !== "engaged" || company.ratio === null) return null;
+  if (company.ratio >= VICTORY) return "won";
+  if (company.ratio >= SETBACK) return "held";
+  return "repulsed";
 }
 
 /** A company that has routed the Romans facing it. */
 export function victorious(company: Company) {
-  return company.state === "engaged" && company.ratio !== null && company.ratio >= VICTORY;
+  return outcomeOf(company) === "won";
 }
 
 /** Across the battle (`b`): companies side by side, centred, with room between them. */
@@ -167,3 +162,21 @@ export const FILE_GAP = 10;
 export const RANK_GAP = 10.5;
 /** Between the Greek and the Roman front ranks when they fight. */
 export const CLASH_GAP = 13;
+
+/** The ship each company sails in: the ship landing nearest its place in the line (two companies a ship past four). */
+export function shipsFor(count: number): number[] {
+  const free = new Set(ROME_BERTHS_B.map((_, i) => i));
+  const ships: number[] = [];
+  for (let k = 0; k < count; k++) {
+    if (k >= ROME_BERTHS_B.length) {
+      ships.push(ships[k % ROME_BERTHS_B.length]);
+      continue;
+    }
+    const b = companyB(k, Math.min(count, ROME_BERTHS_B.length));
+    let best = -1;
+    for (const i of free) if (best < 0 || Math.abs(ROME_BERTHS_B[i] - b) < Math.abs(ROME_BERTHS_B[best] - b)) best = i;
+    free.delete(best);
+    ships.push(best);
+  }
+  return ships;
+}

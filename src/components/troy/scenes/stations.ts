@@ -34,10 +34,32 @@ export type PropId =
   | "beacon"
   | "huts"
   | "gate"
-  // The battle below the agora (engine/models/battle.ts).
+  // The engines of war (engine/models/battle.ts).
   | "catapult"
   | "ballista"
-  | "fort";
+  | "fort"
+  // The home harbour (engine/models/ships.ts).
+  | "crane"
+  | "cargo"
+  | "bollard"
+  | "firetower"
+  // The rival's city (engine/models/rome.ts).
+  | "temple"
+  | "wall"
+  | "tower"
+  | "gatehouse"
+  | "house"
+  | "amphitheatre"
+  | "aqueduct"
+  | "pharos"
+  | "cypress"
+  | "pine"
+  | "column"
+  | "fountain"
+  | "horreum"
+  | "standard"
+  | "rocks"
+  | "ruin";
 
 export type Placement = { prop: PropId; x: number; y: number; v?: number; key?: string; sort?: number };
 

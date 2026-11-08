@@ -1,10 +1,40 @@
-import { HORSE_ISLAND, island, sandbar } from "./grounds";
+import { HORSE_ISLAND, island, sandbar, sea, town } from "./grounds";
 import { ballista, catapult, romanFort } from "./models/battle";
 import { doorPose, horseBody, horseLeaves, horsePlank } from "./models/horse";
 import { adBillboards, answerShrine, brandGate, crystalSpire, instagramGallery, lookalikeHuts, rankBeacon, redditForum, tiktokPhone, youtubeScreen } from "./models/lands";
 import { amphora, banner, campfire, easel, editDesk, hitchingRail, mapTable, mount, oliveTree, pavilion, PLATFORM_FLAGS, podium, reels, screenFrame, scrollBasket, shrine, signpost, tier, tvOnTripod, watchtower } from "./models/props";
+import { amphitheatre, aqueduct, cypress, fountain, gatehouse, honourColumn, horreum, house, pharos, pine, rocks, ruin, standard, temple, tower, wall } from "./models/rome";
+import { beacon as firetower, bollard, cargo, crane, hullModel, type Plank, rigModel } from "./models/ships";
 import { type Look, lookByIndex, type Pose, soldierInto, soldierModel, STANDING } from "./models/soldier";
-import { BATTLE_LINES, battlePoint, CATAPULT_B, FIELD, fieldIsland, LAND, type LandId, LANDS, landIsland, sandbars, STATIONS, type StationId, stationIsland, worldTrails } from "../scenes/layout";
+import {
+  harborProps,
+  HOME_SHORE,
+  isletAt,
+  isletIsland,
+  isletProps,
+  ISLETS,
+  homeQuay,
+  homeShore,
+  LAND,
+  type LandId,
+  LANDS,
+  landIsland,
+  ROME,
+  romeLand,
+  ROME_PAVING,
+  romeProps,
+  romeQuay,
+  romeTiles,
+  sandbars,
+  SEA,
+  seaTiles,
+  SHORE_ROAD,
+  type Standing,
+  STATIONS,
+  type StationId,
+  stationIsland,
+  worldTrails,
+} from "../scenes/layout";
 import { LAND_SPOTS, PROPS, type PropId } from "../scenes/stations";
 import { bake, type BakeOptions, Model, mul, type Prim, rotZ, type Sprite, translate } from "./tracer";
 
@@ -53,8 +83,18 @@ export type Job =
   | { k: "land"; id: LandId }
   /** The crossroads on the high road. */
   | { k: "junction" }
-  /** The battlefield below the agora, with the fort's and the catapults' shadows on it. */
-  | { k: "field" }
+  /** A ship's hull (oar frame `f`, gangplank `p`) or its rig (sail `s` set or furled), heading `dir`, in colour `c`. */
+  | { k: "hull"; dir: number; f: number; c: number; p: number }
+  | { k: "rig"; dir: number; s: number; c: number }
+  /** A tile of the sea between the harbours. */
+  | { k: "sea"; i: number }
+  /** The shore below the agora with its quay; the road down to it. */
+  | { k: "shore" }
+  | { k: "shore-road" }
+  /** A tile of the rival's city, with the shadows of what stands on it. */
+  | { k: "rome"; i: number }
+  /** An islet in the sea. */
+  | { k: "islet"; i: number }
   | { k: "prop"; id: PropId; v: number }
   /** A mounted soldier. `f` is the gallop frame, or -1 standing still; `c` 1 carries a scroll case. */
   | { k: "rider"; look: number; dir: number; f: number; c?: number; h?: number }
@@ -95,8 +135,20 @@ export function jobKey(job: Job): string {
       return `l.${job.id}`;
     case "junction":
       return "jn";
-    case "field":
-      return "fd";
+    case "hull":
+      return `hu${job.dir}.${job.f}.${job.c}.${job.p}`;
+    case "rig":
+      return `rg${job.dir}.${job.s}.${job.c}`;
+    case "sea":
+      return `se${job.i}`;
+    case "shore":
+      return "so";
+    case "shore-road":
+      return "sr";
+    case "rome":
+      return `ro${job.i}`;
+    case "islet":
+      return `il${job.i}`;
     case "prop":
       return `p.${job.id}.${job.v}`;
     case "rider":
@@ -105,6 +157,9 @@ export function jobKey(job: Job): string {
       return `st${job.dir}.${job.h ?? 0}`;
   }
 }
+
+/** Fixed canvas shared by a ship's hull and rig in every heading, so the two always line up. */
+export const SHIP_FRAME = { w: 150, h: 120, ax: 75, ay: 80 };
 
 /** Fixed canvas for riders. */
 export const RIDER_FRAME = { w: 72, h: 72, ax: 36, ay: 54 };
@@ -179,6 +234,68 @@ export function propModel(id: PropId, v = 0): Model {
     case "fort":
       romanFort(m);
       break;
+    case "crane":
+      crane(m);
+      break;
+    case "cargo":
+      cargo(m, v);
+      break;
+    case "bollard":
+      bollard(m);
+      break;
+    case "firetower":
+      firetower(m, v);
+      break;
+    case "temple":
+      temple(m);
+      break;
+    case "wall":
+      wall(m, v);
+      break;
+    case "tower":
+      tower(m, v);
+      break;
+    case "gatehouse":
+      gatehouse(m, v);
+      break;
+    case "house":
+      house(m, v);
+      break;
+    case "amphitheatre":
+      amphitheatre(m);
+      break;
+    case "aqueduct":
+      // 100 and up: the same run turned to stride along x.
+      m.with(rotZ(v >= 100 ? Math.PI / 2 : 0), () => aqueduct(m, v % 100));
+      break;
+    case "pharos":
+      pharos(m, v);
+      break;
+    case "cypress":
+      cypress(m, v);
+      break;
+    case "pine":
+      pine(m, v);
+      break;
+    case "column":
+      honourColumn(m);
+      break;
+    case "fountain":
+      fountain(m, v);
+      break;
+    case "horreum":
+      horreum(m);
+      break;
+    case "standard":
+      // v: 0..3 the legion's banner waving, 4..7 the Greeks'.
+      standard(m, v >= 4 ? 1 : 0, (v % 4) / 4);
+      break;
+    case "rocks":
+      rocks(m, v);
+      break;
+    case "ruin":
+      ruin(m);
+      break;
     case "phone":
       tiktokPhone(m);
       break;
@@ -222,6 +339,48 @@ function stationCasters(id: StationId): Prim[] {
     all.push(...holder.prims);
   }
   return all;
+}
+
+/** Props standing near a world rectangle (within `reach`), placed, for a ground's shadows. */
+function castersNear(props: Standing[], r: { x0: number; y0: number; x1: number; y1: number }, reach: number): Prim[] {
+  const all: Prim[] = [];
+  for (const p of props) {
+    if (p.x < r.x0 - reach || p.x > r.x1 + reach || p.y < r.y0 - reach || p.y > r.y1 + reach) continue;
+    const holder = new Model();
+    holder.with(translate(p.x, p.y, p.z ?? 0), () => holder.include(propModel(p.prop, p.v ?? 0)));
+    all.push(...holder.prims);
+  }
+  return all;
+}
+
+/** The home shore as a town: its quay along the water, its sand and grass. */
+export function shoreGround() {
+  const spec = homeShore();
+  return town({
+    land: { ...spec, cx: HOME_SHORE.x + spec.cx, cy: HOME_SHORE.y + spec.cy, lobes: spec.lobes?.map((l) => ({ ...l, cx: HOME_SHORE.x + l.cx, cy: HOME_SHORE.y + l.cy })) },
+    quays: [homeQuay()],
+    paving: [],
+  });
+}
+
+/** The rival's city as a town (one tile of it, or all of it for the sea's foam). */
+export function romeGround(tile?: { x0: number; y0: number; x1: number; y1: number }) {
+  const spec = romeLand();
+  const inBox = (box: { a0: number; a1: number; b0: number; b1: number }) => (x: number, y: number) => {
+    const a = x - ROME.x;
+    const b = y - ROME.y;
+    return a >= box.a0 && a <= box.a1 && b >= box.b0 && b <= box.b1;
+  };
+  return town({
+    land: { ...spec, cx: ROME.x + spec.cx, cy: ROME.y + spec.cy, lobes: spec.lobes?.map((l) => ({ ...l, cx: ROME.x + l.cx, cy: ROME.y + l.cy })) },
+    quays: [romeQuay()],
+    paving: [
+      { kind: "forum", inside: inBox(ROME_PAVING.forum), centre: { x: ROME.x - 10, y: ROME.y + 12 } },
+      ...ROME_PAVING.streets.map((street) => ({ kind: "street" as const, inside: inBox(street) })),
+      { kind: "quay", inside: inBox(ROME_PAVING.mole) },
+    ],
+    tile,
+  });
 }
 
 /** A soldier on horseback; `coat` is the horse's (see COATS in props.ts). */
@@ -357,15 +516,45 @@ export function bakeJob(job: Job): Sprite {
       holder.with(translate(-3, -3, 0), () => holder.include(propModel("signpost")));
       return bake([], { ground: island({ cx: 0, cy: 0, rx: 13, ry: 12, seed: 61, rim: 8, wobble: 6, grass: 0.4 }), shadowCasters: holder.prims });
     }
-    case "field": {
-      const holder = new Model();
-      const fort = battlePoint(BATTLE_LINES.fort, 0);
-      holder.with(translate(fort.x - FIELD.x, fort.y - FIELD.y, 0), () => holder.include(propModel("fort")));
-      for (const b of CATAPULT_B) {
-        const p = battlePoint(BATTLE_LINES.catapults, b);
-        holder.with(translate(p.x - FIELD.x, p.y - FIELD.y, 0), () => holder.include(propModel("catapult", 0)));
-      }
-      return bake([], { ground: island(fieldIsland()), shadowCasters: holder.prims });
+    case "hull": {
+      const m = new Model();
+      hullModel(m, job.dir, job.f, job.c, job.p as Plank);
+      // The sail's shadow falls on the deck.
+      const rigging = new Model();
+      rigModel(rigging, job.dir, 1, job.c);
+      return withOptions(m, { frame: SHIP_FRAME, shadowCasters: rigging.prims.filter((p) => p.cast) });
+    }
+    case "rig": {
+      const m = new Model();
+      rigModel(m, job.dir, job.s, job.c);
+      // The hull hides the foot of the mast behind it.
+      const body = new Model();
+      hullModel(body, job.dir, 4, job.c, 0);
+      return withOptions(m, { frame: SHIP_FRAME, holdouts: body.prims });
+    }
+    case "sea": {
+      const shore = shoreGround();
+      const rome = romeGround();
+      const islets = ISLETS.map((_, i) => {
+        const c = isletAt(i);
+        const g = island(isletIsland(i));
+        return (x: number, y: number) => g.sdf(x - c.x, y - c.y);
+      });
+      return bake([], { ground: sea({ area: SEA, shores: [shore.distance, rome.distance, ...islets], seed: 7, tile: seaTiles()[job.i] }) });
+    }
+    case "islet": {
+      const c = isletAt(job.i);
+      return bake([], { ground: island(isletIsland(job.i)), shadowCasters: castersNear(isletProps().map((p) => ({ ...p, x: p.x - c.x, y: p.y - c.y })), { x0: -40, y0: -40, x1: 40, y1: 40 }, 10) });
+    }
+    case "shore": {
+      const ground = shoreGround();
+      return bake([], { ground, shadowCasters: castersNear(harborProps(), ground.bounds, 40) });
+    }
+    case "shore-road":
+      return bake([], { ground: sandbar(SHORE_ROAD.a, SHORE_ROAD.b, 171) });
+    case "rome": {
+      const tile = romeTiles()[job.i];
+      return bake([], { ground: romeGround(tile), shadowCasters: castersNear(romeProps(), tile, 80) });
     }
     case "prop":
       return withOptions(propModel(job.id, job.v));

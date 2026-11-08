@@ -1,8 +1,8 @@
 import type { BrandView, CampaignView, CreativeView, RunView } from "../api";
 import type { Act } from "../engine/jobs";
 import { LOOK } from "../engine/models/soldier";
-import { type BattlePlan, companyB, companyFront, deriveBattle, FILE_GAP, RANK_GAP, victorious } from "./battle";
-import { BATTLE_LINES, battlePoint, CATAPULT_B, FIELD_ENTRY, LAND, type LandId, landFor, landRuns, STATION, type StationId } from "./layout";
+import { type BattlePlan, deriveBattle, outcomeOf, shipsFor } from "./battle";
+import { BERTH_DIR, homeBerth, inShip, LAND, type LandId, landFor, landRuns, SHORE_ENTRY, STATION, type StationId } from "./layout";
 import { DESK_SLOTS, EDITOR_OFFSET, SPOTS, WATCH_DROP, type Waypoint } from "./stations";
 
 // From the campaign the core track reports to what the camp shows: each station's state and
@@ -40,6 +40,8 @@ export type AgentPlan = {
   away?: boolean;
   /** Back from a run: rides in, and carries the scroll case to the basket (or comes back empty). */
   returning?: "scroll" | "empty";
+  /** A soldier of the agora's army: his company (index into the battle's), his place in it, his arm. */
+  army?: { company: number; rank: number; file: number; role: "hoplite" | "archer" };
   state: "idle" | "working" | "done" | "failed";
 };
 
@@ -377,80 +379,76 @@ export function derive(view: BrandView | null): CampPlan {
 }
 
 /**
- * The army that fights below the agora: a company of six hoplites for each finished video, four
- * archers behind them and a crew for each catapult. They march out of the horse once the first
- * video is ready, form up on the plain, close up while their video's post goes out, and fight
- * once it is out, as far forward as the video does against the category's top videos.
+ * The agora's army: a company for each finished video, hoplites and an archer, mustered on the
+ * quay below the agora beside the ship that will carry them (scenes/expedition.ts takes them from
+ * there: aboard, across the sea, into the rival's city). Six hoplites a company, four once there
+ * are more companies than ships and two companies share a ship.
  */
 function armyPlans(battle: BattlePlan): AgentPlan[] {
   if (battle.phase === "none") return [];
   const agora = STATION.agora;
-  const at = (a: number, b: number) => {
-    const p = battlePoint(a, b);
-    return { x: p.x - agora.x, y: p.y - agora.y, z: 0 };
-  };
-  const via = FIELD_ENTRY.map((w) => ({ ...w }));
-  const fighting = battle.phase === "advance" || battle.phase === "clash";
-  const agents: AgentPlan[] = [];
   const count = battle.companies.length;
+  const ships = shipsFor(count);
+  const hoplites = count > 4 ? 4 : 6;
+  const agents: AgentPlan[] = [];
+  const via = SHORE_ENTRY.map((w) => ({ ...w }));
   battle.companies.forEach((company, k) => {
-    const front = companyFront(company);
-    const centre = companyB(k, count);
-    const won = victorious(company);
-    const engaged = company.state === "engaged";
+    const ship = ships[k];
+    const berth = homeBerth(ship);
+    // The second company on a ship musters further along the quay.
+    const shift = count > 4 && k >= 4 ? 34 : 0;
+    const at = (along: number, across: number) => {
+      const p = inShip(berth, BERTH_DIR, along + shift, across);
+      return { x: p.x - agora.x, y: p.y - agora.y, z: 0 };
+    };
+    const outcome = outcomeOf(company);
     const title = `“${company.title}”`;
-    const task = won
-      ? `Routed the legion facing them: video ${company.idx + 1}, ${title}, beats the top videos`
-      : engaged
-        ? `In the fight for video ${company.idx + 1}, ${title}`
-        : company.state === "sent"
-          ? `Closed up, waiting for video ${company.idx + 1}, ${title}, to go out`
-          : company.state === "failed"
-            ? `Held back: video ${company.idx + 1}'s post failed`
-            : `Formed up for video ${company.idx + 1}, ${title}`;
-    for (let i = 0; i < 6; i++) {
-      const file = (i % 3) - 1;
-      const rank = Math.floor(i / 3);
+    const video = `video ${company.idx + 1}, ${title}`;
+    const task =
+      outcome === "won"
+        ? `Took the rival's city: ${video} beats the top videos`
+        : outcome === "held"
+          ? `Holding the forum: ${video} is level with the top videos`
+          : outcome === "repulsed"
+            ? `Thrown back to the quay: ${video} trails the top videos`
+            : company.state === "engaged"
+              ? `Landed in the rival's city with ${video}, waiting for its numbers`
+              : company.state === "sent"
+                ? `Sailing for the rival's city while ${video} goes out`
+                : company.state === "failed"
+                  ? `Held back on the quay: video ${company.idx + 1}'s post failed`
+                  : `Mustered on the quay for ${video}`;
+    const state = outcome === "won" ? "done" : company.state === "failed" ? "failed" : company.state === "sent" || company.state === "engaged" ? "working" : "idle";
+    const files = hoplites === 6 ? 3 : 2;
+    for (let i = 0; i < hoplites; i++) {
+      const file = (i % files) - (files - 1) / 2;
+      const rank = Math.floor(i / files);
       agents.push({
         id: `hoplite:${company.idx}:${i}`,
         station: "agora",
         role: "Hoplite",
         task,
         look: (company.idx * 2 + i) % 6,
-        act: won ? "cheer" : engaged ? "fight" : "stand",
-        ...at(front - rank * RANK_GAP, centre + file * FILE_GAP),
-        dir: 0,
+        act: "stand",
+        ...at(-24 + file * 9, -19 - rank * 7.5),
+        dir: 1,
         via,
-        state: engaged || company.state === "sent" ? "working" : company.state === "failed" ? "failed" : "idle",
+        state,
+        army: { company: k, rank, file, role: "hoplite" },
       });
     }
-  });
-  for (let i = 0; i < 4; i++) {
     agents.push({
-      id: `archer:${i}`,
+      id: `archer:${company.idx}`,
       station: "agora",
       role: "Archer",
-      task: fighting ? "Loosing arrows over the phalanx at the legion" : "Waiting behind the phalanx, bow strung",
-      look: LOOK.archer + (i % 3),
-      act: fighting ? "shoot" : "stand",
-      ...at(BATTLE_LINES.archers, (i - 1.5) * 38),
-      dir: 0,
+      task: outcome ? task : company.state === "sent" || company.state === "engaged" ? `With the fleet: ${task.charAt(0).toLowerCase()}${task.slice(1)}` : `Bow strung, mustered with the hoplites for ${video}`,
+      look: LOOK.archer + (k % 3),
+      act: "stand",
+      ...at(-5, -22),
+      dir: 1,
       via,
-      state: fighting ? "working" : "idle",
-    });
-  }
-  CATAPULT_B.forEach((b, i) => {
-    agents.push({
-      id: `crew:${i}`,
-      station: "agora",
-      role: "Catapult crew",
-      task: fighting ? "Winding the catapult back for the next stone" : "Standing by the catapult",
-      look: (i + 4) % 6,
-      act: fighting ? "haul" : "stand",
-      ...at(BATTLE_LINES.catapults - 9, b + 4),
-      dir: 0,
-      via,
-      state: fighting ? "working" : "idle",
+      state,
+      army: { company: k, rank: 2, file: 0, role: "archer" },
     });
   });
   return agents;

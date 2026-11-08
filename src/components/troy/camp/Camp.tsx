@@ -7,8 +7,8 @@ import { easeInOutCubic, type Stage } from "../engine/stage";
 import { projectX, projectY } from "../engine/tracer";
 import type { CampScene } from "../scenes/camp";
 import { activeStation, derive, stationForEvent } from "../scenes/derive";
-import { type BattlePlan, type Company, companyB, companyFront } from "../scenes/battle";
-import { BATTLE_LINES, battlePoint, type Land, LAND_RADIUS, type LandId, LANDS, STATION, type StationId, STATIONS } from "../scenes/layout";
+import { type BattlePlan, type Company } from "../scenes/battle";
+import { type Land, LAND_RADIUS, type LandId, LANDS, ROME_LINES, romePoint, STATION, type StationId, STATIONS } from "../scenes/layout";
 import type { LandingScene } from "../scenes/landing";
 import styles from "../troy.module.css";
 import { DEMO_ID, type PublishMode } from "./demo";
@@ -49,10 +49,18 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   // open something (a station, a soldier), which the camera frames for them.
   const [manual, setManual] = useState(false);
   const manualRef = useRef(false);
-  const takeCamera = useCallback((mine: boolean) => {
-    manualRef.current = mine;
-    setManual(mine);
-  }, []);
+  /** The camera's follow while it rides with the fleet (so it can let go when the fleet arrives). */
+  const fleetFollow = useRef<{ at: () => { x: number; y: number; z: number } | null; dx: number; dy: number } | null>(null);
+  const takeCamera = useCallback(
+    (mine: boolean) => {
+      manualRef.current = mine;
+      setManual(mine);
+      // A viewer who takes the camera stops riding along with the fleet.
+      const stage = engine.current?.stage;
+      if (mine && stage && fleetFollow.current && stage.follow === fleetFollow.current) stage.follow = null;
+    },
+    [engine],
+  );
   const openStation = useCallback(
     (id: StationId | null) => {
       setAgentId(null);
@@ -62,6 +70,23 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
     [takeCamera],
   );
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  // Lines the soldiers call out, over their heads for a few seconds.
+  const [lines, setLines] = useState<Array<{ key: number; id: string; text: string; seconds: number }>>([]);
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    let next = 0;
+    e.camp.events.onSay = (line) => {
+      const key = ++next;
+      setLines((all) => [...all.filter((l) => l.id !== line.id), { key, id: line.id, text: line.text, seconds: line.seconds }]);
+      timers.push(setTimeout(() => setLines((all) => all.filter((l) => l.key !== key)), line.seconds * 1000));
+    };
+    return () => {
+      e.camp.events.onSay = undefined;
+      timers.forEach(clearTimeout);
+    };
+  }, [engine]);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [screening, setScreening] = useState<string | null>(null);
@@ -154,8 +179,8 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
 
   // --- Camera: frame the camp, or zoom to a station when its panel is open. ---------------------
   // Narrow screens can't show six islands at a readable size: they follow one station at a time,
-  // picked from a strip of cards along the bottom. While scouts are out on the roads the camera
-  // pulls back to show the lands they ride to.
+  // picked from a strip of cards along the bottom. The lands the scouts ride to lie far to the west,
+  // out of view unless you zoom out to them.
   const wide = useWide();
   const reduced = useReducedMotion();
   const [focused, setFocused] = useState<StationId | null>(null);
@@ -163,30 +188,35 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
   const shown = selected ?? focused ?? current;
   const panel = Boolean(selected || agentId);
   const insets = useMemo(() => ({ top: wide ? 84 : 64, bottom: wide ? 76 : 176, right: panel && wide ? 440 : 0 }), [panel, wide]);
-  // Once the videos go out, the agora's army fights the rival's legion below it: the camera goes there.
+  // Once the videos go out, the agora's army sails for the rival's city: the camera goes with it,
+  // from the harbour below the agora, along with the fleet across the sea, to the battle there.
   const battling = plan.battle.phase === "advance" || plan.battle.phase === "clash";
+  const [voyage, setVoyage] = useState<"harbor" | "fleet" | "rome" | null>(null);
+  // Each company's part of the story (boarding, under sail, fighting...), and whether the city has fallen.
+  const [fleetWords, setFleetWords] = useState<string[]>([]);
+  const [taken, setTaken] = useState(false);
 
   // What the map shows changes with the camp, not only with the data: polled a few times a second.
-  const [away, setAway] = useState(false);
   const [busyLands, setBusyLands] = useState<Partial<Record<LandId, number>>>({});
   // How much the labels on the map say: 2 in full, 1 names only (zoomed out), 0 a marker (far out).
   const [detail, setDetail] = useState<0 | 1 | 2>(2);
   useEffect(() => {
     const e = engine.current;
     if (!e || !arrived) return;
-    let lastOut = -Infinity;
     let lastKey = "";
     const poll = () => {
-      const now = performance.now();
+      // The lands are out of view unless you zoom out to them; their labels count the scouts there.
       const busy = e.camp.landsBusy();
-      if (Object.keys(busy).length) lastOut = now;
-      // Hold the wide view a moment after the last scout is back, so it doesn't bounce between errands.
-      setAway(now - lastOut < 2500);
       const key = JSON.stringify(busy);
       if (key !== lastKey) {
         lastKey = key;
         setBusyLands(busy);
       }
+      // Where the expedition is: the camera follows it.
+      setVoyage(e.camp.expedition.focus()?.kind ?? null);
+      const words = e.camp.expedition.stages();
+      setFleetWords((old) => (old.length === words.length && old.every((w, i) => w === words[i]) ? old : words));
+      setTaken(e.camp.expedition.taken);
       // Zoomed out, the labels shrink so the map stays readable: to their names, then to markers.
       const zoom = e.stage.camera.zoom;
       setDetail(zoom >= Math.max(1.6, e.camp.camera(e.camp.insets).zoom * 0.8) ? 2 : zoom >= 0.95 ? 1 : 0);
@@ -205,24 +235,39 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
       // the camera keeps it.
       if ((agentId && following) || manualRef.current) return;
       const ins = e.camp.insets;
-      const target = wide
-        ? selected
-          ? selected === "agora" && battling
-            ? e.camp.battleView(ins)
-            : e.camp.focus(selected, ins)
-          : away
-            ? e.camp.world(ins)
-            : battling
-              ? e.camp.battleView(ins)
-              : e.camp.camera(ins)
-        : away && shown === "scouts" && !panel
-          ? e.camp.lands(ins)
-          : battling && shown === "agora" && !panel
-            ? e.camp.battleView(ins)
-            : e.camp.focus(shown, ins);
-      e.stage.look(target, reduced ? 0 : duration, easeInOutCubic);
+      // The expedition holds the camera while it is under way, unless a station's panel is open.
+      const sailing = battling && voyage && (wide ? !selected || selected === "agora" : shown === "agora" && !panel);
+      const fleet = sailing && voyage === "fleet";
+      if (e.stage.follow && fleetFollow.current && e.stage.follow === fleetFollow.current && !fleet) e.stage.follow = null;
+      if (fleet) {
+        // Ride along with the fleet across the sea.
+        const zoom = e.camp.fleetZoom(ins);
+        const follow = {
+          at: () => {
+            const f = e.camp.expedition.focus();
+            return f?.kind === "fleet" ? f.at : null;
+          },
+          dx: ins.right / 2,
+          dy: (ins.bottom - ins.top) / 2,
+        };
+        fleetFollow.current = follow;
+        e.stage.follow = follow;
+        const at = follow.at();
+        if (at) e.stage.look({ x: projectX(at.x, at.y) + follow.dx / zoom, y: projectY(at.x, at.y, 0) + follow.dy / zoom, zoom }, reduced ? 0 : Math.max(duration, 1.2), easeInOutCubic);
+        return;
+      }
+      const target = sailing
+        ? voyage === "rome"
+          ? e.camp.romeView(ins)
+          : e.camp.harborView(ins)
+        : wide
+          ? selected
+            ? e.camp.focus(selected, ins)
+            : e.camp.camera(ins)
+          : e.camp.focus(shown, ins);
+      e.stage.look(target, reduced ? 0 : sailing ? Math.max(duration, 1.4) : duration, easeInOutCubic);
     },
-    [engine, insets, selected, wide, shown, reduced, agentId, following, panel, away, battling],
+    [engine, insets, selected, wide, shown, reduced, agentId, following, panel, battling, voyage],
   );
   useEffect(() => {
     if (arrived) frameCamera(1);
@@ -522,6 +567,10 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
     <>
       <TopBar view={view} spend={spend} visible={arrived} onSelect={openStation} selected={selected} demo={demo ? player : undefined} home={home} />
 
+      {lines.map((line) => (
+        <SpeechBubble key={line.key} engine={engine} id={line.id} text={line.text} seconds={line.seconds} />
+      ))}
+
       {arrived && view && !wide && (
         <StationStrip
           plan={plan}
@@ -557,10 +606,12 @@ export function Camp({ brandId, arrived, engine, home = "/" }: { brandId: string
 
       {arrived && view && plan.battle.phase !== "none" && (
         <>
-          {plan.battle.companies.map((company, k) => (
-            <CompanyTag key={company.creativeId} engine={engine} company={company} index={k} count={plan.battle.companies.length} detail={detail} />
-          ))}
-          {plan.battle.rival && <RivalBanner engine={engine} rival={plan.battle.rival} detail={detail} />}
+          {/* Once the city falls the banner at its gate says it for all of them. */}
+          {!taken &&
+            plan.battle.companies.map((company, k) => (
+              <CompanyTag key={company.creativeId} engine={engine} company={company} index={k} word={fleetWords[k] ?? COMPANY_WORD[company.state]} detail={detail} />
+            ))}
+          {plan.battle.rival && <RivalBanner engine={engine} rival={plan.battle.rival} taken={taken} detail={detail} />}
         </>
       )}
       {arrived && view && wide && battling && !panel && <Scoreboard battle={plan.battle} category={campaign?.plan?.category ?? null} onOpen={() => openStation("agora")} />}
@@ -1004,6 +1055,30 @@ function LandTag({ engine, land, scouts, detail }: { engine: RefObject<Engine | 
   );
 }
 
+/** A soldier's line, in a pixel speech bubble over his head that follows him as he moves. */
+function SpeechBubble({ engine, id, text, seconds }: { engine: RefObject<Engine | null>; id: string; text: string; seconds: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const e = engine.current;
+    if (!e || !ref.current) return;
+    return e.stage.anchor(ref.current, () => {
+      const p = e.camp.position(id);
+      return p ? { ...p, z: p.z + 27 } : null;
+    });
+  }, [engine, id]);
+  return (
+    <div ref={ref} className="pointer-events-none absolute left-0 top-0 z-[8] will-change-transform" role="status">
+      <div className={styles.say} style={{ animationDuration: `${seconds}s` }}>
+        <p className={`${styles.box} ${styles.pixel} max-w-[240px] px-2.5 py-1.5 text-center text-[13px] leading-snug text-[var(--ink)]`}>{text}</p>
+        <svg width="14" height="8" viewBox="0 0 7 4" shapeRendering="crispEdges" aria-hidden="true" className="mx-auto -mt-[3px] block">
+          <path d="M0 0h7v1h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1v-1h-1z" fill="var(--ink)" />
+          <path d="M1 0h5v1h-1v1h-1v1h-1v-1h-1v-1h-1z" fill="var(--paper)" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 /** "▲ 19%" or "▼ 9%": a ratio against the top videos, as a difference. */
 function versus(ratio: number) {
   const pct = Math.round((ratio - 1) * 100);
@@ -1016,20 +1091,21 @@ function standing(ratio: number) {
   return pct === 0 ? "Your videos are level with" : `Your videos are ${Math.abs(pct)}% ${pct > 0 ? "ahead of" : "behind"}`;
 }
 
-const COMPANY_WORD: Record<Company["state"], string> = { formed: "formed up", approved: "approved", sent: "going out", engaged: "posted", failed: "post failed" };
+const COMPANY_WORD: Record<Company["state"], string> = { formed: "mustered", approved: "cleared to sail", sent: "under sail", engaged: "landed", failed: "post failed" };
 
 /** Over each company of the army: which video it fights for, and how that video is doing. */
-function CompanyTag({ engine, company, index, count, detail }: { engine: RefObject<Engine | null>; company: Company; index: number; count: number; detail: 0 | 1 | 2 }) {
+function CompanyTag({ engine, company, index, word, detail }: { engine: RefObject<Engine | null>; company: Company; index: number; word: string; detail: 0 | 1 | 2 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const front = companyFront(company);
-  const b = companyB(index, count);
   useLayoutEffect(() => {
     const e = engine.current;
     if (!e || !ref.current) return;
-    const p = battlePoint(front - 6, b);
-    return e.stage.anchor(ref.current, () => ({ ...p, z: 27 }));
-  }, [engine, front, b]);
-  const result = company.ratio !== null ? versus(company.ratio) : null;
+    // Over its ship until it lands, then over its front rank; every other one a little higher, so
+    // neighbours don't cover each other.
+    return e.stage.anchor(ref.current, () => e.camp.expedition.companyAt(index), 0, -(index % 2) * 22);
+  }, [engine, index]);
+  // The result once the company has fought; until then, what it is doing.
+  const fought = word === "fighting" || word === "took the gate" || word === "holding" || word === "thrown back";
+  const result = company.ratio !== null && fought ? versus(company.ratio) : null;
   const tone = company.ratio === null ? "var(--ink)" : company.ratio >= 1 ? "var(--olive)" : "var(--crimson)";
   return (
     <div ref={ref} className="pointer-events-none absolute left-0 top-0 z-[5] will-change-transform">
@@ -1037,7 +1113,7 @@ function CompanyTag({ engine, company, index, count, detail }: { engine: RefObje
         <span className={`${styles.pixel} bg-[var(--ink)] px-1 text-[11px] leading-[15px] text-[var(--paper)]`}>{company.idx + 1}</span>
         {detail > 0 && (
           <span className={`${styles.pixel} text-[11px]`} style={{ color: result ? tone : "var(--ink-soft)" }}>
-            {result ? `${result} vs top videos` : COMPANY_WORD[company.state]}
+            {result ? `${result} vs top videos` : word}
           </span>
         )}
       </div>
@@ -1045,21 +1121,25 @@ function CompanyTag({ engine, company, index, count, detail }: { engine: RefObje
   );
 }
 
-/** Over the rival's fort: whose legion this is, and how many of its ads the scouts found running. */
-function RivalBanner({ engine, rival, detail }: { engine: RefObject<Engine | null>; rival: { name: string; ads: number | null }; detail: 0 | 1 | 2 }) {
+/** Under the rival city's gate: whose legion this is, and how many of its ads the scouts found running. */
+function RivalBanner({ engine, rival, taken, detail }: { engine: RefObject<Engine | null>; rival: { name: string; ads: number | null }; taken: boolean; detail: 0 | 1 | 2 }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const e = engine.current;
     if (!e || !ref.current) return;
-    // Under the fort's near corner, clear of the fighting.
-    const p = battlePoint(BATTLE_LINES.fort + 36, 36);
+    // In the street just inside the gate, clear of the fighting.
+    const p = romePoint(ROME_LINES.gate + 30, 0);
     return e.stage.anchor(ref.current, () => ({ ...p, z: 0 }));
   }, [engine]);
   return (
     <div ref={ref} className="pointer-events-none absolute left-0 top-0 z-[5] will-change-transform">
-      <div className={`${styles.box} ${styles.fadeIn} -translate-x-1/2 translate-y-2 whitespace-nowrap px-2.5 py-1 text-center`} style={{ background: "var(--crimson)", color: "var(--paper)" }}>
-        <span className={`${styles.pixel} block text-[13px] font-semibold uppercase tracking-wide`}>{rival.name}</span>
-        {detail > 0 && <span className="block text-[11px] leading-tight opacity-90">The rival{rival.ads ? ` · ${rival.ads} live ${rival.ads === 1 ? "ad" : "ads"} found` : ""}</span>}
+      <div key={taken ? "taken" : "rival"} className={`${styles.box} ${styles.fadeIn} -translate-x-1/2 translate-y-2 whitespace-nowrap px-2.5 py-1 text-center`} style={{ background: taken ? "var(--olive)" : "var(--crimson)", color: "var(--paper)" }}>
+        <span className={`${styles.pixel} block text-[13px] font-semibold uppercase tracking-wide`}>{taken ? `${rival.name}: taken` : rival.name}</span>
+        {detail > 0 && (
+          <span className="block text-[11px] leading-tight opacity-90">
+            {taken ? "Every video beat the top videos" : `The rival${rival.ads ? ` · ${rival.ads} live ${rival.ads === 1 ? "ad" : "ads"} found` : ""}`}
+          </span>
+        )}
       </div>
     </div>
   );

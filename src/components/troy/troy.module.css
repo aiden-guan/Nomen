@@ -370,6 +370,31 @@
   }
 }
 
+/* A soldier's line pops up in three pixel steps, and fades as it goes. */
+.say {
+  animation: say 3.4s steps(1, end) both;
+}
+
+@keyframes say {
+  0% {
+    transform: translate(-50%, -100%) scale(0.5);
+    opacity: 0;
+  }
+  4% {
+    transform: translate(-50%, -112%) scale(1);
+    opacity: 1;
+  }
+  8%,
+  90% {
+    transform: translate(-50%, -100%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -100%) scale(1);
+    opacity: 0;
+  }
+}
+
 /* A marker over the map that bobs in whole pixels, like a sprite. */
 .bob {
   animation: bob 1.2s steps(4, jump-none) infinite alternate;
@@ -393,6 +418,11 @@
   .beckon,
   .bob {
     animation: none;
+  }
+
+  .say {
+    animation: none;
+    transform: translate(-50%, -100%);
   }
 
   .enter,

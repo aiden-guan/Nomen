@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { BrandView } from "@/components/troy/api";
-import { benchmarkOf, type Company, companyFront, deriveBattle, postNumbers, VICTORY } from "@/components/troy/scenes/battle";
+import { benchmarkOf, type Company, deriveBattle, outcomeOf, postNumbers, shipsFor, VICTORY } from "@/components/troy/scenes/battle";
 import { derive } from "@/components/troy/scenes/derive";
-import { BATTLE_LINES } from "@/components/troy/scenes/layout";
+import { ROME_BERTHS_B } from "@/components/troy/scenes/layout";
 
-// The battle below the agora is a picture of real numbers: each posted video's likes per view
-// against the median of the top videos the research found. These tests pin how the campaign
-// becomes companies, phases and a score, and that missing numbers never turn into a result.
+// The expedition against the rival is a picture of real numbers: each posted video's likes per
+// view against the median of the top videos the research found. These tests pin how the campaign
+// becomes companies, phases, outcomes and a score, and that missing numbers never turn into a result.
 
 type Campaign = NonNullable<BrandView["campaign"]>;
 
@@ -78,66 +78,83 @@ describe("the battle from the campaign", () => {
     expect(derive(view({ stage: "production", creatives: [] })).agents.some((a) => a.id.startsWith("hoplite:"))).toBe(false);
   });
 
-  it("forms up a company for each finished video, with the rival from the plan", () => {
+  it("musters a company for each finished video on the quay, with the rival from the plan", () => {
     const battle = deriveBattle(view({ creatives: [creative(0), creative(1, true)] as never }));
     expect(battle.phase).toBe("muster");
     expect(battle.companies.map((c) => c.state)).toEqual(["formed", "approved"]);
     // Two of the three ads the scouts found are the rival's.
     expect(battle.rival).toEqual({ name: "Rival Co", ads: 2 });
     expect(battle.score).toBeNull();
-    // Six hoplites a company, four archers and two catapult crews, all marching to the field.
-    const army = derive(view({ creatives: [creative(0), creative(1, true)] as never })).agents.filter((a) => /^(hoplite|archer|crew):/.test(a.id));
-    expect(army).toHaveLength(2 * 6 + 4 + 2);
-    expect(army.every((a) => a.station === "agora" && a.via?.length && a.dir === 0)).toBe(true);
+    // Six hoplites and an archer a company, all marching down from the agora to the quay.
+    const army = derive(view({ creatives: [creative(0), creative(1, true)] as never })).agents.filter((a) => a.army);
+    expect(army).toHaveLength(2 * 7);
+    expect(army.filter((a) => a.army!.role === "archer")).toHaveLength(2);
+    expect(army.every((a) => a.station === "agora" && a.via?.length && a.dir === 1)).toBe(true);
+    // Each company stands by its own ship.
+    const ships = shipsFor(2);
+    expect(new Set(ships).size).toBe(2);
   });
 
-  it("closes up while posts go out, then fights as far forward as each video does", () => {
+  it("gives each company a ship landing near its place in the line, two to a ship past four", () => {
+    expect(shipsFor(4).sort()).toEqual([0, 1, 2, 3]);
+    // Two companies take the two middle berths.
+    expect(shipsFor(2).map((i) => Math.abs(ROME_BERTHS_B[i]))).toEqual([19, 19]);
+    const six = shipsFor(6);
+    expect(six.slice(4)).toEqual(six.slice(0, 2));
+    // Past four companies, four hoplites each, so two companies fit on a deck.
+    const creatives = Array.from({ length: 6 }, (_, i) => creative(i));
+    expect(derive(view({ creatives: creatives as never })).agents.filter((a) => a.army?.role === "hoplite")).toHaveLength(6 * 4);
+  });
+
+  it("sails while posts go out, then each attack ends the way its video does", () => {
     const sending = deriveBattle(view({ status: "publishing", creatives: [creative(0, true), creative(1, true)] as never, posts: [post(0, "pending"), post(1, "pending")] as never }));
     expect(sending.phase).toBe("advance");
-    expect(sending.companies.every((c) => c.state === "sent" && companyFront(c) === BATTLE_LINES.ready)).toBe(true);
+    expect(sending.companies.every((c) => c.state === "sent" && outcomeOf(c) === null)).toBe(true);
 
     // Video 0: 9% likes per view against 6% (1.5x); video 1: 3% (0.5x).
-    const fighting = deriveBattle(
-      view({
-        status: "live",
-        stage: "live",
-        creatives: [creative(0, true), creative(1, true)] as never,
-        posts: [post(0, "posted", { views: 1000, likes: 90 }), post(1, "posted", { views: 2000, likes: 60 })] as never,
-      }),
-    );
+    const live = view({
+      status: "live",
+      stage: "live",
+      creatives: [creative(0, true), creative(1, true)] as never,
+      posts: [post(0, "posted", { views: 1000, likes: 90 }), post(1, "posted", { views: 2000, likes: 60 })] as never,
+    });
+    const fighting = deriveBattle(live);
     expect(fighting.phase).toBe("clash");
     const [strong, weak] = fighting.companies;
     expect(strong.ratio).toBeCloseTo(1.5);
     expect(weak.ratio).toBeCloseTo(0.5);
     expect(strong.ratio! >= VICTORY).toBe(true);
-    // The strong one reaches the Romans' gate; the weak one is pushed back but holds.
-    expect(companyFront(strong)).toBeGreaterThan(BATTLE_LINES.romans);
-    expect(companyFront(weak)).toBeLessThan(0);
-    expect(companyFront(weak)).toBeGreaterThan(BATTLE_LINES.ready);
+    // The strong one routs the legion facing it; the weak one is thrown back to the quay.
+    expect(outcomeOf(strong)).toBe("won");
+    expect(outcomeOf(weak)).toBe("repulsed");
+    // Level with the top videos (within 13% either way) holds its ground.
+    expect(outcomeOf({ ...strong, ratio: 1 })).toBe("held");
     // Pooled: 150 likes on 3000 views is 5%, against 6%.
     expect(fighting.score).toMatchObject({ views: 3000, likes: 150 });
     expect(fighting.score!.ratio).toBeCloseTo(0.05 / 0.06);
-    const plan = derive(view({ status: "live", stage: "live", creatives: [creative(0, true), creative(1, true)] as never, posts: [post(0, "posted", { views: 1000, likes: 90 }), post(1, "posted", { views: 2000, likes: 60 })] as never }));
-    expect(plan.agents.find((a) => a.id === "hoplite:0:0")?.act).toBe("cheer");
-    expect(plan.agents.find((a) => a.id === "hoplite:1:0")?.act).toBe("fight");
-    expect(plan.agents.find((a) => a.id === "archer:0")?.act).toBe("shoot");
+    const plan = derive(live);
+    expect(plan.agents.find((a) => a.id === "hoplite:0:0")?.task).toMatch(/^Took the rival's city/);
+    expect(plan.agents.find((a) => a.id === "hoplite:1:0")?.task).toMatch(/^Thrown back/);
+    expect(plan.agents.find((a) => a.id === "hoplite:0:0")?.state).toBe("done");
   });
 
   it("shows no result where numbers are missing", () => {
     const noNumbers = deriveBattle(view({ status: "live", creatives: [creative(0, true)] as never, posts: [post(0, "posted", null)] as never }));
     expect(noNumbers.companies[0]).toMatchObject({ state: "engaged", ratio: null, views: null });
-    expect(companyFront(noNumbers.companies[0])).toBe(0);
+    expect(outcomeOf(noNumbers.companies[0])).toBeNull();
     // Without a benchmark the posts' own numbers are kept, but there is nothing to compare them with.
     const noBenchmark = deriveBattle(view({ status: "live", research: { domain: "acme.com", seo: { domain_rating: null, keywords: [] }, reddit: [], aeo: [], videos: [], ads: [] } as never, creatives: [creative(0, true)] as never, posts: [post(0, "posted", { views: 500, likes: 20 })] as never }));
     expect(noBenchmark.benchmark).toBeNull();
     expect(noBenchmark.companies[0]).toMatchObject({ views: 500, likes: 20, ratio: null });
     expect(noBenchmark.score).toMatchObject({ views: 500, likes: 20, ratio: null });
+    expect(outcomeOf(noBenchmark.companies[0])).toBeNull();
   });
 
   it("holds back a company whose post failed", () => {
     const battle = deriveBattle(view({ status: "live", creatives: [creative(0, true)] as never, posts: [post(0, "failed")] as never }));
     const company: Company = battle.companies[0];
     expect(company.state).toBe("failed");
-    expect(companyFront(company)).toBe(BATTLE_LINES.muster);
+    expect(outcomeOf(company)).toBeNull();
+    expect(derive(view({ status: "live", creatives: [creative(0, true)] as never, posts: [post(0, "failed")] as never })).agents.find((a) => a.id === "hoplite:0:0")?.task).toMatch(/^Held back/);
   });
 });

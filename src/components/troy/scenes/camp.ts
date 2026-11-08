@@ -1,13 +1,13 @@
-import { type Act, ACT_FRAMES, ACT_RATE, dirFor, type Job, RIDER_FRAMES, SHOOT_RELEASE } from "../engine/jobs";
+import { type Act, ACT_FRAMES, ACT_RATE, dirFor, type Job, RIDER_FRAMES } from "../engine/jobs";
 import { exitPath } from "../engine/models/horse";
 import { SCREEN } from "../engine/models/props";
 import type { CameraTarget, Entity, Stage } from "../engine/stage";
 import { projectX, projectY } from "../engine/tracer";
 import type { Point } from "../engine/walker";
-import { Battlefield } from "./battlefield";
 import type { AgentPlan, CampPlan } from "./derive";
 import type { LandingScene } from "./landing";
-import { BATTLE_VIEW, CAMP_CENTER, hub, ISLAND_RADIUS, JUNCTION, LAND, type LandId, LANDS, LANDS_VIEW, MAP_BOUNDS, type Node, roadToLand, sandbars, scoutLand, STATION, type StationId, STATIONS, travel, WORLD_VIEW, worldTrails } from "./layout";
+import { type Enlisted, Expedition } from "./expedition";
+import { CAMP_CENTER, HARBOR_VIEW, hub, ISLAND_RADIUS, JUNCTION, LAND, type LandId, LANDS, LANDS_VIEW, MAP_BOUNDS, type Node, ROME, ROME_VIEW, roadToLand, sandbars, scoutLand, STATION, type StationId, STATIONS, travel, WORLD_VIEW, worldTrails } from "./layout";
 import { COURIER_STALL, DESK_SLOTS, LAND_SPOTS, PROPS, SPOTS, STABLE_AISLE, STABLE_GATE, STALLS, type Waypoint } from "./stations";
 
 // The camp: station islands, their furniture and the agents, below the horse. This file owns the
@@ -24,7 +24,7 @@ import { COURIER_STALL, DESK_SLOTS, LAND_SPOTS, PROPS, SPOTS, STABLE_AISLE, STAB
  * World units per second. Brisk enough that the camp keeps up with the campaign: soldiers march
  * at double time on the roads and riders gallop flat out.
  */
-const SPEED = { column: 46, walk: 24, home: 40, run: 54, ride: 110, courier: 92 };
+const SPEED = { column: 46, walk: 24, home: 40, run: 54, ride: 135, courier: 92 };
 
 /** Seconds a figure holds still for small moments: mounting, unsaddling, a handover, a drop, the shortest visit to a land. */
 const BEAT = { mount: 0.25, dismount: 0.25, gather: 1.2, drop: 0.45, pickup: 0.25, handover: 0.35 };
@@ -93,7 +93,7 @@ type Agent = {
   frame: number;
 };
 
-type Where = "queued" | "moving" | "posted" | "afield" | "home";
+type Where = "queued" | "moving" | "posted" | "afield" | "home" | "expedition";
 
 /** A scout's trip: in camp, riding out, at the land, riding back, then over (with the case, or empty). */
 type Trip = "camp" | "out" | "there" | "back" | "done" | "empty";
@@ -128,7 +128,7 @@ const ACT_WORDS: Record<Act, string> = {
 
 /** What the camp can say about one agent, for the agent card. */
 export type AgentInfo = {
-  /** Where the figure is: on the move, at its post, gathering at a land, or inside the horse. */
+  /** Where the figure is: on the move, at its post, gathering at a land, inside the horse, or away with the fleet. */
   where: Where;
   /** What it is doing right now, in a short sentence. */
   doing: string;
@@ -149,6 +149,14 @@ export type AgentInfo = {
 export type CampEvents = {
   /** The courier reached a station with work for it. */
   onArrive?: (station: StationId) => void;
+  /** A soldier calls something out: a line over his head for a few seconds. */
+  onSay?: (line: { id: string; text: string; seconds: number }) => void;
+};
+
+/** What the soldiers call out at the big moments. */
+export const LINES = {
+  /** The first soldier out of the horse, leading the column into the camp. */
+  rollOut: "Men of Achaea, out of the horse! Let's roll out!",
 };
 
 export class CampScene {
@@ -177,12 +185,16 @@ export class CampScene {
   private entering = false;
   private brandId: string | null = null;
   private recruited = 0;
+  /** The leader has called the column out of the horse (once per camp). */
+  private calledOut = false;
   events: CampEvents = {};
   /** The agent whose card is open, and the one under the pointer. */
   selected: string | null = null;
   hovered: string | null = null;
-  /** The battle below the agora: the rival's legion, the engines and what flies (the Greeks are agents). */
-  private readonly battlefield: Battlefield;
+  /** The expedition below the agora: the harbour, the fleet, the sea, the rival's city and its legion (the Greeks are agents). */
+  readonly expedition: Expedition;
+  /** The expedition's scenery, baked after the camp's own. */
+  private readonly far: Entity[] = [];
   /** `big`: around a rider rather than a soldier on foot. */
   private readonly ring: Entity & { big: boolean };
   private readonly hoverRing: Entity & { big: boolean };
@@ -227,17 +239,24 @@ export class CampScene {
     const signpost = stage.add({ x: JUNCTION.x - 3, y: JUNCTION.y - 3, z: 0, job: { k: "prop", id: "signpost", v: 0 }, reveal: 0, priority: 3.9 });
     this.props.push(signpost);
     this.revealAt.set(signpost, 2);
-    // The battlefield below the agora, appearing after the camp's own islands.
-    this.battlefield = new Battlefield(stage, {
-      ground: (entity, at) => {
-        this.grounds.push(entity);
-        this.revealAt.set(entity, at);
+    // The harbour below the agora, the sea and the rival's city: they appear as you look at them.
+    this.expedition = new Expedition(stage, {
+      scenery: (entity) => this.far.push(entity),
+      claim: (id) => {
+        const agent = this.agents.get(id);
+        if (!agent || agent.busy || agent.dismissed || agent.where !== "posted" || !this.atPost(agent)) return null;
+        agent.where = "expedition";
+        agent.up = null;
+        return agent.entity;
       },
-      prop: (entity, at) => {
-        this.props.push(entity);
-        this.revealAt.set(entity, at);
+      release: (id) => {
+        const agent = this.agents.get(id);
+        if (!agent || agent.where !== "expedition") return;
+        agent.where = "posted";
+        agent.node = agent.plan.station;
+        this.settle(agent);
       },
-      greeks: () => [...this.agents.values()].filter((a) => a.plan.id.startsWith("hoplite:") && this.stage.has(a.entity)).map((a) => a.entity),
+      say: (id, text, seconds) => this.say(id, text, seconds),
     });
     // Horses tied at the scouts' rail; they leave with a rider and come back with one.
     const scouts = STATION.scouts;
@@ -261,11 +280,17 @@ export class CampScene {
     if (this.brandId !== null && this.brandId !== brandId) this.reset();
     this.brandId = brandId;
     for (const entity of [...this.grounds, ...this.props]) if (entity.job) void this.stage.baker.request(entity.job, 5);
+    for (const entity of this.far) if (entity.job) void this.stage.baker.request(entity.job, 2);
   }
 
   /** The column is about to march out of the horse: everyone in the first plan walks in. */
   beginEntrance() {
     if (!this.planned) this.entering = true;
+  }
+
+  /** A soldier calls out a line (shown over his head by the camp's HTML). */
+  say(id: string, text: string, seconds = 3.2) {
+    this.events.onSay?.({ id, text, seconds });
   }
 
   /** Clears every agent, desk and errand (a different camp, or back to the landing). */
@@ -283,11 +308,12 @@ export class CampScene {
     for (const steed of this.landSteeds.values()) this.stage.remove(steed);
     this.landSteeds.clear();
     this.landSpots.clear();
-    this.battlefield.reset();
+    this.expedition.reset();
     this.timers.length = 0;
     this.planned = false;
     this.entering = false;
     this.recruited = 0;
+    this.calledOut = false;
     this.brandId = null;
   }
 
@@ -316,9 +342,32 @@ export class CampScene {
     return this.fitView(WORLD_VIEW, insets);
   }
 
-  /** The camera that shows the agora and the battle below it. */
-  battleView(insets: { top: number; bottom: number; right: number } = this.insets): CameraTarget {
-    return this.fitView(BATTLE_VIEW, insets);
+  /** The camera on the home harbour, the agora above it, while the army boards (on a phone, close on the middle ships). */
+  harborView(insets: { top: number; bottom: number; right: number } = this.insets): CameraTarget {
+    if (this.narrow) return this.around({ x: -110, y: 478 }, 1.25, insets);
+    return this.fitView(HARBOR_VIEW, insets);
+  }
+
+  /** The camera on the rival's city: the ships at its quay, the forum, the gate (on a phone, close on the fighting). */
+  romeView(insets: { top: number; bottom: number; right: number } = this.insets): CameraTarget {
+    if (this.narrow) return this.around({ x: ROME.x - ROME.y - 40, y: (ROME.x + ROME.y) / 2 - 30 }, 1.25, insets);
+    return this.fitView(ROME_VIEW, insets);
+  }
+
+  /** A zoom that shows the fleet with the sea round it (the camera follows the ships). */
+  fleetZoom(insets: { top: number; bottom: number; right: number } = this.insets) {
+    return Math.max(this.fitView({ x0: 0, x1: 560, y0: 0, y1: 380 }, insets).zoom, this.narrow ? this.stage.fitZoom(1) : 0);
+  }
+
+  /** A phone-sized screen: the camera frames the action close up instead of fitting whole views. */
+  private get narrow() {
+    return this.stage.size.width < 700;
+  }
+
+  /** A camera on a screen point (art px) at about `zoom`, clear of the panels. */
+  private around(p: { x: number; y: number }, zoom: number, insets: { top: number; bottom: number; right: number }): CameraTarget {
+    const z = this.stage.fitZoom(zoom);
+    return { x: p.x + insets.right / 2 / z, y: p.y + (insets.bottom - insets.top) / 2 / z, zoom: z };
   }
 
   /** The lands and the roads to them, with the scouts' island: the scouts' errands on a narrow screen. */
@@ -447,7 +496,8 @@ export class CampScene {
       } else this.settle(agent);
     }
     this.updateBasket();
-    this.battlefield.apply(plan.battle, instantly);
+    const army: Enlisted[] = plan.agents.filter((a) => a.army).map((a) => ({ id: a.id, ...a.army! }));
+    this.expedition.apply(plan.battle, army, instantly);
   }
 
   /** The courier carries work from one station to the next (each stage change, each finished video). */
@@ -541,7 +591,8 @@ export class CampScene {
   private settle(agent: Agent) {
     if (agent.busy) return;
     const plan = agent.plan;
-    if (agent.where === "queued") return;
+    // Queued in the horse, or away with the expedition (which moves them).
+    if (agent.where === "queued" || agent.where === "expedition") return;
 
     if (agent.dismissed) {
       if (agent.where === "home") this.agents.delete(plan.id);
@@ -599,6 +650,11 @@ export class CampScene {
     const out = exitPath();
     Object.assign(e, { x: out[0].x, y: out[0].y, z: out[0].z, alpha: 0, reveal: 1, act: "march" as Act });
     this.stage.add(e);
+    // The first one out leads the column, and says so.
+    if (!this.calledOut && this.entering) {
+      this.calledOut = true;
+      this.say(agent.plan.id, LINES.rollOut, 3.6);
+    }
     const route = travel("horse", agent.plan.station, agent.lane);
     const steps: Step[] = [...out.slice(1), ...route, ...this.approach(agent.plan)];
     agent.node = agent.plan.station;
@@ -1023,7 +1079,8 @@ export class CampScene {
     if (!agent) return null;
     const e = agent.entity;
     const posted = agent.where === "posted" && !agent.busy;
-    const doing = agent.where === "home" ? (agent.finished ? "Back inside the horse, the job done" : "Inside the horse, about to march out") : agent.where === "queued" ? "Waiting inside the horse for a place in the column" : posted ? ACT_WORDS[e.act] : agent.doing;
+    const away = agent.where === "expedition" ? (this.expedition.doing(id) ?? "With the expedition") : null;
+    const doing = away ?? (agent.where === "home" ? (agent.finished ? "Back inside the horse, the job done" : "Inside the horse, about to march out") : agent.where === "queued" ? "Waiting inside the horse for a place in the column" : posted ? ACT_WORDS[e.act] : agent.doing);
     return { where: agent.where, doing, mounted: e.job?.k === "rider", visible: this.stage.has(e), errand: agent.errand, deliveries: agent.deliveries, trip: agent.trip, land: agent.plan.id.startsWith("scout:") ? this.landOf(agent) : null, coat: e.coat };
   }
 
@@ -1242,8 +1299,6 @@ export class CampScene {
       const frames = ACT_FRAMES[act];
       const f = frames > 1 ? Math.floor((this.time + agent.phase) / ACT_RATE[act]) % frames : 0;
       e.job = { k: "soldier", look: e.look, act, dir: e.dir, f };
-      // An archer's arrow leaves the string on the release frame.
-      if (act === "shoot" && f === SHOOT_RELEASE && agent.frame !== f) this.battlefield.loose(e);
       agent.frame = f;
       if ((e.reveal ?? 1) < 1 && this.revealT > 0.6) e.reveal = Math.min(1, (e.reveal ?? 0) + dt * 1.6);
     }
@@ -1262,11 +1317,12 @@ export class CampScene {
     }
     const shrine = this.keyed.get("oracle:shrine");
     if (shrine?.job?.k === "prop") shrine.job = { k: "prop", id: "shrine", v: this.tvOn ? 1 + (Math.floor(this.time / 0.3) % 4) : 0 };
-    this.battlefield.tick(dt);
+    this.expedition.tick(dt);
   }
 
   private revealTick(dt: number) {
     const targets = [...this.grounds, ...this.props];
+    this.expedition.revealTick(dt, this.showing && this.revealT > 0.4);
     if (!this.showing) {
       for (const entity of targets) entity.reveal = Math.max(0, (entity.reveal ?? 0) - dt * 2);
       this.revealT = 0;

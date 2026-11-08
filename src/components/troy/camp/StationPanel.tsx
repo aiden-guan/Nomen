@@ -54,9 +54,9 @@ export function StationPanel({
   const state = plan.stations[id];
   const here = plan.agents.filter((a) => a.station === id);
   // Scouts who already brought their findings back have gone home: count them instead of listing.
-  // The agora's army is shown a company at a time: its first hoplite, one archer, one crewman.
-  const army = here.filter((a) => /^(hoplite|archer|crew):/.test(a.id));
-  const agents = here.filter((a) => !a.returning && (!/^(hoplite|archer|crew):/.test(a.id) || a.id.endsWith(":0")));
+  // The agora's army is shown a company at a time: its first hoplite, and the first company's archer.
+  const army = here.filter((a) => /^(hoplite|archer):/.test(a.id));
+  const agents = here.filter((a) => !a.returning && (!/^(hoplite|archer):/.test(a.id) || a.id.endsWith(":0")));
   const away = here.filter((a) => a.away).length;
   const back = here.filter((a) => a.returning === "scroll").length;
   const empty = here.filter((a) => a.returning === "empty").length;
@@ -457,8 +457,8 @@ function VideoCard({ creative, busy, actions }: { creative: CreativeView; busy: 
 export { crispIfTiny };
 
 /**
- * The battle below the agora, in numbers: each video's company and how its posts do against the
- * category's top videos, which is what moves the line on the map.
+ * The expedition, in numbers: each video's company and how its posts do against the category's top
+ * videos, which is how each attack on the rival's city ends.
  */
 function Battle({ battle, category }: { battle: BattlePlan; category: string | null }) {
   if (battle.phase === "none") return null;
@@ -468,8 +468,8 @@ function Battle({ battle, category }: { battle: BattlePlan; category: string | n
   return (
     <Section title="The battle" aside={battle.rival ? <span className="text-[11px] text-[var(--ink-faint)]">against {rival}{battle.rival.ads ? `, ${battle.rival.ads} live ads` : ""}</span> : undefined}>
       <p className="text-[12px] leading-relaxed text-[var(--ink-soft)]">
-        Below the agora your army fights the legion of {rival}: a company for each video. Once a video is posted, its company pushes as far as the video does against the top videos
-        {category ? ` in ${category}` : ""} the scouts found, by likes per view.
+        A company for each video sails from the quay below the agora to the city of {rival} and lands once its video is posted. It routs the legion facing it if the video beats the top videos
+        {category ? ` in ${category}` : ""} the scouts found by likes per view, holds its ground if level, and falls back to the quay if behind.
       </p>
       <div className="mt-3 bg-[rgba(43,29,20,0.04)] p-2.5">
         <p className="flex items-center justify-between text-[11px]">
@@ -495,7 +495,7 @@ function Battle({ battle, category }: { battle: BattlePlan; category: string | n
               <span className={`${styles.pixel} shrink-0 text-[11px]`} style={{ color: company.ratio === null ? "var(--ink-faint)" : ahead ? "var(--olive)" : "var(--crimson)" }}>
                 {company.ratio !== null
                   ? `${ahead ? "▲" : "▼"} ${Math.abs(Math.round((company.ratio - 1) * 100))}%${company.views ? ` · ${pct((company.likes ?? 0) / company.views)}` : ""}`
-                  : { formed: "formed up", approved: "approved", sent: "going out", engaged: "posted", failed: "post failed" }[company.state]}
+                  : { formed: "mustered", approved: "cleared to sail", sent: "under sail", engaged: "landed", failed: "post failed" }[company.state]}
               </span>
             </li>
           );

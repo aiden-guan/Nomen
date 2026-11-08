@@ -44,6 +44,13 @@ export const R = {
   cyan: defineRamp("cyan", ["#0b3a40", "#0f5f68", "#16929b", "#21c8cf", "#5eecee", "#b8fbf7"]),
   blue: defineRamp("blue", ["#0b1f4d", "#12337a", "#1a4fb0", "#2b6be0", "#5b93f2", "#a8c6fb"]),
   jade: defineRamp("jade", ["#0a3328", "#0e5241", "#127a5f", "#18a07c", "#4dc3a0", "#a2e3cd"]),
+  // The wine-dark sea: deep water to the shallows; and its pale foam.
+  sea: defineRamp("sea", ["#14334f", "#1b4a6b", "#246387", "#327fa1", "#5a9fb9", "#9cc8d3"]),
+  foam: defineRamp("foam", ["#8fb6c0", "#b0ced3", "#cbe0e0", "#e1ece8", "#f1f6f1", "#fcfdfa"]),
+  // Roman terracotta roof tiles and ochre plaster.
+  tile: defineRamp("tile", ["#5a1f14", "#7c2d1b", "#9e3f24", "#bd5631", "#d5774a", "#e7a074"]),
+  ochre: defineRamp("ochre", ["#7a5222", "#9a6c2e", "#b98a3f", "#d1a757", "#e4c37c", "#f2dfab"]),
+  cypress: defineRamp("cypress", ["#18261a", "#213622", "#2d4a2b", "#3d6136", "#557a46", "#7a9a5f"]),
 };
 
 export type RampName = keyof typeof R;

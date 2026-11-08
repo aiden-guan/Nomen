@@ -707,6 +707,16 @@ export class Model {
     return this.make(KIND.box, x, y, z, [hx, hy, hz, 0], Math.hypot(hx, hy, hz), { mat: 0, rot });
   }
 
+  /**
+   * A primitive of any shape that is not drawn, for carving a hole into another one (an arch is an
+   * ellipsoid, a bowl a sphere): `build` makes it on a scratch model in this model's frame.
+   */
+  cutter(build: (scratch: Model) => Prim): Prim {
+    const scratch = new Model();
+    scratch.stack = [this.frame];
+    return build(scratch);
+  }
+
   ellipsoid(x: number, y: number, z: number, rx: number, ry: number, rz: number, o: PrimOptions) {
     return this.add(this.make(KIND.ellipsoid, x, y, z, [rx, ry, rz, 0], Math.max(rx, ry, rz), o));
   }
