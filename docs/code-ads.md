@@ -125,7 +125,11 @@ It renders where the worker runs locally: it needs Google Chrome (WebGL on the G
 scipy. **It cannot render on Vercel** (no Chrome with WebGL, no Python): there the creative fails at once with
 "run the worker locally to make them". A 25 s ad takes about 6-8 minutes at 60 fps on an M-series Mac.
 
-- Voice: ElevenLabs Adam through Monid when a Monid key is set (cents), else the free macOS `say` voice.
+- Voice: ElevenLabs Adam through Monid when a Monid key is set (cents), else the free macOS `say` voice. With Monid's
+  wallet empty the ads use Naive's text-to-speech (`NOMEN_CODEAD_NARRATOR=naive`). Naive checks each read against the
+  text and rejects a line it hears differently: spelled-out numbers ("twenty-nine hundred" comes back as "2900"),
+  dotted API names ("monid.run" as "monad.run") and paraphrases. Keep those out of spoken lines and put them in the
+  callouts and on the big screen instead.
   `NOMEN_CODEAD_VOICE=scratch` forces the free one. `NOMEN_PYTHON` picks the Python.
 - Cost: the writer and critic (Claude Sonnet on Naive, ~$0.10-0.30), the narrator (~$0.05-0.20), one vision check
   (cents). Rendering is free.
