@@ -90,6 +90,8 @@ and the campaign says so. Research always runs on Monid, so Naive's balance goes
   (contract with the strategist), `production.ts` (frames, renders, QC, finishing), `publish.ts`,
   `pipeline.ts` (the state machine), `worker.ts` (the loop that drives it), and clients for Naive
   and Monid.
+- `src/lib/codeads/` — code ads: 3D cartoon ads made entirely in code with ED Studio's engine (Gary the Builder,
+  a narrator, a synthesized score), rendered locally in headless Chrome; see `docs/code-ads.md`.
 - `src/app/` — Next.js 16 pages and API routes. `src/components/` — the UI.
 - SQLite in `data/` holds brands, campaigns, research runs, videos, posts and the activity log;
   finished videos are kept in `data/media/`. Every step is idempotent, so restarting the server
