@@ -427,18 +427,20 @@ async function scriptRoom(campaign: CampaignRow, naive: NaiveClient, product: Pr
   const briefs = strategy.campaign.briefs ?? [];
   const done = strategy.campaign.concepts ?? [];
   const pending = briefs.filter((brief) => !done.some((concept) => concept.brief?.title === brief.title));
+  const round = (strategy.campaign.script_rounds ?? 0) + 1;
+  strategy.campaign.script_rounds = round;
   const results = await Promise.allSettled(
     pending.map(async (brief) => {
       const reference = breakdowns.find((b) => b.id === brief.reference_id) ?? breakdowns[0];
       const script = await writeScript(naive, { product, brief, reference: reference ?? emptyReference(), targetSeconds: reference ? targetSeconds(reference) : 18 });
-      const plan = planProduction(script, brief, product);
+      const plan = planProduction(script, brief, product, reference?.delivery ?? "");
       return conceptFrom(brief, script, plan, reference, product);
     }),
   );
   const failures: string[] = [];
   results.forEach((result, i) => {
     if (result.status === "fulfilled") done.push(result.value);
-    else if (!(result.reason instanceof ApiError && result.reason.retryable)) failures.push(`"${pending[i].title}": ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+    else if (!(result.reason instanceof ApiError && result.reason.retryable) || round >= 4) failures.push(`"${pending[i].title}": ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
   });
   strategy.campaign.concepts = briefs.map((brief) => done.find((concept) => concept.brief?.title === brief.title)).filter((c): c is Concept => Boolean(c));
   update("campaigns", campaign.id, { strategy_json: JSON.stringify(strategy) });

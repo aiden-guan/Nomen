@@ -41,6 +41,8 @@ export type Strategy = {
     /** The creative director's briefs, one per video. */
     briefs?: CreativeBrief[];
     posting_plan: { cadence: string; best_times: string[]; notes: string };
+    /** How many times the script room has run, so a model that keeps fumbling cannot loop forever. */
+    script_rounds?: number;
   };
 };
 

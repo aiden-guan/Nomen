@@ -15,7 +15,7 @@ export const isTall = (visual: Pick<ProductVisual, "width" | "height">) => Boole
 
 const usesCreator = (format: CreativeBrief["format"]) => format === "talking_head_broll" || format === "split_screen";
 
-export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief): ProductionPlan {
+export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief, delivery = ""): ProductionPlan {
   const visuals = new Map(product.visuals.map((v) => [v.id, v]));
   const broll: BRollClip[] = [];
   let photoTurn = 0;
@@ -30,7 +30,7 @@ export function planProduction(script: Script, brief: CreativeBrief, product: Pr
     const text = script.beats.map((beat) => beat.line).filter(Boolean).join(" ");
     return { format: brief.format, aroll: [], broll, voiceover: text ? { text, voice: "" } : null };
   }
-  return { format: brief.format, aroll: groupShots(script).map((beats, i) => arollShot(i + 1, beats, brief, product)), broll, voiceover: null };
+  return { format: brief.format, aroll: groupShots(script).map((beats, i) => arollShot(i + 1, beats, brief, product, delivery)), broll, voiceover: null };
 }
 
 function motionFor(visual: ProductVisual, beat: ScriptBeat, turn: number): BRollClip["motion"] {
@@ -74,7 +74,7 @@ const CALM =
 const SAFE =
   "Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.";
 
-function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product: ProductBrief): ARollShot {
+function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product: ProductBrief, delivery: string): ARollShot {
   const who = pronoun(brief.creator);
   const line = beats.map((beat) => beat.line).filter(Boolean).join(" ");
   const directions = beats
@@ -105,7 +105,8 @@ function arollShot(n: number, beats: ScriptBeat[], brief: CreativeBrief, product
       `${brief.creator}, in ${brief.setting}.`,
       directions ? `${directions}.` : "",
       productLine.trim(),
-      line ? `${who} says, in a natural, conversational voice that matches this delivery (${brief.angle}): "${line}"` : `${who} reacts silently.`,
+      line ? `${who} says, in a natural, conversational voice${delivery ? ` with this delivery: ${delivery}` : ""}: "${line}"` : `${who} reacts silently.`,
+      "The voice is the same in every shot of this video: same person, same pitch, same energy.",
       "Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends.",
       CALM,
       "Audio: voice close to the microphone, quiet room tone, no music.",

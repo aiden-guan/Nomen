@@ -36,11 +36,11 @@ export async function reviewShot(
 ): Promise<Verdict> {
   const rubric = [
     `You are the last quality gate before a brand posts this ad. These are ${input.frames.length} frames, in order, from shot ${input.shotNumber} of "${input.concept.title}", a vertical UGC-style ad for ${input.brand.name}.`,
-    `The product should look like this: ${input.brand.product_look}`,
+    `If the prompt puts the product in this shot, it should look like this: ${input.brand.product_look}. Many shots deliberately show only the creator (the real product is cut in during the edit): a product that is absent when the prompt does not ask for it is correct.`,
     `The creator should be: ${input.concept.creator}`,
     `The setting should be: ${input.concept.setting}`,
     `What should happen in this shot: ${input.shot.video_prompt}`,
-    "Critical defects (any one fails the shot): the product is missing, malformed or its label is garbled or wrong; deformed hands, faces, teeth or eyes; extra or merging limbs or objects; the person changes identity between frames; heavy lens distortion; eyes closed for most of the shot; readable or gibberish text or a screen facing the camera; unsafe or off-brand content.",
+    "Critical defects (any one fails the shot): the product is missing when the prompt puts it in the shot, or malformed, or its label is garbled or wrong; deformed hands, faces, teeth or eyes; extra or merging limbs or objects; the person changes identity between frames; heavy lens distortion; eyes closed for most of the shot; readable or gibberish text or a screen facing the camera; unsafe or off-brand content.",
     "Not critical (note it, do not fail for it): the person moves or reacts differently from the script but naturally and on message, a single natural blink, small framing differences. A re-render costs money, so fail only what a viewer would notice as fake or wrong.",
     "Judge whether it looks like a real person filmed it on a phone. Be strict about realism: a shot that would make the brand look cheap fails. Call the qc_verdict tool once.",
   ].join("\n");
