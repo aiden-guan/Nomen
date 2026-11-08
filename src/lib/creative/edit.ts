@@ -259,7 +259,11 @@ function imageChain(
   return chains;
 }
 
-/** Filters turning a video B-roll input into `frames` frames of `ow` x `oh`, cover-fit, looped if short. */
+/**
+ * Filters turning a video B-roll input into `frames` frames of `ow` x `oh`, cover-fit. A clip shorter
+ * than its segment holds its last frame: built screens end on their finished state, and a demo that
+ * jumps back to its first frame mid-sentence looks broken.
+ */
 function videoChain(
   input: string,
   out: string,
@@ -273,7 +277,7 @@ function videoChain(
 ): string[] {
   const aspect = info.width > 0 && info.height > 0 ? info.width / info.height : ow / oh;
   const target = ow / oh;
-  const head = `[${input}]setpts=PTS-STARTPTS,fps=${fps}`;
+  const head = `[${input}]setpts=PTS-STARTPTS,fps=${fps},tpad=stop_mode=clone:stop_duration=${num(frames / fps + 1)}`;
   const tail = `format=yuv420p,setsar=1,trim=end_frame=${frames},setpts=PTS-STARTPTS+${startFrame}[${out}]`;
   if (aspect > target && target / aspect < minVisible(v.split)) {
     return [
@@ -308,8 +312,8 @@ export type RenderOptions = {
  * - Images are cover-fit, except wide ones that would lose too much width (see minVisible), which
  *   are shown whole over a blurred copy. Transparent images are flattened onto white. `scroll_down`
  *   on an image that is not tall enough to scroll falls back to `zoom_in`.
- * - B-roll videos are cover-fit and looped to fill their segment; their `motion` is ignored and
- *   their own audio is never used.
+ * - B-roll videos are cover-fit and hold their last frame when shorter than their segment; their
+ *   `motion` is ignored and their own audio is never used.
  */
 export async function renderTimeline(timeline: EditTimeline, outPath: string, options: RenderOptions = {}): Promise<string> {
   const bin = await editFfmpeg();
@@ -403,7 +407,7 @@ export async function renderTimeline(timeline: EditTimeline, outPath: string, op
     const startFrame = Math.round(v.start * fps);
     const id = `b${k}`;
     if (v.kind === "video") {
-      const i = input("-stream_loop", "-1", "-t", num(v.end - v.start + 1), "-i", resolve(v.path));
+      const i = input("-t", num(v.end - v.start + 1), "-i", resolve(v.path));
       graph.push(...videoChain(`${i}:v`, `${id}v`, v, infos[k], ow, oh, n, startFrame, id));
     } else {
       const i = input("-i", resolve(v.path));

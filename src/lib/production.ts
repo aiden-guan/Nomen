@@ -99,6 +99,10 @@ export type ProductionContext = {
 
 type ScreenManifest = { clips: Array<{ id: string; kind: "video" | "image"; path: string }>; failures: Array<{ id: string; error: string }> };
 const screenManifest = (creativeId: string) => join(mediaDir(creativeId), "screens", "manifest.json");
+async function readScreenManifest(creativeId: string): Promise<ScreenManifest> {
+  const raw = JSON.parse(await readFile(screenManifest(creativeId), "utf8").catch(() => "{}")) as Partial<ScreenManifest>;
+  return { clips: Array.isArray(raw.clips) ? raw.clips : [], failures: Array.isArray(raw.failures) ? raw.failures : [] };
+}
 
 const MAX_RENDERS = 3;
 
@@ -539,13 +543,19 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
  * built once and recorded in a manifest. A screen that fails falls back to the beat's real visual.
  */
 async function ensureScreens(ctx: ProductionContext, creativeId: string, concept: Concept) {
-  const requests = concept.plan?.screens ?? [];
-  if (!requests.length || !ctx.product || !ctx.naive || ctx.naiveOut() || existsSync(screenManifest(creativeId))) return;
+  // Only the screens the manifest has no answer for yet, so a re-planned video builds just its new ones.
+  const done = existsSync(screenManifest(creativeId)) ? await readScreenManifest(creativeId) : { clips: [], failures: [] };
+  const known = new Set([...done.clips, ...done.failures].map((entry) => entry.id));
+  const requests = (concept.plan?.screens ?? []).filter((request) => !known.has(request.id));
+  if (!requests.length || !ctx.product || !ctx.naive || ctx.naiveOut()) return;
   const workDir = join(mediaDir(creativeId), "screens");
   await mkdir(workDir, { recursive: true });
   try {
     const result = await buildScreens(ctx.naive, requests, { product: ctx.product, kit: ctx.kit ?? null, style: concept.reference?.format }, { workDir });
-    const manifest: ScreenManifest = { clips: result.clips.map(({ id, kind, path }) => ({ id, kind, path })), failures: result.failures };
+    const manifest: ScreenManifest = {
+      clips: [...done.clips, ...result.clips.map(({ id, kind, path }) => ({ id, kind, path }))],
+      failures: [...done.failures, ...result.failures],
+    };
     await writeFile(screenManifest(creativeId), JSON.stringify(manifest));
     logEvent({
       brandId: ctx.brandId,
@@ -555,7 +565,7 @@ async function ensureScreens(ctx: ProductionContext, creativeId: string, concept
     });
   } catch (error) {
     if (error instanceof ApiError && error.retryable) return; // try again next tick
-    await writeFile(screenManifest(creativeId), JSON.stringify({ clips: [], failures: requests.map((r) => ({ id: r.id, error: message(error) })) } satisfies ScreenManifest));
+    await writeFile(screenManifest(creativeId), JSON.stringify({ clips: done.clips, failures: [...done.failures, ...requests.map((r) => ({ id: r.id, error: message(error) }))] } satisfies ScreenManifest));
     logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}": product screens could not be built (${message(error)}); using the real visuals instead` });
   }
 }
@@ -577,7 +587,8 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
     const path = join(dir, "voiceover.wav");
     if (!existsSync(path)) {
       if (!ctx.naive || ctx.naiveOut()) throw new Error("the voice-over needs Naive");
-      await speakTo(ctx.naive, plan.voiceover, `${creativeId}-voiceover`, path);
+      const speed = voiceSpeed(plan.voiceover.text, script.beats.reduce((sum, beat) => sum + beat.seconds, 0));
+      await speakTo(ctx.naive, plan.voiceover, speed, `${creativeId}-voiceover-${speed}`, path);
     }
     voiceover = { path, duration: (await probe(path)).duration };
   }
@@ -608,8 +619,21 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
 }
 
 /** Text-to-speech through Naive, saved as a local file for the edit. */
-async function speakTo(naive: NonNullable<ProductionContext["naive"]>, voiceover: { text: string; voice: string }, idempotencyKey: string, path: string) {
-  const speech = await naive.speak({ text: voiceover.text.slice(0, 4000), ...(voiceover.voice ? { voice: voiceover.voice } : {}) }, idempotencyKey);
+/** Words per second the text-to-speech voice reads at speed 1 (measured: 150 words in 48.4 s). */
+const TTS_WPS = 3.1;
+
+/**
+ * The speed that reads the script in the time it was written for: the references talk fast (230-250
+ * wpm), the default voice does not. Never slower than normal, never past 1.5x.
+ */
+export function voiceSpeed(text: string, seconds: number): number {
+  const words = text.split(/\s+/).filter(Boolean).length;
+  if (!words || seconds <= 0) return 1;
+  return Math.round(Math.min(1.5, Math.max(1, words / seconds / TTS_WPS)) * 100) / 100;
+}
+
+async function speakTo(naive: NonNullable<ProductionContext["naive"]>, voiceover: { text: string; voice: string }, speed: number, idempotencyKey: string, path: string) {
+  const speech = await naive.speak({ text: voiceover.text.slice(0, 4000), ...(voiceover.voice ? { voice: voiceover.voice } : {}), ...(speed !== 1 ? { speed } : {}) }, idempotencyKey);
   const fileId = speechFileId(speech);
   if (!fileId) throw new ApiError("naive", 502, "no_file", "text-to-speech returned no file");
   await download((await naive.fileUrl(fileId)).url, path);

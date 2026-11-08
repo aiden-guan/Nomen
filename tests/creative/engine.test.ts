@@ -433,6 +433,30 @@ describe("screens in the plan", () => {
     expect(plan.broll.find((c) => c.beat === 3)?.visual_id).toBe("s1"); // a real visual where no screen was asked for
   });
 
+  it("never holds one still across beats: a repeat gets a screen of its own line", () => {
+    const split = { ...brief, format: "split_screen" as const };
+    const beat = (n: number, product_visual: string) => ({ n, job: "demo" as const, seconds: 3, line: `line ${n}`, on_screen_text: "", visual: "split" as const, product_visual, direction: "" });
+    const script = normalizeScript([beat(1, "s1"), beat(2, "s1"), beat(3, "s2"), beat(4, "s1"), beat(5, "s2"), beat(6, "s1")], { ...ctx, brief: split });
+    const plan = planProduction(script, split, product);
+    // s1 twice in a row, then s1 a third time: both become screens.
+    expect(plan.broll.map((c) => c.visual_id)).toEqual(["s1", "screen:b2", "s2", "s1", "s2", "screen:b6"]);
+    expect(plan.screens?.map((s) => [s.id, s.size])).toEqual([["b2", "half"], ["b6", "half"]]);
+    expect(plan.screens?.[0].brief).toContain('"line 2"');
+  });
+
+  it("builds a screen around a software site photo instead of letterboxing it full frame", () => {
+    const withPhoto = { ...product, visuals: [...product.visuals, { id: "p1", kind: "photo" as const, url: "/tmp/p1.png", caption: "the logo card", source: "site" }] };
+    const faceless = { ...brief, format: "voiceover_demo" as const };
+    const beat = (n: number, product_visual: string) => ({ n, job: "demo" as const, seconds: 3, line: `line ${n}`, on_screen_text: "", visual: "product" as const, product_visual, direction: "" });
+    const script = normalizeScript([beat(1, "p1"), beat(2, "s1")], { ...ctx, brief: faceless, product: withPhoto });
+    const plan = planProduction(script, faceless, withPhoto);
+    expect(plan.broll.map((c) => c.visual_id)).toEqual(["screen:b1", "s1"]);
+    expect(plan.screens?.[0].brief).toContain("the logo card");
+    // A physical product's photo is the best shot there is: it stays.
+    const physical = { ...withPhoto, kind: "physical" as const };
+    expect(planProduction(script, faceless, physical).broll[0].visual_id).toBe("p1");
+  });
+
   it("drops a screen brief on a creator beat", () => {
     const script = normalizeScript([{ n: 1, job: "hook", seconds: 3, line: "hi", on_screen_text: "", visual: "creator", product_visual: null, direction: "", screen: "a card" }], ctx);
     expect(script.beats[0].screen).toBeUndefined();
@@ -462,5 +486,16 @@ describe("the brand kit in the product brief", () => {
     expect(merged.visuals[0].caption).toBe("the Monid logo: blue asterisk wordmark");
     expect(merged.code).toEqual({ commands: ["npx monid init"], screens: [{ route: "/tools", summary: "Tool registry" }], ui_strings: ["2900+ tools"] });
     expect(withBrandKit(product, null)).toBe(product);
+  });
+});
+
+describe("the voice-over pace", () => {
+  it("speeds the voice up to the script's pace, within limits", async () => {
+    const { voiceSpeed } = await import("@/lib/production");
+    const words = (n: number) => Array.from({ length: n }, () => "word").join(" ");
+    expect(voiceSpeed(words(150), 38.5)).toBe(1.26); // the walkthrough remake: 234 wpm
+    expect(voiceSpeed(words(60), 30)).toBe(1); // slower than the voice: leave it
+    expect(voiceSpeed(words(200), 20)).toBe(1.5); // never past 1.5x
+    expect(voiceSpeed("", 10)).toBe(1);
   });
 });

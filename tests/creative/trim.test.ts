@@ -24,6 +24,14 @@ describe("trimming dead air around a rendered line", () => {
     expect(window.to).toBeCloseTo(6.85);
   });
 
+  it("trims past the click a rendered clip ends on", () => {
+    // Real Veo shot: the line ends at 6.66 s, then silence, then a click in the last 30 ms.
+    const clicked = "[silencedetect @ 0x1] silence_start: 6.6611\n[silencedetect @ 0x1] silence_end: 7.97071 | silence_duration: 1.3096";
+    const window = speechWindow(parseSilences(clicked, 8), 8)!;
+    expect(window.from).toBe(0);
+    expect(window.to).toBeCloseTo(6.96, 1);
+  });
+
   it("leaves tight or silent clips alone", () => {
     expect(speechWindow([{ start: 3, end: 3.4 }], 8)).toBeNull();
     expect(speechWindow([{ start: 0, end: 8 }], 8)).toBeNull();

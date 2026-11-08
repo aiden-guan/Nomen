@@ -12,6 +12,8 @@ const MIN_SILENCE = 0.35;
 /** Breathing room kept around the speech. */
 const LEAD = 0.12;
 const TAIL = 0.3;
+/** Rendered clips often end (or start) with a click a few frames long, so silence counts as reaching the edge if it gets this close. */
+const EDGE = { start: 0.15, end: 0.3 };
 
 /** Silent stretches in a clip's audio, from ffmpeg's silencedetect. */
 export function parseSilences(stderr: string, duration: number): Array<{ start: number; end: number }> {
@@ -33,8 +35,8 @@ export function parseSilences(stderr: string, duration: number): Array<{ start: 
 /** Where the speech starts and ends, or null when the clip has no clear speech to trim around. */
 export function speechWindow(silences: Array<{ start: number; end: number }>, duration: number): { from: number; to: number } | null {
   if (duration <= 0) return null;
-  const leading = silences.find((s) => s.start <= 0.05);
-  const trailing = [...silences].reverse().find((s) => s.end >= duration - 0.05);
+  const leading = silences.find((s) => s.start <= EDGE.start);
+  const trailing = [...silences].reverse().find((s) => s.end >= duration - EDGE.end);
   const from = leading ? Math.max(0, leading.end - LEAD) : 0;
   const to = trailing ? Math.min(duration, trailing.start + TAIL) : duration;
   if (to - from < 1) return null; // all silence, or nothing worth keeping: leave the clip alone

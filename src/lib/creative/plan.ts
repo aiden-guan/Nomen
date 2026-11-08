@@ -17,18 +17,44 @@ const usesCreator = (format: CreativeBrief["format"]) => format === "talking_hea
 
 export const screenVisualId = (requestId: string) => `screen:${requestId}`;
 
+/** The screen brief for a graphic beat the writer gave no screen: show what its line says. */
+export function screenFromLine(line: string, still?: { caption: string }): string {
+  return [
+    `Show what this line says as one clear on-screen graphic: "${line}".`,
+    "Use the product's real names, commands, numbers and UI from the brief, and nothing the line does not say.",
+    still ? `It may build on this real visual: ${still.caption}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief, delivery = "", referenceBeats: ReferenceBeat[] = []): ProductionPlan {
   const visuals = new Map(product.visuals.map((v) => [v.id, v]));
   const broll: BRollClip[] = [];
   const screens: ScreenRequest[] = [];
   let photoTurn = 0;
+  const used = new Map<string, number>();
+  let previous: string | undefined;
   script.beats.forEach((beat, i) => {
-    if (beat.visual === "creator") return;
+    if (beat.visual === "creator") {
+      previous = undefined;
+      return;
+    }
+    const still = beat.product_visual ? visuals.get(beat.product_visual) : undefined;
+    // The references change the graphic on almost every line. A beat with no visual, or one that
+    // would show the same still as the beat before it (or a third time), gets a screen of its own
+    // line instead; the still stays as its fallback if the build fails.
+    // For software and services, a site photo or logo filling the whole frame is a blurred-edge
+    // letterbox; a screen built around it looks like the product. Screenshots and clips stay.
+    const weakStill = still?.kind === "photo" && product.kind !== "physical" && beat.visual === "product";
+    const stale = !still || weakStill || still.id === previous || (used.get(still.id) ?? 0) >= 2;
+    const brief = beat.screen ?? (stale && beat.line ? screenFromLine(beat.line, still) : "");
     // A built screen wins over a still: it shows what the product does, the way the reference did.
-    if (beat.screen) {
+    if (brief) {
+      previous = undefined;
       const request: ScreenRequest = {
         id: `b${beat.n}`,
-        brief: beat.screen,
+        brief,
         line: beat.line,
         seconds: beat.seconds,
         reference_visual: [referenceBeats[i]?.visual, referenceBeats[i]?.on_screen_text ? `on-screen text: "${referenceBeats[i]!.on_screen_text}"` : ""].filter(Boolean).join("; "),
@@ -38,9 +64,10 @@ export function planProduction(script: Script, brief: CreativeBrief, product: Pr
       broll.push({ beat: beat.n, visual_id: screenVisualId(request.id), motion: "none" });
       return;
     }
-    const visual = beat.product_visual ? visuals.get(beat.product_visual) : undefined;
-    if (!visual) return;
-    broll.push({ beat: beat.n, visual_id: visual.id, motion: motionFor(visual, beat, photoTurn++) });
+    if (!still) return;
+    previous = still.id;
+    used.set(still.id, (used.get(still.id) ?? 0) + 1);
+    broll.push({ beat: beat.n, visual_id: still.id, motion: motionFor(still, beat, photoTurn++) });
   });
 
   if (!usesCreator(brief.format)) {

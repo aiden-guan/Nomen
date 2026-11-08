@@ -129,6 +129,26 @@ describe.skipIf(!ffmpeg)("renderTimeline", () => {
     await kept(out);
   }, 180_000);
 
+  it("holds a short clip's last frame instead of looping it", async () => {
+    const out = file("hold.mp4");
+    await renderTimeline(
+      {
+        aroll: [],
+        audio: { path: file("voice.m4a") },
+        segments: [{ start: 0, end: 3, layer: "broll", broll: { path: file("clip.mp4"), kind: "video", motion: "none" } }],
+        captions: [],
+        overlays: [],
+        duration: 3,
+      },
+      out,
+      { workDir: dir },
+    );
+    // The 1 s clip is over by 1.2 s: from then on every frame is the same (a loop would keep moving).
+    const [a, b, start] = await Promise.all([band(out, 1.6, 600, 400), band(out, 2.6, 600, 400), band(out, 0.2, 600, 400)]);
+    expect(meanDiff(a, b)).toBeLessThan(1);
+    expect(meanDiff(a, start)).toBeGreaterThan(3);
+  }, 60_000);
+
   it("rejects a timeline that points at a missing file", async () => {
     await expect(
       renderTimeline({ aroll: [{ path: file("nope.mp4") }], audio: null, segments: [], captions: [], overlays: [] }, file("x.mp4")),
