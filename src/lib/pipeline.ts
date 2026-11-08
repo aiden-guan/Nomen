@@ -254,6 +254,8 @@ export type CreativeState = {
   candidates?: Array<Pick<ReferenceCandidate, "url" | "platform" | "author" | "views" | "followers" | "origin" | "score">>;
   breakdowns?: ReferenceBreakdown[];
   failures?: Array<{ url: string; error: string }>;
+  /** Reference URLs whose breakdown failed for a passing reason, retried once on the next tick. */
+  retry?: string[];
 };
 
 const originOf = (video: Video): ReferenceCandidate["origin"] =>
@@ -298,23 +300,27 @@ async function stepStyle(campaign: CampaignRow) {
   }
 
   const options = parse<CampaignOptions>(campaign.options_json, defaultOptions());
-  if (!state.breakdowns) {
+  if (!state.breakdowns || state.retry?.length) {
     const candidates = scoreCandidates(pack.videos, originOf);
-    state.candidates = candidates.slice(0, 20).map(({ url, platform, author, views, followers, origin, score }) => ({ url, platform, author, views, followers, origin, score }));
-    const picks = options.learnStyle ? pickForBreakdown(candidates, 6) : [];
-    if (picks.length) log(`Breaking down ${picks.length} outlier videos beat by beat (transcript, cuts, frames): ${picks.map((p) => `@${p.author} ${p.score.why}`).join("; ")}`);
+    state.candidates ??= candidates.slice(0, 20).map(({ url, platform, author, views, followers, origin, score }) => ({ url, platform, author, views, followers, origin, score }));
+    // A second pass only retries the breakdowns that failed for a passing reason (a busy provider).
+    const picks = state.retry?.length ? candidates.filter((c) => state.retry!.includes(c.url)) : options.learnStyle ? pickForBreakdown(candidates, 6) : [];
+    if (picks.length && !state.retry?.length) log(`Breaking down ${picks.length} outlier videos beat by beat (transcript, cuts, frames): ${picks.map((p) => `@${p.author} ${p.score.why}`).join("; ")}`);
     const result = picks.length
       ? await breakdownAll(naive, picks, { workDir: work, brand: { name: state.product.name, one_liner: state.product.one_liner, kind: state.product.kind } })
-      : { breakdowns: [] as ReferenceBreakdown[], failures: [] as Array<{ url: string; error: string }> };
-    state.breakdowns = [...result.breakdowns].sort((a, b) => b.fit.score - a.fit.score);
-    state.failures = result.failures.map((f) => ({ url: f.url, error: f.error }));
+      : { breakdowns: [] as ReferenceBreakdown[], failures: [] };
+    const firstPass = !state.retry?.length;
+    state.breakdowns = [...(state.breakdowns ?? []), ...result.breakdowns].sort((a, b) => b.fit.score - a.fit.score);
+    state.retry = firstPass ? result.failures.filter((f) => f.retryable).map((f) => f.candidate.url) : [];
+    state.failures = [...(state.failures ?? []).filter((f) => !picks.some((p) => p.url === f.url)), ...result.failures.map((f) => ({ url: f.candidate.url, error: f.error }))];
     state.samples = state.breakdowns.map((b) => b.url);
     state.skill_md = referencesMarkdown(state);
     save();
+    if (state.retry.length) return log(`${state.retry.length} reference video(s) hit a busy provider; retrying them once`, "warn");
     update("campaigns", campaign.id, { stage: "strategy" });
     return log(
       state.breakdowns.length
-        ? `Reference study ready: ${state.breakdowns.length} videos broken down${state.failures?.length ? ` (${state.failures.length} could not be read)` : ""}`
+        ? `Reference study ready: ${state.breakdowns.length} videos broken down${state.failures.length ? ` (${state.failures.length} could not be read)` : ""}`
         : "No reference video could be broken down; the director works from the research alone.",
       state.breakdowns.length ? "info" : "warn",
     );
