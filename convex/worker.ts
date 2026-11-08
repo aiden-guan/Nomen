@@ -73,9 +73,15 @@ async function busy(db: Reader) {
   return (await any(db, "campaigns", "running")) || (await any(db, "campaigns", "publishing")) || (await any(db, "posts", "pending"));
 }
 
-/** Work that a tick every few minutes is enough for: posts on their way, fresh analytics. */
+/** Work that a tick every few minutes is enough for: posts on their way, fresh analytics, a brand's autopilot. */
 async function waiting(db: Reader) {
   if ((await any(db, "posts", "scheduled")) || (await any(db, "posts", "processing"))) return true;
+  // An autopilot that is on decides on every tick when to start the brand's next campaign.
+  const autopilot = await db
+    .query("brand_loops")
+    .withIndex("by_enabled", (q) => q.eq("enabled", 1))
+    .first();
+  if (autopilot) return true;
   const fortnight = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
   const posted = await db
     .query("posts")

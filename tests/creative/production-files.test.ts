@@ -1,12 +1,12 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createBrand, getCampaign, listCreatives, startCampaign } from "@/lib/pipeline";
-import { advanceCreative, insertCreative, type ProductionContext } from "@/lib/production";
+import { advanceCreative, ensurePlate, insertCreative, type ProductionContext } from "@/lib/production";
 import { ffmpegPath } from "@/lib/media";
 import { useStore } from "@/lib/store";
 import { sqliteConnection, sqliteStore } from "@/lib/store/sqlite";
@@ -98,4 +98,32 @@ describe.skipIf(!ffmpeg)("production's files", () => {
     expect(view.campaign!.creatives[0].videoUrl).toBe(`/api/media/${id}/final.mp4`);
     expect((await getCampaign(campaignId))!.id).toBe(campaignId);
   }, 180_000);
+
+  it("keeps a filmed screen's monitor photo and its record by key, for a later tick on another machine", async () => {
+    // A grey room, a dark bezel and a green display: what the image model is asked for.
+    const photo = join(root, "monitor.png");
+    await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=0x706a64:s=1080x1920,drawbox=x=100:y=600:w=880:h=560:color=0x18181c:t=fill,drawbox=x=116:y=616:w=848:h=528:color=0x12ec22:t=fill", "-frames:v", "1", photo]);
+    const bytes = await readFile(photo);
+    vi.stubGlobal("fetch", async () => new Response(bytes));
+    try {
+      useStore(storeWith(remoteFiles(join(root, "plate-machine-1"))));
+      const naive = {
+        generateImage: async () => ({ model: "fake", files: [{ id: "fil_plate", content_type: "image/png" }], cost_micro_usd: 30_000 }),
+        fileUrl: async () => ({ url: "https://files.example/plate.png", expires_at: "" }),
+      };
+      const ctx = { campaignId: "cmp_x", brandId: "brd_x", naive, monid: null, naiveOut: () => false, markNaiveOut: async () => undefined, strategy: {} } as unknown as ProductionContext;
+      const concept = { title: "Filmed", setting: "", plan: { format: "filmed_screen" } } as never;
+      expect(await ensurePlate(ctx, "crv_plate", concept)).toEqual({ pending: false, cost_micro: 30_000 });
+      const record = JSON.parse(await readFile(join(kept, "crv_plate", "plate.json"), "utf8"));
+      expect(record).toMatchObject({ status: "ready", tries: 1, plate: { path: "crv_plate/plate.png" } });
+      expect(existsSync(join(kept, "crv_plate", "plate.png"))).toBe(true);
+
+      // The next tick, elsewhere: the record is read back by key and the photo is not made again.
+      useStore({ ...sqliteStore(), files: remoteFiles(join(root, "plate-machine-2")) });
+      const refuse = { generateImage: async () => Promise.reject(new Error("should not render again")), fileUrl: naive.fileUrl };
+      expect(await ensurePlate({ ...ctx, naive: refuse } as never, "crv_plate", concept)).toEqual({ pending: false, cost_micro: 30_000 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }, 120_000);
 });

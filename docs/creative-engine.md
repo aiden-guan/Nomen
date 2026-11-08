@@ -9,9 +9,9 @@ rebuilds them with the brand's product, its real screenshots and an AI presenter
 
 ```
 website
-  └─ research (Monid) ─ planner ─ ~15 searches ─ scout ─ up to 5 follow-up searches
-       └─ references ─ product analyst ─ site screenshots ─ outlier ranking ─ 6 beat-by-beat breakdowns
-            └─ director (Naive agent nomen-director) ─ one brief per video: which viral video it remakes
+  └─ research (Monid) ─ planner ─ ~25 searches (videos and ads) ─ scout ─ up to 5 follow-up searches
+       └─ references ─ product analyst ─ site screenshots ─ reach and conversion ranking ─ 6 beat-by-beat breakdowns (reach and convert mix)
+            └─ director (Naive agent nomen-director) ─ one brief per video: which video it remakes, its role (reach or convert) and metric
                  └─ script room ─ writer ─ linter ─ critic (x2) ─ per video, in parallel
                       └─ production ─ presenter shots (Veo) + QC ─ product cutaways ─ voice-over ─ edit
                            └─ review ─ posting (Naive Social) ─ analytics feed the next campaign
@@ -25,13 +25,13 @@ Every agent writes one typed document for the next (`src/lib/creative/types.ts`)
 
 | Agent | Where | Reads | Writes |
 | - | - | - | - |
-| Research planner | `research.ts`, Claude Haiku on Naive | site, brand profile | 5 kinds of search phrases, competitors |
+| Research planner | `research.ts`, Claude Haiku on Naive | site, brand profile | 5 kinds of search phrases, 3 conversion searches, competitors, benchmarks for reach and for conversion |
 | Scout | `creative/scout.ts`, Claude Haiku | first-wave stats, captions, hashtags | up to 5 follow-up searches (phase D) |
 | Product analyst | `creative/product.ts`, Claude Sonnet with vision | site text and images | `ProductBrief`: facts, allowed claims, which images show the product |
 | Site capture | `creative/capture.ts`, Naive cloud browser | the brand's site | phone-size screenshots (software and services) |
-| Ranking | `creative/references.ts`, code | ~90 videos | `ReferenceCandidate`s ranked by views per follower and engagement |
-| Breakdown analyst | `creative/references.ts`, Naive speech-to-text and Claude Sonnet with vision | the video, its transcript, cuts and frames | `ReferenceBreakdown`: every beat with timing, exact lines, on-screen text, shots, hook mechanic, fit |
-| Director | Naive agent `nomen-director` (`naive/agents/director.md`) | product brief, breakdowns, research | brand brief, search plan, one `CreativeBrief` per video |
+| Ranking | `creative/references.ts`, code | ~90 videos and up to 10 ads | `ReferenceCandidate`s with a reach score (views per follower, engagement) and a conversion score (ad run length and variants, saves per like, selling cues), each a reach or convert role; see `docs/research-steering.md` |
+| Breakdown analyst | `creative/references.ts`, Naive speech-to-text and Claude Sonnet with vision | the video, its transcript, cuts and frames | `ReferenceBreakdown`: every beat with timing, exact lines, on-screen text, shots, hook mechanic, how it sells (problem, proof, offer, CTA), fit |
+| Director | Naive agent `nomen-director` (`naive/agents/director.md`) | product brief, breakdowns, research | brand brief, search plan, one `CreativeBrief` per video, with a role and metric (at least one of each with 2+ videos) |
 | Writer | `creative/script.ts`, Claude Sonnet | brief, reference, product | `Script`: the reference remade beat by beat |
 | Linter | `creative/script.ts`, code | script, reference, product | problems: ad phrases, invented numbers, personal claims, drift from the reference |
 | Critic | `creative/script.ts`, Claude Sonnet | all of the above | score; a full rewrite until 8/10 (two rounds) |
@@ -69,6 +69,13 @@ These videos are posted by the brand on its own accounts and labeled AI-generate
   - Smooth zoom, pan and scroll motion, using ffmpeg's `perspective` filter.
   - A wide image is shown whole over a blurred copy of itself.
 - **Split screen:** presenter on top, product below.
+- **Filmed screen:** the look of a phone filming a computer monitor (`creative/plate.ts`).
+  - One photo per video, from the image model: a monitor on a desk, its display solid green.
+  - Code finds the display's corners in the green and checks it is one whole, flat screen. A
+    photo that fails gets up to two retries; after that, the screens fill the frame instead.
+  - Each beat's 1440x900 desktop screen is warped into the display, the green is keyed out, and
+    the photo goes back on top so its bezel covers the edges.
+  - The whole picture drifts and turns slightly, like a hand-held phone.
 
 ## Formats
 
@@ -77,6 +84,7 @@ These videos are posted by the brand on its own accounts and labeled AI-generate
 | `talking_head_broll` | the presenter, cut away to the product | the presenter (Veo native audio) | about $0.40 per second |
 | `split_screen` | the presenter on top, the product below | the presenter | about $0.40 per second |
 | `voiceover_demo` | the product only | text-to-speech | cents |
+| `filmed_screen` | a phone filming a monitor that shows the product | text-to-speech | cents, plus one to three photos |
 | `text_story` | the product only, with large text | text-to-speech | cents |
 
 ## Costs

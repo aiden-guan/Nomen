@@ -129,6 +129,20 @@ export default defineSchema({
     .index("by_brand", ["brand_id"])
     .index("by_campaign", ["campaign_id"]),
 
+  /** Each brand's autopilot (src/lib/loop.ts). */
+  brand_loops: defineTable({
+    brand_id: text,
+    enabled: num,
+    weekly_budget_micro: num,
+    cadence_days: num,
+    autopost: num,
+    waived_campaign_id: maybeText,
+    last_json: maybeText,
+    updated_at: text,
+  })
+    .index("by_brand", ["brand_id"])
+    .index("by_enabled", ["enabled"]),
+
   /** Media (renders, frames, finished videos) by the core's file key, like "crv_…/final.mp4". */
   files: defineTable({ key: text, storage_id: v.id("_storage"), content_type: text, size: num, created_at: text }).index("by_key", ["key"]),
 

@@ -10,7 +10,7 @@ import { captureSiteVisuals } from "./creative/capture";
 import { planProduction } from "./creative/plan";
 import { getBrandKit } from "./creative/brandkit";
 import { analyzeProduct } from "./creative/product";
-import { breakdownAll, pickForBreakdown, scoreCandidates } from "./creative/references";
+import { breakdownAll, canonicalUrl, pickForBreakdown, scoreCandidates } from "./creative/references";
 import { applyRelevance, screenRelevance } from "./creative/relevance";
 import { scout, scoutSpecs } from "./creative/scout";
 import { targetSeconds, writeScript } from "./creative/script";
@@ -350,12 +350,16 @@ async function stepStyle(campaign: CampaignRow) {
     const verdicts = new Map((state.screened ?? []).map((r) => [r.url, r]));
     state.candidates = candidates.slice(0, 20).map(({ url, platform, author, views, followers, origin, score }) => ({ url, platform, author, views, followers, origin, score, relevance: verdicts.get(url)?.relevance, relevance_reason: verdicts.get(url)?.reason }));
     // A second pass only retries the breakdowns that failed for a passing reason (a busy provider).
-    const picks = state.retry?.length ? ranked.filter((c) => state.retry!.includes(c.url)) : options.learnStyle ? pickForBreakdown(candidates, 6, { keepOrder: Boolean(state.screened?.length) }) : [];
+    // Never remake a video this brand already remade in an earlier campaign.
+    const remade = await remadeReferences(brand.id, campaign.id);
+    const picks = state.retry?.length ? ranked.filter((c) => state.retry!.includes(c.url)) : options.learnStyle ? pickForBreakdown(candidates, 6, { keepOrder: Boolean(state.screened?.length), exclude: remade }) : [];
     if (picks.length && !state.retry?.length) {
       // The shortlist shows (the camp's references) while the breakdowns run, which takes minutes.
       state.picked = picks.map((p) => p.url);
       await persist();
-      await log(`Breaking down ${picks.length} outlier videos beat by beat (transcript, cuts, frames): ${picks.map((p) => `@${p.author} ${p.score.why}`).join("; ")}`);
+      const done = new Set(remade.map(canonicalUrl));
+      const skipped = candidates.filter((c) => done.has(canonicalUrl(c.url))).length;
+      await log(`Breaking down ${picks.length} outlier videos beat by beat (transcript, cuts, frames): ${picks.map((p) => `@${p.author} ${p.score.why}`).join("; ")}${skipped ? ` (skipped ${skipped} this brand already remade)` : ""}`);
     }
     const result = picks.length
       ? await breakdownAll(naive, picks, { workDir: work, brand: { name: state.product.name, one_liner: state.product.one_liner, kind: state.product.kind } })
@@ -567,6 +571,17 @@ async function pastResults(brandId: string, currentCampaignId: string): Promise<
   });
 }
 
+/**
+ * The reference videos this brand already remade in its other campaigns (from each video's concept),
+ * so the next campaign picks new ones. A remake that failed outright does not count.
+ */
+export async function remadeReferences(brandId: string, exceptCampaignId: string): Promise<string[]> {
+  const campaigns = await store().find<{ id: string }>("campaigns", { brand_id: brandId, id: { ne: exceptCampaignId } });
+  const rows = campaigns.length ? await store().find<{ concept_json: string }>("creatives", { campaign_id: { in: campaigns.map((c) => c.id) }, status: { ne: "failed" } }) : [];
+  const urls = rows.map((row) => parse<Partial<Concept>>(row.concept_json, {}).reference?.url).filter((url): url is string => Boolean(url));
+  return [...new Set(urls)];
+}
+
 // ---------- production ----------
 
 async function stepProduction(campaign: CampaignRow) {
@@ -601,7 +616,9 @@ async function stepProduction(campaign: CampaignRow) {
     const ready = now_.filter((creative) => creative.status === "ready").length;
     await save("campaigns", campaign.id, { stage: "review", status: "review" });
     await logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, message: `${ready} of ${now_.length} videos are ready for review` });
-    if (getBool("autopilot") && ready > 0) {
+    // Posting stays opt-in: the global autopilot setting, or this brand's loop with automatic posting on.
+    const autopost = getBool("autopilot") || (await (await import("./loop")).autopostOn(campaign.brand_id));
+    if (autopost && ready > 0) {
       const { approveAll, publishCampaign } = await import("./publish");
       await approveAll(campaign.id);
       await publishCampaign(campaign.id, "daily").catch((error: unknown) =>

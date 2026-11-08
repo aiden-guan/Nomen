@@ -122,6 +122,17 @@ create table if not exists events (
   message text not null
 );
 
+create table if not exists brand_loops (
+  brand_id text primary key references brands(id) on delete cascade,
+  enabled integer not null default 0,
+  weekly_budget_micro integer not null default 0,
+  cadence_days integer not null default 7,
+  autopost integer not null default 0,
+  waived_campaign_id text,
+  last_json text,
+  updated_at text not null
+);
+
 create index if not exists events_campaign on events (campaign_id, id);
 create index if not exists creatives_campaign on creatives (campaign_id, idx);
 `;

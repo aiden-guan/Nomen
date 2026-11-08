@@ -12,11 +12,19 @@ export type ResearchPlan = {
   audience: string;
   competitors: Array<{ name: string; domain?: string }>;
   content_queries: string[];
+  /**
+   * Searches for videos that sell in this category: reviews, "I tried", comparisons, demos,
+   * testimonials. Likes prove reach; these find the formats that turn viewers into customers.
+   */
+  conversion_queries?: string[];
   ads_query: string;
   reddit_query: string;
   aeo_prompts: string[];
-  /** Brands or creators famous for viral short-form whose hooks and formats would transfer (e.g. Cluely, MrBeast). */
-  benchmarks?: Array<{ name: string; why: string }>;
+  /**
+   * Brands or creators famous for short-form whose hooks and formats would transfer: some for reach
+   * (Cluely, MrBeast), some for UGC that converts (an app or DTC brand that scales creator ads).
+   */
+  benchmarks?: Array<{ name: string; why: string; role?: "reach" | "convert" }>;
   /** Set once the scout has looked at the first results and queued its follow-up searches (phase D). */
   scouted?: boolean;
   /** What the scout saw and why it searched further, for the activity feed and the research tab. */
@@ -31,7 +39,7 @@ export function videoSearch(key: string, platform: "tiktok" | "instagram" | "you
 }
 
 /** Run keys whose output is a list of short videos, and which platform each searched. */
-export const VIDEO_RUN = /^(tiktok_(brand|\d+|comp_\d+|bench_\d+)|reels(_\d+)?|shorts(_\d+)?|scout_(tiktok|reels|shorts)_\d+)$/;
+export const VIDEO_RUN = /^(tiktok_(brand|\d+|comp_\d+|bench_\d+|conv_\d+)|reels(_\d+|_conv_\d+)?|shorts(_\d+)?|scout_(tiktok|reels|shorts)_\d+)$/;
 export const platformOfRun = (key: string): Video["platform"] => (key.includes("reels") ? "instagram" : key.includes("shorts") ? "youtube" : "tiktok");
 
 export type Video = {
@@ -51,9 +59,53 @@ export type Video = {
   /** Direct, short-lived link to the video file (used for the format study, never sent to a model). */
   media_url: string | null;
   source: string;
+  /** Set when the video is a paid ad from an ad library: what the library says about it. */
+  ad?: AdSignals;
 };
 
-export type Ad = { platform: "tiktok" | "meta"; advertiser: string; text: string; url: string; media: string; started: string; source: string };
+/**
+ * The public evidence that an ad pays for itself. Ad libraries hide spend and results, but
+ * advertisers stop paying for ads that lose money, so how long an ad has run and how many ads reuse
+ * its creative are the closest public stand-ins for conversion data.
+ */
+export type AdSignals = {
+  network: "meta" | "tiktok";
+  /** Days from first to last shown (to today while it still runs), or null when unknown. */
+  days: number | null;
+  active: boolean | null;
+  /** Meta: how many ads use this same creative and text. */
+  variants: number | null;
+  /** The button: "Shop now", "Sign up", "Learn more", or "". */
+  cta: string;
+  /** TikTok Creative Center: the campaign objective it was bought for ("conversions"), or "". */
+  objective: string;
+};
+
+export type Ad = {
+  platform: "tiktok" | "meta";
+  advertiser: string;
+  text: string;
+  url: string;
+  media: string;
+  started: string;
+  source: string;
+  /** Last shown (YYYY-MM-DD), or "" when unknown. */
+  ended?: string;
+  days?: number | null;
+  active?: boolean | null;
+  variants?: number | null;
+  cta?: string;
+  /** Where the ad sends people. */
+  link?: string;
+  /** Direct link to the ad's video file, when the library gives one. */
+  video_url?: string | null;
+  cover?: string | null;
+  /** TikTok's EU library: the estimated audience band, e.g. "10K-100K". */
+  audience?: string;
+  objective?: string;
+  likes?: number | null;
+  duration?: number | null;
+};
 
 export type ResearchPack = {
   domain: string;
@@ -93,32 +145,70 @@ export function phaseASpecs(domain: string): RunSpec[] {
   ];
 }
 
+/** TikTok Creative Center's campaign objectives, as its ad search numbers them. 3 is "conversions". */
+export const TOP_ADS_CONVERSIONS = 3;
+
 /**
  * Phase C casts a wide net for short videos that already work: every content query on TikTok, the
  * best two on Reels and Shorts, the brand's name, and each competitor's name (their own posts and
  * posts about them). Ranking happens later, by how far a video outran its account, not raw views.
+ *
+ * Reach is half the story, so it also looks for proof that a format sells: the conversion queries
+ * (reviews, "I tried", comparisons), the competitors' own ads on Meta and TikTok (an ad that keeps
+ * running is an ad that pays), the category's ads, and TikTok's top ads bought for conversions.
  */
 export function phaseCSpecs(plan: ResearchPlan): RunSpec[] {
   const queries = plan.content_queries.filter(Boolean).slice(0, 5);
   const top = queries.slice(0, 2).length ? queries.slice(0, 2) : [plan.category];
-  const metaAds = (key: string, query: string): RunSpec => ({
+  const conversion = (plan.conversion_queries ?? []).filter(Boolean).slice(0, 3);
+  // A keyword search matches ad text, so a competitor's name finds anyone who says it ("RapidAPI"
+  // found WhatsApp ads saying "rapid"); the company search lists that advertiser's own ads.
+  const metaCompany = (key: string, name: string): RunSpec => ({
     key,
     phase: "C",
-    label: `Meta ads: ${query}`,
+    label: `Meta ads by ${name}`,
     provider: "anyapi",
-    endpoint: "/facebook.ads_search",
-    input: { body: { query, mediaType: "VIDEO", status: "ACTIVE", sortBy: "impressions", country: "US" } },
+    endpoint: "/facebook.company_ads",
+    input: { body: { companyName: name, mediaType: "VIDEO", status: "ACTIVE", sortBy: "impressions", country: "US" } },
+  });
+  // TikTok's public ad library covers the EU and UK only (the US is not served); GB is the English one.
+  const tiktokAds = (key: string, body: Record<string, unknown>, label: string): RunSpec => ({
+    key,
+    phase: "C",
+    label,
+    provider: "anyapi",
+    endpoint: "/tiktok.ad_library_search",
+    input: { body: { ...body, region: "GB" } },
   });
   return [
     videoSearch("tiktok_brand", "tiktok", plan.brand_name, "C"),
     ...queries.map((query, i) => videoSearch(`tiktok_${i}`, "tiktok", query, "C")),
+    ...conversion.map((query, i) => videoSearch(`tiktok_conv_${i}`, "tiktok", query, "C")),
+    ...conversion.slice(0, 1).map((query, i) => videoSearch(`reels_conv_${i}`, "instagram", query, "C")),
     ...plan.competitors.slice(0, 3).map((competitor, i) => videoSearch(`tiktok_comp_${i}`, "tiktok", competitor.name, "C")),
     ...(plan.benchmarks ?? []).slice(0, 3).map((benchmark, i) => videoSearch(`tiktok_bench_${i}`, "tiktok", benchmark.name, "C")),
     ...top.map((query, i) => videoSearch(`reels_${i}`, "instagram", query, "C")),
     ...top.map((query, i) => videoSearch(`shorts_${i}`, "youtube", query, "C")),
-    { key: "tiktok_ads", phase: "C", label: `TikTok ads: ${plan.ads_query}`, provider: "anyapi", endpoint: "/tiktok.ad_library_search", input: { body: { query: plan.ads_query } } },
-    metaAds("meta_ads_brand", plan.brand_name),
-    ...plan.competitors.slice(0, 2).map((competitor, i) => metaAds(`meta_ads_${i}`, competitor.name)),
+    tiktokAds("tiktok_ads", { query: plan.ads_query }, `TikTok ads: ${plan.ads_query}`),
+    ...plan.competitors.slice(0, 2).map((competitor, i) => tiktokAds(`tiktok_ads_comp_${i}`, { advertiserName: competitor.name }, `TikTok ads by ${competitor.name}`)),
+    {
+      key: "tiktok_top_ads",
+      phase: "C",
+      label: `TikTok top ads for conversions: ${plan.ads_query}`,
+      provider: "tikhub",
+      endpoint: "/api/v1/tiktok/ads/search_ads",
+      input: { body: { keyword: plan.ads_query, objective: TOP_ADS_CONVERSIONS, period: 180, country_code: "US", order_by: "likes", limit: 20 } },
+    },
+    metaCompany("meta_ads_brand", plan.brand_name),
+    ...plan.competitors.slice(0, 3).map((competitor, i) => metaCompany(`meta_ads_comp_${i}`, competitor.name)),
+    {
+      key: "meta_ads_cat",
+      phase: "C",
+      label: `Meta ads: ${plan.ads_query}`,
+      provider: "anyapi",
+      endpoint: "/facebook.ads_search",
+      input: { body: { query: plan.ads_query, mediaType: "VIDEO", status: "ACTIVE", sortBy: "impressions", country: "US" } },
+    },
     { key: "reddit", phase: "C", label: `Reddit: ${plan.reddit_query}`, provider: "anyapi", endpoint: "/reddit.search", input: { body: { query: plan.reddit_query, sort: "top", timeframe: "year" } } },
     {
       key: "aeo_chatgpt",
@@ -139,7 +229,7 @@ const PLAN_TOOL = {
   description: "Record the research plan for this brand.",
   input_schema: {
     type: "object",
-    required: ["brand_name", "category", "audience", "competitors", "content_queries", "ads_query", "reddit_query", "aeo_prompts", "benchmarks"],
+    required: ["brand_name", "category", "audience", "competitors", "content_queries", "conversion_queries", "ads_query", "reddit_query", "aeo_prompts", "benchmarks"],
     properties: {
       brand_name: { type: "string", description: "The brand's name as customers say it." },
       category: { type: "string", description: "The product category in 2-4 words, e.g. 'prebiotic soda'." },
@@ -155,6 +245,13 @@ const PLAN_TOOL = {
         description:
           "5 short phrases (2-5 words, no brand names) that surface short videos this brand's buyers already watch, one of each kind, in this order: (1) the problem in the buyer's words, (2) the job they are trying to get done, (3) the buyer's identity or role as creators tag it, e.g. 'day in the life backend engineer', (4) the category as people say it, (5) a format phrase that fits, e.g. 'tools I wish I knew sooner'.",
       },
+      conversion_queries: {
+        type: "array",
+        maxItems: 3,
+        items: { type: "string" },
+        description:
+          "3 short phrases (2-5 words) that surface videos that SELL in this category rather than just entertain, as buyers search them: a review or 'I tried' ('I tried prebiotic soda', 'honest review agent tools'), a comparison with a competitor ('poppi vs olipop'), and a demo, before-and-after or testimonial phrase that fits the product. Competitor names are fine; not this brand's own name.",
+      },
       ads_query: { type: "string", description: "A 1-3 word phrase to search ad libraries for this category." },
       reddit_query: { type: "string", description: "A phrase that finds real customer discussions of this category on Reddit." },
       aeo_prompts: { type: "array", items: { type: "string" }, description: "2 questions a buyer would ask ChatGPT or Perplexity when choosing a product in this category." },
@@ -162,8 +259,16 @@ const PLAN_TOOL = {
         type: "array",
         maxItems: 3,
         description:
-          "2-3 brands or creators famous for viral short-form video whose hooks and formats would transfer to this brand (not competitors), as they are known on TikTok: e.g. Cluely for an AI startup, Duolingo for a consumer app, MrBeast for hooks. Real, well-known names only.",
-        items: { type: "object", required: ["name", "why"], properties: { name: { type: "string" }, why: { type: "string", description: "What about their videos would transfer." } } },
+          "2-3 brands or creators famous for short-form video whose hooks and formats would transfer to this brand (not competitors), as they are known on TikTok. Include at least one known for reach (e.g. Cluely for an AI startup, Duolingo for a consumer app, MrBeast for hooks) and at least one known for creator videos that convert, i.e. a brand that grew sales or sign-ups with UGC ads (e.g. Cal AI for an app, Ridge or Dr. Squatch for a physical product). Real, well-known names only.",
+        items: {
+          type: "object",
+          required: ["name", "why", "role"],
+          properties: {
+            name: { type: "string" },
+            why: { type: "string", description: "What about their videos would transfer." },
+            role: { type: "string", enum: ["reach", "convert"], description: "reach: famous for views and shares; convert: famous for UGC that drives sales or sign-ups." },
+          },
+        },
       },
     },
   },
@@ -175,7 +280,8 @@ export async function planResearch(naive: NaiveClient, input: { domain: string; 
     const reply = await naive.message({
       model: getSetting("planner_model"),
       max_tokens: 1200,
-      system: "You plan market research for a marketing team. Call the research_plan tool exactly once. Be concrete and use the words real customers use.",
+      system:
+        "You plan market research for a marketing team that makes short videos to grow a customer's sales, not just its views: it needs both what gets watched in this category and what makes people buy (reviews, demos, comparisons, ads that keep running). Call the research_plan tool exactly once. Be concrete and use the words real customers use.",
       messages: [
         {
           role: "user",
@@ -201,6 +307,7 @@ function mergePlan(raw: Partial<ResearchPlan>, fallback: ResearchPlan): Research
   const strings = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim() !== "").map((v) => v.trim()) : []);
   const competitors = Array.isArray(raw.competitors) ? raw.competitors.filter((c) => c && typeof c.name === "string" && c.name.trim()) : [];
   const queries = strings(raw.content_queries);
+  const conversion = strings(raw.conversion_queries);
   const prompts = strings(raw.aeo_prompts);
   return {
     brand_name: text(raw.brand_name) || fallback.brand_name,
@@ -208,10 +315,16 @@ function mergePlan(raw: Partial<ResearchPlan>, fallback: ResearchPlan): Research
     audience: text(raw.audience) || fallback.audience,
     competitors: competitors.length ? competitors.slice(0, 5) : fallback.competitors,
     content_queries: queries.length ? queries.slice(0, 5) : fallback.content_queries,
+    conversion_queries: conversion.length ? conversion.slice(0, 3) : fallback.conversion_queries,
     ads_query: text(raw.ads_query) || fallback.ads_query,
     reddit_query: text(raw.reddit_query) || fallback.reddit_query,
     aeo_prompts: prompts.length ? prompts.slice(0, 2) : fallback.aeo_prompts,
-    benchmarks: Array.isArray(raw.benchmarks) ? raw.benchmarks.filter((b) => b && typeof b.name === "string" && b.name.trim()).slice(0, 3) : [],
+    benchmarks: Array.isArray(raw.benchmarks)
+      ? raw.benchmarks
+          .filter((b) => b && typeof b.name === "string" && b.name.trim())
+          .slice(0, 3)
+          .map((b) => ({ name: b.name.trim(), why: text(b.why), ...(b.role === "reach" || b.role === "convert" ? { role: b.role } : {}) }))
+      : [],
   };
 }
 
@@ -224,6 +337,7 @@ export function fallbackPlan(domain: string, brand: ResearchPack["brand"], simil
     audience: `People shopping for ${category}`,
     competitors: similar.slice(0, 4).map((site) => ({ name: titleCase(site.split(".")[0]), domain: site })),
     content_queries: [category, `${name} review`, `best ${category}`, `${category} tips`],
+    conversion_queries: [`${category} review`, `I tried ${category}`],
     ads_query: category,
     reddit_query: `best ${category}`,
     aeo_prompts: [`What are the best ${category} brands?`, `Which ${category} should I buy?`],
@@ -265,12 +379,40 @@ export function compactResearch(domain: string, runs: RunResult[], plan: Researc
   // Keep a wide pool for the reference engine to rank properly; TikTok volume would crowd out the
   // others, so each platform gets its own quota.
   const quota: Record<Video["platform"], number> = { tiktok: 50, instagram: 20, youtube: 20 };
-  const videos = allVideos.filter((video) => quota[video.platform]-- > 0);
+  const organic = allVideos.filter((video) => quota[video.platform]-- > 0);
 
+  // The brand's and competitors' own ads first (they prove what sells to this buyer), then the
+  // category's; longest-running first, since an advertiser keeps paying only for ads that return.
+  const ownAds = (ad: Ad) => /^(meta_ads_(brand|comp_\d+|\d+)|tiktok_ads_comp_\d+)$/.test(ad.source);
+  // An ad library keyword search returns any ad that says the word ("RapidAPI" found truck dealers
+  // saying "rapid"), so keep an ad only if it names who or what was searched.
+  const adTerms = [plan?.ads_query, plan?.category]
+    .flatMap((phrase) => (phrase ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u))
+    .filter((word) => word.length > 3);
+  const adOnTopic = (ad: Ad) => {
+    if (!plan) return true;
+    const said = `${ad.advertiser} ${ad.text} ${ad.link ?? ""}`;
+    const names = (name: string | undefined) => Boolean(name) && squash(said).includes(name!);
+    if (ad.source === "meta_ads_brand") return names(brandName);
+    const comp = ad.source.match(/^(?:meta_ads_(?:comp_)?|tiktok_ads_comp_)(\d+)$/);
+    if (comp) {
+      const competitor = plan.competitors[Number(comp[1])];
+      return names(competitorNames[Number(comp[1])]) || Boolean(competitor?.domain && said.toLowerCase().includes(competitor.domain.toLowerCase()));
+    }
+    if (ad.source === "meta_ads_cat" || ad.source === "tiktok_ads") return adTerms.some((term) => said.toLowerCase().includes(term)) || [brandName, ...competitorNames].some(names);
+    return true;
+  };
   const ads = unique(
-    runs.filter((run) => run.status === "done" && /ads/.test(run.key)).flatMap((run) => adsFrom(run.key, run.output)),
+    runs
+      .filter((run) => run.status === "done" && /ads/.test(run.key))
+      .flatMap((run) => adsFrom(run.key, run.output))
+      .filter(adOnTopic),
     (ad) => `${ad.advertiser}|${ad.text}`,
-  ).slice(0, 16);
+  )
+    .sort((a, b) => Number(ownAds(b)) - Number(ownAds(a)) || (b.days ?? -1) - (a.days ?? -1))
+    .slice(0, 16);
+  // Ads with a video join the pool the reference engine ranks: they are the conversion lane.
+  const videos = [...organic, ...unique(ads.map(adVideo).filter((video): video is Video => video !== null), (video) => video.url).slice(0, 10)];
   const terms = [brand.name, plan?.brand_name, plan?.category, ...(plan?.competitors.map((c) => c.name) ?? [])]
     .filter((term): term is string => Boolean(term))
     .flatMap((term) => [term, ...term.split(/\s+/).filter((word) => word.length > 4)]);
@@ -347,23 +489,101 @@ function videosFrom(key: string, output: unknown): Video[] {
   }).filter((video) => video.url);
 }
 
-function adsFrom(key: string, output: unknown): Ad[] {
+/**
+ * Ads from Meta's library (anyapi), TikTok's EU library (anyapi) and TikTok Creative Center's top
+ * ads (tikhub), with what each says about how long the ad ran, how many ads reuse it and its button.
+ */
+export function adsFrom(key: string, output: unknown, nowSeconds = Date.now() / 1000): Ad[] {
   const platform: Ad["platform"] = key.startsWith("tiktok") ? "tiktok" : "meta";
+  const creativeCenter = key === "tiktok_top_ads";
   return items(output)
-    .map((item) => {
-      const started = item.startDate ?? item.start_date ?? item.firstShown ?? item.first_shown ?? item.createdAt ?? item.ad_delivery_start_time;
+    .map((item): Ad => {
+      const info = record(item.ads_info) ?? {};
+      const video = record(item.video_info) ?? {};
+      const stats = record(item.statistics) ?? {};
+      const start = epochSeconds(item.startDate ?? item.start_date ?? item.firstShownUtc ?? item.firstShown ?? item.first_shown ?? item.createdAt ?? item.ad_delivery_start_time ?? item.create_time);
+      const end = epochSeconds(item.endDate ?? item.end_date ?? item.lastShownUtc ?? item.lastShown ?? item.last_shown ?? item.ad_delivery_stop_time);
+      const active = typeof item.active === "boolean" ? item.active : null;
+      // Meta reports today as the end of an ad that is still running; without an end, count to today.
+      const days = start === null || creativeCenter ? null : Math.max(0, Math.round(((end ?? (active === false ? start : nowSeconds)) - start) / 86400));
+      const id = pick(item, ["id", "adId", "material_id"]);
       return {
         platform,
-        advertiser: pick(item, ["advertiser", "advertiserName", "pageName", "page_name", "brand", "name"]),
-        text: pick(item, ["text", "body", "adText", "ad_text", "title", "caption", "description", "headline"]).slice(0, 400),
-        url: pick(item, ["sourceUrl", "adUrl", "snapshotUrl", "ad_snapshot_url", "url", "linkUrl", "landingPage", "link"]),
+        advertiser: text(info.advertiser_name) || pick(item, ["advertiser", "advertiserName", "pageName", "page_name", "brandName", "brand", "name"]),
+        text: (pick(item, ["text", "body", "adText", "ad_text", "adTitle", "title", "caption", "description", "headline", "desc"]) || text(item.highlight)).slice(0, 400),
+        url: creativeCenter && id ? `https://ads.tiktok.com/business/creativecenter/topads/${id}/pc/en` : pick(item, ["sourceUrl", "adUrl", "snapshotUrl", "ad_snapshot_url", "url", "linkUrl", "landingPage", "link"]),
         media: pick(item, ["displayFormat", "mediaType", "media_type", "format", "type"]).toLowerCase(),
-        started: typeof started === "number" ? new Date((started < 1e12 ? started * 1000 : started)).toISOString().slice(0, 10) : text(started).slice(0, 10),
+        started: start === null ? "" : isoDate(start),
         source: key,
+        ended: end === null ? "" : isoDate(end),
+        days,
+        active,
+        variants: parseCount(item.adCount),
+        cta: pick(item, ["ctaText", "cta_text"]),
+        link: text(info.landing_page) || pick(item, ["linkUrl", "landingPage", "landing_page"]),
+        video_url: adVideoUrl(item) || null,
+        cover: pick(item, ["coverUrl", "cover", "thumbnail"]) || text(video.cover) || null,
+        audience: pick(item, ["estimatedAudience"]),
+        objective: creativeCenter ? "conversions" : "",
+        likes: parseCount(stats.digg_count ?? item.like ?? item.likes),
+        duration: parseCount(video.duration ?? item.durationSeconds),
       };
     })
     .filter((ad) => ad.advertiser || ad.text);
 }
+
+/** The ad's video file: Meta keeps it under media or creatives, TikTok on the item, tikhub by quality. */
+function adVideoUrl(item: Record<string, unknown>): string {
+  const direct = pick(item, ["videoUrl", "video_url"]);
+  if (/^https?:/.test(direct)) return direct;
+  for (const list of [item.media, item.creatives]) {
+    for (const entry of Array.isArray(list) ? list : []) {
+      const url = text(record(entry)?.videoUrl);
+      if (url) return url;
+    }
+  }
+  const qualities = record(record(item.video_info)?.video_url);
+  if (qualities) return text(qualities["720p"] ?? qualities["540p"] ?? qualities["480p"] ?? Object.values(qualities)[0]);
+  return text(record(item.video_info)?.video_url);
+}
+
+/** An ad with a video, as a research video the reference engine can rank, break down and remake. */
+export function adVideo(ad: Ad): Video | null {
+  if (!ad.video_url || !ad.url) return null;
+  return {
+    // Meta ads run on Facebook and Instagram; the vertical cut is the Instagram one.
+    platform: ad.platform === "tiktok" ? "tiktok" : "instagram",
+    url: ad.url,
+    caption: ad.text,
+    // Ad libraries publish no views: 0 here means unknown. Ads are judged on their ad signals.
+    views: 0,
+    likes: ad.likes ?? 0,
+    comments: 0,
+    shares: 0,
+    saves: 0,
+    duration: ad.duration ?? null,
+    author: ad.advertiser,
+    followers: null,
+    paid: true,
+    thumbnail: ad.cover ?? null,
+    media_url: ad.video_url,
+    source: ad.source,
+    ad: { network: ad.platform, days: ad.days ?? null, active: ad.active ?? null, variants: ad.variants ?? null, cta: ad.cta ?? "", objective: ad.objective ?? "" },
+  };
+}
+
+/** Unix seconds (or milliseconds) or an ISO date, as unix seconds. */
+function epochSeconds(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return value > 1e12 ? value / 1000 : value;
+  if (typeof value === "string" && value.trim()) {
+    if (/^\d+$/.test(value.trim())) return epochSeconds(Number(value));
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed / 1000 : null;
+  }
+  return null;
+}
+
+const isoDate = (seconds: number) => new Date(seconds * 1000).toISOString().slice(0, 10);
 
 function similarFrom(output: unknown): string[] {
   return items(output)

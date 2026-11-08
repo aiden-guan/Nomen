@@ -1,4 +1,4 @@
-import type { ARollShot, BRollClip, CreativeBrief, EditTimeline, ProductBrief, ProductionPlan, ProductVisual, ReferenceBeat, ScreenRequest, Script, ScriptBeat } from "./types";
+import type { ARollShot, BRollClip, CreativeBrief, EditTimeline, FilmedPlate, ProductBrief, ProductionPlan, ProductVisual, ReferenceBeat, ScreenRequest, Script, ScriptBeat } from "./types";
 
 // The shot planner: turns a script into what gets rendered (A-roll shots of the creator, real
 // product visuals for B-roll, or a voice-over) and, once those exist, into the edit timeline.
@@ -13,14 +13,17 @@ const MAX_SHOT = 8;
 /** Taller than a phone screen (a full-page capture): worth scrolling. A one-screen phone capture is not. */
 export const isTall = (visual: Pick<ProductVisual, "width" | "height">) => Boolean(visual.width && visual.height && visual.height > visual.width * 2.4);
 
-const usesCreator = (format: CreativeBrief["format"]) => format === "talking_head_broll" || format === "split_screen" || format === "presenter_inset";
+/** Formats with an AI presenter on camera (rendered by a video model); the others are voiced by text-to-speech. */
+export const usesCreator = (format: CreativeBrief["format"]) => format === "talking_head_broll" || format === "split_screen" || format === "presenter_inset";
 
 export const screenVisualId = (requestId: string) => `screen:${requestId}`;
 
 /** The screen brief for a graphic beat the writer gave no screen: show what its line says. */
-export function screenFromLine(line: string, still?: { caption: string }): string {
+export function screenFromLine(line: string, still?: { caption: string }, desktop = false): string {
   return [
-    `Show what this line says as one clear on-screen graphic: "${line}".`,
+    desktop
+      ? `Show what the computer monitor shows while this line is said, as one real desktop window (a terminal, code editor, browser or the product's own app): "${line}".`
+      : `Show what this line says as one clear on-screen graphic: "${line}".`,
     "Use the product's real names, commands, numbers and UI from the brief, and nothing the line does not say.",
     still ? `It may build on this real visual: ${still.caption}.` : "",
   ]
@@ -30,6 +33,7 @@ export function screenFromLine(line: string, still?: { caption: string }): strin
 
 export function planProduction(script: Script, brief: CreativeBrief, product: ProductBrief, delivery = "", referenceBeats: ReferenceBeat[] = []): ProductionPlan {
   const visuals = new Map(product.visuals.map((v) => [v.id, v]));
+  const filmed = brief.format === "filmed_screen";
   const broll: BRollClip[] = [];
   const screens: ScreenRequest[] = [];
   let photoTurn = 0;
@@ -51,7 +55,9 @@ export function planProduction(script: Script, brief: CreativeBrief, product: Pr
     const wide = Boolean(still?.width && still?.height && still.width / still.height > 2);
     const weakStill = Boolean(still) && (wide || (still?.kind === "photo" && product.kind !== "physical"));
     const stale = !still || weakStill || still.id === previous || (used.get(still.id) ?? 0) >= 2;
-    const brief = beat.screen ?? (stale && beat.line ? screenFromLine(beat.line, still) : "");
+    // A filmed screen shows what the monitor shows on every line: a phone screenshot on a desktop
+    // monitor looks wrong, so every spoken beat gets a desktop screen of its own.
+    const brief = beat.screen ?? ((stale || filmed) && beat.line ? screenFromLine(beat.line, still, filmed) : "");
     // A built screen wins over a still: it shows what the product does, the way the reference did.
     if (brief) {
       previous = undefined;
@@ -61,7 +67,7 @@ export function planProduction(script: Script, brief: CreativeBrief, product: Pr
         line: beat.line,
         seconds: beat.seconds,
         reference_visual: [referenceBeats[i]?.visual, referenceBeats[i]?.on_screen_text ? `on-screen text: "${referenceBeats[i]!.on_screen_text}"` : ""].filter(Boolean).join("; "),
-        size: beat.visual === "split" ? "half" : "full",
+        size: filmed ? "desktop" : beat.visual === "split" ? "half" : "full",
       };
       screens.push(request);
       broll.push({ beat: beat.n, visual_id: screenVisualId(request.id), motion: "none" });
@@ -214,6 +220,8 @@ export type RenderedAssets = {
   voiceover: { path: string; duration: number } | null;
   /** Local copies of product visuals by id. */
   visuals: Map<string, { path: string; kind: "image" | "video" }>;
+  /** filmed_screen: the monitor photo every visual is filmed on. Without one, visuals fill the frame. */
+  plate?: FilmedPlate | null;
 };
 
 /** Beat start/end times on the finished video. */
@@ -261,6 +269,7 @@ export function buildTimeline(
 ): EditTimeline {
   const times = new Map(beatTimes(script, plan, assets).map((t) => [t.n, t]));
   const motion = new Map(plan.broll.map((clip) => [clip.beat, clip]));
+  const plate = plan.format === "filmed_screen" ? (assets.plate ?? null) : null;
   const segments: EditTimeline["segments"] = [];
   const captionSegments: Array<{ start: number; end: number; text: string }> = [];
   const overlays: EditTimeline["overlays"] = [];
@@ -278,8 +287,10 @@ export function buildTimeline(
       segments.push({
         start: time.start,
         end: time.end,
-        layer: beat.visual === "split" && !noCreator ? "split" : beat.visual === "inset" && !noCreator ? "inset" : "broll",
-        broll: { path: shown.path, kind: shown.kind, motion: clip?.motion ?? "zoom_in" },
+        layer: plate ? "filmed" : beat.visual === "split" && !noCreator ? "split" : beat.visual === "inset" && !noCreator ? "inset" : "broll",
+        // On a filmed monitor the camera moves, so the picture on it holds still.
+        broll: { path: shown.path, kind: shown.kind, motion: plate ? "none" : (clip?.motion ?? "zoom_in") },
+        ...(plate ? { plate } : {}),
       });
       lastVisual = shown;
     }
