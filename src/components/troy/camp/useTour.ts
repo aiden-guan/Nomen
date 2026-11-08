@@ -5,6 +5,11 @@ import type { TourStep } from "./tour";
 import { paceFor, tourSteps } from "./tour";
 import type { DemoPlayer } from "./useDemo";
 
+/** ?record=1: the demo is being recorded (autoplay, and no buttons on screen; the captions stay). */
+export function recording() {
+  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("record") === "1";
+}
+
 export type Tour = {
   on: boolean;
   steps: TourStep[];
@@ -27,7 +32,7 @@ export type Tour = {
  * Walks a replay step by step (camp/tour.ts): each step moves the clock to its part of the work,
  * holds it there, and asks the camp to open what it shows (`apply`).
  *
- * Autoplay (the default; ?autoplay=0 turns it off) opens the next step once a step's time is up,
+ * Autoplay (?autoplay=1, or ?record=1 for a clean recording) opens the next step once a step's time is up,
  * and plays each step fast enough to fit (`pace`: the clock and the scene alike), so the whole
  * walk-through runs like a video. Pausing the replay (Space, or the card's button) pauses it too.
  * → and ← (or N and P) still walk the tour, and autoplay carries on from there; R starts it over and
@@ -49,7 +54,8 @@ export function useTour({
 }): Tour {
   const steps = useMemo(() => (enabled && player.script ? tourSteps(player.script) : []), [enabled, player.script]);
   const [on, setOn] = useState(true);
-  const [auto, setAuto] = useState(true);
+  // Autoplay is for recording the demo (?autoplay=1, or ?record=1); by hand it is the presenter's.
+  const [auto, setAuto] = useState(false);
   const [index, setIndex] = useState(-1);
   // Each opening of a step, so its timer starts over even when the same step opens again.
   const [opened, setOpened] = useState(0);
@@ -66,7 +72,7 @@ export function useTour({
     if (!enabled) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("tour") === "0") setOn(false);
-    if (params.get("autoplay") === "0" || params.get("tour") === "0") setAuto(false);
+    if ((params.get("autoplay") === "1" || params.get("record") === "1") && params.get("tour") !== "0") setAuto(true);
   }, [enabled]);
 
   const go = useCallback(

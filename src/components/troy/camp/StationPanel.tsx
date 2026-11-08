@@ -39,6 +39,7 @@ export function StationPanel({
   demo,
   focus,
   glide = null,
+  spot = null,
   onAgent,
   onStation,
   onClose,
@@ -57,6 +58,8 @@ export function StationPanel({
   focus?: string | null;
   /** The tour's autoplay: seconds it stays here, scrolling itself to what this station did and on down. */
   glide?: number | null;
+  /** The tour opened this panel (a new number each time): it spotlights the section the step is about. */
+  spot?: number | null;
   onAgent: (id: string) => void;
   onStation: (id: StationId) => void;
   onClose: () => void;
@@ -76,6 +79,7 @@ export function StationPanel({
   const scroller = useRef<HTMLDivElement>(null);
   const detail = useRef<HTMLDivElement>(null);
   useGlide(scroller, detail, glide, id);
+  useSpotlight(scroller, detail, spot, focus ?? null, Boolean(glide));
   useEffect(() => {
     headingRef.current?.focus();
   }, [id]);
@@ -357,6 +361,39 @@ function Oracle({ view, state, actions }: { view: BrandView; state: string; acti
  * scrollIntoView would) so the returned mark is at its top.
  */
 /**
+ * The tour points at what a station did: the section its step is about (the one after the focus
+ * mark, or the station's own first section) is brought into view and outlined for a moment.
+ */
+function useSpotlight(scroller: RefObject<HTMLDivElement | null>, detail: RefObject<HTMLDivElement | null>, spot: number | null, focus: string | null, gliding: boolean) {
+  useEffect(() => {
+    const box = scroller.current;
+    if (spot === null || !box) return;
+    let lit: Element | null = null;
+    const nextSection = (from: Element | null) => {
+      for (let el = from?.nextElementSibling ?? null; el; el = el.nextElementSibling) if (el.tagName === "SECTION") return el;
+      return null;
+    };
+    // After the panel has opened (and, gliding, scrolled down to it).
+    const show = setTimeout(
+      () => {
+        const target = focus ? nextSection(box.querySelector(`[data-mark="${focus}"]`)) : nextSection(detail.current);
+        if (!target) return;
+        if (!gliding && !focus) box.scrollTo({ top: box.scrollTop + target.getBoundingClientRect().top - box.getBoundingClientRect().top - 8, behavior: "smooth" });
+        target.classList.add(styles.spotlight);
+        lit = target;
+      },
+      gliding ? 2000 : 650,
+    );
+    const hide = setTimeout(() => lit?.classList.remove(styles.spotlight), (gliding ? 2000 : 650) + 2800);
+    return () => {
+      clearTimeout(show);
+      clearTimeout(hide);
+      lit?.classList.remove(styles.spotlight);
+    };
+  }, [scroller, detail, spot, focus, gliding]);
+}
+
+/**
  * The tour's autoplay scrolls the panel itself: a moment on the top, then down to what the station
  * did (`detail`), then slowly on to the bottom before the step ends. Scrolling by hand stops it.
  */
@@ -379,11 +416,13 @@ function useGlide(scroller: RefObject<HTMLDivElement | null>, detail: RefObject<
       const t = (performance.now() - start) / 1000;
       const max = Math.max(0, box.scrollHeight - box.clientHeight);
       const mark = detail.current ? Math.min(max, box.scrollTop + detail.current.getBoundingClientRect().top - box.getBoundingClientRect().top - 8) : 0;
-      // 0.9 s on the top, 1 s down to the detail, then on to the bottom by 90% of the step.
+      // 0.9 s on the top, 1 s down to the detail, a stay there while it is spotlit, then on to
+      // the bottom by 90% of the step.
       const settle = 1.9;
       const end = Math.max(settle + 0.5, seconds * 0.9);
+      const stay = Math.min(settle + 2.4, end - 0.8);
       const target =
-        t < 0.9 ? from : t < settle ? from + (mark - from) * ease((t - 0.9) / 1) : mark + (max - mark) * Math.min(1, (t - settle) / (end - settle));
+        t < 0.9 ? from : t < settle ? from + (mark - from) * ease((t - 0.9) / 1) : t < stay ? mark : mark + (max - mark) * Math.min(1, (t - stay) / Math.max(0.1, end - stay));
       box.scrollTop = target;
       if (t < end) frame = requestAnimationFrame(tick);
     };
@@ -437,7 +476,7 @@ function Tent({ view, focus }: { view: BrandView; focus: string | null }) {
             {strategy.audience.length > 0 && <Row label="For">{strategy.audience.map((a) => a.name).join(", ")}</Row>}
           </dl>
         </Section>
-        <div ref={conceptsRef} className="scroll-mt-3" />
+        <div ref={conceptsRef} data-mark="concepts" className="scroll-mt-3" />
         <Section title={`Videos · ${concepts.length} of ${briefs.length} scripted`}>
           <ol className="space-y-2">
             {briefs.map((brief, i) => {
@@ -486,7 +525,7 @@ function Tent({ view, focus }: { view: BrandView; focus: string | null }) {
           </dl>
         </Parchment>
       </Section>
-      <div ref={conceptsRef} className="scroll-mt-3" />
+      <div ref={conceptsRef} data-mark="concepts" className="scroll-mt-3" />
       <Section title={`Concepts · ${strategy.campaign.concepts.length}`}>
         <ol className="space-y-2">
           {strategy.campaign.concepts.map((concept, i) => (
@@ -616,7 +655,7 @@ function Theatre({ view, busy, actions, demo, focus }: { view: BrandView; busy: 
           <p className="mt-2 text-[11px] text-[var(--ink-faint)]">&ldquo;One a day&rdquo; posts each approved video at 16:00 UTC on consecutive days.</p>
         </Section>
       )}
-      <div ref={creatorsRef} className="scroll-mt-3" />
+      <div ref={creatorsRef} data-mark="creators" className="scroll-mt-3" />
       {briefs.length > 0 && (
         <Section title={`Creator briefs · ${briefs.filter((c) => c.approved).length}/${briefs.length} approved to send`}>
           <ul className="grid grid-cols-1 gap-3">

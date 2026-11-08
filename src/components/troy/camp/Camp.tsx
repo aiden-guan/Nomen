@@ -24,7 +24,7 @@ import { StationPanel } from "./StationPanel";
 import type { TourStep } from "./tour";
 import { TourCard } from "./TourCard";
 import { type DemoPlayer, useDemo } from "./useDemo";
-import { useTour } from "./useTour";
+import { recording, useTour } from "./useTour";
 import { useReducedMotion, useWide } from "../hooks";
 
 export type Engine = { stage: Stage; baker: Baker; landing: LandingScene; camp: CampScene };
@@ -782,6 +782,7 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
           demo={demo ? { recorded: Boolean(player.script?.recorded) } : null}
           focus={tour.on ? tourFocus : null}
           glide={tour.auto && !tourFocus && tour.step?.station === selected ? tour.step.dwell : null}
+          spot={tour.on && tour.step?.station === selected ? tour.index : null}
           onAgent={(id) => {
             setAgentId(id);
             setFollowing(true);
@@ -980,6 +981,8 @@ function TopBar({
 /** The demo's badge and the presenter's buttons (the keys are listed in useDemo.ts). */
 function DemoControls({ player }: { player: DemoPlayer }) {
   const label = player.script?.recorded ? "Replay" : "Demo";
+  // Recording the demo: the badge stays, the buttons go.
+  const [buttons] = useState(() => !recording());
   return (
     <div role="group" aria-label="Demo controls" data-demo-controls className="pointer-events-auto flex shrink-0 items-center gap-[3px]">
       <span
@@ -991,6 +994,8 @@ function DemoControls({ player }: { player: DemoPlayer }) {
         {!player.playing && !player.done ? " · paused" : ""}
         {player.auto ? " · auto" : ""}
       </span>
+      {buttons && (
+        <>
       <button type="button" className={styles.iconButton} onClick={player.toggle} aria-label={player.playing ? "Pause" : "Play"} title={`${player.playing ? "Pause" : "Play"} (Space)`}>
         <PixelIcon name={player.playing ? "pause" : "play"} />
       </button>
@@ -1000,6 +1005,8 @@ function DemoControls({ player }: { player: DemoPlayer }) {
       <button type="button" className={`${styles.iconButton} ${styles.wideOnly}`} onClick={player.restart} aria-label="Replay from the start" title="Replay from the start (R)">
         <PixelIcon name="restart" />
       </button>
+        </>
+      )}
     </div>
   );
 }

@@ -165,7 +165,10 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
         setDemoSite(result.brandId === DEMO_ID ? checked.domain : null);
         setPhase("opening");
         // The demo camp replays the recording for this website, if one is installed.
-        const href = result.brandId === DEMO_ID ? `/camp/${DEMO_ID}?site=${encodeURIComponent(checked.domain)}` : `/camp/${encodeURIComponent(result.brandId)}`;
+        // The demo keeps ?record= and ?autoplay= (recording it) on its way into the camp.
+        const keep = new URLSearchParams(window.location.search);
+        const extra = ["record", "autoplay"].map((k) => (keep.get(k) ? `&${k}=${encodeURIComponent(keep.get(k)!)}` : "")).join("");
+        const href = result.brandId === DEMO_ID ? `/camp/${DEMO_ID}?site=${encodeURIComponent(checked.domain)}${extra}` : `/camp/${encodeURIComponent(result.brandId)}`;
         cancelMarch.current();
         cancelMarch.current = march(e, result.brandId, reducedMotion, () => {
           setView("camp");

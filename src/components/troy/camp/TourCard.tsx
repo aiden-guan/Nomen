@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import styles from "../troy.module.css";
-import type { Tour } from "./useTour";
+import { recording, type Tour } from "./useTour";
 
 /** Narrower than this, the gap in the top bar can't hold the card: it goes just under the bar. */
 const MIN_GAP = 300;
@@ -37,6 +37,8 @@ export function TourCard({
   onPause?: () => void;
 }) {
   const step = tour.step;
+  // Recording the demo: the captions stay, the buttons go.
+  const [buttons] = useState(() => !recording());
   const [place, setPlace] = useState<Place | null>(null);
   const [beside, setBeside] = useState<number | null>(null);
   const card = useRef<HTMLDivElement>(null);
@@ -132,6 +134,7 @@ export function TourCard({
           <h2 className={`${styles.pixel} min-w-0 flex-1 truncate text-[16px] font-semibold leading-tight`} title={step.title}>
             {step.title}
           </h2>
+          {buttons && (
           <span className="flex shrink-0 items-center gap-[3px]">
             {tour.auto && onPause && (
               <button type="button" onClick={onPause} className={`${styles.button} ${styles.pixel} h-7 px-2 text-[12px]`} aria-label={playing ? "Pause" : "Play"} title={`${playing ? "Pause" : "Play"} (Space)`}>
@@ -145,9 +148,12 @@ export function TourCard({
               {last ? "End" : "Next →"}
             </button>
           </span>
-          <button type="button" onClick={tour.toggle} className={`${styles.link} ${styles.pixel} shrink-0 px-1 text-[17px] leading-none`} aria-label="Close the tour" title="Close the tour (T)">
-            ×
-          </button>
+          )}
+          {buttons && (
+            <button type="button" onClick={tour.toggle} className={`${styles.link} ${styles.pixel} shrink-0 px-1 text-[17px] leading-none`} aria-label="Close the tour" title="Close the tour (T)">
+              ×
+            </button>
+          )}
         </div>
         <p className="mt-1 text-[13px] leading-snug text-[var(--ink-soft)]">{step.body}</p>
         {/* How far through the tour; on autoplay it fills on through each step's time. */}

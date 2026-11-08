@@ -411,6 +411,38 @@
   }
 }
 
+/* The tour's spotlight on the part of a panel its step is about: a pixel outline that pulses
+   twice and fades. */
+.spotlight {
+  animation: spotlight 2.8s steps(14, end) both;
+  outline-offset: 4px;
+}
+
+@keyframes spotlight {
+  0% {
+    outline: 2px solid transparent;
+    box-shadow: 0 0 0 0 rgba(183, 58, 49, 0);
+  }
+  10%,
+  40% {
+    outline: 2px solid var(--crimson);
+    box-shadow: 0 0 0 6px rgba(183, 58, 49, 0.12);
+  }
+  25%,
+  55% {
+    outline: 2px solid var(--crimson);
+    box-shadow: 0 0 0 2px rgba(183, 58, 49, 0.06);
+  }
+  85% {
+    outline: 2px solid var(--crimson);
+    box-shadow: 0 0 0 0 rgba(183, 58, 49, 0);
+  }
+  100% {
+    outline: 2px solid transparent;
+    box-shadow: 0 0 0 0 rgba(183, 58, 49, 0);
+  }
+}
+
 /* Two agents talking as work changes hands: a small pixel chat bubble over each, its dots typing.
    It pops in on pixel steps, holds, and fades; hover lifts it to say it can be opened. */
 .chat {
