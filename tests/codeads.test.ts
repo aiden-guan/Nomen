@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildCues } from "@/lib/codeads/cues";
 import { advanceCodeAd, brandFor, cannotRender, heroFor, sheetTimes, svgInk } from "@/lib/codeads/job";
 import { display, layoutStory, norm, untag } from "@/lib/codeads/layout";
-import { estimateWords, SR, syllables, trimClip } from "@/lib/codeads/narrate";
+import { compressPauses, estimateWords, SR, syllables, trimClip } from "@/lib/codeads/narrate";
 import { type CodeAdContext, lintStory, normalizeStory, storyScript } from "@/lib/codeads/story";
 import type { CodeAdBrand, CodeAdStory, Voiced } from "@/lib/codeads/types";
 import { planProduction } from "@/lib/creative/plan";
@@ -169,6 +169,9 @@ describe("narration timing", () => {
     expect(words[0].t0).toBeCloseTo(0.5, 1);
     expect(words[1].t1).toBeCloseTo(1.5, 1);
     expect(words[2].t0).toBeCloseTo(1.8, 1);
+    // a 0.3 s breath inside the line comes down to about 0.12 s; the edges are left to trimClip
+    expect(compressPauses(x).length / SR).toBeCloseTo((x.length / SR) - 0.18, 1);
+    expect(compressPauses(x, 0.5).length).toBe(x.length);
     const trimmed = trimClip(x, words);
     expect(trimmed.x.length / SR).toBeCloseTo(2.38, 1);
     expect(trimmed.words[0].t0).toBeCloseTo(0.04, 1);

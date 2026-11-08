@@ -168,6 +168,39 @@ export function trimClip(x: Float32Array, words: Array<{ w: string; t0: number; 
   return { x: x.subarray(a, b), words: words.map((w) => ({ w: w.w, t0: Math.max(0, w.t0 - off), t1: Math.max(0, w.t1 - off) })) };
 }
 
+/**
+ * Shortens the pauses inside a clip (a breath between two sentences) to `keep` seconds: pauses longer than `longer`
+ * seconds, quieter than -40 dBFS over 10 ms, never at the clip's edges. A slow voice reads faster without a harder stretch.
+ */
+export function compressPauses(x: Float32Array, longer = 0.22, keep = 0.12): Float32Array {
+  const win = Math.round(0.01 * SR), floor = 10 ** (-40 / 20);
+  const loud = new Uint8Array(Math.ceil(x.length / win));
+  for (let w = 0; w < loud.length; w++) {
+    let peak = 0;
+    for (let i = w * win; i < Math.min(x.length, (w + 1) * win); i++) peak = Math.max(peak, Math.abs(x[i]));
+    loud[w] = peak > floor ? 1 : 0;
+  }
+  const first = loud.indexOf(1), last = loud.lastIndexOf(1);
+  if (first < 0) return x;
+  const cuts: Array<[number, number]> = [];
+  for (let w = first; w <= last; ) {
+    if (loud[w]) { w++; continue; }
+    let e = w;
+    while (e <= last && !loud[e]) e++;
+    if ((e - w) * win >= longer * SR) cuts.push([(w * win) + Math.round(keep * SR / 2), (e * win) - Math.round(keep * SR / 2)]);
+    w = e;
+  }
+  if (!cuts.length) return x;
+  const parts: Float32Array[] = [];
+  let at = 0;
+  for (const [a, b] of cuts) (parts.push(x.subarray(at, a)), (at = b));
+  parts.push(x.subarray(at));
+  const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) (out.set(p, o), (o += p.length));
+  return out;
+}
+
 export function wavBytes(x: Float32Array, rate = SR): Buffer {
   const data = Buffer.alloc(x.length * 2);
   for (let i = 0; i < x.length; i++) data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x[i])) * 32767), i * 2);
@@ -251,15 +284,18 @@ export async function narrate(beats: CodeAdBeat[], options: NarrateOptions): Pro
     clips.push({ beat, ...c });
   }
   // How fast: as read, unless the read runs past the target (ElevenLabs' Adam reads ~2.9 words/s; ED Studio speeds him up 1.15-1.3x).
-  const plain = await Promise.all(clips.map(async (c) => trimClip(await decode(c.path), []).x.length / SR));
+  // Pauses inside a line are shortened first; then the read is sped up (pitch kept) to fit, at most 1.3x (1.38x for
+  // Naive's voice, which reads about 2 words a second whatever speed it is asked for).
+  const plain = await Promise.all(clips.map(async (c) => trimClip(compressPauses(await decode(c.path)), []).x.length / SR));
   const speech = plain.reduce((a, b) => a + b, 0);
   const room = (options.targetSeconds ?? speech) - lead - tail - gap * Math.max(0, clips.length - 1);
-  const tempo = Math.round(Math.min(1.3, Math.max(1, speech / Math.max(1, room))) * 1000) / 1000;
+  const cap = options.narrator.kind === "naive" ? 1.38 : 1.3;
+  const tempo = Math.round(Math.min(cap, Math.max(1, speech / Math.max(1, room))) * 1000) / 1000;
   let t = lead;
   const chunks: Float32Array[] = [new Float32Array(Math.round(lead * SR))];
   const out: Voiced["beats"] = [];
   for (const [i, c] of clips.entries()) {
-    const x0 = await decode(c.path, tempo);
+    const x0 = compressPauses(await decode(c.path, tempo));
     const spoken = untag(c.text);
     const { x, words } = trimClip(x0, estimateWords(spoken, x0));
     const L = x.length / SR;
