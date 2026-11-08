@@ -9,7 +9,7 @@ import { download, ffmpegPath, probe } from "../media";
 import type { NaiveClient, TranscriptSegment } from "../naive";
 import { QC_MODEL } from "../qc";
 import { extractJson, type Video } from "../research";
-import type { BeatJob, ReferenceBeat, ReferenceBreakdown, ReferenceCandidate, ShotKind } from "./types";
+import type { BeatJob, ConversionAnatomy, FunnelRole, ReferenceBeat, ReferenceBreakdown, ReferenceCandidate, SellingStructure, ShotKind } from "./types";
 
 // The reference engine: find the public videos that outran their accounts, then take each one
 // apart beat by beat (transcript, cuts, frames) so the writers can rebuild its structure, hook
@@ -24,14 +24,27 @@ export type ScoreOptions = {
   maxPerAuthor?: number;
   /** Accounts above this many followers are penalized (default 1,000,000). */
   bigAccount?: number;
-  /** The length a reference should have, in seconds (default 6-75). */
+  /** The length a reference should have, in seconds (default 6-75), and the length past which each second costs (default 45). */
   minSeconds?: number;
   maxSeconds?: number;
+  preferSeconds?: number;
+  /** What a typical video in this pool gets: saves and comments per like (scoreCandidates measures it). */
+  baseline?: Baseline;
 };
+
+/** Saves and comments per like of a typical video in the pool. Niches differ tenfold: dev tutorials get a save for every three likes, soda videos one for every thirty. */
+export type Baseline = { savesPerLike: number; commentsPerLike: number };
+/** Used until the pool has enough measured videos to speak for itself. */
+export const DEFAULT_BASELINE: Baseline = { savesPerLike: 0.1, commentsPerLike: 0.015 };
+const BASELINE_MIN_VIDEOS = 8;
+/** At this much conversion evidence (out of 10) an organic video counts as a "convert" reference. */
+export const CONVERT_AT = 3.5;
 
 /** A typical short video's engagement, and how many views it takes to trust a video's own rate over it. */
 const PRIOR_ENGAGEMENT = 0.04;
 const PRIOR_VIEWS = 2000;
+/** Remakes copy a reference second for second at about $0.40 per rendered second: past this length, shorter wins when the evidence is close. */
+export const PREFER_SECONDS = 45;
 /** Past 500x the account, more is noise: the video is a breakout either way. */
 const OUTLIER_CAP = 500;
 /** Followers unknown: assume a modestly good video, neither a flop nor a breakout. */
@@ -56,7 +69,8 @@ export function outlierOf(video: Pick<Video, "views" | "followers">) {
  *   reach       1.5 x log10(views)
  *   big account -(3 + 3 x log10(followers / 1M)) above 1M followers
  *   paid        -4
- *   length      0 inside 6-75 s; -1 unknown; -3 shorter; -(2 + (s - 75) / 10), at most -15, longer
+ *   length      0 inside 6-45 s; -(s - 45) / 10 from 45 to 75 s (a one-to-one remake costs about $0.40 per
+ *               second to render); -1 unknown; -3 shorter; past 75 s a further -(2 + (s - 75) / 10), at most -15
  *
  * confidence = clamp((log10(views) - 3) / 2, 0.25, 1): a 3x outlier on 3,000 views is weak evidence,
  * on 300,000 views it is not. Smoothing does the same for engagement on small view counts.
@@ -76,32 +90,127 @@ export function scoreVideo(video: Video, options: ScoreOptions = {}): ReferenceC
   const reachPoints = 1.5 * Math.log10(Math.max(views, 1));
   const bigPenalty = followers !== null && followers > big ? 3 + 3 * Math.log10(followers / big) : 0;
   const paidPenalty = video.paid ? PAID_PENALTY : 0;
-  const lengthPoints = lengthScore(video.duration, options.minSeconds ?? 6, options.maxSeconds ?? 75);
+  const lengthPoints = lengthScore(video.duration, options.minSeconds ?? 6, options.maxSeconds ?? 75, options.preferSeconds ?? PREFER_SECONDS);
   const total = outlierPoints + engagementPoints + reachPoints + lengthPoints - bigPenalty - paidPenalty;
 
-  const why = [
-    outlier !== null ? `${times(outlier)} the account's followers` : `${compact(views)} views, followers unknown`,
-    `${percent(engagement)} engagement`,
-    video.duration !== null && Number.isFinite(video.duration) ? `${Math.round(video.duration)} s` : "length unknown",
-    ...(followers !== null && followers > big ? [`big account (${compact(followers)} followers)`] : []),
-    ...(video.paid ? ["paid partnership"] : []),
-  ].join(", ");
+  const why = video.ad
+    ? [
+        `${video.ad.network === "meta" ? "Meta" : "TikTok"} ad`,
+        video.ad.days !== null ? `ran ${video.ad.days} days` : "run length unknown",
+        video.duration !== null && Number.isFinite(video.duration) ? `${Math.round(video.duration)} s` : "length unknown",
+      ].join(", ")
+    : [
+        outlier !== null ? `${times(outlier)} the account's followers` : `${compact(views)} views, followers unknown`,
+        `${percent(engagement)} engagement`,
+        video.duration !== null && Number.isFinite(video.duration) ? `${Math.round(video.duration)} s` : "length unknown",
+        ...(followers !== null && followers > big ? [`big account (${compact(followers)} followers)`] : []),
+        ...(video.paid ? ["paid partnership"] : []),
+      ].join(", ");
 
-  return { outlier: outlier === null ? null : round(outlier, 2), engagement: round(engagement, 4), total: round(total, 2), why };
+  const conversion = conversionOf(video, options.baseline);
+  return {
+    outlier: outlier === null ? null : round(outlier, 2),
+    engagement: round(engagement, 4),
+    total: round(total, 2),
+    why,
+    conversion: conversion.score,
+    role: conversion.role,
+    signals: conversion.signals,
+  };
+}
+
+// The caption cues of a video that sells: an ask or an offer, and the review or comparison formats.
+const ASK = /\blink (?:is )?in (?:my )?bio\b|\blink below\b|\buse (?:my )?code\b|\b\d{1,2}\s?% off\b|\bdiscount\b|\bfree trial\b|\bsign up\b|\bdownload (?:it|now|the app)\b|\bshop (?:now|it|the)\b|\bget yours\b|#tiktokmademebuyit\b|#amazonfinds\b|#tiktokshop\b/i;
+/** "Comment AGENT and I'll send it": the comment-to-DM ask. The keyword is in capitals, so no /i. */
+const COMMENT_KEYWORD = /\b[Cc]omment\s+["'“]?[A-Z]{3,}["'”]?/;
+const REVIEW = /\breview\b|\bi tried\b|\btried (?:it|this|the)\b|\bworth it\b|\bvs\.?\s|\bversus\b|\bbefore (?:and|&) after\b|\bhonest\b|\btestimonial\b/i;
+const SPONSORED = /(?:^|\s)#(?:ad|sponsored|partner|paidpartnership)\b/i;
+/** Ad buttons that ask for an action; "Learn more" and "Watch more" do not. */
+const DIRECT_CTA = /shop|buy|order|sign ?up|subscribe|install|download|get (?:offer|quote|started)|book|apply|send (?:whatsapp )?message|contact|join|start|try|use app|play/i;
+
+/**
+ * Conversion evidence, 0 to 10: the public signs that a video sells, not just that it was seen.
+ * Likes and views measure reach; these are the signals performance teams read instead:
+ *
+ *   intent     0-3   saves per like against the pool's median: 1.5 + 0.75 x log2(ratio), so 1.5 at the
+ *                    median, 3 at four times it, 0 at a quarter (a like is a reaction, a save is "I'll come
+ *                    back to this": a tool to try, a thing to buy)
+ *   questions  0-1   comments per like against the pool's median: 0.5 x log2(ratio), 1 at four times it
+ *                    (people asking; a weak proxy until comment text is read)
+ *   ask        1     the caption asks for action or makes an offer: link in bio, a code, % off, free
+ *                    trial, "comment AGENT", #tiktokmademebuyit
+ *   review     1     the caption is a review or comparison: review, "I tried", vs, worth it, before and after
+ *   paid       1.5   a brand paid for it (paid partnership, or #ad in the caption)
+ *   ad         1     a paid ad from an ad library, plus:
+ *     longevity 0-4  days it ran: 0 at a week, 2.3 at 30 days, 4 at 90+ (advertisers stop paying for ads that lose money)
+ *     variants  0-2  ads using the same creative: 1 at two, 2 at four or more (the advertiser scaled it)
+ *     button    1    the button asks for an action (shop, sign up, install), not "learn more"
+ *     top ad    2    a TikTok Creative Center top ad bought for conversions
+ *
+ * The role is "convert" for every ad and for organic videos at CONVERT_AT (3.5) or more: high saves
+ * alone mark a useful video, so an organic converter needs saves far above the niche's plus a
+ * selling cue, or exceptional saves and questions together. Everything else is "reach".
+ */
+export function conversionOf(video: Video, baseline: Baseline = DEFAULT_BASELINE): { score: number; role: FunnelRole; signals: string[] } {
+  const parts: Array<{ points: number; signal: string }> = [];
+  const add = (points: number, signal: string) => {
+    if (points > 0) parts.push({ points, signal });
+  };
+  const likes = count(video.likes);
+  const caption = video.caption ?? "";
+  if (!video.ad && likes >= 100) {
+    // 0 saves on a platform that reports them is implausible: it means the platform did not report them.
+    if (count(video.saves) > 0) {
+      const relative = count(video.saves) / likes / baseline.savesPerLike;
+      add(clamp(1.5 + 0.75 * Math.log2(relative), 0, 3), `saves per like ${times(relative)} the pool's`);
+    }
+    if (count(video.comments) > 0) {
+      const relative = count(video.comments) / likes / baseline.commentsPerLike;
+      add(clamp(0.5 * Math.log2(relative), 0, 1), `comments per like ${times(relative)} the pool's`);
+    }
+  }
+  const ask = caption.match(ASK) ?? caption.match(COMMENT_KEYWORD);
+  if (ask) add(1, `caption asks: "${ask[0].trim()}"`);
+  const review = caption.match(REVIEW);
+  if (review) add(1, `caption: "${review[0].trim()}"`);
+  if (!video.ad && (video.paid || SPONSORED.test(caption))) add(1.5, video.paid ? "paid partnership" : "sponsored (#ad)");
+  if (video.ad) {
+    const { days, variants, cta, objective, active } = video.ad;
+    add(1, `${video.ad.network === "meta" ? "Meta" : "TikTok"} ad`);
+    if (days !== null && days >= 7) add(4 * clamp(Math.log2(days / 7) / Math.log2(90 / 7), 0, 1), `ran ${days} days${active ? ", still running" : ""}`);
+    if (variants !== null && variants >= 2) add(Math.min(2, Math.log2(variants)), `${variants} ads use this creative`);
+    if (cta && DIRECT_CTA.test(cta)) add(1, `button: ${cta}`);
+    if (objective) add(2, `TikTok top ad bought for ${objective}`);
+  }
+  const score = round(Math.min(10, parts.reduce((sum, part) => sum + part.points, 0)), 1);
+  return { score, role: video.ad || score >= CONVERT_AT ? "convert" : "reach", signals: parts.map((part) => part.signal) };
+}
+
+/** The pool's typical saves and comments per like, so conversion evidence is judged against the niche. */
+export function poolBaseline(videos: Video[]): Baseline {
+  const measured = videos.filter((video) => !video.ad && count(video.likes) >= 100);
+  const saves = measured.filter((video) => count(video.saves) > 0).map((video) => count(video.saves) / count(video.likes));
+  const comments = measured.filter((video) => count(video.comments) > 0).map((video) => count(video.comments) / count(video.likes));
+  return {
+    savesPerLike: saves.length >= BASELINE_MIN_VIDEOS ? median(saves) : DEFAULT_BASELINE.savesPerLike,
+    commentsPerLike: comments.length >= BASELINE_MIN_VIDEOS ? median(comments) : DEFAULT_BASELINE.commentsPerLike,
+  };
 }
 
 /**
  * Ranks research videos as reference candidates: best first, one entry per video URL, at most
- * `maxPerAuthor` (2) per account so one creator cannot fill the list.
+ * `maxPerAuthor` (2) per account so one creator cannot fill the list. Ads (videos with ad signals)
+ * are always the "ad" lane, whatever `originOf` says.
  */
 export function scoreCandidates(videos: Video[], originOf: (video: Video) => ReferenceCandidate["origin"], options: ScoreOptions = {}): ReferenceCandidate[] {
   const maxPerAuthor = options.maxPerAuthor ?? 2;
+  const baseline = options.baseline ?? poolBaseline(videos);
   const scored: ReferenceCandidate[] = videos
     .filter((video) => typeof video.url === "string" && video.url.trim() !== "")
     .map((video) => {
-      const origin = originOf(video);
+      const origin = video.ad ? "ad" : originOf(video);
       // A benchmark (Cluely, MrBeast) is famous for raw virality: no big-account penalty.
-      return { ...video, origin, score: scoreVideo(video, origin === "benchmark" ? { ...options, bigAccount: Number.POSITIVE_INFINITY } : options) };
+      return { ...video, origin, score: scoreVideo(video, { ...options, baseline, ...(origin === "benchmark" ? { bigAccount: Number.POSITIVE_INFINITY } : {}) }) };
     })
     .sort((a, b) => b.score.total - a.score.total || count(b.views) - count(a.views));
 
@@ -121,9 +230,13 @@ export function scoreCandidates(videos: Video[], originOf: (video: Video) => Ref
 }
 
 /**
- * The candidates worth a full breakdown: downloadable, a plausible length (5-90 s, or unknown and
- * checked after download), best first, with the best competitor post and the best category video
- * included whenever there is one, and one per author before anyone gets a second.
+ * The candidates worth a full breakdown. A remake copies its reference one-to-one from the
+ * reference's own footage, so only downloadable videos qualify (a media_url), of a plausible length
+ * (5-90 s, or unknown and checked after download). Best first, and one per author before anyone gets
+ * a second. The mix is reserved before the rest fill in: up to two "convert" references (most
+ * conversion evidence first, less a point per 10 s past 45 s, since every second is re-rendered) and
+ * two "reach" ones (n of 4 or more; one each from 2), so the director can plan videos for both jobs;
+ * then one from each lane not yet represented: competitor, category, benchmark, adjacent, ad.
  */
 export function pickForBreakdown(candidates: ReferenceCandidate[], n = 6, options: { minSeconds?: number; maxSeconds?: number; keepOrder?: boolean } = {}): ReferenceCandidate[] {
   const min = options.minSeconds ?? 5;
@@ -140,11 +253,34 @@ export function pickForBreakdown(candidates: ReferenceCandidate[], n = 6, option
     picked.push(candidate);
     authors.add(authorKey(candidate.author));
   };
-  // One from each lane first, so the director gets different styles: a competitor, a niche outlier,
-  // a famous viral benchmark, an adjacent format.
-  for (const origin of ["competitor", "category", "benchmark", "adjacent"] as const) {
-    const best = usable.find((candidate) => candidate.origin === origin);
-    if (best && picked.length < n && !picked.includes(best)) take(best);
+  const fresh = (candidate: ReferenceCandidate) => {
+    const author = authorKey(candidate.author);
+    return !picked.includes(candidate) && !(author && authors.has(author));
+  };
+  // Both funnel jobs first. Convert references go by conversion evidence (the reach score ranks the
+  // list, and ads have no views), less the cost of a long remake; reach references keep the list's
+  // order, whose reach score already counts length.
+  const quota = n >= 4 ? 2 : n >= 2 ? 1 : 0;
+  const sells = (candidate: ReferenceCandidate) => (candidate.score.conversion ?? 0) - renderCost(candidate.duration);
+  const byRole = (role: FunnelRole) => {
+    const list = usable.filter((candidate) => roleOf(candidate) === role);
+    return role === "convert" ? [...list].sort((a, b) => sells(b) - sells(a)) : list;
+  };
+  for (const role of ["convert", "reach"] as const) {
+    let taken = 0;
+    for (const candidate of byRole(role)) {
+      if (taken >= quota || picked.length >= n) break;
+      if (!fresh(candidate)) continue;
+      take(candidate);
+      taken++;
+    }
+  }
+  // Then one from each lane, so the director gets different styles: a competitor, a niche outlier,
+  // a famous viral benchmark, an adjacent format, an ad.
+  for (const origin of ["competitor", "category", "benchmark", "adjacent", "ad"] as const) {
+    if (picked.length >= n || picked.some((candidate) => candidate.origin === origin)) continue;
+    const best = usable.find((candidate) => candidate.origin === origin && fresh(candidate)) ?? usable.find((candidate) => candidate.origin === origin && !picked.includes(candidate));
+    if (best) take(best);
   }
   for (const distinctAuthors of [true, false]) {
     for (const candidate of usable) {
@@ -243,6 +379,9 @@ export async function breakdownReference(naive: BreakdownClient, candidate: Refe
       ...read,
       pacing: { cuts: cuts.length, avg_shot_seconds: round(duration / (cuts.length + 1), 1), words_per_minute: wpm },
       transcript: speech.text,
+      origin: candidate.origin,
+      role: referenceRole(candidate, read.anatomy),
+      conversion: { score: candidate.score.conversion ?? 0, signals: candidate.score.signals ?? [] },
     };
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -436,12 +575,39 @@ export function wordsPerMinute(text: string, segments: TranscriptSegment[], dura
 const JOBS: BeatJob[] = ["hook", "problem", "agitate", "reveal", "demo", "proof", "objection", "payoff", "cta", "other"];
 const SHOTS: ShotKind[] = ["talking_head", "product_closeup", "screen", "b_roll", "text_only", "reaction", "split"];
 
+const STRUCTURES: SellingStructure[] = [
+  "problem_solution",
+  "demo",
+  "testimonial",
+  "review",
+  "before_after",
+  "us_vs_them",
+  "listicle",
+  "founder_story",
+  "objection_handling",
+  "tutorial",
+  "skit",
+  "reaction",
+  "trend",
+  "story",
+  "other",
+];
+
+/**
+ * A reference's job: an ad or a candidate with strong conversion evidence converts; otherwise the
+ * video itself decides (built to sell, with a call to action), and a plain viral video is reach.
+ */
+export function referenceRole(candidate: Pick<ReferenceCandidate, "origin" | "score">, anatomy: ConversionAnatomy | undefined): FunnelRole {
+  if (candidate.origin === "ad" || candidate.score.role === "convert") return "convert";
+  return anatomy?.role === "convert" && anatomy.cta ? "convert" : "reach";
+}
+
 const BREAKDOWN_TOOL = {
   name: "reference_breakdown",
   description: "Record the beat-by-beat breakdown of this reference video.",
   input_schema: {
     type: "object",
-    required: ["format", "hook", "beats", "caption_style", "delivery", "why_it_works", "fit"],
+    required: ["format", "hook", "beats", "caption_style", "delivery", "why_it_works", "conversion", "fit"],
     properties: {
       format: {
         type: "string",
@@ -496,13 +662,43 @@ const BREAKDOWN_TOOL = {
       },
       why_it_works: {
         type: "string",
-        description: "2-4 sentences: what earns the first two seconds, what keeps people watching to the end, and what drives comments, shares or saves, tied to the stats.",
+        description:
+          "2-4 sentences: what earns the first two seconds, what keeps people watching to the end, and what drives comments, shares or saves, tied to the stats. For a video that sells, also what moves a viewer from watching to acting.",
+      },
+      conversion: {
+        type: "object",
+        required: ["role", "structure", "problem", "proof", "offer", "cta", "objection"],
+        description: "How the video sells, if it does, so a remake that has to convert can keep its selling beats.",
+        properties: {
+          role: {
+            type: "string",
+            enum: ["reach", "convert"],
+            description:
+              "convert: built to make the viewer act (names a problem, shows the product working, offers proof, an offer or a clear call to action). reach: built to be watched and shared (a skit, a trend, a story, a reaction) with at most a soft ask.",
+          },
+          structure: {
+            type: "string",
+            enum: STRUCTURES,
+            description:
+              "The selling structure: problem_solution (pain, then the fix), demo, testimonial, review, before_after, us_vs_them (this vs the old way or a rival), listicle (often the product as #1), founder_story, objection_handling, tutorial, skit, reaction (e.g. green-screen), trend, story, other.",
+          },
+          problem: { type: "string", description: "The pain it names, quoted from a line or on-screen text, or ''." },
+          proof: { type: "string", description: "What it offers as proof: a result on screen, a number, a live demo, a review or social proof; quoted or described, or ''." },
+          offer: { type: "string", description: "The offer as said or shown (price, discount, free tier, trial, bonus), or ''. Never infer one." },
+          cta: { type: "string", description: "The call to action word for word, said or on screen ('comment AGENT and I'll send it', 'link in bio'), or ''." },
+          objection: { type: "string", description: "The doubt it answers ('is it worth it?', 'does it actually work') and how, or ''." },
+        },
       },
       fit: {
         type: "object",
         required: ["score", "reason"],
         properties: {
-          score: { type: "integer", minimum: 0, maximum: 10, description: "How well this format would carry the brand's product." },
+          score: {
+            type: "integer",
+            minimum: 0,
+            maximum: 10,
+            description: "How well this video would carry the brand's product if rebuilt one-to-one (same layout, graphics, captions and timing; our presenter and product swapped in).",
+          },
           reason: { type: "string", description: "One or two sentences: how the format would carry the product and what would have to change." },
         },
       },
@@ -511,7 +707,7 @@ const BREAKDOWN_TOOL = {
 };
 
 const SYSTEM = [
-  "You are the breakdown analyst on a team that makes short vertical video ads. You take apart one public video that clearly outperformed its account and write down exactly how it works, second by second, so a script writer can rebuild the same structure, hook mechanic, pacing and delivery for a different product.",
+  "You are the breakdown analyst on a team that makes short vertical video ads. You take apart one public video that clearly worked (it outran its account, or an advertiser kept paying to show it) and write down exactly how it works, second by second, so a script writer can rebuild the same structure, hook mechanic, pacing and delivery for a different product.",
   "You are given frames from the video in order, each labelled with its timestamp and shot; the timestamped transcript of what is said; the hard cuts detected in it; its stats; and the brand that will borrow the format.",
   "Rules:",
   "- Report only what the frames and the transcript show. Never invent dialogue, on-screen text, products, numbers or events. You only see some frames: when you infer what happens between them, say so briefly ('between frames', 'likely'). If text in a frame is too small or blurred to read, write 'unreadable' rather than guessing.",
@@ -520,12 +716,14 @@ const SYSTEM = [
   "- Beats run in order from 0 to the end of the video with no gaps or overlaps: each beat starts where the previous one ends and the last ends at the video's duration. Times are seconds with one decimal. Put boundaries on detected cuts or transcript segment boundaries where they fit. One job per beat, usually 3-12 beats; the first beat is the hook and normally ends within 3 seconds.",
   "- Be exact about timing: when the product first appears, when text pops on, how long shots last. Take it from the frame and transcript timestamps.",
   "- hook.mechanic and why_it_works name mechanisms that would transfer to a different product, not the topic of this video.",
+  "- conversion records how the video sells, because the team plans some videos to be watched and shared and others to make people buy or sign up. Quote the problem, proof, offer, call to action and objection from the transcript or the frames; leave a field '' when the video has none. A paid ad is usually built to convert; a skit or trend usually is not.",
   "- The team will remake this video as closely as possible for its own product, with its own AI presenter and its own footage: it keeps the hook, beats, wording, timing, shots and on-screen text, and never reuses this video's people, footage, voice or music. So capture every line, beat and on-screen text exactly. Do not try to identify anyone: describe people by role and look ('a woman in her 20s talking to a propped-up phone').",
   "- Judge fit honestly for the brand given: 10 means the format carries its product almost unchanged, 5 means it works with real changes, 0 means it depends on something the brand cannot do (a celebrity, a physical stunt for an app, a product it does not have).",
+  "- The team rebuilds a chosen video one-to-one, shot by shot, with its own AI presenter and its product in place of the original's. Layouts that rebuild cleanly score higher: one presenter talking to camera, a green screen, a screen recording, graphics or text over a simple background. Footage that depends on real-world shots it cannot recreate (crowds, outdoor action, several people, stunts, a specific location) scores lower, however well it did.",
 ].join("\n");
 
 const JSON_SHAPE =
-  '{"format": "...", "hook": {"line": "...", "on_screen_text": "...", "visual": "...", "mechanic": "..."}, "beats": [{"start": 0, "end": 2.1, "job": "hook|problem|agitate|reveal|demo|proof|objection|payoff|cta|other", "shot": "talking_head|product_closeup|screen|b_roll|text_only|reaction|split", "visual": "...", "on_screen_text": "...", "line": "..."}], "caption_style": "...", "delivery": "...", "why_it_works": "...", "fit": {"score": 0, "reason": "..."}}';
+  '{"format": "...", "hook": {"line": "...", "on_screen_text": "...", "visual": "...", "mechanic": "..."}, "beats": [{"start": 0, "end": 2.1, "job": "hook|problem|agitate|reveal|demo|proof|objection|payoff|cta|other", "shot": "talking_head|product_closeup|screen|b_roll|text_only|reaction|split", "visual": "...", "on_screen_text": "...", "line": "..."}], "caption_style": "...", "delivery": "...", "why_it_works": "...", "conversion": {"role": "reach|convert", "structure": "problem_solution|demo|testimonial|review|before_after|us_vs_them|listicle|founder_story|objection_handling|tutorial|skit|reaction|trend|story|other", "problem": "...", "proof": "...", "offer": "...", "cta": "...", "objection": "..."}, "fit": {"score": 0, "reason": "..."}}';
 
 type ContentInput = {
   candidate: ReferenceCandidate;
@@ -542,7 +740,7 @@ const ORIGIN_LABEL: Record<ReferenceCandidate["origin"], string> = {
   category: "from a search in the brand's category",
   adjacent: "from an adjacent category whose format may transfer",
   benchmark: "from a brand or creator famous for viral short-form (judge the hook and format, not the topic)",
-  ad: "a paid ad",
+  ad: "a paid ad from an ad library (its proof is how long the advertiser kept paying for it; libraries publish no views)",
 };
 
 function buildContent(input: ContentInput): unknown[] {
@@ -555,12 +753,18 @@ function buildContent(input: ContentInput): unknown[] {
     content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame.jpeg.toString("base64") } });
   }
 
-  const stats = [
-    `${count(candidate.views).toLocaleString("en")} views`,
-    candidate.followers !== null ? `${candidate.followers.toLocaleString("en")} followers (${times(candidate.score.outlier ?? 0)} the account's followers)` : "follower count unknown",
-    `${count(candidate.likes).toLocaleString("en")} likes, ${count(candidate.comments).toLocaleString("en")} comments, ${count(candidate.shares).toLocaleString("en")} shares, ${count(candidate.saves).toLocaleString("en")} saves (${percent(candidate.score.engagement)} engagement)`,
-    ...(candidate.paid ? ["paid partnership"] : []),
-  ].join("; ");
+  const conversion = candidate.score.signals?.length ? `conversion evidence ${candidate.score.conversion ?? 0}/10 (${candidate.score.signals.join(", ")})` : "";
+  const stats = candidate.ad
+    ? [`${candidate.ad.network === "meta" ? "Meta" : "TikTok"} ad by ${candidate.author || "an unknown advertiser"}`, conversion].filter(Boolean).join("; ")
+    : [
+        `${count(candidate.views).toLocaleString("en")} views`,
+        candidate.followers !== null ? `${candidate.followers.toLocaleString("en")} followers (${times(candidate.score.outlier ?? 0)} the account's followers)` : "follower count unknown",
+        `${count(candidate.likes).toLocaleString("en")} likes, ${count(candidate.comments).toLocaleString("en")} comments, ${count(candidate.shares).toLocaleString("en")} shares, ${count(candidate.saves).toLocaleString("en")} saves (${percent(candidate.score.engagement)} engagement)`,
+        ...(candidate.paid ? ["paid partnership"] : []),
+        conversion,
+      ]
+        .filter(Boolean)
+        .join("; ");
   const transcript = speech.segments.length
     ? speech.segments.map((segment) => `[${segment.start_seconds.toFixed(1)}-${segment.end_seconds.toFixed(1)}] ${segment.text}`).join("\n")
     : speech.text
@@ -570,7 +774,9 @@ function buildContent(input: ContentInput): unknown[] {
   content.push({
     type: "text",
     text: [
-      `The video: a ${candidate.platform} post by @${candidate.author || "unknown"}, ${ORIGIN_LABEL[candidate.origin]}.`,
+      candidate.ad
+        ? `The video: a ${candidate.ad.network === "meta" ? "Meta (Facebook and Instagram)" : "TikTok"} ad by ${candidate.author || "an unknown advertiser"}, ${ORIGIN_LABEL.ad}.`
+        : `The video: a ${candidate.platform} post by @${candidate.author || "unknown"}, ${ORIGIN_LABEL[candidate.origin]}.`,
       `Stats: ${stats}.`,
       `Caption: ${candidate.caption ? JSON.stringify(candidate.caption) : "(none)"}`,
       `Duration: ${duration.toFixed(1)} s.`,
@@ -604,7 +810,7 @@ async function askForBreakdown(naive: BreakdownClient, model: string, content: u
   return raw;
 }
 
-type ReadBreakdown = Pick<ReferenceBreakdown, "format" | "hook" | "beats" | "caption_style" | "delivery" | "why_it_works" | "fit">;
+type ReadBreakdown = Pick<ReferenceBreakdown, "format" | "hook" | "beats" | "caption_style" | "delivery" | "why_it_works" | "fit" | "anatomy">;
 
 /**
  * The model's answer, made safe for the writers: beats sorted and stretched to cover the whole
@@ -656,7 +862,20 @@ export function readBreakdown(raw: Record<string, unknown>, context: { duration:
   const hook = isRecord(raw.hook) ? raw.hook : {};
   const fit = isRecord(raw.fit) ? raw.fit : {};
   const score = Number(fit.score);
+  const sells = isRecord(raw.conversion) ? raw.conversion : null;
+  const anatomy: ConversionAnatomy | undefined = sells
+    ? {
+        role: text(sells.role) === "convert" ? "convert" : "reach",
+        structure: (STRUCTURES as string[]).includes(text(sells.structure)) ? (text(sells.structure) as SellingStructure) : "other",
+        problem: text(sells.problem),
+        proof: text(sells.proof),
+        offer: text(sells.offer),
+        cta: text(sells.cta),
+        objection: text(sells.objection),
+      }
+    : undefined;
   return {
+    ...(anatomy ? { anatomy } : {}),
     format: text(raw.format),
     hook: {
       line: verbatim(text(hook.line), () => beats[0].line),
@@ -678,20 +897,30 @@ function interactionsOf(video: Pick<Video, "likes" | "comments" | "shares" | "sa
   return count(video.likes) + count(video.comments) + 2 * count(video.shares) + 2 * count(video.saves);
 }
 
-function lengthScore(duration: number | null, min: number, max: number) {
+function lengthScore(duration: number | null, min: number, max: number, prefer: number) {
   if (duration === null || !Number.isFinite(duration)) return -1;
   if (duration < min) return -3;
-  if (duration > max) return -Math.min(15, 2 + (duration - max) / 10);
-  return 0;
+  const over = -renderCost(Math.min(duration, max), prefer);
+  if (duration > max) return over - Math.min(15, 2 + (duration - max) / 10);
+  return over;
 }
 
-/** Same video, different link: no query string or trailing slash, no www/m subdomain (YouTube keeps ?v=). */
+/** Points off for length past `prefer` seconds: a remake copies every second, and every second is rendered. */
+function renderCost(duration: number | null, prefer = PREFER_SECONDS) {
+  return duration !== null && Number.isFinite(duration) && duration > prefer ? (duration - prefer) / 10 : 0;
+}
+
+/**
+ * Same video, different link: no query string or trailing slash, no www/m subdomain. The query
+ * parameters that name the video stay: YouTube's ?v=, and the ad id of an ad library link
+ * (facebook.com/ads/library/?id=, library.tiktok.com/ads/detail/?ad_id=).
+ */
 export function canonicalUrl(url: string) {
   try {
     const parsed = new URL(url.trim());
     const host = parsed.hostname.toLowerCase().replace(/^(www|m|mobile)\./, "");
-    const v = parsed.searchParams.get("v");
-    return `${host}${parsed.pathname.replace(/\/+$/, "")}${v ? `?v=${v}` : ""}`;
+    const key = ["v", "id", "ad_id"].find((name) => parsed.searchParams.get(name));
+    return `${host}${parsed.pathname.replace(/\/+$/, "")}${key ? `?${key}=${parsed.searchParams.get(key)}` : ""}`;
   } catch {
     return url.trim().toLowerCase().replace(/[?#].*$/, "").replace(/\/+$/, "");
   }
@@ -699,6 +928,17 @@ export function canonicalUrl(url: string) {
 
 function authorKey(author: string) {
   return (author ?? "").trim().toLowerCase().replace(/^@/, "");
+}
+
+/** Candidates scored before conversion evidence existed count as reach. */
+function roleOf(candidate: ReferenceCandidate): FunnelRole {
+  return candidate.score.role ?? "reach";
+}
+
+function median(values: number[]) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
 function normalizeWords(value: string) {

@@ -20,7 +20,8 @@ const SCOUT_TOOL = {
     properties: {
       notes: {
         type: "string",
-        description: "2-4 sentences: which videos broke out (views far above the account's followers), what they have in common (hook, format, topic), and what is missing from the results.",
+        description:
+          "2-4 sentences: which videos broke out (views far above the account's followers), which ones look like they sell (high saves per like, a call to action, a review or demo), what they have in common (hook, format, topic), and what is missing from the results.",
       },
       searches: {
         type: "array",
@@ -40,9 +41,14 @@ const SCOUT_TOOL = {
   },
 };
 
-/** The top of the first wave, as the scout sees it: numbers it can reason about, no links to follow. */
+/**
+ * The top of the first wave, as the scout sees it: numbers it can reason about, no links to follow.
+ * Ads are left out (they have no views to compare); saves per like is in, because a video people
+ * save is one they mean to act on.
+ */
 export function scoutDigest(videos: Video[], limit = 18) {
-  return [...videos]
+  return videos
+    .filter((video) => !video.ad)
     .sort((a, b) => roughScore(b) - roughScore(a))
     .slice(0, limit)
     .map((video) => ({
@@ -53,6 +59,7 @@ export function scoutDigest(videos: Video[], limit = 18) {
       followers: video.followers,
       views_per_follower: video.followers ? Math.round((video.views / Math.max(video.followers, 1000)) * 10) / 10 : null,
       engagement_pct: Math.round(((video.likes + video.comments + 2 * video.shares + 2 * video.saves) / Math.max(video.views, 1)) * 1000) / 10,
+      saves_per_like: video.likes >= 100 && video.saves > 0 ? Math.round((video.saves / video.likes) * 100) / 100 : null,
       seconds: video.duration,
       caption: video.caption.slice(0, 160),
       hashtags: hashtags(video.caption),
@@ -65,12 +72,15 @@ export function hashtags(caption: string) {
 
 export async function scout(naive: NaiveClient, input: { plan: ResearchPlan; videos: Video[]; brand: { name: string; description: string }; alreadySearched: string[] }): Promise<ScoutReport> {
   const digest = scoutDigest(input.videos);
+  // The conversion searches ran in the first wave too; the caller's list predates them.
+  const alreadySearched = [...new Set([...input.alreadySearched, ...(input.plan.conversion_queries ?? [])])];
   const reply = await naive.message({
     model: getSetting("planner_model"),
     max_tokens: 1500,
     system: [
       "You are the research scout on a short-form video team. Your job is to find videos that perform because the video is good, not because the account is big: a video with 10x more views than its account has followers proves its hook and format work.",
-      "Read the first wave of search results and decide where to dig next. Good follow-ups: a hashtag several breakout videos share; the exact phrasing of a breakout hook or topic; the buyer's identity as creators tag it; an adjacent niche whose formats would transfer to this product; a competitor's name plus 'review' or 'vs'.",
+      "The team is paid for its customer's sales, not views, so it needs two kinds of evidence: videos that earn reach, and videos that make people act. A video that sells shows it in its numbers and caption: many saves per like (people keep it to come back to), a call to action or offer (link in bio, a code, 'comment AGENT'), a review, a demo, an 'I tried' or a comparison.",
+      "Read the first wave of search results and decide where to dig next. Good follow-ups: a hashtag several breakout videos share; the exact phrasing of a breakout hook or topic; the buyer's identity as creators tag it; an adjacent niche whose formats would transfer to this product; a competitor's name plus 'review' or 'vs'. Make at least one search find videos that sell in this niche (a review, demo, comparison or testimonial phrase, or the phrasing of a high-saves video that asks for action).",
       "Bad follow-ups: the brand name alone, generic words like 'marketing' or 'viral', anything already searched.",
       "If the results are thin or off-topic (the category barely exists on short video), search adjacent topics where the same buyer spends attention. Call the scout_report tool once.",
     ].join("\n"),
@@ -81,7 +91,7 @@ export async function scout(naive: NaiveClient, input: { plan: ResearchPlan; vid
           `Brand: ${input.brand.name}: ${input.brand.description || input.plan.category}`,
           `Category: ${input.plan.category}. Buyer: ${input.plan.audience}`,
           `Competitors: ${input.plan.competitors.map((c) => c.name).join(", ") || "unknown"}`,
-          `Already searched: ${input.alreadySearched.join(" | ")}`,
+          `Already searched: ${alreadySearched.join(" | ")}`,
           `First-wave results, best first (${input.videos.length} videos in total):\n${JSON.stringify(digest)}`,
         ].join("\n\n"),
       },
@@ -90,7 +100,7 @@ export async function scout(naive: NaiveClient, input: { plan: ResearchPlan; vid
   });
   const call = reply.content.find((block) => block.type === "tool_use" && block.name === SCOUT_TOOL.name);
   const raw = (call?.input ?? extractJson(reply.content.map((block) => block.text ?? "").join("\n"))) as Partial<ScoutReport> | null;
-  return cleanReport(raw, input.alreadySearched);
+  return cleanReport(raw, alreadySearched);
 }
 
 export function cleanReport(raw: Partial<ScoutReport> | null, alreadySearched: string[]): ScoutReport {

@@ -58,12 +58,20 @@ export type ProductBrief = {
 
 // ---------- what already works ----------
 
+/**
+ * What a video is for in a campaign. "reach" videos earn views and shares (judged on views and
+ * shares); "convert" videos make the viewer act (judged on link clicks and sign-ups). Campaigns mix
+ * both, the way performance teams split awareness and conversion creative.
+ */
+export type FunnelRole = "reach" | "convert";
+
 /** A public video worth learning from, with why it was picked. Views alone are not enough. */
 export type ReferenceCandidate = Video & {
   /**
    * "competitor" (a competitor's own post), "category" (a search in the space), "adjacent" (a format
    * that transfers), "benchmark" (a brand or creator famous for viral short-form, e.g. Cluely or
-   * MrBeast: judged on raw virality, not on beating its account), "ad".
+   * MrBeast: judged on raw virality, not on beating its account), "ad" (a paid ad from an ad
+   * library: judged on how long the advertiser kept paying for it).
    */
   origin: "competitor" | "category" | "adjacent" | "benchmark" | "ad";
   score: {
@@ -71,11 +79,52 @@ export type ReferenceCandidate = Video & {
     outlier: number | null;
     /** (likes + comments + 2 x shares + 2 x saves) / views. */
     engagement: number;
-    /** The ranking score, higher is better. */
+    /** The reach score, which ranks candidates: higher is better. */
     total: number;
     /** One line a person can read: "41x the account's followers, 9% engagement, 23 s". */
     why: string;
+    /** 0-10: public evidence that the video sells, not just that it was seen (see conversionOf). */
+    conversion?: number;
+    /** "convert" for ads and videos with strong conversion evidence, else "reach". */
+    role?: FunnelRole;
+    /** The named signals behind `conversion`: "ran 94 days", "saves per like 2.1x the pool's". */
+    signals?: string[];
   };
+};
+
+/** The direct-response structure a video follows, as performance teams name them. */
+export type SellingStructure =
+  | "problem_solution"
+  | "demo"
+  | "testimonial"
+  | "review"
+  | "before_after"
+  | "us_vs_them"
+  | "listicle"
+  | "founder_story"
+  | "objection_handling"
+  | "tutorial"
+  | "skit"
+  | "reaction"
+  | "trend"
+  | "story"
+  | "other";
+
+/** How a reference sells, read from its transcript and frames, so a remake can keep its selling beats. */
+export type ConversionAnatomy = {
+  /** What the video itself is built to do. */
+  role: FunnelRole;
+  structure: SellingStructure;
+  /** The pain it names, quoted, or "". */
+  problem: string;
+  /** What it offers as proof (a result on screen, a number, a demo, a review), quoted or described, or "". */
+  proof: string;
+  /** Price, discount, free tier or trial as said or shown, or "". */
+  offer: string;
+  /** The call to action word for word ("comment AGENT and I'll send it", "link in bio"), or "". */
+  cta: string;
+  /** The objection it answers ("is it worth it?") and how, or "". */
+  objection: string;
 };
 
 export type BeatJob = "hook" | "problem" | "agitate" | "reveal" | "demo" | "proof" | "objection" | "payoff" | "cta" | "other";
@@ -124,6 +173,14 @@ export type ReferenceBreakdown = {
   /** 0-10: how well this format carries the brand's product, with the reason. */
   fit: { score: number; reason: string };
   transcript: string;
+  /** The lane it came from (an "ad" has no view count). */
+  origin?: ReferenceCandidate["origin"];
+  /** reach or convert: convert when it is an ad, its numbers show conversion evidence, or the video is built to sell. */
+  role?: FunnelRole;
+  /** The candidate's conversion evidence (0-10) and the signals behind it. */
+  conversion?: { score: number; signals: string[] };
+  /** Its selling beats (problem, proof, offer, call to action), for remakes that must convert. */
+  anatomy?: ConversionAnatomy;
 };
 
 // ---------- what we will make ----------
@@ -141,10 +198,17 @@ export type VideoFormat =
   | "presenter_inset";
 
 /** The creative director's brief for one video: which viral video it remakes and what changes for this product. */
+/** What a video is judged on once posted: reach videos on attention, convert videos on action. */
+export type SuccessMetric = "views" | "shares" | "saves" | "link_clicks" | "sign_ups" | "purchases";
+
 export type CreativeBrief = {
   title: string;
   /** ReferenceBreakdown.id this video is modeled on. */
   reference_id: string;
+  /** Its job in the campaign. Missing on briefs written before campaigns were planned as a mix. */
+  role?: FunnelRole;
+  /** The number this video is judged on (reach: views, shares, saves; convert: link clicks, sign-ups, purchases). */
+  metric?: SuccessMetric;
   format: VideoFormat;
   angle: string;
   /** Who it speaks to, from ProductBrief.audience or narrower. */

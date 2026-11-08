@@ -9,9 +9,9 @@ rebuilds them with the brand's product, its real screenshots and an AI presenter
 
 ```
 website
-  └─ research (Monid) ─ planner ─ ~15 searches ─ scout ─ up to 5 follow-up searches
-       └─ references ─ product analyst ─ site screenshots ─ outlier ranking ─ 6 beat-by-beat breakdowns
-            └─ director (Naive agent nomen-director) ─ one brief per video: which viral video it remakes
+  └─ research (Monid) ─ planner ─ ~25 searches (videos and ads) ─ scout ─ up to 5 follow-up searches
+       └─ references ─ product analyst ─ site screenshots ─ reach and conversion ranking ─ 6 beat-by-beat breakdowns (reach and convert mix)
+            └─ director (Naive agent nomen-director) ─ one brief per video: which video it remakes, its role (reach or convert) and metric
                  └─ script room ─ writer ─ linter ─ critic (x2) ─ per video, in parallel
                       └─ production ─ presenter shots (Veo) + QC ─ product cutaways ─ voice-over ─ edit
                            └─ review ─ posting (Naive Social) ─ analytics feed the next campaign
@@ -25,13 +25,13 @@ Every agent writes one typed document for the next (`src/lib/creative/types.ts`)
 
 | Agent | Where | Reads | Writes |
 | - | - | - | - |
-| Research planner | `research.ts`, Claude Haiku on Naive | site, brand profile | 5 kinds of search phrases, competitors |
+| Research planner | `research.ts`, Claude Haiku on Naive | site, brand profile | 5 kinds of search phrases, 3 conversion searches, competitors, benchmarks for reach and for conversion |
 | Scout | `creative/scout.ts`, Claude Haiku | first-wave stats, captions, hashtags | up to 5 follow-up searches (phase D) |
 | Product analyst | `creative/product.ts`, Claude Sonnet with vision | site text and images | `ProductBrief`: facts, allowed claims, which images show the product |
 | Site capture | `creative/capture.ts`, Naive cloud browser | the brand's site | phone-size screenshots (software and services) |
-| Ranking | `creative/references.ts`, code | ~90 videos | `ReferenceCandidate`s ranked by views per follower and engagement |
-| Breakdown analyst | `creative/references.ts`, Naive speech-to-text and Claude Sonnet with vision | the video, its transcript, cuts and frames | `ReferenceBreakdown`: every beat with timing, exact lines, on-screen text, shots, hook mechanic, fit |
-| Director | Naive agent `nomen-director` (`naive/agents/director.md`) | product brief, breakdowns, research | brand brief, search plan, one `CreativeBrief` per video |
+| Ranking | `creative/references.ts`, code | ~90 videos and up to 10 ads | `ReferenceCandidate`s with a reach score (views per follower, engagement) and a conversion score (ad run length and variants, saves per like, selling cues), each a reach or convert role; see `docs/research-steering.md` |
+| Breakdown analyst | `creative/references.ts`, Naive speech-to-text and Claude Sonnet with vision | the video, its transcript, cuts and frames | `ReferenceBreakdown`: every beat with timing, exact lines, on-screen text, shots, hook mechanic, how it sells (problem, proof, offer, CTA), fit |
+| Director | Naive agent `nomen-director` (`naive/agents/director.md`) | product brief, breakdowns, research | brand brief, search plan, one `CreativeBrief` per video, with a role and metric (at least one of each with 2+ videos) |
 | Writer | `creative/script.ts`, Claude Sonnet | brief, reference, product | `Script`: the reference remade beat by beat |
 | Linter | `creative/script.ts`, code | script, reference, product | problems: ad phrases, invented numbers, personal claims, drift from the reference |
 | Critic | `creative/script.ts`, Claude Sonnet | all of the above | score; a full rewrite until 8/10 (two rounds) |
