@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
@@ -1047,12 +1048,16 @@ async function soundFor(ctx: ProductionContext, creativeId: string, sound: NonNu
     }
   };
   const seconds = Math.min(300, Math.max(3, Math.round((timeline.duration ?? 15) + 2)));
+  // Keys carry the description's hash: Naive refuses a reused key with a different body.
+  const hash = (text: string) => createHash("sha1").update(text).digest("hex").slice(0, 8);
   const prompt = sound.music;
-  const music = prompt ? await kept(fileKey(creativeId, "music"), "the music bed", () => naive.generateMusic({ prompt, length_seconds: seconds, instrumental: true }, `${creativeId}-music`)) : null;
+  const music = prompt
+    ? await kept(fileKey(creativeId, "music"), "the music bed", () => naive.generateMusic({ prompt, length_seconds: seconds, instrumental: true }, `${creativeId}-music-${hash(`${prompt}${seconds}`)}`))
+    : null;
   const effects: Partial<Record<keyof typeof SFX, string | null>> = {};
   if (sound.sfx) {
     for (const [name, effect] of Object.entries(SFX) as Array<[keyof typeof SFX, (typeof SFX)[keyof typeof SFX]]>) {
-      effects[name] = await kept(effect.key, `the ${name} sound`, () => naive.generateSoundEffect({ prompt: effect.prompt, duration_seconds: effect.seconds }, `organic-sfx-${name}`));
+      effects[name] = await kept(effect.key, `the ${name} sound`, () => naive.generateSoundEffect({ prompt: effect.prompt, duration_seconds: effect.seconds }, `organic-sfx-${name}-${hash(effect.prompt)}`));
     }
   }
   const sfx = soundCues(timeline).flatMap((cue) => (effects[cue.kind] ? [{ at: cue.at, path: effects[cue.kind]! }] : []));
