@@ -1,10 +1,10 @@
-import type { MonidInput } from "./monid";
 import type { NaiveClient } from "./naive";
+import type { RunSpec } from "./runs";
 import { getSetting } from "./settings";
 
 // The research pack: Monid data pulls in two phases, with a planning call in between.
 
-export type RunSpec = { key: string; phase: "A" | "C"; label: string; provider: string; endpoint: string; input: MonidInput };
+export type { RunSpec };
 
 export type ResearchPlan = {
   brand_name: string;
@@ -369,11 +369,11 @@ function aeoFrom(engine: string, prompt: string, output: unknown, names: string[
 
 // ---------- tolerant readers for provider JSON ----------
 
-function record(value: unknown): Record<string, unknown> | undefined {
+export function record(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 }
 
-function text(value: unknown): string {
+export function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : typeof value === "number" ? String(value) : "";
 }
 
@@ -397,7 +397,7 @@ export function items(output: unknown, depth = 0): Array<Record<string, unknown>
   return [];
 }
 
-function pick(item: Record<string, unknown>, keys: string[]): string {
+export function pick(item: Record<string, unknown>, keys: string[]): string {
   for (const key of keys) {
     const value = item[key];
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -420,7 +420,7 @@ export function parseCount(value: unknown): number | null {
   return Math.round(Number(match[1]) * scale);
 }
 
-function num(item: Record<string, unknown>, keys: string[]): number | null {
+export function num(item: Record<string, unknown>, keys: string[]): number | null {
   for (const key of keys) {
     const parsed = parseCount(item[key]);
     if (parsed !== null) return parsed;
@@ -447,7 +447,7 @@ function longestString(output: unknown, keys: string[]): string | null {
   return found.sort((a, b) => b.length - a.length)[0] ?? null;
 }
 
-function collectStrings(output: unknown, keys: string[], depth = 0, into: string[] = []): string[] {
+export function collectStrings(output: unknown, keys: string[], depth = 0, into: string[] = []): string[] {
   if (depth > 6) return into;
   if (Array.isArray(output)) output.forEach((entry) => collectStrings(entry, keys, depth + 1, into));
   const obj = record(output);
