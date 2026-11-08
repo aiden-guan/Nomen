@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { ApiError } from "../http";
 import { download, ffmpegPath } from "../media";
 import { type MonidRunner, outputLink, runCostMicro, runToEnd } from "../monid";
+import type { NaiveClient } from "../naive";
 import type { Files } from "../store/types";
 import { TTS_MODEL } from "../creative/dub";
 import { norm, untag } from "./layout";
@@ -31,8 +32,12 @@ export const ADAM_V3 = { voiceId: "pNInz6obpgDQGcFmaJgB", model: "eleven_v3", se
 /** Models that read ElevenLabs audio tags ("[excited]"); any other reads them aloud, so they are dropped first. */
 const TAG_MODELS = /^eleven_v[34]/;
 
+/** Naive's own text-to-speech (OpenAI's gpt-audio models): the narrator when Monid cannot pay for ElevenLabs. */
+export const NAIVE_VOICE = { model: "openai/gpt-audio", voice: "ash", speed: 1.12 };
+
 export type Narrator =
   | { kind: "eleven"; monid: MonidRunner; voiceId?: string; model?: string; settings?: Record<string, number | boolean> }
+  | { kind: "naive"; naive: Pick<NaiveClient, "speak" | "fileUrl">; model?: string; voice?: string; speed?: number }
   | { kind: "scratch"; voice?: string; rate?: number };
 
 export type NarrateOptions = {
@@ -205,6 +210,19 @@ async function clip(beat: CodeAdBeat, options: NarrateOptions): Promise<{ path: 
     await files.putFile(key, local, "audio/mpeg");
     return { path: await files.localPath(key), text, spend: runCostMicro(done), fresh: true };
   }
+  if (narrator.kind === "naive") {
+    const model = narrator.model ?? NAIVE_VOICE.model, voice = narrator.voice ?? NAIVE_VOICE.voice, speed = narrator.speed ?? NAIVE_VOICE.speed;
+    const text = untag(beat.say);
+    const key = `${prefix}/voice/naive-${beat.id}-${hash([model, voice, speed, text])}.wav`;
+    if (await files.exists(key)) return { path: await files.localPath(key), text, spend: 0, fresh: false };
+    const speech = (await narrator.naive.speak({ text, model, voice, speed }, `${prefix}-${beat.id}-${hash([model, voice, speed, text])}`)) as { file?: { id?: string }; cost_micro_usd?: number | null };
+    const fileId = speech.file?.id;
+    if (!fileId) throw new ApiError("naive", 502, "no_file", `text-to-speech returned no file for beat "${beat.id}"`);
+    const local = join(dir, `naive-${beat.id}.wav`);
+    await download((await narrator.naive.fileUrl(fileId)).url, local);
+    await files.putFile(key, local, "audio/wav");
+    return { path: await files.localPath(key), text, spend: speech.cost_micro_usd ?? 0, fresh: true };
+  }
   const text = beat.say.trim();
   const voice = narrator.voice ?? "Eddy (English (US))", rate = narrator.rate ?? 240;
   const spoken = untag(text);
@@ -255,7 +273,7 @@ export async function narrate(beats: CodeAdBeat[], options: NarrateOptions): Pro
   for (const c of chunks) (audio.set(c, at), (at += c.length));
   const voicePath = join(options.dir, "voice.wav");
   await writeFile(voicePath, wavBytes(audio));
-  options.log?.(`narration: ${options.narrator.kind === "eleven" ? "ElevenLabs" : "scratch voice"}, ${clips.length} beats (${fresh} newly voiced), tempo ${tempo}x, ${(total / SR).toFixed(1)} s`);
+  options.log?.(`narration: ${options.narrator.kind === "eleven" ? "ElevenLabs" : options.narrator.kind === "naive" ? "Naive text-to-speech" : "scratch voice"}, ${clips.length} beats (${fresh} newly voiced), tempo ${tempo}x, ${(total / SR).toFixed(1)} s`);
   return { voiced: { provider: options.narrator.kind, duration: Math.round((total / SR) * 1000) / 1000, beats: out }, voicePath, spendMicro, tempo, fresh };
 }
 

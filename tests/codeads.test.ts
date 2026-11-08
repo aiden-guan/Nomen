@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { buildCues } from "@/lib/codeads/cues";
-import { advanceCodeAd, brandFor, cannotRender, sheetTimes, svgInk } from "@/lib/codeads/job";
+import { advanceCodeAd, brandFor, cannotRender, heroFor, sheetTimes, svgInk } from "@/lib/codeads/job";
 import { display, layoutStory, norm, untag } from "@/lib/codeads/layout";
 import { estimateWords, SR, syllables, trimClip } from "@/lib/codeads/narrate";
 import { type CodeAdContext, lintStory, normalizeStory, storyScript } from "@/lib/codeads/story";
@@ -208,6 +208,18 @@ describe("the page's story.json", () => {
     expect(page.codead.beats[0].screen).toMatchObject({ kind: "terminal" });
     expect(page.codead.brand.name).toBe("Naïve");
     expect(sheetTimes(page, 6)).toHaveLength(6);
+  });
+
+  it("casts a developer: the story's pick, else a rotation; never Gary on the nameplate", () => {
+    const story = normalizeStory({ ...raw, hero: "mogger", nameplate: "GARY · SOLO FOUNDER" }, ctx);
+    expect(story.hero).toBe("mogger");
+    expect(heroFor(story, "crv_a")).toBe("mogger");
+    const unpicked = { ...story, hero: undefined };
+    const cast = new Set(["crv_a", "crv_b", "crv_c", "crv_d", "crv_e"].map((id) => heroFor(unpicked, id)));
+    expect([...cast].sort()).toEqual(["geek", "mogger"]);
+    expect(heroFor(unpicked, "crv_a")).toBe(heroFor(unpicked, "crv_a"));
+    const { story: page } = layoutStory(story, voiced, brand, {});
+    expect(page.codead).toMatchObject({ hero: "mogger", nameplate: "DEV · SOLO FOUNDER" });
   });
 
   it("scores it like ED Studio's build reels: music from beat 2, a ta-da on every term, foley per gag, the narrator on top", () => {

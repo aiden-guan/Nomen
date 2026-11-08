@@ -135,7 +135,8 @@ export function layoutStory(story: CodeAdStory, voiced: Voiced, brand: CodeAdBra
       order,
       words,
       callouts,
-      codead: { brand, hero: story.hero ?? "geek", nameplate: story.nameplate, poster: story.poster, beats: codeBeats },
+      // stories written for ED Studio's Gary keep their nameplate's job, not his name
+      codead: { brand, hero: story.hero ?? "geek", nameplate: story.nameplate.replace(/\bGARY\b/i, "DEV"), poster: story.poster, beats: codeBeats },
     },
     notes,
   };

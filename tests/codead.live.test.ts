@@ -8,6 +8,8 @@ import { makeCodeAd, prepareAd } from "@/lib/codeads/job";
 import { ADAM_V3, type Narrator } from "@/lib/codeads/narrate";
 import { contactSheet, renderStills, runQc } from "@/lib/codeads/render";
 import { writeCodeAd } from "@/lib/codeads/story";
+import { breakdownReference, canonicalUrl, scoreCandidates } from "@/lib/creative/references";
+import type { Video } from "@/lib/research";
 import type { CodeAdStory, Hero } from "@/lib/codeads/types";
 import { getBrandKit } from "@/lib/creative/brandkit";
 import { targetSeconds } from "@/lib/creative/script";
@@ -48,9 +50,11 @@ type Case = {
   angle: string;
   hook_plan: string;
   cta: string;
+  /** A video from the campaign's research pool (research_json → videos) to break down first, instead of a kept breakdown. */
+  research?: string;
   /** Use this saved story instead of writing one, and this narrator (re-renders). */
   story?: string;
-  narrator?: "v3";
+  narrator?: "v3" | "naive";
   target?: number;
 };
 
@@ -60,6 +64,21 @@ const CASES: Case[] = [
   // The first sample (mplentg's "I Let AI Run My Side Hustle": an AI given one instruction, make money), re-rendered with
   // a developer in place of the builder, a little faster, on its kept story and voice.
   ...(["geek", "mogger"] as const).map((hero): Case => ({ name: `naive-dare-${hero}`, campaign: NAIVE, reference: "ref_88a571100e", hero, title: "How a credit card becomes a company", role: "convert", angle: "", hook_plan: "", cta: "Pick a company template at usenaive.ai", story: "data/codead-live/naive-v3/story.json", narrator: "v3", target: 24 })),
+  {
+    // For the demo: research → breakdown → code ad. hannahlearnsstuff's discovery hook, 1.9M views on 1,049 followers
+    // (1,814x) and 32K saves, from the Monid campaign's own research pool; narrated by Naive (the Monid wallet is empty).
+    name: "monid-sooner",
+    campaign: MONID,
+    reference: "",
+    research: "https://www.tiktok.com/@hannahlearnsstuff/video/7702124151561063710",
+    hero: "geek",
+    title: "I'm upset I didn't know about this sooner",
+    role: "convert",
+    angle: "The tool you wish you'd known about sooner: one line, 'set up monid.ai/SKILL.md', and your agent finds, compares and pays for 2900+ tools from one balance, with no sign-up per tool.",
+    hook_plan: "The reference's regret-and-discovery hook ('I'm actually upset I didn't know about this sooner'), then the discovery shown step by step.",
+    cta: "Start with $1 in free credit at monid.ai",
+    narrator: "naive",
+  },
   {
     name: "naive-shorts",
     campaign: NAIVE,
@@ -160,13 +179,13 @@ function loadKeys() {
   return data;
 }
 
-function campaignInputs(data: string, campaignId: string, referenceId: string) {
+function campaignInputs(data: string, campaignId: string, referenceId: string, research?: ReferenceBreakdown) {
   const db = new Database(join(data, "nomen.db"), { readonly: true, fileMustExist: true });
   const campaign = db.prepare("select brand_id, style_json from campaigns where id = ?").get(campaignId) as { brand_id: string; style_json: string };
   const brand = db.prepare("select name, domain, url from brands where id = ?").get(campaign.brand_id) as { name: string; domain: string; url: string };
   db.close();
   const style = JSON.parse(campaign.style_json) as { breakdowns: ReferenceBreakdown[]; product: ProductBrief };
-  const reference = style.breakdowns.find((b) => b.id === referenceId);
+  const reference = research ?? style.breakdowns.find((b) => b.id === referenceId);
   if (!reference) throw new Error(`${referenceId} is not in ${campaignId}`);
   // captured screenshots are kept by key under data/media
   const product: ProductBrief = { ...style.product, visuals: style.product.visuals.map((v) => (v.key && existsSync(join(data, "media", v.key)) ? { ...v, url: join(data, "media", v.key) } : v)) };
@@ -211,11 +230,30 @@ function briefFor(c: Case, input: ReturnType<typeof campaignInputs>): CreativeBr
   };
 }
 
+/** A research-pool video broken down by Nomen's own analyst (Naive: speech to text and a vision model), kept in `out`. */
+async function researchReference(data: string, c: Case, out: string, naive: NaiveClient, log: (message: string) => void): Promise<ReferenceBreakdown> {
+  const kept = join(out, "reference.json");
+  if (existsSync(kept)) return JSON.parse(await readFile(kept, "utf8")) as ReferenceBreakdown;
+  const db = new Database(join(data, "nomen.db"), { readonly: true, fileMustExist: true });
+  const row = db.prepare("select research_json from campaigns where id = ?").get(c.campaign) as { research_json: string };
+  db.close();
+  const videos = (JSON.parse(row.research_json) as { videos: Video[] }).videos;
+  const video = videos.find((v) => canonicalUrl(v.url) === canonicalUrl(c.research!));
+  if (!video) throw new Error(`${c.research} is not in ${c.campaign}'s research pool`);
+  const [candidate] = scoreCandidates([video], () => "category");
+  const product = campaignInputs(data, c.campaign, "", { id: "", url: "" } as ReferenceBreakdown).product;
+  const breakdown = await patient(() => breakdownReference(naive, candidate, { workDir: join(out, "breakdown"), brand: { name: product.name, one_liner: product.one_liner, kind: product.kind } }), log);
+  await writeFile(kept, JSON.stringify(breakdown, null, 1));
+  log(`breakdown of ${breakdown.author}: ${breakdown.beats.length} beats, hook "${breakdown.hook.line.slice(0, 100)}", ${breakdown.hook.mechanic.slice(0, 160)}`);
+  return breakdown;
+}
+
 /** Writes (or reuses) the case's story and makes the ad into `out`. */
 async function runCase(c: Case, data: string, out: string, stage: "story" | "make" | "page" | "all", log: (message: string) => void) {
   await mkdir(out, { recursive: true });
-  const input = campaignInputs(data, c.campaign, c.reference);
   const naive = process.env.NAIVE_API_KEY ? new NaiveClient(process.env.NAIVE_API_KEY) : null;
+  const research = c.research && naive ? await researchReference(data, c, out, naive, log) : undefined;
+  const input = campaignInputs(data, c.campaign, c.reference, research);
   const target = Number(process.env.NOMEN_CODEAD_TARGET) || c.target || targetSeconds(input.reference, "code_ad");
   const storyPath = join(out, "story.json");
   let story: CodeAdStory;
@@ -237,8 +275,11 @@ async function runCase(c: Case, data: string, out: string, stage: "story" | "mak
   const chrome = findChrome();
   expect(chrome, "install Google Chrome or set CHROME_PATH").toBeTruthy();
   const voice = process.env.NOMEN_CODEAD_VOICE === "scratch" || !process.env.MONID_API_KEY ? "scratch" : "eleven";
-  const v3 = (process.env.NOMEN_CODEAD_NARRATOR ?? c.narrator) === "v3";
-  const narrator: Narrator = voice === "eleven" ? { kind: "eleven", monid: new MonidClient(process.env.MONID_API_KEY!), ...(v3 ? { model: ADAM_V3.model, settings: ADAM_V3.settings } : {}) } : { kind: "scratch" };
+  const pick = process.env.NOMEN_CODEAD_NARRATOR ?? c.narrator;
+  const narrator: Narrator =
+    pick === "naive" && naive ? { kind: "naive", naive }
+    : voice === "eleven" ? { kind: "eleven", monid: new MonidClient(process.env.MONID_API_KEY!), ...(pick === "v3" ? { model: ADAM_V3.model, settings: ADAM_V3.settings } : {}) }
+    : { kind: "scratch" };
   const adInput: Parameters<typeof makeCodeAd>[0] = {
     prefix: "codead",
     story,
@@ -264,7 +305,7 @@ async function runCase(c: Case, data: string, out: string, stage: "story" | "mak
   const made = await makeCodeAd(adInput);
   await copyFile(made.path, join(out, "final.mp4"));
   await copyFile(made.sheet, join(out, "frames.jpg"));
-  await writeFile(join(out, "made.json"), JSON.stringify({ duration: made.duration, hero: story.hero, spend_usd: made.spendMicro / 1e6, qc: made.qc, notes: made.notes, reference: { id: input.reference.id, url: input.reference.url, author: input.reference.author, views: input.reference.views, followers: input.reference.followers } }, null, 1));
+  await writeFile(join(out, "made.json"), JSON.stringify({ duration: made.duration, hero: story.hero, narrator: narrator.kind, spend_usd: made.spendMicro / 1e6, qc: made.qc, notes: made.notes, reference: { id: input.reference.id, url: input.reference.url, author: input.reference.author, views: input.reference.views, followers: input.reference.followers } }, null, 1));
   log(`final ${join(out, "final.mp4")} (${made.duration.toFixed(1)} s), narrator $${(made.spendMicro / 1e6).toFixed(3)}, QC ${made.qc ? `${made.qc.score}/10 ${made.qc.issues.join(" | ").slice(0, 600)}` : "not run"}`);
   if (made.notes.length) log(`notes: ${made.notes.join(" | ")}`);
   expect(made.duration).toBeGreaterThan(8);

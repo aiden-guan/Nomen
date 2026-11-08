@@ -205,6 +205,8 @@ export type MakeCodeAdInput = {
   brandName: string;
   site: string;
   narrator: Narrator;
+  /** Reads the ad when the narrator cannot (ElevenLabs refused or out of credits): Naive's own text-to-speech. */
+  fallbackNarrator?: Narrator | null;
   files: Files;
   /** Scratch space for this run (removed by the caller). */
   dir: string;
@@ -225,7 +227,13 @@ export async function prepareAd(input: MakeCodeAdInput): Promise<{ story: StoryJ
   await mkdir(dir, { recursive: true });
   const brand = await brandFor({ name: input.brandName, site: input.site, kit: input.kit, product: input.product, dir, logoPath: input.logoPath });
   const images = await visualFiles(input.story, input.product, dir, files);
-  const voice = await narrate(input.story.beats, { narrator: input.narrator, files, prefix, dir, targetSeconds: input.targetSeconds, log: input.log });
+  const read = (narrator: Narrator) => narrate(input.story.beats, { narrator, files, prefix, dir, targetSeconds: input.targetSeconds, log: input.log });
+  const voice = await read(input.narrator).catch((error: unknown) => {
+    // a busy provider is waited out (the next tick tries again); a refusal or an empty wallet hands over to the fallback
+    if (!input.fallbackNarrator || (error instanceof ApiError && error.retryable)) throw error;
+    input.log?.(`the narrator could not read it (${error instanceof Error ? error.message : String(error)}); ${input.fallbackNarrator.kind === "naive" ? "Naive's text-to-speech" : "the scratch voice"} reads it instead`);
+    return read(input.fallbackNarrator);
+  });
   const { story, notes } = layoutStory({ ...input.story, hero: heroFor(input.story, prefix) }, voice.voiced, brand, images, { fps: input.fps ?? 60, motionBlur: input.blur ?? 2 });
   await writeFile(join(dir, "story.json"), JSON.stringify(story));
   await writeFile(join(dir, "cues.json"), JSON.stringify(buildCues(story, input.brandName)));
@@ -329,10 +337,16 @@ async function runCodeAd(ctx: ProductionContext, creative: CreativeRow, concept:
   const [brand] = await store().find<{ name: string; domain: string; url: string }>("brands", { id: ctx.brandId }, { limit: 1 });
   const site = story.url || brand?.domain || "";
   const dir = join(scratchDir(), `codead-${creative.id}`);
-  const voice = process.env.NOMEN_CODEAD_VOICE === "scratch" || !ctx.monid ? "scratch" : "eleven";
-  // Adam's crisp read by default; NOMEN_CODEAD_NARRATOR=v3 for ED Studio's dramatic eleven_v3 read
-  const narrator: Narrator = voice === "eleven" && ctx.monid ? { kind: "eleven", monid: ctx.monid, ...(process.env.NOMEN_CODEAD_NARRATOR === "v3" ? { model: ADAM_V3.model, settings: ADAM_V3.settings } : {}) } : { kind: "scratch" };
-  log(`making it: ${story.beats.length} beats, ${narrator.kind === "eleven" ? "ElevenLabs narrator" : "scratch narrator"}, rendering locally`);
+  // ElevenLabs' Adam on Monid by default (NOMEN_CODEAD_NARRATOR=v3: ED Studio's dramatic read), Naive's text-to-speech when
+  // Monid cannot pay for it; NOMEN_CODEAD_VOICE=naive|scratch picks one outright
+  const naiveVoice: Narrator | null = ctx.naive && !ctx.naiveOut() ? { kind: "naive", naive: ctx.naive } : null;
+  const want = process.env.NOMEN_CODEAD_VOICE;
+  const narrator: Narrator =
+    want === "scratch" ? { kind: "scratch" }
+    : want === "naive" && naiveVoice ? naiveVoice
+    : ctx.monid ? { kind: "eleven", monid: ctx.monid, ...(process.env.NOMEN_CODEAD_NARRATOR === "v3" ? { model: ADAM_V3.model, settings: ADAM_V3.settings } : {}) }
+    : (naiveVoice ?? { kind: "scratch" });
+  log(`making it: ${story.beats.length} beats, ${narrator.kind === "eleven" ? "ElevenLabs narrator" : narrator.kind === "naive" ? "Naive's text-to-speech" : "scratch narrator"}, rendering locally`);
   try {
     const made = await makeCodeAd({
       prefix: creative.id,
@@ -342,6 +356,7 @@ async function runCodeAd(ctx: ProductionContext, creative: CreativeRow, concept:
       brandName: ctx.product.name || brand?.name || "",
       site,
       narrator,
+      fallbackNarrator: narrator.kind === "eleven" ? naiveVoice : null,
       files: store().files,
       dir,
       chrome: findChrome()!,
