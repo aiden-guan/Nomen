@@ -16,6 +16,7 @@ import { AgentCard } from "./AgentCard";
 import { AutopilotDrawer, useAutopilot } from "./AutopilotDrawer";
 import { BrandKitDrawer } from "./BrandKitDrawer";
 import { Dispatches } from "./Dispatches";
+import { type Exchange, exchangeOf } from "./exchange";
 import { Icon } from "./ui";
 import { ago, money } from "./format";
 import { Screening } from "./Screening";
@@ -93,6 +94,35 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
     };
     return () => {
       e.camp.events.onSay = undefined;
+      timers.forEach(clearTimeout);
+    };
+  }, [engine]);
+
+  // Agents talking as work changes hands: a small chat bubble over each speaker for a few seconds,
+  // which opens what was handed over (camp/exchange.ts). What each dispatch carried, by its key.
+  const exchanges = useRef(new Map<string, Exchange>());
+  const [chats, setChats] = useState<Array<{ key: number; exchange: string; speaker: string }>>([]);
+  const [openChat, setOpenChat] = useState<{ exchange: Exchange; x: number; y: number } | null>(null);
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    let next = 0;
+    e.camp.events.onExchange = ({ key, speakers }) => {
+      if (!exchanges.current.has(key)) return;
+      // One speaks, then the other answers.
+      speakers.forEach((speaker, i) => {
+        timers.push(
+          setTimeout(() => {
+            const id = ++next;
+            setChats((all) => [...all.filter((c) => c.speaker !== speaker).slice(-7), { key: id, exchange: key, speaker }]);
+            timers.push(setTimeout(() => setChats((all) => all.filter((c) => c.key !== id)), CHAT_SECONDS * 1000));
+          }, i * 650),
+        );
+      });
+    };
+    return () => {
+      e.camp.events.onExchange = undefined;
       timers.forEach(clearTimeout);
     };
   }, [engine]);
@@ -175,19 +205,27 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
     e.camp.apply(plan);
   }, [engine, view, plan]);
 
-  // The courier rides when work changes hands.
+  // The courier rides when work changes hands, carrying what the agents will tell each other.
   const lastStage = useRef<number | null>(null);
   const lastReady = useRef<number | null>(null);
+  const handoffs = useRef(0);
   useEffect(() => {
     const e = engine.current;
     const stageIndex = campaign ? STATIONS.findIndex((s) => s.id === activeStation(campaign)) : undefined;
     if (!e || !arrived || stageIndex === undefined || stageIndex < 0) return;
+    const handOff = (from: StationId, to: StationId) => {
+      const key = `${from}>${to}#${++handoffs.current}`;
+      exchanges.current.set(key, exchangeOf(from, to, campaign));
+      // Only the latest few can still be on screen.
+      if (exchanges.current.size > 24) exchanges.current.delete(exchanges.current.keys().next().value!);
+      e.camp.dispatch(from, to, key);
+    };
     if (lastStage.current !== null && stageIndex > lastStage.current) {
-      e.camp.dispatch(STATIONS[lastStage.current].id, STATIONS[Math.min(5, stageIndex)].id);
+      handOff(STATIONS[lastStage.current].id, STATIONS[Math.min(5, stageIndex)].id);
     }
     lastStage.current = stageIndex;
     const ready = campaign?.creatives.filter((c) => c.status === "ready").length ?? 0;
-    if (lastReady.current !== null && ready > lastReady.current) e.camp.dispatch("workshop", "theatre");
+    if (lastReady.current !== null && ready > lastReady.current) handOff("workshop", "theatre");
     lastReady.current = ready;
   }, [engine, arrived, campaign]);
 
@@ -645,6 +683,15 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
       {lines.map((line) => (
         <SpeechBubble key={line.key} engine={engine} id={line.id} text={line.text} seconds={line.seconds} />
       ))}
+
+      {arrived &&
+        chats.map((chat) => {
+          const exchange = exchanges.current.get(chat.exchange);
+          // Over a soldier who is talking, unless his own line is up there.
+          if (!exchange || lines.some((l) => l.id === chat.speaker)) return null;
+          return <ChatBubble key={chat.key} engine={engine} id={chat.speaker} exchange={exchange} onOpen={(x, y) => setOpenChat({ exchange, x, y })} />;
+        })}
+      {openChat && <ExchangeCard exchange={openChat.exchange} x={openChat.x} y={openChat.y} onClose={() => setOpenChat(null)} />}
 
       {arrived && view && !wide && (
         <StationStrip
@@ -1193,6 +1240,80 @@ function SpeechBubble({ engine, id, text, seconds }: { engine: RefObject<Engine 
         </svg>
       </div>
     </div>
+  );
+}
+
+/** Seconds a chat bubble stays over a talking agent. */
+const CHAT_SECONDS = 5.5;
+
+/** A small pixel chat bubble over an agent handing work over; it opens what changed hands. */
+function ChatBubble({ engine, id, exchange, onOpen }: { engine: RefObject<Engine | null>; id: string; exchange: Exchange; onOpen: (x: number, y: number) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const e = engine.current;
+    if (!e || !ref.current) return;
+    return e.stage.anchor(ref.current, () => {
+      const p = e.camp.position(id);
+      return p ? { ...p, z: p.z + 24 } : null;
+    });
+  }, [engine, id]);
+  return (
+    <div ref={ref} className="pointer-events-none absolute left-0 top-0 z-[9] will-change-transform">
+      <div className={styles.chat}>
+        <button
+          type="button"
+          className={`${styles.chatButton} pointer-events-auto`}
+          aria-label={`${exchange.title}: what they handed over`}
+          title={`${exchange.title}: click to see what they handed over`}
+          onClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect();
+            onOpen(box.left + box.width / 2, box.top);
+          }}
+        >
+          {/* 11 x 10 art pixels: a bubble with a tail and three typing dots. */}
+          <svg width="22" height="20" viewBox="0 0 11 10" shapeRendering="crispEdges" aria-hidden="true">
+            <path d="M1 0h9v1h1v6h-1v1h-5v1h-1v1h-1v-2h-2v-1h-1v-6h1z" fill="var(--ink)" />
+            <path d="M1 1h9v6h-6v1h-1v-1h-2z" fill="var(--paper)" />
+            <rect className={styles.chatDot} x="2" y="3" width="1" height="2" fill="var(--crimson)" />
+            <rect className={styles.chatDot} x="5" y="3" width="1" height="2" fill="var(--crimson)" />
+            <rect className={styles.chatDot} x="8" y="3" width="1" height="2" fill="var(--crimson)" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** What changed hands in an exchange, opened from its chat bubble; stays until closed. */
+function ExchangeCard({ exchange, x, y, onClose }: { exchange: Exchange; x: number; y: number; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const width = 300;
+  const left = Math.max(12, Math.min(x - width / 2, (typeof window !== "undefined" ? window.innerWidth : 1280) - width - 12));
+  const below = y < 220;
+  return (
+    <section
+      role="dialog"
+      aria-label={`${exchange.title}: what changed hands`}
+      className={`${styles.box} ${styles.rise} fixed z-[60] px-3.5 pb-3 pt-2.5`}
+      style={{ left, width, ...(below ? { top: y + 30 } : { bottom: window.innerHeight - y + 8 }) }}
+    >
+      <div className="flex items-center gap-2">
+        <span className={`${styles.pixel} min-w-0 flex-1 truncate text-[14px] font-semibold`}>{exchange.title}</span>
+        <button type="button" onClick={onClose} className={`${styles.link} ${styles.pixel} shrink-0 px-1 text-[16px] leading-none`} aria-label="Close" title="Close (Esc)">
+          ×
+        </button>
+      </div>
+      <p className={`${styles.pixel} mt-0.5 text-[11px] uppercase tracking-wide text-[var(--ink-faint)]`}>What changed hands</p>
+      <ul className="mt-1.5 space-y-1 text-[12.5px] leading-snug text-[var(--ink-soft)]">
+        {exchange.lines.map((line, i) => (
+          <li key={i}>{line}</li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

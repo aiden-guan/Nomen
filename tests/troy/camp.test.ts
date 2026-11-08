@@ -216,6 +216,19 @@ describe("the courier", () => {
     expect(courier.where).toBe("posted");
     expect(internals.stalls.every((s) => stage.has(s.steed))).toBe(true);
   });
+
+  it("talks with the station's head at each end, under the dispatch's key", () => {
+    const { camp, run: tick } = world(false);
+    camp.apply(derive(view({})));
+    const talks: Array<{ key: string; phase: string; speakers: string[] }> = [];
+    camp.events.onExchange = ({ key, phase, speakers }) => talks.push({ key, phase, speakers });
+    camp.dispatch("scouts", "oracle", "scouts>oracle#1");
+    tick(8);
+    expect(talks).toEqual([
+      { key: "scouts>oracle#1", phase: "pickup", speakers: ["lookout", "courier"] },
+      { key: "scouts>oracle#1", phase: "handover", speakers: ["courier", "watcher"] },
+    ]);
+  });
 });
 
 describe("looking at one agent", () => {

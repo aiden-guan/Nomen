@@ -29,6 +29,9 @@ const SPEED = { column: 46, walk: 24, home: 40, run: 54, ride: 135, courier: 92 
 /** Seconds a figure holds still for small moments: mounting, unsaddling, a handover, a drop, the shortest visit to a land. */
 const BEAT = { mount: 0.25, dismount: 0.25, gather: 1.2, drop: 0.45, pickup: 0.25, handover: 0.35 };
 
+/** Who speaks for each station when work changes hands (the theatre's is you: the courier talks alone). */
+const HEAD: Record<StationId, string | null> = { scouts: "lookout", oracle: "watcher", tent: "general", workshop: "inspector", theatre: null, agora: "herald" };
+
 /** What a scout does at each land while gathering. */
 const LAND_ACT: Record<LandId, Act> = {
   site: "inspect",
@@ -149,6 +152,11 @@ export type AgentInfo = {
 export type CampEvents = {
   /** The courier reached a station with work for it. */
   onArrive?: (station: StationId) => void;
+  /**
+   * Two agents talk as work changes hands: the station's head gives it to the courier (pickup), and
+   * the courier gives it to the next station's head (handover). `key` is the dispatch's.
+   */
+  onExchange?: (exchange: { key: string; from: StationId; to: StationId; phase: "pickup" | "handover"; speakers: string[] }) => void;
   /** A soldier calls something out: a line over his head for a few seconds. */
   onSay?: (line: { id: string; text: string; seconds: number }) => void;
 };
@@ -168,7 +176,7 @@ export class CampScene {
   /** Agents waiting to come out of the horse, in order. */
   private readonly column: Agent[] = [];
   private readonly stalls: Stall[] = [];
-  private readonly dispatches: Array<{ from: StationId; to: StationId }> = [];
+  private readonly dispatches: Array<{ from: StationId; to: StationId; key: string }> = [];
   private readonly posters = new Map<string, HTMLCanvasElement | null>();
   private posterList: CampPlan["posters"] = [];
   private showing = false;
@@ -503,14 +511,17 @@ export class CampScene {
     this.expedition.apply(plan.battle, army, instantly);
   }
 
-  /** The courier carries work from one station to the next (each stage change, each finished video). */
-  dispatch(from: StationId, to: StationId) {
+  /**
+   * The courier carries work from one station to the next (each stage change, each finished video).
+   * `key` names what is handed over, for the exchange the agents have about it (onExchange).
+   */
+  dispatch(from: StationId, to: StationId, key = `${from}>${to}`) {
     if (from === to) return;
     const last = this.dispatches[this.dispatches.length - 1];
     if (last && last.from === from && last.to === to) return;
     // A long backlog only delays the picture: keep the latest few.
     if (this.dispatches.length >= 3) this.dispatches.shift();
-    this.dispatches.push({ from, to });
+    this.dispatches.push({ from, to, key });
     const courier = this.agents.get("courier");
     if (courier) this.settle(courier);
   }
@@ -883,15 +894,23 @@ export class CampScene {
     }
     const pickup: Step[] = [...lead, ...travel(agent.node, job.from)];
     agent.node = job.from;
-    agent.errand = job;
+    agent.errand = { from: job.from, to: job.to };
     agent.doing = `Riding to ${PLACE[job.from]} to collect the finished work`;
+    // Who talks at each end: the station's head and the courier.
+    const talk = (phase: "pickup" | "handover", station: StationId) => {
+      const head = HEAD[station];
+      const speakers = phase === "pickup" ? [head, "courier"] : ["courier", head];
+      this.events.onExchange?.({ key: job.key, from: job.from, to: job.to, phase, speakers: speakers.filter((id): id is string => Boolean(id && this.agents.has(id))) });
+    };
     this.ride(agent, pickup, SPEED.courier, 1, () => {
       agent.doing = `Collecting the work at ${PLACE[job.from]}`;
+      talk("pickup", job.from);
       this.pause(agent, BEAT.pickup, () => {
         agent.node = job.to;
         agent.doing = `Carrying the work to ${PLACE[job.to]}`;
         this.ride(agent, [hub(job.from), ...travel(job.from, job.to)], SPEED.courier, 1, () => {
           this.events.onArrive?.(job.to);
+          talk("handover", job.to);
           agent.deliveries++;
           agent.doing = `Handing the work over at ${PLACE[job.to]}`;
           this.pause(agent, BEAT.handover, () => this.courierLeg(agent));

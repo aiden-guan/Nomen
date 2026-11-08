@@ -8,8 +8,9 @@ import { type AgentPlan, type CampPlan, runLabel, stationForEvent } from "../sce
 import { LAND, landFor, STATION, type StationId } from "../scenes/layout";
 import styles from "../troy.module.css";
 import { Basket, VideoDossier } from "./AgentCard";
+import { EventLog, Reason } from "./EventLog";
 import { type CampActions, Pip } from "./Camp";
-import { ago, money, platformName, remakeLine, when } from "./format";
+import { money, platformName, remakeLine, when } from "./format";
 import { InternalBadge, ReferenceList, RoleBadge } from "./References";
 import { CampMap, Chip, crispIfTiny, Emblem, greekName, Icon, type IconName, Parchment, Portrait, quote, Section, Stat, STATE_COLOR, STATE_WORD, Steps } from "./ui";
 
@@ -149,17 +150,7 @@ export function StationPanel({
 
         {latest.length > 0 && (
           <Section title="Latest here">
-            <ol className="space-y-1.5 border-l-2 border-[rgba(43,29,20,0.12)] pl-3">
-              {latest.map((event, i) => (
-                <li key={`${event.ts}-${i}`} className="relative text-[12px] leading-snug">
-                  <span className="absolute -left-[17px] top-[5px] size-[6px]" style={{ background: event.level === "error" ? "var(--crimson)" : event.level === "warn" ? "var(--bronze)" : "var(--teal)" }} aria-hidden="true" />
-                  <span>{event.message}</span>
-                  <time dateTime={event.ts} className="ml-2 text-[11px] text-[var(--ink-faint)]">
-                    {ago(event.ts)}
-                  </time>
-                </li>
-              ))}
-            </ol>
+            <EventLog events={latest} />
           </Section>
         )}
       </div>
@@ -401,31 +392,31 @@ function Tent({ view, focus }: { view: BrandView; focus: string | null }) {
         </Section>
         <div ref={conceptsRef} className="scroll-mt-3" />
         <Section title={`Videos · ${concepts.length} of ${briefs.length} scripted`}>
-          <ol className="space-y-3.5">
+          <ol className="space-y-2">
             {briefs.map((brief, i) => {
               const reference = references.find((r) => r.id && r.id === brief.reference_id);
               const concept = concepts.find((c) => c.brief?.title === brief.title);
               const review = concept?.script?.review;
               return (
-                <li key={`${brief.title}-${i}`} className="text-[13px]">
-                  <p className="font-semibold">
-                    {i + 1}. {brief.title} <span className="font-normal text-[var(--ink-faint)]">· {brief.format.replace(/_/g, " ")}</span>
-                  </p>
-                  {(brief.role || brief.metric) && (
-                    <p className="mt-1 flex items-center gap-2 text-[12px] text-[var(--ink-soft)]">
+                <li key={`${brief.title}-${i}`} className="flex gap-2.5 bg-[rgba(43,29,20,0.035)] px-3 py-2.5 text-[13px]">
+                  <span className={`${styles.pixel} grid size-6 shrink-0 place-items-center bg-[var(--ink)] text-[12px] text-[var(--paper)]`}>{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold leading-snug">{brief.title}</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11.5px] text-[var(--ink-soft)]">
+                      <span className={`${styles.pixel} bg-[rgba(43,29,20,0.07)] px-1.5 text-[11px] leading-[16px]`}>{brief.format.replace(/_/g, " ")}</span>
                       {brief.role && <RoleBadge role={brief.role} />}
                       {brief.metric && <span>judged on {METRIC_WORDS[brief.metric] ?? brief.metric.replace(/_/g, " ")}</span>}
                     </p>
-                  )}
-                  {reference && <p className="mt-0.5 text-[12px] text-[var(--crimson)]">{remakeLine(reference)}</p>}
-                  <p className="mt-0.5 leading-snug text-[var(--ink-soft)]">{brief.hook_plan || brief.angle}</p>
-                  <p className="mt-0.5 text-[12px] text-[var(--ink-faint)]">
-                    {concept?.script
-                      ? concept.script.beats.length
-                        ? `Script ${Math.round(concept.script.total_seconds)} s, ${concept.script.beats.length} beats${review ? ` · critic ${review.score}/10` : ""}`
-                        : `${Math.round(concept.script.total_seconds)} s video`
-                      : "The script room is writing it…"}
-                  </p>
+                    {reference && <p className="mt-1 text-[12px] text-[var(--crimson)]">{remakeLine(reference)}</p>}
+                    <Reason text={brief.hook_plan || brief.angle} />
+                    <p className="mt-1 text-[11.5px] text-[var(--ink-faint)]">
+                      {concept?.script
+                        ? concept.script.beats.length
+                          ? `Script ${Math.round(concept.script.total_seconds)} s, ${concept.script.beats.length} beats${review ? ` · critic ${review.score}/10` : ""}`
+                          : `${Math.round(concept.script.total_seconds)} s video`
+                        : "The script room is writing it…"}
+                    </p>
+                  </div>
                 </li>
               );
             })}
