@@ -197,7 +197,7 @@ def erase_boxes(spec, i, scale=(1.0, 1.0)):
     out = []
     for e in spec.get("erase", []):
         if e["start"] - 0.05 <= t < e["end"] + 0.05:
-            out.append((int(e["x"] * scale[0]), int(e["y"] * scale[1]), max(1, int(e["width"] * scale[0])), max(1, int(e["height"] * scale[1]))))
+            out.append((int(e["x"] * scale[0]), int(e["y"] * scale[1]), max(1, int(e["width"] * scale[0])), max(1, int(e["height"] * scale[1])), e.get("background")))
     return out
 
 
@@ -205,7 +205,7 @@ def exclusion(spec, shape, scale):
     """exclude(i) for track_run: a mask of frame i's caption boxes at the tracking scale."""
     def exclude(i):
         mask = np.zeros(shape, np.uint8)
-        for x, y, w, h in erase_boxes(spec, i, scale):
+        for x, y, w, h, _ in erase_boxes(spec, i, scale):
             mask[max(0, y):y + h, max(0, x):x + w] = 255
         return mask
     return exclude
@@ -238,18 +238,33 @@ def text_mask(roi):
     return cv2.dilate(mask, ellipse(3))
 
 
+def box_mask(roi, background):
+    """Text on a solid box (black letters on white boxes): the box's colour, its letters closed in, a little grown."""
+    bg = np.array([int(background[5:7], 16), int(background[3:5], 16), int(background[1:3], 16)], np.int32)
+    near = (np.abs(roi.astype(np.int32) - bg).sum(axis=2) < 110).astype(np.uint8) * 255
+    k = max(9, (roi.shape[0] // 12) | 1)
+    closed = cv2.morphologyEx(near, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (k, k)))
+    # Only areas that are mostly the box colour count (not a stray bright pixel in the scene).
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(closed, connectivity=8)
+    keep = np.zeros_like(closed)
+    for i in range(1, count):
+        if stats[i, cv2.CC_STAT_AREA] >= 0.002 * roi.shape[0] * roi.shape[1] and stats[i, cv2.CC_STAT_HEIGHT] >= 6:
+            keep[labels == i] = 255
+    return cv2.dilate(keep, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+
+
 def erase_text(frame, boxes):
     """The frame with the burned-in captions in `boxes` painted out from their surroundings."""
     if not boxes:
         return frame
     out = frame.copy()
     H, W = out.shape[:2]
-    for x, y, w, h in boxes:
+    for x, y, w, h, background in boxes:
         x0, y0, x1, y1 = max(0, x), max(0, y), min(W, x + w), min(H, y + h)
         if x1 - x0 < 4 or y1 - y0 < 4:
             continue
         roi = out[y0:y1, x0:x1]
-        mask = text_mask(roi)
+        mask = box_mask(roi, background) if background else text_mask(roi)
         if mask.any():
             out[y0:y1, x0:x1] = cv2.inpaint(roi, mask, 5, cv2.INPAINT_TELEA)
     return out

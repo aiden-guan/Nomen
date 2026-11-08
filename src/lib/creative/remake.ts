@@ -441,7 +441,7 @@ export function fitToVertical(layout: RemakeLayout, reference: { width: number; 
  * caption strip (while captions show) and every text overlay's box in its window. Kept footage
  * (a filmed screen) gets them painted out, so ours are the only words on screen.
  */
-export function burnedInText(layout: Pick<RemakeLayout, "texts" | "captions">, stage: Stage, span: { start: number; end: number }): Array<{ x: number; y: number; width: number; height: number; start: number; end: number }> {
+export function burnedInText(layout: Pick<RemakeLayout, "texts" | "captions">, stage: Stage, span: { start: number; end: number }): Array<{ x: number; y: number; width: number; height: number; start: number; end: number; background?: string }> {
   const toStage = (box: Box, pad: number) => {
     const x = Math.max(0, Math.round((box.x - pad) * OUT.width - stage.x));
     const y = Math.max(0, Math.round((box.y - pad / 2) * OUT.height - stage.y));
@@ -449,11 +449,12 @@ export function burnedInText(layout: Pick<RemakeLayout, "texts" | "captions">, s
     const bottom = Math.min(stage.height, Math.round((box.y + box.h + pad / 2) * OUT.height - stage.y));
     return right - x >= 4 && bottom - y >= 4 ? { x, y, width: right - x, height: bottom - y } : null;
   };
-  const out: Array<{ x: number; y: number; width: number; height: number; start: number; end: number }> = [];
+  const out: Array<{ x: number; y: number; width: number; height: number; start: number; end: number; background?: string }> = [];
   for (const t of layout.texts) {
     if (t.end <= span.start || t.start >= span.end) continue;
     const rect = toStage(t.box, 0.02);
-    if (rect) out.push({ ...rect, start: Math.max(span.start, t.start), end: Math.min(span.end, t.end) });
+    // Text on a solid box (black on white): the box and its letters go together.
+    if (rect) out.push({ ...rect, start: Math.max(span.start, t.start), end: Math.min(span.end, t.end), ...(t.background ? { background: t.background } : {}) });
   }
   if (layout.captions.present !== false) {
     const c = layout.captions;
