@@ -205,7 +205,7 @@ export async function build(studio, story) {
   }
 
   // ---------------------------------------------------------------- Gary
-  const explodes = beats.filter((b) => b.gag === 'explode'), zaps = beats.filter((b) => b.gag === 'zap');
+  const explodes = beats.filter((b) => b.gag === 'explode'), zaps = beats.filter((b) => b.gag === 'zap'), shows = beats.filter((b) => b.gag === 'show');
   function garyPose(t) {
     const b = beatAt(t), h = t - b.hit, lt = t - b.t0;
     const p = { x: G.x, y: 0, z: G.z, rotY: 0, t, lean: 0.04, eyes: 'open', mouth: 'smile', brows: 0, look: [0, 0], head: { x: 0.04 * Math.sin(t * 1.3), y: 0.08 * Math.sin(t * 0.7), z: 0.03 * Math.sin(t * 0.9) }, armL: { x: 0.05, z: 0.18, el: 0.25 }, armR: { x: 0.05, z: 0.18, el: 0.25 } };
@@ -242,12 +242,17 @@ export async function build(studio, story) {
         p.head = { x: 0.2, y: -0.35, z: 0 }; p.brows = h > 0 ? 0.1 : -0.9; p.mouth = h > 0 ? 'grin' : 'teeth'; p.eyes = 'open'; p.look = [-0.5, -0.4];
         break;
       }
-      case 'show': p.armR = { x: -2.7, z: 0.25, el: 0.2 }; p.armL = { x: 0, z: 0.2, el: 0.3 }; p.mouth = 'grin'; p.head = { x: 0.05, y: -0.12, z: -0.06 }; break;
+      case 'show': p.armR = { x: -2.2, z: 1.0, el: 0.15 }; p.armL = { x: 0, z: 0.2, el: 0.3 }; p.mouth = 'grin'; p.head = { x: 0.05, y: 0.35, z: -0.06 }; break;
       case 'celebrate': {
         if (h > -0.1) { const j = Math.max(0, Math.sin((PI * Math.max(0, h)) / 0.42)); p.y = 0.22 * j * (h < 1.3 ? 1 : 0.3); p.armL = { x: 0, z: 2.6, el: 0.2 }; p.armR = { x: 0, z: 2.6, el: 0.2 }; p.eyes = 'closed'; p.mouth = 'grin'; p.squash = squash(t, b.hit + 0.42, 0.18); }
         break;
       }
       default: if (lt < 0.4) p.mouth = 'o';
+    }
+    // a show beat: Gary steps aside (walking) so the screen and the caption are clear, presents it, and steps back after
+    for (const s of shows) {
+      const out = u01(t, s.t0, s.t0 + 0.5), back = u01(t, s.t1, s.t1 + 0.5), k = easeIO(out) * (1 - easeIO(back));
+      if (k > 0) { p.x = G.x - 0.48 * k; if ((out > 0 && out < 1) || (back > 0 && back < 1)) { p.walk = t * 11; p.walkAmt = 0.8; } }
     }
     // aftermath: an explosion or a zap leaves Gary charred for a while
     for (const e of [...explodes, ...zaps]) { const a = t - e.hit; if (a >= 0 && a < 5) { const c = (e.gag === 'explode' ? 0.85 : 0.45) * (1 - clamp((a - 0.4) / 4.2)); p.char = Math.max(p.char || 0, c); if (e.gag === 'explode' && a < 1.1) { p.hairUp = Math.max(p.hairUp || 0, 1 - a / 1.6); p.hatLift = Math.max(p.hatLift || 0, clamp(1 - Math.abs(a - 0.5) / 0.55)); } } }
