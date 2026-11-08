@@ -151,7 +151,9 @@ export function planOrganic(script: Script, brief: CreativeBrief, product: Produ
       ...(persona ? { pose: "" } : {}),
     };
   });
-  return { ...base, format: "talking_head_broll", aroll, punch_in: PUNCH_IN };
+  // The edit captions every line, so a screen shows the product rather than the line again.
+  const screens = base.screens?.map((request) => ({ ...request, captioned: true }));
+  return { ...base, format: "talking_head_broll", aroll, ...(screens ? { screens } : {}), punch_in: PUNCH_IN };
 }
 
 // ---------- the script room ----------
@@ -166,7 +168,7 @@ function writerSystem() {
     "- One AI presenter talks to a camera propped up at eye level, in short takes with a jump cut between them. Every beat is one short sentence (or two very short ones) of 5 to 15 words, never more than 18. Every beat has a spoken line. Every word is rendered, so stay inside the word budget given with the target length.",
     "- The presenter is on camera (visual \"creator\") for the hook and the emotional beats: the confession, the reaction, the doubt, the ask. Her direction is one small thing per take (a small nod, a half-smile, a raised eyebrow, leaning in a little), never pointing, waving, holding things or touching her face.",
     "- Every beat that says what the product does, or proves it, shows it instead (visual \"product\", with a `screen`): the product's real interface with the brief's exact names and wording, and what moves on it (text types in, a button is clicked, rows appear one by one). The presenter keeps talking over it. Give product_visual a listed id only when that visual shows exactly what the line says; otherwise null, and the screen is built. Product beats carry 30 to 50% of the words; the rest is the presenter on camera.",
-    "- The first beat is the hook, on camera: the formula's hook mechanic applied to this product and angle, with on_screen_text (at most 8 words) that sharpens it.",
+    "- The first beat is the hook, on camera: the formula's hook mechanic applied to this product and angle, with on_screen_text (at most 8 words) that sharpens it. Only the presenter's beats carry on_screen_text; on a product beat the screen itself is the picture.",
     "",
     "Sounding human:",
     "- Write the way a real creator talks: spoken, short sentences, contractions, plain words, a filler word where a person would use one (okay so, honestly, like). No ad copy: game changer, revolutionize, unlock, elevate, seamless, effortless, say goodbye to, introducing, look no further, next level, supercharge, streamline, empower, leverage, dive in, whether you're, must-have, all-in-one, cutting-edge, transform, journey, innovative, solution. No em dashes, no emojis.",
@@ -313,7 +315,15 @@ export function lintOrganic(script: Script, ctx: OrganicContext): string[] {
 /** A script made renderable, the organic way: the presenter is on camera or the product fills the screen, nothing in between. */
 export function normalizeOrganic(beats: Array<Partial<ScriptBeat>>, ctx: Pick<OrganicContext, "product" | "brief">): Script {
   const script = normalizeScript(beats, { ...ctx, brief: { ...ctx.brief, format: "talking_head_broll" } });
-  return { ...script, beats: script.beats.map((beat) => (beat.visual === "split" || beat.visual === "inset" ? { ...beat, visual: "product" } : beat)) };
+  return {
+    ...script,
+    beats: script.beats.map((beat) => {
+      const visual = beat.visual === "split" || beat.visual === "inset" ? "product" : beat.visual;
+      // Large text belongs to the presenter's beats (the hook's sticker, the ask): over a product
+      // screen it lands on the screen's own UI.
+      return { ...beat, visual, on_screen_text: visual === "creator" ? beat.on_screen_text : "" };
+    }),
+  };
 }
 
 /**

@@ -493,6 +493,8 @@ export type ScreenRequest = {
   reference_visual: string;
   /** Full screen (1080x1920), the half a split layout gives it (1080x960), or a desktop monitor (1440x900) that filmed_screen films with a phone. */
   size: "full" | "half" | "desktop";
+  /** The edit captions the spoken line over this screen (organic videos), so the screen shows the product, not the line again. */
+  captioned?: boolean;
 };
 
 /** A rendered screen: a short clip (or a still when it does not move) ready for the edit. */

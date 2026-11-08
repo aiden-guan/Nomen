@@ -286,6 +286,11 @@ describe("the organic script room", () => {
     expect(script.beats.map((b) => b.visual)).toEqual(["product", "product"]);
   });
 
+  it("keeps large text to the presenter's beats: on a product beat it would sit on the screen's own UI", () => {
+    const script = normalizeOrganic([{ ...goodBeats[0] }, { ...goodBeats[2], on_screen_text: "1. Pick 2. Deploy" }] as never, ctx);
+    expect(script.beats.map((b) => b.on_screen_text)).toEqual(["Deleting this in 24h", ""]);
+  });
+
   it("writes an original script from the formula, then has the critic check it", async () => {
     const calls: Array<{ system?: string; messages: Array<{ content: unknown }> }> = [];
     const naive = {
@@ -367,9 +372,10 @@ describe("the organic plan shape", () => {
     expect(planOrganic(long, brief, product, still).aroll.map((shot) => shot.beats)).toEqual([[1], [2], [3], [4]]);
   });
 
-  it("builds screens for the claims", () => {
+  it("builds screens for the claims, captioned by the edit", () => {
     const plan = planOrganic(goodScript(), brief, product, still);
     expect(plan.screens?.map((s) => s.id)).toEqual(["b3", "b4"]);
+    expect(plan.screens?.every((s) => s.captioned)).toBe(true);
     expect(plan.broll.map((clip) => clip.visual_id)).toEqual(["screen:b3", "screen:b4"]);
   });
 

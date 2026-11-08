@@ -365,7 +365,7 @@ function lookText(size: ScreenRequest["size"]): string[] {
   ];
 }
 
-export function writerSystem(request: Pick<ScreenRequest, "size" | "seconds">): string {
+export function writerSystem(request: Pick<ScreenRequest, "size" | "seconds" | "captioned">): string {
   const { width, height } = SCREEN_SIZES[request.size] ?? SCREEN_SIZES.full;
   const desktop = request.size === "desktop";
   return [
@@ -380,6 +380,9 @@ export function writerSystem(request: Pick<ScreenRequest, "size" | "seconds">): 
     "- Keep 64 px side margins for text. Nothing may be cut off by the edges or overflow its card: size boxes for the longest text they will hold (the fully typed command, the final number).",
     "",
     ...lookText(request.size),
+    ...(request.captioned
+      ? ["- The edit captions the spoken line over this screen: show the product doing it (its real UI, the click, the rows landing), with no headline, label or banner that repeats the line's words."]
+      : []),
     "",
     "TRUTH",
     "- Every word comes from the product facts, the brand's real UI strings and commands, or the spoken line. Quote commands, URLs and product names exactly. Never invent numbers, prices, customer names, testimonials, features, integrations or UI the facts don't contain; if a number is not in the facts, show none. Sample data (task names, tool names in a list) must be plausible and generic, never claims.",

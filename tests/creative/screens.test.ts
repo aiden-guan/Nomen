@@ -186,6 +186,12 @@ describe("the writer's answer", () => {
     expect(writerSystem(request())).toMatch(/TikTok's like\/comment\/share buttons/);
     expect(screenPrompt(desktop, { product, kit })).toContain('"width": 1440');
   });
+
+  it("leaves the spoken line to the captions when the screen is captioned (organic videos)", () => {
+    const captioned = writerSystem(request({ captioned: true }));
+    expect(captioned).toContain("The edit captions the spoken line over this screen");
+    expect(writerSystem(request())).not.toContain("The edit captions the spoken line over this screen");
+  });
 });
 
 describe("keyframes", () => {
