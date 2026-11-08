@@ -239,11 +239,11 @@ function remakeBudgets(reference: ReferenceBreakdown) {
   }));
   return [
     "<remake_rules>",
-    "This is a one-to-one remake: the reference's footage is re-performed by our presenter, shot for shot and on its timing, so each line must fit the time the original takes to say it.",
+    "This is a one-to-one remake: the reference's footage is re-performed by our presenter, shot for shot and on its timing, so each line must fit the time the original takes to say it (never longer than the beat's max_words). Our presenter voices our own words, so lines need not match the original's syllables.",
     "- Exactly one beat per reference beat, with its seconds; every beat is a creator beat (the graphics are rebuilt from the reference automatically).",
-    "- Each line is the reference beat's exact words, word for word: filler words, false starts, slang and sentence shape included.",
-    "- Change only the product facts: their product's name, their numbers, prices, results and claims about their product become this product's true facts from the brief. A generic phrase stays exactly as it is.",
-    "- Each replaced stretch has as close as possible to the same number of syllables as the words it replaces (\"four hundred thousand dollars\" is 7; \"three dollars on two thousand tools\" is 8). Never longer than the beat's max_words.",
+    "- Beat 1, the hook: the reference's exact words, word for word (filler, slang and sentence shape included), changing only the product facts: their product's name, numbers, prices, results and claims become this product's true facts from the brief.",
+    "- Every later beat: keep its job (setup, proof, payoff, call to action), its rhythm and length, and the reference's voice and energy, but write the words so the whole script is one coherent, true pitch for this product: each line follows from the one before and makes sense to a viewer who never saw the reference. Keep the reference's wording only where it is still literally true for this product (\"Everyone is reposting them\" is not, unless something of ours was actually reposted).",
+    "- The last beat ends on a complete thought, its payoff or a clear call to action, even where the reference's beat runs on.",
     "- emotion: the reference's delivery on that beat as one voice tag ([excited], [smug], [deadpan], [sarcastic], [curious], [laughs], [sighs], [whispers]); the presenter says the line with it.",
     "- on_screen_text: the reference beat's on-screen text with the same wording, line shape and series numbering (\"Part 67\" stays \"Part 67\"), only the topic swapped for this product; empty where the reference has none.",
     "</remake_rules>",
@@ -285,8 +285,13 @@ async function critique(naive: NaiveClient, ctx: ScriptContext, script: Script, 
   const system = [
     "You are a short-form creative director who has watched ten thousand TikToks. You check remakes of viral videos before anything is filmed. The goal is a remake so close to the reference that it earns the same retention, adapted to a new product.",
     "Compare the script to the reference beat by beat. Fail: beats that drift from the reference (different order, timing, jobs or shots), a hook that changed more than it had to, lines rewritten into different words when the reference's wording could have stayed, anything that sounds like an ad instead of the reference's voice, product beats whose visual doesn't match the words, claims or numbers not in the product brief, any personal-history claim (past use, personal results, reviews) carried over from the reference, and lines too long to say in their beat's seconds.",
+    // Dylan's call after a word-for-word remake ended on "Nobody is signing up for them" out of context.
+    "Then read the script as a viewer who never saw the reference: fail any line that does not follow from the one before, any phrase carried over from the reference that is not true for this product, and an ending that stops mid-thought instead of on a payoff or a clear call to action.",
+    ...(ctx.brief.format === "remake"
+      ? ["This is a one-to-one remake: only the hook (beat 1) keeps the reference's exact words, with the product facts swapped. Every later line is rewritten so the script makes sense for this product, keeping its beat's job, rhythm, length and tone: rewording a later line is right here, not drift. A hook that strays from the reference's words still fails."]
+      : []),
     "Also judge the video's job (the role at the end of the brief). A convert video that drops the reference's problem, proof or offer beats, or ends without one clear call to action, fails: it will get views and no sign-ups. A reach video with a hard sell the reference does not have fails too.",
-    "If the overall score is below 8, write the complete revised script that fixes every problem, following the same rules as the writer (replicate the reference as closely as possible, swap only what must change for this product, keep every claim true to the brief, fit each line in its seconds).",
+    `If the overall score is below 8, write the complete revised script that fixes every problem, following the same rules as the writer (${ctx.brief.format === "remake" ? "the hook word for word except the product facts, every later line coherent and true for this product" : "replicate the reference as closely as possible, swap only what must change for this product"}, keep every claim true to the brief, fit each line in its seconds).`,
   ].join("\n");
   const content = `${contextBlock(ctx)}\n\n<script>\n${JSON.stringify(script.beats)}\n</script>\n\nAutomatic checks found: ${issues.length ? issues.join("; ") : "nothing"}.`;
   const ask = (extra: string, tools?: object[]) => naive.message({ model: QC_MODEL, max_tokens: 10000, system: `${system}\n${extra}`, messages: [{ role: "user", content }], tools });
@@ -388,29 +393,23 @@ function normalizeRemake(beats: Array<Partial<ScriptBeat>>, ctx: ScriptContext):
 }
 
 /**
- * The remake checks: each line keeps the reference beat's words except the product facts, every
- * replaced stretch takes about as many syllables as the words it replaces (the lips follow the
- * original mouth), each spoken line has its emotion, and the on-screen text keeps the reference's
- * wording and series numbering.
+ * The remake checks: the hook keeps the reference's words except the product facts (later lines are
+ * rewritten so the whole script makes sense for our product; Dylan's call after a word-for-word swap
+ * read "Nobody is signing up for them" out of context), each spoken line has its emotion, and the
+ * on-screen text keeps the reference's wording and series numbering.
  */
 export function lintRemake(script: Script, reference: Pick<ReferenceBreakdown, "beats">): string[] {
   const issues: string[] = [];
   for (const beat of script.beats) {
     const ref = reference.beats[beat.n - 1];
     if (!ref) continue;
-    const theirs = tokens(ref.line);
-    const ours = tokens(beat.line);
-    if (theirs.length && ours.length) {
-      const stretches = diffWords(theirs, ours);
-      const kept = stretches.filter((s) => s.same).reduce((sum, s) => sum + s.a[1] - s.a[0], 0);
-      if (kept < theirs.length * 0.5) issues.push(`beat ${beat.n} rewrites the reference's words (kept ${kept} of ${theirs.length}): keep them word for word except the product facts`);
-      for (const s of stretches) {
-        if (s.same || s.a[0] === s.a[1]) continue;
-        const from = theirs.slice(s.a[0], s.a[1]).join(" ");
-        const to = ours.slice(s.b[0], s.b[1]).join(" ");
-        const [a, b] = [phraseSyllables(from), phraseSyllables(to)];
-        const slack = Math.max(2, Math.round(a * 0.3));
-        if (Math.abs(a - b) > slack) issues.push(`beat ${beat.n}: "${to || "(nothing)"}" has ${b} syllables where the reference's "${from}" has ${a}: match it within ${slack}`);
+    // Only the hook keeps the reference's words; later beats are rewritten to make sense for us.
+    if (beat.n === 1) {
+      const theirs = tokens(ref.line);
+      const ours = tokens(beat.line);
+      if (theirs.length && ours.length) {
+        const kept = diffWords(theirs, ours).filter((s) => s.same).reduce((sum, s) => sum + s.a[1] - s.a[0], 0);
+        if (kept < theirs.length * 0.5) issues.push(`the hook rewrites the reference's words (kept ${kept} of ${theirs.length}): keep them word for word except the product facts`);
       }
     }
     if (beat.line && !beat.emotion) issues.push(`beat ${beat.n} has no emotion tags for its line`);

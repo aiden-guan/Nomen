@@ -189,7 +189,7 @@ describe("graphics", () => {
     expect(g.request.brief).toMatch(/^a social post card/);
     expect(g.request.brief).toContain("about Monid");
     expect(g.request.brief).toContain('"it found 12 candidates"');
-    expect(g.request.seconds).toBe(3.6);
+    expect(g.request.seconds).toBe(3.1); // its time on screen, so the animation finishes before it goes
     expect(g.request.reference_visual).toContain("social post: a LinkedIn post");
   });
 
@@ -341,7 +341,7 @@ describe("the script and publishing for remakes", () => {
     expect(lintScript(long, ctx)).toContain("beat 1 is 20 words; the reference fits 15 in its 3.7s");
   });
 
-  it("lints a remake for the reference's words, matched syllables, emotion and the series line", () => {
+  it("lints a remake: the hook keeps the reference's words, later lines may be rewritten, emotion and the series line stay", () => {
     const script = normalizeScript(
       [
         { n: 1, line: "We spent four thousand dollars on these agent tools, and we saw, wow,", emotion: "[smug]" },
@@ -351,13 +351,13 @@ describe("the script and publishing for remakes", () => {
       ctx,
     );
     const issues = lintRemake(script, ctx.reference);
-    expect(issues.some((i) => i.startsWith("beat 1"))).toBe(false); // "$400,000 ... billboards" → close in syllables
-    expect(issues).toContainEqual(expect.stringMatching(/^beat 2 rewrites the reference's words/));
+    expect(issues.some((i) => i.startsWith("the hook"))).toBe(false); // the hook keeps the reference's words
+    expect(issues.some((i) => i.startsWith("beat 2"))).toBe(false); // a later beat rewritten to make sense for us is fine
     expect(issues).toContain("beat 3 has no emotion tags for its line");
+    const rewrittenHook = lintRemake({ beats: [{ ...script.beats[0], line: "Monid gives your agent a wallet for every tool it calls." }], total_seconds: 3, review: null }, ctx.reference);
+    expect(rewrittenHook).toContainEqual(expect.stringMatching(/^the hook rewrites the reference's words/));
     const series = lintRemake({ beats: [{ ...script.beats[0], on_screen_text: "Unethical ways to ship apps" }], total_seconds: 3, review: null }, { beats: [{ ...beats[0], on_screen_text: "Unethical ways to make money Part 67" }] });
     expect(series).toContain('beat 1\'s on-screen text loses the series line "Part 67"');
-    const longer = lintRemake({ beats: [{ ...script.beats[0], line: "We spent three dollars on two thousand nine hundred incredibly useful agent tools, and we saw, wow," }], total_seconds: 3, review: null }, ctx.reference);
-    expect(longer).toContainEqual(expect.stringMatching(/^beat 1: ".+" has \d+ syllables where the reference's ".+" has \d+/));
   });
 
   it("plans nothing for the standard production path", () => {
@@ -386,5 +386,23 @@ describe("a remake's calls when a provider is busy", () => {
     await expect(patient(broken, [1, 1]).fileUrl()).rejects.toThrow(/bad request/);
     const busy = { fileUrl: async () => Promise.reject(new ApiError("naive", 429, "rate_limited", "the service is at capacity")) };
     await expect(patient(busy, [1, 1]).fileUrl()).rejects.toThrow(/capacity/);
+  });
+});
+
+describe("graphics at the end of a remade span", () => {
+  it("end with the video and drop one that would only flash on before the cut", async () => {
+    const { fitGraphics } = await import("@/lib/creative/remake");
+    const fitted = fitGraphics(
+      [
+        { id: "g1", start: 1, end: 3.6 },
+        { id: "g2", start: 6.6, end: 12 },
+        { id: "g3", start: 8.2, end: 11 },
+      ],
+      9,
+    );
+    expect(fitted.map((g) => [g.id, g.end])).toEqual([
+      ["g1", 3.6],
+      ["g2", 9],
+    ]);
   });
 });

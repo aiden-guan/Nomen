@@ -416,6 +416,20 @@ const KIND_LOOK: Record<GraphicKind, string> = {
 export type PlannedGraphic = RemakeGraphic & { request: ScreenRequest; px: { x: number; y: number; width: number; height: number } };
 
 /** One reference graphic → our screen request: the same kind of element at the same size, about our product. */
+/** A graphic on screen for less than this at the end of the remade span is dropped. */
+const MIN_GRAPHIC_SECONDS = 1.5;
+
+/**
+ * The graphics as they will be seen in the remake: each ends by the span's end, and one that would
+ * only flash on in the last moment (its reference version runs on past where we stop) is dropped,
+ * so the video never ends on a half-played animation.
+ */
+export function fitGraphics<T extends { start: number; end: number }>(graphics: T[], spanEnd: number): T[] {
+  return graphics
+    .map((g) => ({ ...g, end: Math.min(g.end, spanEnd) }))
+    .filter((g) => g.end - g.start >= MIN_GRAPHIC_SECONDS || g.end < spanEnd - 0.05);
+}
+
 export function graphicRequest(graphic: RemakeGraphic, context: { stage: Pick<Stage, "width" | "height">; line: string; product: Pick<ProductBrief, "name"> }): PlannedGraphic {
   const px = {
     x: even(graphic.box.x * context.stage.width),
@@ -438,7 +452,9 @@ export function graphicRequest(graphic: RemakeGraphic, context: { stage: Pick<St
     id: graphic.id,
     brief,
     line: context.line,
-    seconds: round(Math.max(1, graphic.end - graphic.start + 0.5), 2),
+    // Its animation is timed to the seconds it is actually on screen, so it finishes and holds
+    // before the cut (with +0.5 s it was still moving when the video ended).
+    seconds: round(Math.max(1, graphic.end - graphic.start), 2),
     reference_visual: `${graphic.kind.replace(/_/g, " ")}: ${graphic.shows}`,
     size: "full",
     box: { width: px.width, height: px.height },
@@ -1230,7 +1246,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
 
   // 3. Graphics and the screens the filmed monitors show.
   const scriptLines = lines.map((l) => l.line);
-  const planned = layout.graphics.map((g) => graphicRequest(g, { stage, line: lineAt(span.beats, scriptLines, g.start, g.end), product: input.product }));
+  const planned = fitGraphics(layout.graphics, span.end).map((g) => graphicRequest(g, { stage, line: lineAt(span.beats, scriptLines, g.start, g.end), product: input.product }));
   const requests: ScreenRequest[] = [...planned.map((g) => g.request)];
   for (const layer of layers) {
     const segment = segments.find((s) => s.n === layer.segment)!;
