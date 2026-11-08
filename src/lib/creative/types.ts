@@ -268,7 +268,9 @@ export type VideoFormat =
   /** Product graphics full screen, the presenter in a small rounded window (the dev-tutorial look). */
   | "presenter_inset"
   /** No face: a phone filming a computer monitor while a voice walks through the product (the screen-walkthrough look). */
-  | "filmed_screen";
+  | "filmed_screen"
+  /** The reference itself, one to one: its footage re-performed by our people, its music, its layout and graphic places, our product facts (internal only). */
+  | "remake";
 
 /** The creative director's brief for one video: which viral video it remakes and what changes for this product. */
 /** What a video is judged on once posted: reach videos on attention, convert videos on action. */
@@ -472,6 +474,8 @@ export type ScreenRequest = {
   reference_visual: string;
   /** Full screen (1080x1920), the half a split layout gives it (1080x960), or a desktop monitor (1440x900) that filmed_screen films with a phone. */
   size: "full" | "half" | "desktop";
+  /** An exact canvas in px, overriding `size`: a remake's graphic built at its reference box (a post card, a chart). */
+  box?: { width: number; height: number };
 };
 
 /** A rendered screen: a short clip (or a still when it does not move) ready for the edit. */

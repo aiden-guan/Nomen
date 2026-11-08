@@ -4,6 +4,7 @@ import { QC_MODEL } from "../qc";
 import { extractJson } from "../research";
 import { isTall, usesCreator } from "./plan";
 import type { BeatJob, CreativeBrief, ProductBrief, ReferenceBreakdown, Script, ScriptBeat } from "./types";
+import { diffWords, phraseSyllables, tokens } from "./words";
 
 // The script room: a writer remakes a proven viral video for our product, as close to it as the truth allows, a linter
 // catches what makes scripts sound like AI, and a critic sends weak drafts back. The reference's
@@ -175,7 +176,7 @@ function writerSystem() {
     "- Real footage of the product exists only as the listed visuals (ids like p1, s2, k3). Every beat where the reference cuts away to a product, a screen or a demo shows this product's best-matching visual. If the reference never cuts away, still show the product on the beat that names what it does.",
     "- When the reference shows a graphic (a terminal with a command typing, step cards, a timer, a list of results, an app window, a dashboard), write a `screen` for that beat: the same kind of graphic, built for this product from the brief's real wording, commands and numbers. A screen builder renders it in the brand's colors and fonts. Real photos and screenshots are still best for 'this is the product' beats; screens are best for 'this is what it does' beats.",
     "- Creator beats: the reference's action and expression, kept small and calm (video models distort big gestures): no pointing at the lens, no thumbs up, no fast head turns, no hands near the face.",
-    "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; presenter_inset uses inset beats (product graphics full screen, the presenter in a small window; the hook may be a creator beat); talking_head_broll mixes creator, product and inset beats.",
+    "- Format rules: voiceover_demo and text_story use only product beats (no creator); split_screen uses only split beats; presenter_inset uses inset beats (product graphics full screen, the presenter in a small window; the hook may be a creator beat); talking_head_broll mixes creator, product and inset beats; remake re-performs the reference's own footage one to one (see the remake rules below when the format is remake).",
     "- filmed_screen looks like a phone filming a computer monitor while a voice walks through it: only product beats (no creator), and every beat gets a `screen` that says what the monitor shows at that moment (a terminal, a code editor, a browser or the product's own app, as a real desktop window, with the exact commands and wording from the brief and what types in or appears).",
     "",
     "The video's job (the creative brief's role):",
@@ -206,11 +207,49 @@ function contextBlock(ctx: ScriptContext) {
       ...(reference.anatomy ? { how_it_sells: reference.anatomy } : {}),
     })}\n</reference>`,
     `Target length: about ${ctx.targetSeconds} seconds. Format: ${brief.format}. Role: ${roleOf(brief)} (judged on ${(brief.metric ?? (roleOf(brief) === "convert" ? "link_clicks" : "views")).replace(/_/g, " ")}).`,
+    ...(brief.format === "remake" ? [remakeBudgets(reference)] : []),
   ].join("\n\n");
 }
 
 /** Briefs written before campaigns were planned as a mix are reach videos. */
 const roleOf = (brief: CreativeBrief) => brief.role ?? "reach";
+
+/**
+ * The most words a remade line may have: what the reference's speaker fits in the beat at their own
+ * pace. A remake keeps the reference's timing one to one, so a longer line would run over its beat.
+ */
+export function beatWordBudget(seconds: number, wordsPerMinute: number | null) {
+  const wps = (wordsPerMinute && wordsPerMinute > 0 ? wordsPerMinute : 165) / 60;
+  return Math.max(1, Math.floor(seconds * wps));
+}
+
+/**
+ * The remake format's own rules and the reference's words beat by beat. A remake re-performs the
+ * reference's footage: the new presenter's lips follow the original mouth, so the words stay the
+ * reference's except the product facts, and a replaced phrase takes about as many syllables.
+ */
+function remakeBudgets(reference: ReferenceBreakdown) {
+  const rows = reference.beats.map((beat, i) => ({
+    beat: i + 1,
+    seconds: Math.round((beat.end - beat.start) * 10) / 10,
+    words: beat.line,
+    syllables: phraseSyllables(beat.line),
+    on_screen_text: beat.on_screen_text,
+    max_words: beatWordBudget(beat.end - beat.start, reference.pacing.words_per_minute),
+  }));
+  return [
+    "<remake_rules>",
+    "This is a one-to-one remake: the reference's footage is re-performed by our presenter, shot for shot and on its timing, so each line must fit the time the original takes to say it.",
+    "- Exactly one beat per reference beat, with its seconds; every beat is a creator beat (the graphics are rebuilt from the reference automatically).",
+    "- Each line is the reference beat's exact words, word for word: filler words, false starts, slang and sentence shape included.",
+    "- Change only the product facts: their product's name, their numbers, prices, results and claims about their product become this product's true facts from the brief. A generic phrase stays exactly as it is.",
+    "- Each replaced stretch has as close as possible to the same number of syllables as the words it replaces (\"four hundred thousand dollars\" is 7; \"three dollars on two thousand tools\" is 8). Never longer than the beat's max_words.",
+    "- emotion: the reference's delivery on that beat as one voice tag ([excited], [smug], [deadpan], [sarcastic], [curious], [laughs], [sighs], [whispers]); the presenter says the line with it.",
+    "- on_screen_text: the reference beat's on-screen text with the same wording, line shape and series numbering (\"Part 67\" stays \"Part 67\"), only the topic swapped for this product; empty where the reference has none.",
+    "</remake_rules>",
+    `<reference_words>\n${JSON.stringify(rows)}\n</reference_words>`,
+  ].join("\n");
+}
 
 export async function writeScript(naive: NaiveClient, ctx: ScriptContext): Promise<Script> {
   const reply = await naive.message({
@@ -291,6 +330,7 @@ const clean = (value: unknown) =>
 export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptContext): Script {
   const ids = new Set(ctx.product.visuals.map((v) => v.id));
   const fallbackVisual = ctx.brief.visuals.find((id) => ids.has(id)) ?? ctx.product.visuals[0]?.id ?? null;
+  if (ctx.brief.format === "remake") return normalizeRemake(beats, ctx);
   const out: ScriptBeat[] = beats.slice(0, 12).map((beat, i) => {
     let visual: ScriptBeat["visual"] = beat.visual === "product" || beat.visual === "split" || beat.visual === "inset" ? beat.visual : "creator";
     if (ctx.brief.format === "voiceover_demo" || ctx.brief.format === "text_story" || ctx.brief.format === "filmed_screen") visual = "product";
@@ -316,6 +356,69 @@ export function normalizeScript(beats: Array<Partial<ScriptBeat>>, ctx: ScriptCo
     };
   });
   return { beats: out, total_seconds: out.reduce((sum, beat) => sum + beat.seconds, 0), review: null };
+}
+
+/**
+ * A remake's script: exactly one presenter beat per reference beat, timed like the reference (no
+ * 8 s cap: the remake splits long beats into shots itself). Missing beats are kept silent rather
+ * than shifting every later line onto the wrong beat.
+ */
+function normalizeRemake(beats: Array<Partial<ScriptBeat>>, ctx: ScriptContext): Script {
+  const reference = ctx.reference.beats;
+  const count = reference.length || Math.min(beats.length, 30);
+  const numbered = beats.some((b) => Number(b.n) > 0);
+  const out: ScriptBeat[] = Array.from({ length: count }, (_, i) => {
+    const beat = (numbered ? beats.find((b) => Number(b.n) === i + 1) : beats[i]) ?? {};
+    const ref = reference[i];
+    const seconds = ref ? Math.round((ref.end - ref.start) * 10) / 10 : Math.min(8, Math.max(1, Number(beat.seconds) || 3));
+    return {
+      n: i + 1,
+      job: JOBS.includes(beat.job as BeatJob) ? (beat.job as BeatJob) : (ref?.job ?? (i === 0 ? "hook" : "other")),
+      seconds,
+      line: clean(beat.line),
+      // A remake keeps the reference's own overlay wording (a hook title with its series line).
+      on_screen_text: clean(beat.on_screen_text).split(" ").slice(0, 16).join(" "),
+      visual: "creator",
+      product_visual: null,
+      direction: clean(beat.direction),
+      emotion: clean(beat.emotion).slice(0, 60),
+    };
+  });
+  return { beats: out, total_seconds: Math.round(out.reduce((sum, beat) => sum + beat.seconds, 0) * 10) / 10, review: null };
+}
+
+/**
+ * The remake checks: each line keeps the reference beat's words except the product facts, every
+ * replaced stretch takes about as many syllables as the words it replaces (the lips follow the
+ * original mouth), each spoken line has its emotion, and the on-screen text keeps the reference's
+ * wording and series numbering.
+ */
+export function lintRemake(script: Script, reference: Pick<ReferenceBreakdown, "beats">): string[] {
+  const issues: string[] = [];
+  for (const beat of script.beats) {
+    const ref = reference.beats[beat.n - 1];
+    if (!ref) continue;
+    const theirs = tokens(ref.line);
+    const ours = tokens(beat.line);
+    if (theirs.length && ours.length) {
+      const stretches = diffWords(theirs, ours);
+      const kept = stretches.filter((s) => s.same).reduce((sum, s) => sum + s.a[1] - s.a[0], 0);
+      if (kept < theirs.length * 0.5) issues.push(`beat ${beat.n} rewrites the reference's words (kept ${kept} of ${theirs.length}): keep them word for word except the product facts`);
+      for (const s of stretches) {
+        if (s.same || s.a[0] === s.a[1]) continue;
+        const from = theirs.slice(s.a[0], s.a[1]).join(" ");
+        const to = ours.slice(s.b[0], s.b[1]).join(" ");
+        const [a, b] = [phraseSyllables(from), phraseSyllables(to)];
+        const slack = Math.max(2, Math.round(a * 0.3));
+        if (Math.abs(a - b) > slack) issues.push(`beat ${beat.n}: "${to || "(nothing)"}" has ${b} syllables where the reference's "${from}" has ${a}: match it within ${slack}`);
+      }
+    }
+    if (beat.line && !beat.emotion) issues.push(`beat ${beat.n} has no emotion tags for its line`);
+    const series = ref.on_screen_text.match(/\bpart\s*\d+\b/i)?.[0];
+    if (ref.on_screen_text && !beat.on_screen_text) issues.push(`beat ${beat.n} drops the reference's on-screen text "${ref.on_screen_text}"`);
+    else if (series && !beat.on_screen_text.toLowerCase().includes(series.toLowerCase())) issues.push(`beat ${beat.n}'s on-screen text loses the series line "${series}"`);
+  }
+  return issues;
 }
 
 // ---------- the linter ----------
@@ -358,12 +461,21 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
     if (refHook && hook && Math.abs(hook.seconds - (refHook.end - refHook.start)) > 1.5) issues.push(`hook beat is ${hook.seconds}s vs the reference's ${(refHook.end - refHook.start).toFixed(1)}s`);
   }
 
-  // Pace: as fast as the reference, not faster than a person can say it.
+  // Pace: as fast as the reference, not faster than a person can say it. A remake keeps every
+  // beat's timing, so each line must fit its own beat at the reference's pace.
   const referenceWps = reference.pacing.words_per_minute ? reference.pacing.words_per_minute / 60 : 2.8;
   const maxWps = Math.max(3.4, referenceWps * 1.15);
+  const remake = ctx.brief.format === "remake";
+  if (remake && reference.beats.length && script.beats.filter((b) => b.line).length < reference.beats.filter((b) => b.line).length) {
+    issues.push("a remake needs a line for every reference beat that has one");
+  }
+  if (remake) issues.push(...lintRemake(script, reference));
   for (const beat of script.beats) {
     const count = words(beat.line).length;
-    if (count && count / beat.seconds > maxWps) issues.push(`beat ${beat.n} is too fast: ${count} words in ${beat.seconds}s`);
+    const ref = reference.beats[beat.n - 1];
+    const budget = remake && ref ? beatWordBudget(ref.end - ref.start, reference.pacing.words_per_minute) : null;
+    if (budget !== null && count > budget) issues.push(`beat ${beat.n} is ${count} words; the reference fits ${budget} in its ${(ref!.end - ref!.start).toFixed(1)}s`);
+    else if (budget === null && count && count / beat.seconds > maxWps) issues.push(`beat ${beat.n} is too fast: ${count} words in ${beat.seconds}s`);
     if (words(beat.on_screen_text).length > 12) issues.push(`beat ${beat.n} on-screen text is over 12 words`);
   }
 
@@ -393,6 +505,8 @@ const ASK = /\blink\b|\bbio\b|sign ?up|\btry\b|download|\bget\b|\bstart\b|\bfree
  * about $0.40 per second to render, so remakes with a presenter stop at 24 s; faceless ones at 40 s.
  */
 export function targetSeconds(reference: Pick<ReferenceBreakdown, "duration">, format: CreativeBrief["format"] = "voiceover_demo") {
+  // A one-to-one remake keeps the reference's whole length (about $0.17 a second of it on Kling).
+  if (format === "remake") return Math.round(Math.min(90, Math.max(4, reference.duration || 18)));
   const cap = usesCreator(format) ? 24 : 40;
   return Math.round(Math.min(cap, Math.max(8, reference.duration || 18)));
 }

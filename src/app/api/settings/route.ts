@@ -18,6 +18,12 @@ const EDITABLE: SettingKey[] = [
   "warmup_minutes",
   "presenter_engine",
   "finish",
+  "remake_presenter",
+  "remake_voice",
+  "remake_voice_match",
+  "remake_max_usd",
+  "remake_screens",
+  "persona_character",
 ];
 
 let models: { at: number; ids: string[] } | null = null;

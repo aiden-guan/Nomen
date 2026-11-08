@@ -106,6 +106,73 @@ lip-sync. What made it look real is the prompt recipe in `plan.ts`:
 | `voiceover_demo` | the product only | text-to-speech | cents |
 | `filmed_screen` | a phone filming a monitor that shows the product | text-to-speech | cents, plus one to three photos |
 | `text_story` | the product only, with large text | text-to-speech | cents |
+| `remake` | the reference itself, one to one: our people, our graphics, its layout, cuts and music | our people (Kling 3.0's own voice) over the reference's music | about $0.17 per second of the reference plus about $0.30, internal only |
+
+## One-to-one remakes (`remake`)
+
+A remake is the reference video one to one: the same footage, framing, cuts, timing, motion,
+set, music and effects, graphic places and caption style. Only the people (lookalike personas:
+the same type, clearly someone else), the voice and the product content change, and the script
+keeps the reference's words except the product facts. Remakes are internal: they are marked
+`internal`, the camp shows an "internal" badge, and publishing refuses them unless a person clears
+them (`clearForPosting` in publish.ts).
+
+`src/lib/creative/remake.ts` runs it; a production tick starts it in the background
+(`remake-job.ts`) and it resumes from its manifest after a restart.
+
+1. **Layout** (vision, up to 12 frames): band over a blurred fill or full frame; the main person
+   per beat; the **segments** and their kind; every graphic (kind, box, window, entrance); every
+   text overlay (words line by line, box, colour, size); the caption look (case, words at a time,
+   height, size).
+2. **Segments and their strategies** (`clone.ts`). Segment edges snap to the reference's cuts.
+   - `talking_head`: the host re-performs it.
+   - `stitch` (another creator's clip with the host as a cut-out): the brand's co-host (a second
+     persona, made once per brand) re-performs the clip, with the host's cut-out blanked; the host's
+     cut-out is re-performed on green, listening, and keyed back in at the reference's box.
+   - `screen_walkthrough` (a phone filming a monitor, the host green-screened over it): the
+     reference's footage is kept and our product's desktop screens are warped into its display,
+     following the display's corners read per sampled frame (the host's old cut-out is blurred
+     dark); when the corners don't hold up, the filmed_screen plate with hand-held motion. The
+     host's cut-out is re-performed on green and keyed in.
+   - `broll`: kept. `graphic`: the screen builder makes ours at the stage's size.
+   - A segment that can't be cloned cuts to our own product graphic and says so in the notes.
+3. **Takes and renders.** Each cloned layer splits into takes at its real cuts: a scene change in
+   its own region (a graphic popping in elsewhere is not a cut). Consecutive takes group into
+   renders of up to 14 s; each render's first frame is a **twin frame** (the reference frame with
+   our person in the same pose, size and place, overlays removed, or on green for a cut-out),
+   checked by the first-frame gate, and the reference's cuts inside it become Kling's multi-shot
+   list ("Shot 1, 4 s: …").
+4. **The cost guard.** Before anything is paid for, an estimate (Kling billed seconds, twin frames,
+   personas, plates, audio, graphics, vision); over `remake_max_usd` it stops. Actual spend is kept
+   on the creative and in the manifest.
+5. **The presenter** (`presenter.ts`, one interface): `kling-native` (default) is Kling 3.0
+   image-to-video voicing the line itself, with the head-to-head's recipe; `kling-motion` (Kling
+   Motion Control driven by the reference's own footage, silent) and `naive:<model>` are options,
+   and an audio-driven model only needs `submit` and `poll`.
+6. **Sound** (`dub.ts`). Demucs (`npm run setup:stems`) splits the reference into voice and bed;
+   without it, ElevenLabs isolates the voice and there is no bed. Speech-to-text times the
+   reference's words. Each render's own voice is the soundtrack for its stretch: its lead-in is
+   skipped and a line that runs long is played up to 1.25x (picture with it), so the reference's
+   timing holds. `remake_voice_match` passes every render's voice through speech-to-speech into the
+   persona's one voice (Kling's timing is kept). Words no render says get our eleven_v4 read.
+7. **The cut.** The segments on the stage, cut-outs keyed in, graphics at their boxes, the blurred
+   fill, text overlays at their places with our words (the series line kept), word captions timed
+   from speech-to-text in the reference's style, the finish, the soundtrack over the ducked bed.
+8. **The check.** Our frames against the reference's at the same moments (vision): framing, the
+   same people throughout, no original person. Kept as the creative's QC score and continuity.
+
+**The script** keeps the reference's words beat for beat, swaps only the product facts with about
+as many syllables, gives every line an emotion tag, and keeps on-screen text's wording and series
+numbering; `lintRemake` checks all of it.
+
+**People** (`persona.ts`): kept per brand in the store's files (`brd_…/persona.json` and `.png`, the
+co-host as `cohost.*`): a portrait from the director's description, or a prebuilt Naive character
+(`persona_character`, chr_…). Each has one ElevenLabs voice (Lena or Brielle, Matt or Arthur, by
+gender, age and vibe).
+
+**Live tests:** `tests/remake.live.test.ts` (opt-in, paid): the Cluely hook (0-9 s) for monid.ai and
+hustle.jordan99's "Part 67" (the first ~12 s) for usenaive.ai. See the file's header for the
+commands, the plan-only mode and the options.
 
 ## Costs
 

@@ -29,6 +29,10 @@ export type Concept = {
   script?: Script;
   plan?: ProductionPlan;
   reference?: { id: string; url: string; author: string; views: number; followers: number | null; outlier: number | null; format: string; hook_mechanic: string };
+  /** For internal review only (one-to-one remakes): publishing refuses it unless `cleared` is set. */
+  internal?: boolean;
+  /** Who cleared an internal video for posting, when and why. */
+  cleared?: { at: string; by: string; note: string };
 };
 
 export type Strategy = {
@@ -50,7 +54,7 @@ export type Strategy = {
   };
 };
 
-export const FORMATS: VideoFormat[] = ["talking_head_broll", "split_screen", "presenter_inset", "voiceover_demo", "filmed_screen", "text_story"];
+export const FORMATS: VideoFormat[] = ["talking_head_broll", "split_screen", "presenter_inset", "voiceover_demo", "filmed_screen", "text_story", "remake"];
 
 export const PLATFORMS = ["tiktok", "instagram", "youtube", "x", "facebook", "linkedin", "threads"] as const;
 
@@ -205,7 +209,7 @@ export function strategyMessage(
     product.visuals.length
       ? `Real product visuals that can be on screen (refer to them by id):\n<visuals>\n${JSON.stringify(product.visuals.map(({ id, kind, caption, source }) => ({ id, kind, caption, source })))}\n</visuals>`
       : "There are no product visuals for this brand: choose formats where the creator carries the video (talking_head_broll with creator beats only), or filmed_screen, whose screens are built from the product brief.",
-    `Formats: talking_head_broll (a creator talks to camera; the edit cuts to the product while they keep talking), split_screen (creator on top, product underneath), presenter_inset (product graphics full screen with the presenter in a small rounded window, the look of most viral dev-tool tutorials), voiceover_demo (no face: product on screen, a voice-over and captions), filmed_screen (no face: looks like a phone filming a computer monitor while a voice walks through it; use it when the reference is a filmed screen or screen-recorded walkthrough), text_story (no face: product on screen with large text). Match the reference's format where you can. Videos with a face cost about $0.40 per second to render; faceless formats cost almost nothing, so use them when the reference is faceless or the product is software that shows well on screen.`,
+    `Formats: talking_head_broll (a creator talks to camera; the edit cuts to the product while they keep talking), split_screen (creator on top, product underneath), presenter_inset (product graphics full screen with the presenter in a small rounded window, the look of most viral dev-tool tutorials), voiceover_demo (no face: product on screen, a voice-over and captions), filmed_screen (no face: looks like a phone filming a computer monitor while a voice walks through it; use it when the reference is a filmed screen or screen-recorded walkthrough), text_story (no face: product on screen with large text), remake (a one-to-one remake of the reference itself: its footage, framing, cuts, timing, music, graphic placement and caption look are kept, with the brand's recurring presenter in place of the person, Kling 3.0 voicing them, and only the product facts in its words changed; internal only, never posted unless a person clears it; about $0.17 per second of the reference's full length plus about $0.30). Match the reference's format where you can. Videos with a face cost about $0.40 per second to render; faceless formats cost almost nothing, so use them when the reference is faceless or the product is software that shows well on screen.`,
     `Research for the brand brief and the search plan (collected today from public sources):\n<research>\n${JSON.stringify(research)}\n</research>`,
     ...(past.length
       ? [`How this brand's earlier Nomen videos performed on its own accounts (repeat what worked, drop what did not, do not reuse the same hooks):\n<past_results>\n${JSON.stringify(past)}\n</past_results>`]
@@ -292,6 +296,8 @@ export function conceptFrom(brief: CreativeBrief, script: Script, plan: Producti
     inspired_by: reference ? [reference.url] : [],
     why: brief.why,
     ...(brief.role ? { role: brief.role, metric: brief.metric ?? METRICS[brief.role][0] } : {}),
+    // Remakes copy a real creator's video one to one: they stay internal (see publish.ts).
+    ...(brief.format === "remake" ? { internal: true } : {}),
     brief,
     script,
     plan,

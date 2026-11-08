@@ -5,7 +5,7 @@ import type { CreativeView, ReferenceView } from "../api";
 import styles from "../troy.module.css";
 import type { CampActions } from "./Camp";
 import { money, platformName } from "./format";
-import { RemakeOf, RoleBadge } from "./References";
+import { InternalBadge, RemakeOf, RoleBadge } from "./References";
 import { crispIfTiny } from "./StationPanel";
 
 /**
@@ -106,6 +106,12 @@ export function Screening({
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[13px]">
             <h2 className={`${styles.pixel} text-[22px] font-semibold leading-tight`}>{title}</h2>
+            {creative.internal && (
+              <p className="mt-1.5 flex items-center gap-2 text-[12px] text-[var(--ink-soft)]">
+                <InternalBadge cleared={creative.cleared} />
+                {creative.cleared ? `cleared for posting by ${creative.cleared.by}` : "one-to-one remake for internal review: not posted unless cleared"}
+              </p>
+            )}
             {concept && (
               <p className="mt-1 text-[12px] text-[var(--ink-soft)]">
                 {[concept.format, concept.angle].filter(Boolean).join(" · ")}

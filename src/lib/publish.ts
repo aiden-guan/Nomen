@@ -4,6 +4,7 @@ import { NaiveClient } from "./naive";
 import { getBrand, getCampaign, listCreatives } from "./pipeline";
 import type { CreativeRow } from "./production";
 import { slug } from "./production";
+import type { Concept } from "./strategy";
 
 // Publishing to the brand's own accounts through Naive's Social primitive. Every post is labeled
 // AI-generated: Naive adds each network's AI-content label and an #AIgenerated line.
@@ -65,6 +66,32 @@ export async function connectedAccounts(brandId: string): Promise<SocialAccount[
   }));
 }
 
+/**
+ * Why a video may not be posted, or null. One-to-one remakes copy a real creator's video and are
+ * for internal review only: they are held unless a person explicitly cleared them.
+ */
+export function postingHold(concept: Pick<Concept, "internal" | "cleared" | "brief"> | null): string | null {
+  return isInternal(concept) && !concept?.cleared?.at ? "internal remake: not cleared for posting" : null;
+}
+
+/** An internal video: a one-to-one remake of a real creator's video (cleared or not). */
+export function isInternal(concept: Pick<Concept, "internal" | "brief"> | null | undefined): boolean {
+  return Boolean(concept && (concept.internal === true || concept.brief?.format === "remake"));
+}
+
+/** Clears one internal video for posting: an explicit decision by a named person, kept on the video and logged. */
+export async function clearForPosting(creativeId: string, by: string, note: string) {
+  if (!by.trim() || !note.trim()) throw new Error("Say who clears it and why.");
+  const [creative] = await store().find<CreativeRow>("creatives", { id: creativeId }, { limit: 1 });
+  if (!creative) throw new Error("No such video");
+  const concept = parse<Concept | null>(creative.concept_json, null);
+  if (!concept) throw new Error("The video's concept is unreadable");
+  concept.cleared = { at: now(), by: by.trim(), note: note.trim() };
+  await save("creatives", creativeId, { concept_json: JSON.stringify(concept) });
+  const campaign = await getCampaign(creative.campaign_id);
+  await logEvent({ brandId: campaign?.brand_id, campaignId: creative.campaign_id, level: "warn", message: `"${concept.title}" (internal) was cleared for posting by ${by.trim()}: ${note.trim()}` });
+}
+
 export async function approveAll(campaignId: string) {
   await store().update("creatives", { campaign_id: campaignId, status: "ready", rejected: 0 }, { approved: 1 });
 }
@@ -83,8 +110,12 @@ export async function publishCampaign(campaignId: string, mode: "now" | "daily")
   const creatives = await listCreatives(campaignId);
   const existing = creatives.length ? await store().find<{ creative_id: string }>("posts", { creative_id: { in: creatives.map((c) => c.id) }, status: { ne: "failed" } }) : [];
   const posted = new Set(existing.map((row) => row.creative_id));
-  const queue = creatives.filter((c) => c.approved && !c.rejected && c.status === "ready" && !posted.has(c.id));
-  if (queue.length === 0) throw new Error("Approve at least one ready video first.");
+  const approved = creatives.filter((c) => c.approved && !c.rejected && c.status === "ready" && !posted.has(c.id));
+  // Internal remakes never go out unless someone cleared them, even when approved or on autopilot.
+  const held = approved.filter((c) => postingHold(parse<Concept | null>(c.concept_json, null)));
+  const queue = approved.filter((c) => !held.includes(c));
+  if (queue.length === 0) throw new Error(held.length ? "The approved videos are internal remakes, which are not posted unless cleared." : "Approve at least one ready video first.");
+  if (held.length) await logEvent({ brandId: campaign.brand_id, campaignId, message: `Held back ${held.length} internal remake${held.length > 1 ? "s" : ""}: not cleared for posting` });
 
   const skipped: string[] = [];
   let slot = nextSlot(new Date());
@@ -138,7 +169,11 @@ export async function advancePosts() {
     const [creative] = await store().find<CreativeRow>("creatives", { id: post.creative_id }, { limit: 1 });
     if (!brand?.identity_id || !creative) continue;
     try {
-      if (post.status === "pending") {
+      const hold = post.status === "pending" ? postingHold(parse<Concept | null>(creative.concept_json, null)) : null;
+      if (hold) {
+        await save("posts", post.id, { status: "failed", error: hold });
+        await logEvent({ brandId: brand.id, level: "warn", message: `A post was stopped: ${hold}` });
+      } else if (post.status === "pending") {
         const result = await naive.createPost(
           brand.identity_id,
           {
