@@ -907,8 +907,10 @@ function TopBar({
       className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 px-4 pb-6 pt-4 sm:gap-5 sm:px-6 ${visible ? styles.fadeIn : "opacity-0"}`}
       style={{ background: "linear-gradient(var(--page) 62%, rgba(246, 244, 239, 0))" }}
     >
-      <a href={home} className={`${styles.pixel} ${styles.link} pointer-events-auto shrink-0 text-[20px] font-semibold text-[var(--ink)]`} aria-label="Nomen home">
-        Nomen
+      <a href={home} className={`${styles.pixel} ${styles.link} pointer-events-auto flex shrink-0 items-center gap-2 text-[20px] font-semibold text-[var(--ink)]`} aria-label="Nomen home">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/nomen-logo.png" alt="" width={40} height={28} className="h-7 w-auto" />
+        <span className="hidden sm:inline">Nomen</span>
       </a>
       {view && (
         <div className={`${styles.boxSoft} pointer-events-auto flex min-w-0 items-center gap-2.5 px-2 py-1.5 sm:px-3`} title={`${view.brand.name} · ${view.brand.domain}`}>

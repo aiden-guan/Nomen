@@ -18,7 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="sticky top-0 z-20 border-b border-white/5 bg-zinc-950/70 backdrop-blur-xl">
           <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-              <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 text-xs font-bold">N</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/nomen-logo.png" alt="" width={40} height={28} className="h-7 w-auto" />
               Nomen
             </Link>
             <nav className="flex items-center gap-1 text-sm text-zinc-400">

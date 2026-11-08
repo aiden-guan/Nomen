@@ -194,7 +194,11 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
 
       {view === "landing" && (
         <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-5 px-5 py-4 sm:px-8 sm:py-6">
-          <span className={`${styles.pixel} pointer-events-auto mr-auto text-[22px] font-semibold tracking-tight`}>Nomen</span>
+          <span className={`${styles.pixel} pointer-events-auto mr-auto flex items-center gap-2.5 text-[22px] font-semibold tracking-tight`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/nomen-logo.png" alt="" width={44} height={31} className="h-[31px] w-auto" />
+            Nomen
+          </span>
           {brands && brands.length > 0 && <BrandsMenu brands={brands} />}
           {!demoOnly && (
             <a href="/settings" className={`${styles.link} ${styles.pixel} pointer-events-auto text-[15px]`}>
