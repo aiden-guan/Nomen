@@ -32,6 +32,8 @@ export function PhonePosting({ brandId, videos }: { brandId: string; videos: Cre
   const [picked, setPicked] = useState("");
   // A private test post: TikTok shows it only to the brand's own account ("Only you").
   const [onlyYou, setOnlyYou] = useState(false);
+  // The song the agent adds from TikTok's sounds; empty means a trending one.
+  const [song, setSong] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -71,14 +73,15 @@ export function PhonePosting({ brandId, videos }: { brandId: string; videos: Cre
     const ask = onlyYou
       ? `Post “${title}” on the brand's TikTok as “Only you”, through its phone? Only the brand's own account will see it.`
       : `Post “${title}” publicly on the brand's TikTok, through its phone?`;
+    const music = song.trim() ? `“${song.trim()}” (or the closest song the account can use)` : "a trending song";
     const ok = window.confirm(
-      `${ask}\n\nThe phone agent uploads it in the TikTok app with its caption and TikTok's AI-generated label. It costs up to ${state.cost.credits} Mobilerun credits (about $${(state.cost.credits / 100).toFixed(2)}) plus up to ${state.cost.minutes} minutes of phone time.`,
+      `${ask}\n\nThe phone agent uploads it in the TikTok app with its caption, TikTok's AI-generated label, and ${music} from TikTok's own sounds, low under the voice. It costs up to ${state.cost.credits} Mobilerun credits (about $${(state.cost.credits / 100).toFixed(2)}) plus up to ${state.cost.minutes} minutes of phone time.`,
     );
     if (!ok) return;
     setBusy(true);
     setError(null);
     try {
-      setState(await postThroughPhone(choice.id, onlyYou ? "private" : "public"));
+      setState(await postThroughPhone(choice.id, onlyYou ? "private" : "public", song));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
     } finally {
@@ -123,6 +126,17 @@ export function PhonePosting({ brandId, videos }: { brandId: string; videos: Cre
               </button>
             </>
           )}
+          {choices.length > 0 && (
+            <input
+              type="text"
+              value={song}
+              maxLength={120}
+              onChange={(event) => setSong(event.target.value)}
+              placeholder="Song from TikTok's sounds (optional), e.g. Timeless by The Weeknd"
+              aria-label="Song to add from TikTok's sounds"
+              className={`${styles.input} h-9 w-full border-2 border-[rgba(43,29,20,0.2)] bg-[var(--paper)] px-2 text-[13px]`}
+            />
+          )}
           {/* Shown even with nothing to pick: a video already out publicly can still get a private test. */}
           <label className="flex w-full cursor-pointer items-center gap-2 text-[12px] text-[var(--ink-soft)]">
             <input type="checkbox" checked={onlyYou} onChange={(event) => setOnlyYou(event.target.checked)} className="size-4 accent-[var(--crimson)]" />
@@ -149,6 +163,12 @@ export function PhonePosting({ brandId, videos }: { brandId: string; videos: Cre
               <p className={post.status === "failed" ? "text-[var(--crimson-dark)]" : "text-[var(--ink-faint)]"}>
                 {post.message ?? (post.error ? `Retrying: ${post.error}` : null)} {ago(post.finishedAt ?? post.startedAt ?? post.createdAt)}
               </p>
+              {(post.sound || post.songRequest) && (
+                <p className="text-[var(--ink-faint)]">
+                  ♪ {post.sound ?? `asked for “${post.songRequest}”`}
+                  {post.soundCleared === false && post.visibility === "public" && <span className="text-[var(--crimson-dark)]"> · not cleared for brand content</span>}
+                </p>
+              )}
               {post.url && (
                 <a href={post.url} target="_blank" rel="noreferrer" className={`${styles.link} underline decoration-dotted underline-offset-4`}>
                   See the post

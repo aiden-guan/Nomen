@@ -18,10 +18,10 @@ and posting through Naive work without them.
   the same file), not part of the warm-up, whose no-posting rule stays as written. It runs only when
   a person clicks "Post through phone" for one video in the camp's theatre: never on a schedule, on
   autopilot or for a whole campaign. It posts that one approved video on the brand's TikTok with its
-  caption, TikTok's AI-generated content label and an #AIgenerated tag, publicly or, with "Only
-  you" ticked, as a private test only the brand's account can see. Internal remakes nobody cleared
-  (`postingHold` in `src/lib/publish.ts`) are refused at the click and again before the phone is
-  woken, private or not.
+  caption, TikTok's AI-generated content label, an #AIgenerated tag and a song from TikTok's own
+  sounds, publicly or, with "Only you" ticked, as a private test only the brand's account can see.
+  Internal remakes nobody cleared (`postingHold` in `src/lib/publish.ts`) are refused at the click
+  and again before the phone is woken, private or not.
 - **The risk is on screen.** The panel always states that automated activity can break a
   platform's terms and put the account at risk.
 - **Keys stay out of the repo.** Use `.env.local` or the Settings page. Logins live in Mobilerun's
@@ -90,17 +90,37 @@ the worker's next tick, which then (`src/lib/phones/posting.ts`):
    the newest video in the gallery is this one; the phone's own files are left alone. The folder is
    listed afterwards, and a file that didn't arrive whole is copied again.
 3. Creates the posting task with the post's id as its `Idempotency-Key` and an `outputSchema` for
-   the agent's report (`posted`, `postUrl`, `aiLabel`, `onlyYou`, `reason`). The brief opens
-   TikTok, taps + and Upload, picks the video, types the caption (one line, tagged #AIgenerated),
-   turns on "AI-generated content" (it must not post without it), sets "Who can watch this video",
-   posts once and copies the link. A public post sets "Everyone" (TikTok keeps the last post's
-   choice) and, where TikTok offers it, the "Your brand" disclosure. A private test sets "Only you"
-   and must not post if it can't. `apps`: TikTok. `credentials`: the saved TikTok login, if any.
-   `vpnCountry`: the brand's, if chosen. Recording is on where the phone supports it. Up to 80
-   steps and 15 minutes.
+   the agent's report (`posted`, `postUrl`, `aiLabel`, `onlyYou`, `reason`, and the song:
+   `soundTitle`, `soundArtist`, `soundVolume`, `commercialSound`, `accountType`). The brief opens
+   TikTok, taps + and Upload, picks the video, adds a song (below), types the caption (one line,
+   tagged #AIgenerated), turns on "AI-generated content" (it must not post without it), sets "Who
+   can watch this video", posts once and copies the link. A public post sets "Everyone" (TikTok
+   keeps the last post's choice) and, where TikTok offers it, the "Your brand" disclosure. A
+   private test sets "Only you" and must not post if it can't. `apps`: TikTok. `credentials`: the
+   saved TikTok login, if any. `vpnCountry`: the brand's, if chosen. Recording is on where the
+   phone supports it. Up to 80 steps and 15 minutes.
 4. Polls the task, records `posted` (with the link, when the agent copied it), `failed` or
-   `cancelled`, logs it, and parks the phone. A private test the agent didn't confirm as "Only
-   you", or a public post that went out as "Only you", is posted with a warning to check it.
+   `cancelled` and the song it added, logs it, and parks the phone. A private test the agent
+   didn't confirm as "Only you", a public post that went out as "Only you", a post with no song
+   reported, or a public post whose song isn't from the Commercial Music Library is posted with a
+   warning to check it.
+
+**The song.** The agent adds it inside the app, from TikTok's own sound picker ("Add sound"),
+never mixed into the file: TikTok licenses its sounds in the app, while music baked into an upload
+gets muted. The videos carry only their voice and small sound effects. A song can be named per post
+("Timeless by The Weeknd", the camp's song field, `song` in the request); without one the agent
+picks a popular trending one. In TikTok's Volume control the original sound stays at 100% and the
+song goes to about 20% (15–25%). The agent must not post without a song. A Business account's
+picker only offers TikTok's Commercial Music Library, so mainstream hits may be missing there and
+the agent takes the closest popular song that is available; it reports the account type and the
+song, and both are kept on the post.
+
+Only the Commercial Music Library is cleared for brand content. TikTok's own business pages say
+general-library songs aren't, and that a business promoting itself with them from a personal
+account risks copyright infringement. A public post's song from outside that library is recorded
+with a warning, and the camp marks it "not cleared for brand content". If TikTok won't take the
+song together with the "Your brand" disclosure, the agent keeps the disclosure and picks a song
+TikTok allows. Keeping brand accounts as Business accounts keeps every post inside the library.
 
 Copying and creating the task are retried after errors that can pass (up to 5 tries); the task
 itself runs once. A post that failed, or ended without the agent's report, is never posted again by
@@ -175,8 +195,10 @@ Checked against docs.mobilerun.ai on 2026-11-07. Base URL `https://api.mobilerun
 - `phone_parks`: phones waiting to be parked, one row per phone, with when to try next, how many
   tries failed and the last error. A row is removed once the phone is parked or can't be.
 - `phone_posts`: every post through a phone: the video, its title and caption, public or private
-  (`visibility`, added to older tables on first use), the file's name and folder on the phone, its
-  status, its Mobilerun task, the post's link and the agent's report.
+  (`visibility`), the song asked for (`sound_request`) and the one added (`sound_title`,
+  `sound_artist`, `sound_volume`, `sound_commercial`, `account_type`), the file's name and folder on
+  the phone, its status, its Mobilerun task, the post's link and the agent's report. Columns added
+  after the table first shipped are added to older tables on first use.
 
 The tables are created by the module on first use. `brands`, `campaigns`, `creatives` and `posts`
 are only read (posting reads the video, its cut and its earlier posts).
@@ -197,7 +219,7 @@ are only read (posting reads the video, its cut and its earlier posts).
 | `POST /api/phones/sessions/{id}/cancel` | Stop a session |
 | `POST /api/phones/setup` | Set the brand's phone up for posting (`{ brandId }`): install TikTok and allow it all photos and videos |
 | `GET /api/phones/posts?brandId=` | Whether "Post through phone" is offered here and can run now (if not, what to do first), its cost, and the brand's phone posts |
-| `POST /api/phones/posts` | Post one finished, approved video through the brand's phone (`{ creativeId, visibility? }`: `"public"`, the default, or `"private"` for TikTok's "Only you") |
+| `POST /api/phones/posts` | Post one finished, approved video through the brand's phone (`{ creativeId, visibility?, song? }`: `visibility` `"public"`, the default, or `"private"` for TikTok's "Only you"; `song` names the song to add from TikTok's sounds, up to 120 characters, else a trending one) |
 
 ## Running and testing
 

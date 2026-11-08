@@ -87,10 +87,11 @@ export function phonePosts(brandId: string) {
 
 /**
  * Posts one finished, approved video on TikTok through the brand's phone (the worker runs it).
- * "private" is a test post only the brand's account can see (TikTok's "Only you").
+ * "private" is a test post only the brand's account can see (TikTok's "Only you"). `song` names
+ * the song the agent adds from TikTok's sounds; empty means a trending one.
  */
-export function postThroughPhone(creativeId: string, visibility: PhonePostView["visibility"] = "public") {
-  return call<PhonePostsView>("/api/phones/posts", { method: "POST", body: JSON.stringify({ creativeId, visibility }) });
+export function postThroughPhone(creativeId: string, visibility: PhonePostView["visibility"] = "public", song = "") {
+  return call<PhonePostsView>("/api/phones/posts", { method: "POST", body: JSON.stringify({ creativeId, visibility, song: song.trim() || null }) });
 }
 
 /** The brand's connected social accounts, read live from Naive (GET /api/brands/[id]/social), with why it failed if it did. */

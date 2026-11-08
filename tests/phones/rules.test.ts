@@ -90,14 +90,50 @@ describe("describeApiError", () => {
 
 describe("posting through a phone", () => {
   const done = { status: "completed" as const, succeeded: true, message: "Done.", execution: null };
-  const report = (fields: Record<string, unknown>) => ({ posted: true, postUrl: "", aiLabel: true, onlyYou: false, reason: "", ...fields });
+  const report = (fields: Record<string, unknown>) => ({
+    posted: true,
+    postUrl: "",
+    aiLabel: true,
+    onlyYou: false,
+    reason: "",
+    soundTitle: "Golden Hour",
+    soundArtist: "Lumen",
+    soundVolume: 20,
+    commercialSound: true,
+    accountType: "business",
+    ...fields,
+  });
+  const goldenHour = { title: "Golden Hour", artist: "Lumen", volume: 20, commercial: true, accountType: "business" };
 
-  it("reads a post the agent made, with its link", () => {
+  it("reads a post the agent made, with its link and its song", () => {
     expect(postOutcome({ ...done, output: report({ postUrl: " https://www.tiktok.com/@acme/video/1 " }) })).toEqual({
       status: "posted",
       url: "https://www.tiktok.com/@acme/video/1",
       warn: false,
       message: "Posted on TikTok.",
+      sound: goldenHour,
+    });
+  });
+
+  it("warns when a public post's song isn't cleared for brand content, but not for a private test", () => {
+    const mainstream = report({ soundTitle: "Timeless", soundArtist: "The Weeknd", commercialSound: false, accountType: "creator" });
+    expect(postOutcome({ ...done, output: mainstream })).toMatchObject({
+      status: "posted",
+      warn: true,
+      message: expect.stringMatching(/isn't from TikTok's Commercial Music Library/),
+      sound: { title: "Timeless", artist: "The Weeknd", commercial: false, accountType: "creator" },
+    });
+    expect(postOutcome({ ...done, output: { ...mainstream, onlyYou: true } }, "private")).toMatchObject({ status: "posted", warn: false });
+  });
+
+  it("warns when the agent reports no song, and keeps only sensible song details", () => {
+    expect(postOutcome({ ...done, output: report({ soundTitle: " " }) })).toMatchObject({ warn: true, message: expect.stringMatching(/didn't report a song/), sound: null });
+    expect(postOutcome({ ...done, output: report({ soundVolume: 250, accountType: "robot", commercialSound: "yes" }) }).sound).toEqual({
+      title: "Golden Hour",
+      artist: "Lumen",
+      volume: null,
+      commercial: null,
+      accountType: null,
     });
   });
 
@@ -123,6 +159,7 @@ describe("posting through a phone", () => {
       url: "https://www.tiktok.com/@acme/video/2",
       warn: false,
       message: "Posted on TikTok as “Only you” (private).",
+      sound: goldenHour,
     });
   });
 
@@ -137,6 +174,7 @@ describe("posting through a phone", () => {
       url: null,
       warn: true,
       message: "Not posted: TikTok asked for a verification code.",
+      sound: goldenHour,
     });
   });
 

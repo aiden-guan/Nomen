@@ -86,10 +86,10 @@ async function addVideo(fields: { id?: string; approved?: number; concept?: Reco
   return id;
 }
 
-/** The camp's "Post through phone" button, public or ticked "Only you". */
-async function postThroughPhone(creativeId: string, visibility?: string) {
+/** The camp's "Post through phone" button, public or ticked "Only you", with a song named or not. */
+async function postThroughPhone(creativeId: string, visibility?: string, song?: unknown) {
   const response = await postThroughPhoneRoute(
-    new Request("http://localhost/api/phones/posts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ creativeId, visibility }) }),
+    new Request("http://localhost/api/phones/posts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ creativeId, visibility, song }) }),
   );
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
@@ -145,34 +145,88 @@ describe("posting a video through the brand's phone", () => {
       credentials: [{ packageName: "com.zhiliaoapp.musically", credentialNames: ["acme-tiktok"] }],
       vpnCountry: "US",
       recordingEnabled: true,
-      outputSchema: { type: "object", required: expect.arrayContaining(["posted", "postUrl", "aiLabel", "reason"]) },
+      outputSchema: {
+        type: "object",
+        required: expect.arrayContaining(["posted", "postUrl", "aiLabel", "reason", "soundTitle", "soundArtist", "soundVolume", "commercialSound", "accountType"]),
+      },
     });
     const brief = String(create.body?.task);
     expect(brief).toContain(fileName);
     expect(brief).toContain("Three steps to glass skin. #skincare #glowup #AIgenerated");
     expect(brief).toMatch(/AI-generated content/);
     expect(brief).toContain('Set "Who can watch this video" to "Everyone"');
+    // A song from TikTok's own sounds, under her voice; never mixed into the file beforehand.
+    expect(brief).toContain('tap "Add sound" and pick a popular trending pop song from the picker');
+    expect(brief).toContain("set the original sound to 100% and the added sound to about 20%");
+    expect(brief).toContain("If you can't add a sound, do not post");
+    expect(brief).toContain("keep the setting on and change the sound to one TikTok allows");
     expect(getPhonePost(post.id)!.status).toBe("running");
 
     advanceClock(11_000);
     mr.finishTask(getPhonePost(post.id)!.task_id!, {
       message: "Posted the video.",
-      output: { posted: true, postUrl: "https://www.tiktok.com/@acmeskin/video/7301", aiLabel: true, reason: "" },
+      output: {
+        posted: true,
+        postUrl: "https://www.tiktok.com/@acmeskin/video/7301",
+        aiLabel: true,
+        onlyYou: false,
+        reason: "",
+        soundTitle: "Golden Hour",
+        soundArtist: "Lumen",
+        soundVolume: 20,
+        commercialSound: true,
+        accountType: "business",
+      },
     });
     await advancePhones();
-    expect(getPhonePost(post.id)).toMatchObject({ status: "posted", post_url: "https://www.tiktok.com/@acmeskin/video/7301" });
-    expect(events().some((e) => e.level === "info" && /Phones: posted “Glass skin in 3 steps” on TikTok through the brand's phone: https:\/\/www\.tiktok\.com\/@acmeskin\/video\/7301/.test(e.message))).toBe(true);
+    expect(getPhonePost(post.id)).toMatchObject({
+      status: "posted",
+      post_url: "https://www.tiktok.com/@acmeskin/video/7301",
+      sound_title: "Golden Hour",
+      sound_artist: "Lumen",
+      sound_volume: 20,
+      sound_commercial: 1,
+      account_type: "business",
+    });
+    expect(
+      events().some(
+        (e) => e.level === "info" && /Phones: posted “Glass skin in 3 steps” on TikTok through the brand's phone, with “Golden Hour” by Lumen: https:\/\/www\.tiktok\.com\/@acmeskin\/video\/7301/.test(e.message),
+      ),
+    ).toBe(true);
     expect(stops()).toHaveLength(1);
     expect(phoneState()).toBe("stopped");
 
-    // The camp sees it, with its link.
+    // The camp sees it, with its link and its song.
     const listed = await phonePostsRoute(new Request(`http://localhost/api/phones/posts?brandId=${BRAND}`));
-    expect(await listed.json()).toMatchObject({ ready: true, posts: [{ creativeId: id, title: "Glass skin in 3 steps", status: "posted", url: "https://www.tiktok.com/@acmeskin/video/7301" }] });
+    expect(await listed.json()).toMatchObject({
+      ready: true,
+      posts: [{ creativeId: id, title: "Glass skin in 3 steps", status: "posted", url: "https://www.tiktok.com/@acmeskin/video/7301", sound: "“Golden Hour” by Lumen, at 20%" }],
+    });
 
     // A posted video is not posted twice.
     const again = await postThroughPhone(id);
     expect(again.status).toBe(409);
     expect(listPhonePosts(BRAND)).toHaveLength(1);
+  });
+
+  it("asks for a named song, and records the closest one the account could use", async () => {
+    const id = await addVideo();
+    expect((await postThroughPhone(id, undefined, 42)).status).toBe(400);
+    expect((await postThroughPhone(id, undefined, "  Timeless by The Weeknd ")).status).toBe(200);
+    const post = onlyPost();
+    expect(post.sound_request).toBe("Timeless by The Weeknd");
+
+    await advancePhones();
+    const brief = String(creates()[0].body?.task);
+    expect(brief).toContain('search for "Timeless by The Weeknd" and pick it');
+    expect(brief).toContain("pick the closest popular song that is");
+
+    advanceClock(11_000);
+    mr.finishTask(getPhonePost(post.id)!.task_id!, {
+      output: { posted: true, postUrl: "https://www.tiktok.com/@acmeskin/video/7303", aiLabel: true, onlyYou: false, reason: "", soundTitle: "Midnight Drive", soundArtist: "Neon Coast", soundVolume: 18, commercialSound: true, accountType: "business" },
+    });
+    await advancePhones();
+    expect(getPhonePost(post.id)).toMatchObject({ status: "posted", sound_request: "Timeless by The Weeknd", sound_title: "Midnight Drive", sound_artist: "Neon Coast", sound_volume: 18, account_type: "business" });
   });
 
   it("posts privately as “Only you” for a test, and the video can still go out publicly later", async () => {
@@ -190,7 +244,18 @@ describe("posting a video through the brand's phone", () => {
 
     advanceClock(11_000);
     mr.finishTask(test.task_id ?? getPhonePost(test.id)!.task_id!, {
-      output: { posted: true, postUrl: "https://www.tiktok.com/@acmeskin/video/7302", aiLabel: true, onlyYou: true, reason: "" },
+      output: {
+        posted: true,
+        postUrl: "https://www.tiktok.com/@acmeskin/video/7302",
+        aiLabel: true,
+        onlyYou: true,
+        reason: "",
+        soundTitle: "Golden Hour",
+        soundArtist: "Lumen",
+        soundVolume: 20,
+        commercialSound: true,
+        accountType: "business",
+      },
     });
     await advancePhones();
     expect(getPhonePost(test.id)).toMatchObject({ status: "posted", message: "Posted on TikTok as “Only you” (private)." });
@@ -216,7 +281,7 @@ describe("posting a video through the brand's phone", () => {
       .prepare("insert into phone_posts (id, brand_id, creative_id, title, device_id, platform, status, caption, file_name, next_check_at, created_at, updated_at) values ('php_old', ?, 'crv_old', 'Old', ?, 'tiktok', 'posted', 'c', 'nomen-php_old.mp4', ?, ?, ?)")
       .run(BRAND, PHONE, now(), now(), now());
     resetSchemaFlag();
-    expect(getPhonePost("php_old")!.visibility).toBe("public");
+    expect(getPhonePost("php_old")).toMatchObject({ visibility: "public", sound_request: null, sound_title: null, sound_commercial: null, account_type: null });
   });
 
   it("tries a failed upload again before any task starts", async () => {

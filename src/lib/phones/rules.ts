@@ -74,11 +74,40 @@ export function phoneCaption(caption: string) {
 const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
 const MAY_BE_OUT = "Check the brand's TikTok profile before posting it again: the video may have gone out.";
 
+/** The song the agent added from TikTok's own sounds, as it reported it. */
+export type PostSound = {
+  title: string;
+  artist: string | null;
+  /** The added sound's volume in TikTok's Volume control, 0 to 100. */
+  volume: number | null;
+  /** From TikTok's Commercial Music Library, the only sounds cleared for brand content. */
+  commercial: boolean | null;
+  accountType: "business" | "creator" | "personal" | null;
+};
+
+const ACCOUNT_TYPES = ["business", "creator", "personal"] as const;
+
+function reportedSound(report: { soundTitle?: unknown; soundArtist?: unknown; soundVolume?: unknown; commercialSound?: unknown; accountType?: unknown }): PostSound | null {
+  const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim().slice(0, 120) : null);
+  const title = text(report.soundTitle);
+  if (!title) return null;
+  const volume = typeof report.soundVolume === "number" && report.soundVolume >= 0 && report.soundVolume <= 100 ? Math.round(report.soundVolume) : null;
+  return {
+    title,
+    artist: text(report.soundArtist),
+    volume,
+    commercial: typeof report.commercialSound === "boolean" ? report.commercialSound : null,
+    accountType: ACCOUNT_TYPES.find((type) => type === report.accountType) ?? null,
+  };
+}
+
 /**
  * What a finished posting task did, from the report its output schema asks for
  * (`POST_OUTPUT_SCHEMA`). A video the agent says it posted counts as posted even when the task
  * failed afterwards, so nobody posts it twice; a task that ended without a report may have posted.
- * `visibility` is what was asked for: "private" is a test post set to TikTok's "Only you".
+ * `visibility` is what was asked for: "private" is a test post set to TikTok's "Only you". A public
+ * post whose song isn't from TikTok's Commercial Music Library gets a warning: only that library
+ * is cleared for brand content.
  */
 export function postOutcome(task: Pick<TaskStatus, "status" | "succeeded" | "message" | "execution" | "output">, visibility: "public" | "private" = "public"): {
   status: "posted" | "failed" | "cancelled";
@@ -86,26 +115,31 @@ export function postOutcome(task: Pick<TaskStatus, "status" | "succeeded" | "mes
   /** Worth a warning in the activity log. */
   warn: boolean;
   message: string;
+  sound: PostSound | null;
 } {
-  const report = (task.output ?? {}) as { posted?: unknown; postUrl?: unknown; aiLabel?: unknown; onlyYou?: unknown; reason?: unknown };
+  const report = (task.output ?? {}) as { posted?: unknown; postUrl?: unknown; aiLabel?: unknown; onlyYou?: unknown; reason?: unknown } & Parameters<typeof reportedSound>[0];
   const link = typeof report.postUrl === "string" ? report.postUrl.trim() : "";
   const url = /^https?:\/\/\S+$/i.test(link) ? link : null;
+  const sound = reportedSound(report);
   if (report.posted === true) {
     const privateAsAsked = visibility === "private" && report.onlyYou === true;
     // A private test that may be public, or a public post that only the brand can see, needs a person.
     const wrongAudience = visibility === "private" ? report.onlyYou !== true : report.onlyYou === true;
+    const uncleared = visibility === "public" && sound?.commercial === false;
     const notes = [
       url ? null : "The agent couldn't copy the post's link; the video is on the brand's TikTok profile.",
       report.aiLabel === false ? "TikTok's AI-generated label may be off: check the post and turn it on." : null,
       wrongAudience && visibility === "private" ? "TikTok didn't confirm “Only you”, so the video may be public: check it on the brand's profile." : null,
       wrongAudience && visibility === "public" ? "It went out as “Only you”: set “Who can watch” to Everyone in the TikTok app to make it public." : null,
+      sound ? null : "The agent didn't report a song: check the post's sound.",
+      uncleared ? "Its song isn't from TikTok's Commercial Music Library, so it isn't cleared for brand content: TikTok may mute it, and the rights holder can object." : null,
     ].filter(Boolean);
     const lead = privateAsAsked ? "Posted on TikTok as “Only you” (private)." : "Posted on TikTok.";
-    return { status: "posted", url, warn: report.aiLabel === false || wrongAudience, message: [lead, ...notes].join(" ") };
+    return { status: "posted", url, warn: report.aiLabel === false || wrongAudience || !sound || uncleared, message: [lead, ...notes].join(" "), sound };
   }
-  if (sessionStatusFor(task) === "cancelled") return { status: "cancelled", url: null, warn: false, message: `Stopped before it finished. ${MAY_BE_OUT}` };
+  if (sessionStatusFor(task) === "cancelled") return { status: "cancelled", url: null, warn: false, message: `Stopped before it finished. ${MAY_BE_OUT}`, sound };
   const reason = typeof report.reason === "string" ? report.reason.trim() : "";
-  if (report.posted === false) return { status: "failed", url: null, warn: true, message: `Not posted: ${sentence(reason || "the phone agent gave no reason")}` };
+  if (report.posted === false) return { status: "failed", url: null, warn: true, message: `Not posted: ${sentence(reason || "the phone agent gave no reason")}`, sound };
   const why =
     task.execution?.terminationReason === "execution_timeout"
       ? "The phone agent ran out of time."
@@ -114,7 +148,16 @@ export function postOutcome(task: Pick<TaskStatus, "status" | "succeeded" | "mes
         : task.message?.trim()
           ? `The phone agent couldn't finish: ${sentence(task.message.trim())}`
           : "The task failed without a reason from Mobilerun.";
-  return { status: "failed", url: null, warn: true, message: `${why} ${MAY_BE_OUT}` };
+  return { status: "failed", url: null, warn: true, message: `${why} ${MAY_BE_OUT}`, sound };
+}
+
+/** A song named for a post ("Timeless by The Weeknd"): one line of plain text, or null when none was named. */
+export function cleanSong(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") return undefined;
+  const song = value.replace(/\s+/g, " ").trim();
+  if (!song) return null;
+  return song.length <= 120 ? song : undefined;
 }
 
 /**

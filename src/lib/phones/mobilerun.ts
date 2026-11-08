@@ -244,8 +244,13 @@ export const POST_OUTPUT_SCHEMA = {
     aiLabel: { type: "boolean", description: "True if the AI-generated content setting was on when you posted." },
     onlyYou: { type: "boolean", description: 'True if "Who can watch this video" was set to "Only you" when you posted.' },
     reason: { type: "string", description: "If posted is false, what stopped you, in one sentence; otherwise an empty string." },
+    soundTitle: { type: "string", description: "The title of the song you added from TikTok's sounds, or an empty string if you added none." },
+    soundArtist: { type: "string", description: "The song's artist as TikTok shows it, or an empty string." },
+    soundVolume: { type: "number", description: "The added sound's volume in TikTok's Volume control, from 0 to 100." },
+    commercialSound: { type: "boolean", description: "True if the song is from TikTok's Commercial Music Library (on a Business account, every sound in the picker is)." },
+    accountType: { type: "string", enum: ["business", "creator", "personal"], description: "Whether the logged-in TikTok account is a Business, creator or personal account." },
   },
-  required: ["posted", "postUrl", "aiLabel", "onlyYou", "reason"],
+  required: ["posted", "postUrl", "aiLabel", "onlyYou", "reason", "soundTitle", "soundArtist", "soundVolume", "commercialSound", "accountType"],
   additionalProperties: false,
 };
 
@@ -255,25 +260,38 @@ export const POST_OUTPUT_SCHEMA = {
  * person clicks "Post through phone" for that video; the warm-up brief above never posts.
  * "private" is a test post that only the brand's account can see ("Only you"). TikTok keeps the
  * last post's audience, so a public post sets "Everyone" explicitly.
+ *
+ * A song is added inside the app, from TikTok's own sounds, low under the video's own voice: TikTok
+ * licenses its sounds in the app, while music mixed into the file beforehand gets muted. `song`
+ * names one ("Timeless by The Weeknd"); without one the agent picks a popular trending one. A
+ * Business account's picker only has TikTok's Commercial Music Library, the sounds cleared for
+ * brand content, so the agent takes the closest song that is available there.
  */
-export function postTask(input: { brand: string; fileName: string; folder: string; seconds: number | null; caption: string; visibility: "public" | "private" }) {
+export function postTask(input: { brand: string; fileName: string; folder: string; seconds: number | null; caption: string; visibility: "public" | "private"; song: string | null }) {
   const length = input.seconds ? `, about ${Math.round(input.seconds)} seconds long` : "";
   const audience =
     input.visibility === "private"
       ? 'This is a private test post. Set "Who can watch this video" to "Only you" (some versions say "Only me"); if you can\'t set it to "Only you", do not post: stop and report it. Check it still says "Only you" right before you tap Post.'
       : 'Set "Who can watch this video" to "Everyone".';
-  const disclosure = input.visibility === "private" ? "" : ' If there is a "Disclose post content" setting, turn it on and choose "Your brand".';
+  const disclosure =
+    input.visibility === "private"
+      ? ""
+      : ' If there is a "Disclose post content" setting, turn it on and choose "Your brand". If TikTok says the added sound can\'t be used with that setting, keep the setting on and change the sound to one TikTok allows, the closest popular one.';
+  const choice = input.song
+    ? `search for "${input.song}" and pick it; if it isn't there (a Business account's picker only offers TikTok's Commercial Music Library), pick the closest popular song that is`
+    : "pick a popular trending pop song from the picker";
   return [
     `You are the social media manager for ${input.brand}, posting one finished video from the brand's own official TikTok account on this phone. Post it exactly once.`,
     "1. Open TikTok. If it asks you to log in, use the saved credential for this app; if it asks for a code you do not have, stop and report it.",
     "2. Tap the + (create) button at the bottom of the screen, then Upload. If TikTok asks for access to photos and videos, allow it.",
-    `3. Select only the newest video in the gallery: the file ${input.fileName} in the phone's ${input.folder} folder${length}. Tap Next until you reach the screen with the caption. Do not add sounds, effects, text, stickers or filters, and do not trim the video.`,
-    `4. Replace everything in the caption field with exactly this text:\n${input.caption}`,
-    `5. Open "More options" and turn on "AI-generated content". If you can't find it or can't turn it on, do not post: stop and report it.${disclosure} ${audience}`,
-    "6. Tap Post once. Wait until TikTok shows the video as posted, uploading or under review, for up to 3 minutes.",
-    "7. Open the new video on the brand's profile, tap Share, then Copy link. To read the link, paste it into TikTok's search field without searching, note it, then clear the field.",
+    `3. Select only the newest video in the gallery: the file ${input.fileName} in the phone's ${input.folder} folder${length}. Tap Next to reach the editing screen. Do not add effects, text, stickers or filters, and do not trim the video.`,
+    `4. Add a song from TikTok's own sounds: tap "Add sound" and ${choice}. Use only TikTok's sound picker. Note whether this is a Business account: its sound picker only offers TikTok's Commercial Music Library. Then open Volume and set the original sound to 100% and the added sound to about 20% (between 15% and 25%), so the voice in the video stays clear; keep the original sound. If you can't add a sound, do not post: stop and report it.`,
+    `5. Tap Next to reach the caption screen, and replace everything in the caption field with exactly this text:\n${input.caption}`,
+    `6. Open "More options" and turn on "AI-generated content". If you can't find it or can't turn it on, do not post: stop and report it.${disclosure} ${audience}`,
+    "7. Tap Post once. Wait until TikTok shows the video as posted, uploading or under review, for up to 3 minutes.",
+    "8. Open the new video on the brand's profile, tap Share, then Copy link. To read the link, paste it into TikTok's search field without searching, note it, then clear the field.",
     "Never post anything else, comment, send messages, like, follow, buy anything, change account settings, or edit or delete other posts. If anything goes wrong before you tap Post, do not post. If you are not sure whether the video went out, do not post it again: check the brand's profile instead.",
-    'Report whether the video was posted, its link, whether the AI-generated label was on, whether "Who can watch this video" was "Only you", and what stopped you if it was not posted.',
+    'Report whether the video was posted, its link, whether the AI-generated label was on, whether "Who can watch this video" was "Only you", the song you added (its title, artist and volume, and whether it is from TikTok\'s Commercial Music Library), whether the account is a Business, creator or personal account, and what stopped you if it was not posted.',
   ].join("\n");
 }
 

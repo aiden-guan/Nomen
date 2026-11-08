@@ -6,7 +6,7 @@ import { secretStatus } from "../settings";
 import type { Concept } from "../strategy";
 import { warmupMinutes, stopSession } from "./engine";
 import { APP_PACKAGES, MobilerunClient, PLATFORMS, PLATFORM_LABELS, VPN_COUNTRIES, type Device, type Platform } from "./mobilerun";
-import { POST_LIMITS, SETUP_LIMITS, clampDays, describeApiError, describeDevice, estimateCredits, estimatePostCredits, phoneCaption, scheduleSummary } from "./rules";
+import { POST_LIMITS, SETUP_LIMITS, clampDays, cleanSong, describeApiError, describeDevice, estimateCredits, estimatePostCredits, phoneCaption, scheduleSummary } from "./rules";
 import {
   activeSessions,
   deleteLink,
@@ -297,6 +297,12 @@ export type PhonePostView = {
   message: string | null;
   error: string | null;
   url: string | null;
+  /** The song asked for, or null for a trending one from TikTok's picker. */
+  songRequest: string | null;
+  /** The song the agent added ("“Golden Hour” by Lumen, at 20%"), once it reported one. */
+  sound: string | null;
+  /** Whether that song is from TikTok's Commercial Music Library (cleared for brand content); null when unknown. */
+  soundCleared: boolean | null;
   steps: number | null;
   createdAt: string;
   startedAt: string | null;
@@ -304,6 +310,9 @@ export type PhonePostView = {
 };
 
 function phonePostView(row: PhonePostRow): PhonePostView {
+  const sound = row.sound_title
+    ? `“${row.sound_title}”${row.sound_artist ? ` by ${row.sound_artist}` : ""}${row.sound_volume == null ? "" : `, at ${row.sound_volume}%`}`
+    : null;
   return {
     id: row.id,
     creativeId: row.creative_id,
@@ -313,6 +322,9 @@ function phonePostView(row: PhonePostRow): PhonePostView {
     message: row.message,
     error: row.error,
     url: row.post_url,
+    songRequest: row.sound_request,
+    sound,
+    soundCleared: row.sound_commercial == null ? null : row.sound_commercial === 1,
     steps: row.steps,
     createdAt: row.created_at,
     startedAt: row.started_at,
@@ -351,10 +363,13 @@ export async function phonePosts(brandId: unknown) {
  * (TikTok's "Only you"). Internal remakes that nobody cleared are refused here and again before
  * posting, private or not. Nothing touches the phone until the worker's next tick.
  */
-export async function postThroughPhone(input: { creativeId?: unknown; visibility?: unknown }) {
+export async function postThroughPhone(input: { creativeId?: unknown; visibility?: unknown; song?: unknown }) {
   if (!phonesAvailable()) throw new PhonesError(400, PHONES_UNAVAILABLE);
   const visibility: PostVisibility | null = input.visibility === undefined || input.visibility === null || input.visibility === "public" ? "public" : input.visibility === "private" ? "private" : null;
   if (!visibility) throw new PhonesError(400, "visibility is public or private.");
+  // The song the agent adds from TikTok's sounds; none named means a trending one.
+  const song = cleanSong(input.song);
+  if (song === undefined) throw new PhonesError(400, "song is a song's name, up to 120 characters, like “Timeless by The Weeknd”.");
   phonesDb();
   const creativeId = typeof input.creativeId === "string" ? input.creativeId : "";
   const [creative] = creativeId ? await store().find<CreativeRow>("creatives", { id: creativeId }, { limit: 1 }) : [];
@@ -373,7 +388,15 @@ export async function postThroughPhone(input: { creativeId?: unknown; visibility
     if (viaNaive.some((post) => parse<string[]>(post.platforms_json, []).includes("tiktok"))) throw new PhonesError(409, "This video already went to TikTok through Naive.");
   }
 
-  const queued = insertPhonePost({ brandId: brand.id, creativeId: creative.id, title: concept?.title ?? "Video", deviceId: getLink(brand.id)!.device_id, caption: phoneCaption(creative.caption), visibility });
+  const queued = insertPhonePost({
+    brandId: brand.id,
+    creativeId: creative.id,
+    title: concept?.title ?? "Video",
+    deviceId: getLink(brand.id)!.device_id,
+    caption: phoneCaption(creative.caption),
+    visibility,
+    song,
+  });
   if (queued === "posted") throw new PhonesError(409, "This video was already posted through the phone.");
   if (queued === "active") throw new PhonesError(409, "This video is already being posted through the phone.");
   await logEvent({

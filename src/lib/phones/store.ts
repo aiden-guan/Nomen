@@ -84,6 +84,12 @@ create table if not exists phone_posts (
   task_status text,
   steps integer,
   post_url text,
+  sound_request text,
+  sound_title text,
+  sound_artist text,
+  sound_volume integer,
+  sound_commercial integer,
+  account_type text,
   message text,
   error text,
   recording_id text,
@@ -101,7 +107,15 @@ create index if not exists phone_posts_brand on phone_posts (brand_id, created_a
 `;
 
 /** Columns added to a phones table after it first shipped. `create table if not exists` never alters a table. */
-const ADDED_COLUMNS: Array<[table: string, column: string, definition: string]> = [["phone_posts", "visibility", "text not null default 'public'"]];
+const ADDED_COLUMNS: Array<[table: string, column: string, definition: string]> = [
+  ["phone_posts", "visibility", "text not null default 'public'"],
+  ["phone_posts", "sound_request", "text"],
+  ["phone_posts", "sound_title", "text"],
+  ["phone_posts", "sound_artist", "text"],
+  ["phone_posts", "sound_volume", "integer"],
+  ["phone_posts", "sound_commercial", "integer"],
+  ["phone_posts", "account_type", "text"],
+];
 
 let ready = false;
 
@@ -376,6 +390,16 @@ export type PhonePostRow = {
   task_status: string | null;
   steps: number | null;
   post_url: string | null;
+  /** The song a person asked for ("Timeless by The Weeknd"); null means a trending one from TikTok's picker. */
+  sound_request: string | null;
+  /** The song the agent added from TikTok's own sounds, as it reported it. */
+  sound_title: string | null;
+  sound_artist: string | null;
+  sound_volume: number | null;
+  /** 1 when the song is from TikTok's Commercial Music Library (cleared for brand content). */
+  sound_commercial: number | null;
+  /** "business", "creator" or "personal", as the agent saw it. A Business account's picker only has the Commercial Music Library. */
+  account_type: string | null;
   message: string | null;
   error: string | null;
   recording_id: string | null;
@@ -399,7 +423,15 @@ export function listPhonePosts(brandId: string, limit = 20) {
  * on its way, and "posted" for a public post once one is out; a private test post doesn't count,
  * and a failed or stopped post can be queued again.
  */
-export function insertPhonePost(input: { brandId: string; creativeId: string; title: string; deviceId: string; caption: string; visibility: PostVisibility }): PhonePostRow | "active" | "posted" {
+export function insertPhonePost(input: {
+  brandId: string;
+  creativeId: string;
+  title: string;
+  deviceId: string;
+  caption: string;
+  visibility: PostVisibility;
+  song: string | null;
+}): PhonePostRow | "active" | "posted" {
   const conn = phonesDb();
   return conn.transaction(() => {
     const active = conn.prepare(`select 1 from phone_posts where creative_id = ? and status in (${ACTIVE_STATUSES.map(() => "?").join(",")})`).get(input.creativeId, ...ACTIVE_STATUSES);
@@ -411,10 +443,10 @@ export function insertPhonePost(input: { brandId: string; creativeId: string; ti
     const stamp = now();
     conn
       .prepare(
-        `insert into phone_posts (id, brand_id, creative_id, title, device_id, platform, visibility, status, caption, file_name, next_check_at, created_at, updated_at)
-         values (?, ?, ?, ?, ?, 'tiktok', ?, 'pending', ?, ?, ?, ?, ?)`,
+        `insert into phone_posts (id, brand_id, creative_id, title, device_id, platform, visibility, status, caption, file_name, sound_request, next_check_at, created_at, updated_at)
+         values (?, ?, ?, ?, ?, 'tiktok', ?, 'pending', ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, input.brandId, input.creativeId, input.title, input.deviceId, input.visibility, input.caption, `nomen-${id}.mp4`, stamp, stamp, stamp);
+      .run(id, input.brandId, input.creativeId, input.title, input.deviceId, input.visibility, input.caption, `nomen-${id}.mp4`, input.song, stamp, stamp, stamp);
     return getPhonePost(id)!;
   })();
 }

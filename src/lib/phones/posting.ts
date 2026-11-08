@@ -112,7 +112,15 @@ async function copyAndCreate(client: MobilerunClient, post: PhonePostRow) {
 
   const packageName = APP_PACKAGES.tiktok;
   const input: TaskInput = {
-    task: postTask({ brand: brand.name, fileName: post.file_name, folder: folder.split("/").filter(Boolean).pop() ?? folder, seconds, caption: post.caption, visibility: post.visibility }),
+    task: postTask({
+      brand: brand.name,
+      fileName: post.file_name,
+      folder: folder.split("/").filter(Boolean).pop() ?? folder,
+      seconds,
+      caption: post.caption,
+      visibility: post.visibility,
+      song: post.sound_request,
+    }),
     deviceId: post.device_id,
     llmModel: AGENT_MODEL,
     maxSteps: POST_LIMITS.maxSteps,
@@ -205,7 +213,22 @@ async function poll(client: MobilerunClient, post: PhonePostRow) {
   const fields = { task_status: task.status, steps: task.steps ?? post.steps, recording_id: task.recordingId ?? post.recording_id };
   if (TERMINAL_TASK_STATES.has(task.status)) {
     const outcome = postOutcome(task, post.visibility);
-    return finishPost(post, outcome.status, outcome.message, { ...fields, post_url: outcome.url }, outcome.warn);
+    const { sound } = outcome;
+    return finishPost(
+      post,
+      outcome.status,
+      outcome.message,
+      {
+        ...fields,
+        post_url: outcome.url,
+        sound_title: sound?.title ?? null,
+        sound_artist: sound?.artist ?? null,
+        sound_volume: sound?.volume ?? null,
+        sound_commercial: sound?.commercial == null ? null : Number(sound.commercial),
+        account_type: sound?.accountType ?? null,
+      },
+      outcome.warn,
+    );
   }
   updateActivePhonePost(post.id, {
     ...fields,
@@ -222,12 +245,13 @@ async function finishPost(post: PhonePostRow, status: Extract<PhonePostStatus, "
   const url = typeof fields.post_url === "string" ? fields.post_url : null;
   const notes = message.replace(/^Posted on TikTok[^.]*\.\s*/, "");
   const what = `“${post.title}”${post.visibility === "private" ? " as a private test" : ""}`;
+  const song = typeof fields.sound_title === "string" ? `, with “${fields.sound_title}”${typeof fields.sound_artist === "string" ? ` by ${fields.sound_artist}` : ""}` : "";
   const line =
     status !== "posted"
       ? `Phones: ${what} wasn't posted on TikTok${status === "cancelled" ? " (stopped)" : ""}. ${message.replace(/^Not posted: /, "")}`
       : notes
-        ? `Phones: posted ${what} on TikTok through the brand's phone. ${notes}${url ? ` Link: ${url}` : ""}`
-        : `Phones: posted ${what} on TikTok through the brand's phone${url ? `: ${url}` : "."}`;
+        ? `Phones: posted ${what} on TikTok through the brand's phone${song}. ${notes}${url ? ` Link: ${url}` : ""}`
+        : `Phones: posted ${what} on TikTok through the brand's phone${song}${url ? `: ${url}` : "."}`;
   await logEvent({ brandId: post.brand_id, level: warn ? "warn" : "info", message: line.slice(0, 500) });
 }
 
