@@ -164,10 +164,11 @@ describe("reading the breakdown's clone block", () => {
   ];
 
   it("keeps a full block, clamped, with unknown words mapped to the middle of each scale", () => {
-    expect(readFootage({ ...face, people: 2.6, face_to_camera: 1.4, hardest: "  her hands on the jar  " }, beats)).toEqual({ ...face, people: 3, face_to_camera: 1, hardest: "her hands on the jar" });
+    expect(readFootage({ ...face, people: 2.6, face_to_camera: 1.4, hardest: "  her hands on the jar  " }, beats)).toEqual({ ...face, people: 3, face_to_camera: 1, screen: 0.4, hardest: "her hands on the jar" });
     expect(readFootage({ people: 1, face_to_camera: 0.5, camera: "drone", set: "space", product: "maybe", overlays: "?", audio: "podcast", script: "?", hardest: 3 }, beats)).toEqual({
       people: 1,
       face_to_camera: 0.5,
+      screen: 0.4, // 4 of its 10 s are screen beats
       camera: "handheld",
       set: "plain",
       product: "none",
@@ -176,6 +177,16 @@ describe("reading the breakdown's clone block", () => {
       script: "template",
       hardest: "",
     });
+  });
+
+  it("marks down a screen-led reference: a filmed monitor or screen recording looks fake with our product on it", async () => {
+    const { cloneabilityOf } = await import("@/lib/creative/cloneability");
+    const jordanLike = { ...face, people: 2, face_to_camera: 0.3, screen: 0.68, camera: "handheld" as const };
+    const scored = cloneabilityOf({ footage: jordanLike, duration: 26.8, cuts: 6, speech: true });
+    expect(scored.parts.find((p) => p.name === "screen")?.points).toBeCloseTo(-2.72, 2);
+    expect(scored.score).toBeLessThan(4); // under the gate: picked only when nothing else is left
+    const talkingHead = cloneabilityOf({ footage: { ...face, screen: 0 }, duration: 26.8, cuts: 6, speech: true });
+    expect(talkingHead.parts.some((p) => p.name === "screen")).toBe(false);
   });
 
   it("fills a missing face share and head count from the beats", () => {
@@ -192,7 +203,7 @@ describe("reading the breakdown's clone block", () => {
   });
 
   it("asks the model for every field the score uses", () => {
-    expect([...CLONE_SCHEMA.required].sort()).toEqual(["audio", "camera", "face_to_camera", "hardest", "overlays", "people", "product", "script", "set"]);
+    expect([...CLONE_SCHEMA.required].sort()).toEqual(["audio", "camera", "face_to_camera", "hardest", "overlays", "people", "product", "screen", "script", "set"]);
     expect(CLONE_SCHEMA.description).toMatch(/one person, in continuous takes/);
   });
 });

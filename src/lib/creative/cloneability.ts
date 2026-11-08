@@ -6,7 +6,8 @@ import type { CloneComponent, Cloneability, FootageRead, ReferenceBeat } from ".
 // Control: one person, single continuous takes), re-voices the original audio, and replaces graphics
 // and captions in place. One person talking to a propped-up phone in a plain room is what it does
 // best, and it is also the UGC format with the most return; several people, a camera that walks,
-// real locations and crowds, hands working a product in close-up, and songs or dialogue are what it
+// real locations and crowds, hands working a product in close-up, songs or dialogue, and screens
+// (a filmed monitor or a screen recording, where our product laid over looks fake) are what it
 // cannot reproduce. A video that went viral but cannot be cloned is not a reference we can use.
 
 /** Below this, a reference is picked only as a last resort: when nothing cloneable is left. */
@@ -101,6 +102,8 @@ export function cloneabilityPrior(video: Pick<Video, "caption" | "duration">): C
  *   script    0-0.5  a template (hook, claim, ask) 0.5; tied to an event or person 0
  *   product   -1.5   hands using the product in close-up; -0.5 held up briefly
  *   overlays  -1     text or graphics baked into the footage (captions laid over are replaced in place: 0)
+ *   screen    0 to -4  -4 x the share of the video where a screen fills the frame (a filmed monitor
+ *                    or a screen recording: our product laid over it looks fake), from 10%
  *   length    past 45 s, -(s - 45) / 15, at most -2
  *
  * Clamped to 0-10. Every component is named with its points, so the director can say why.
@@ -149,6 +152,10 @@ export function cloneabilityOf(input: { footage: FootageRead; duration: number; 
   if (footage.product === "close_up") add("product", -1.5, "hands using the product in close-up");
   else if (footage.product === "brief") add("product", -0.5, "the product held up briefly");
   if (footage.overlays === "baked") add("overlays", -1, "text or graphics baked into the footage");
+  // Dylan, after the Jordan remake's screen walkthrough: our product laid over a filmed monitor or a
+  // screen recording reads as fake, and nobody would use it. Face-to-camera time is what AI does well.
+  const screen = clamp(footage.screen ?? 0, 0, 1);
+  if (screen >= 0.1) add("screen", -4 * screen, `a screen fills the frame ${Math.round(screen * 100)}% of the time (a filmed monitor or screen recording: our product laid over it looks fake)`);
   const length = lengthPart(duration);
   if (length) parts.push(length);
   return finish("breakdown", parts);
@@ -157,12 +164,13 @@ export function cloneabilityOf(input: { footage: FootageRead; duration: number; 
 /** The JSON Schema of the breakdown tool's `clone` block: what the vision model records about the footage. */
 export const CLONE_SCHEMA = {
   type: "object",
-  required: ["people", "face_to_camera", "camera", "set", "product", "overlays", "audio", "script", "hardest"],
+  required: ["people", "face_to_camera", "screen", "camera", "set", "product", "overlays", "audio", "script", "hardest"],
   description:
     "What the footage is made of, for the team's footage clone: a lookalike AI presenter performs the original's exact motion (it needs one person, in continuous takes), the original audio is re-voiced, and graphics and captions are replaced in place. Judge from the frames and the transcript.",
   properties: {
     people: { type: "integer", minimum: 0, description: "How many different people appear on camera over the whole video. The same person in two outfits or roles counts once; passers-by in the background do not count (see set). 0 if nobody appears." },
     face_to_camera: { type: "number", minimum: 0, maximum: 1, description: "The share of the video (0-1) in which a face and mouth are clearly visible and talking or reacting to the lens. Screens, B-roll, text, profiles and backs of heads do not count." },
+    screen: { type: "number", minimum: 0, maximum: 1, description: "The share of the video (0-1) in which a screen fills most of the frame: a screen recording, or a computer monitor or phone screen filmed by a camera. A small screenshot laid over a person does not count." },
     camera: { type: "string", enum: ["static", "handheld", "moving"], description: "static: a propped-up phone, tripod or locked-off shot; handheld: held, with small sway; moving: walking, panning or following action." },
     set: { type: "string", enum: ["plain", "green_screen", "location", "crowd"], description: "plain: a room, desk, car seat or wall; green_screen: a person over a keyed picture or screenshot; location: a real recognisable place (a store, gym, street, venue); crowd: other people around them." },
     product: { type: "string", enum: ["none", "brief", "close_up"], description: "none: no physical product handled; brief: held up or shown for a moment; close_up: hands using it in close-up for several seconds (opening, pouring, applying, assembling)." },
@@ -191,9 +199,11 @@ export function readFootage(raw: unknown, beats: Pick<ReferenceBeat, "start" | "
   const people = Number(clone.people);
   const share = Number(clone.face_to_camera);
   const faces = faceShare(beats);
+  const screens = Number(clone.screen);
   return {
     people: Number.isFinite(people) ? clamp(Math.round(people), 0, 20) : faces > 0 ? 1 : 0,
     face_to_camera: Number.isFinite(share) ? clamp(share, 0, 1) : faces,
+    screen: Number.isFinite(screens) ? clamp(screens, 0, 1) : screenShare(beats),
     camera: pick(clone.camera, CAMERAS, "handheld"),
     set: pick(clone.set, SETS, "plain"),
     product: pick(clone.product, PRODUCTS, "none"),
@@ -210,6 +220,14 @@ export function faceShare(beats: Pick<ReferenceBeat, "start" | "end" | "shot">[]
   if (!(total > 0)) return 0;
   const face = beats.reduce((sum, beat) => sum + Math.max(0, beat.end - beat.start) * (beat.shot === "talking_head" || beat.shot === "reaction" ? 1 : beat.shot === "split" ? 0.5 : 0), 0);
   return round(face / total, 2);
+}
+
+/** The share of the video (0-1) whose beats are screens, for a breakdown that didn't say. */
+export function screenShare(beats: Pick<ReferenceBeat, "start" | "end" | "shot">[]): number {
+  const total = beats.reduce((sum, beat) => sum + Math.max(0, beat.end - beat.start), 0);
+  if (!(total > 0)) return 0;
+  const screen = beats.reduce((sum, beat) => sum + Math.max(0, beat.end - beat.start) * (beat.shot === "screen" ? 1 : 0), 0);
+  return round(screen / total, 2);
 }
 
 // ---------- picking and showing ----------

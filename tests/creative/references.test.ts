@@ -765,7 +765,7 @@ describe.skipIf(!bin)("breakdownReference on a synthetic video with three hard c
     // what the footage clone needs: the model's read of the footage, scored with ffmpeg's cuts
     expect((request.tools[0] as unknown as { input_schema: { required: string[] } }).input_schema.required).toContain("clone");
     expect(request.system).toMatch(/clone records what the footage is made of/);
-    expect(breakdown.footage).toEqual(toolInput.clone);
+    expect(breakdown.footage).toEqual({ ...toolInput.clone, screen: expect.any(Number) });
     // 2.5 one person + 1.2 face 60% + 0.64 takes (3 cuts in 7 s) + 1 static + 1 plain + 1.5 speech + 0.5 template - 0.5 held up
     expect(breakdown.cloneability).toMatchObject({ score: 7.8, basis: "breakdown" });
     expect(breakdown.cloneability!.parts.find((part) => part.name === "takes")).toMatchObject({ points: 0.64, signal: "4.3 cuts per 10 s" });

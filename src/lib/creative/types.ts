@@ -122,6 +122,7 @@ export type CloneComponent =
   | "script"
   | "product"
   | "overlays"
+  | "screen"
   | "length";
 
 /**
@@ -143,6 +144,8 @@ export type FootageRead = {
   people: number;
   /** Share of the video (0-1) with a face and mouth visible, talking to the lens. */
   face_to_camera: number;
+  /** Share of the video (0-1) where a screen fills the frame: a screen recording, or a monitor or phone filmed by a camera. */
+  screen?: number;
   /** static: a propped-up phone or tripod; handheld: held, small sway; moving: walking, panning, following action. */
   camera: "static" | "handheld" | "moving";
   /** plain: a room, desk, car or wall; green_screen: a person over a keyed picture; location: a real place; crowd: other people around. */
