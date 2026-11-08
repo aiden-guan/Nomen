@@ -83,7 +83,9 @@ export function layoutStory(story: CodeAdStory, voiced: Voiced, brand: CodeAdBra
         if (u >= 0) e = vb.words[u].t1 + 0.3;
       }
       e = Math.min(e, t1 + 0.1, dur);
-      if (e - a < 0.6) e = Math.min(dur, a + 0.6);
+      // long enough to read: a term or a fact 1.3 s (ED Studio's terms stay up ~1.5-2 s), a stamp or a comic word 0.8 s
+      const least = c.style === "stamp" || c.style === "sfx" ? 0.8 : 1.3;
+      if (e - a < least) e = Math.min(dur, a + least);
       callouts.push({ text: c.text, style: c.style, t0: r3(a), t1: r3(e), ...(c.style === "sfx" ? { pos: [0.5, BANDS.sfx] as [number, number] } : { y: BANDS[c.style] }) });
     }
     const hitWord = vb.words.find((w) => norm(w.w) === norm(sb.hit));

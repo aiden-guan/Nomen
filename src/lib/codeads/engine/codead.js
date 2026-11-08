@@ -49,7 +49,7 @@ const FRAMES = {
   screen: (yaw = 0) => aim(SCREEN, { frac: 0.27, d: 4.6, fov: 40, yaw, pitch: 0.03 }),
   desk: (yaw = -0.22) => aim(HEAD, { frac: 0.36, d: 3.7, fov: 40, yaw, pitch: 0.16, dx: -0.18 }),
   wide: (yaw = 0) => aim([0.1, 1.0, -1.5], { frac: 0.42, d: 6.4, fov: 42, yaw, pitch: 0.16 }),
-  floor: (yaw = 0) => aim([0.45, 1.0, -1.45], { frac: 0.42, d: 5.6, fov: 42, yaw, pitch: 0.14 }),
+  floor: (yaw = 0) => aim([0.4, 1.05, -1.5], { frac: 0.4, d: 5.6, fov: 42, yaw, pitch: 0.14 }),
   high: (yaw = 0) => aim([0, 0.8, -1.2], { frac: 0.45, d: 6.6, fov: 42, yaw, pitch: 0.34 }),
 };
 
@@ -75,7 +75,7 @@ export async function build(studio, story) {
   // ---------------------------------------------------------------- props, one set per gag that needs them
   // agents: the brand's robots (deliver brings the first one, team adds one per label). Each roams its own orbit.
   const agents = [];
-  const ORBIT = { cx: 0.05, cz: -0.42, rx: 1.35, rz: 0.2, w: 0.7 };
+  const ORBIT = { cx: 0.05, cz: -0.42, rx: 1.0, rz: 0.2, w: 0.7 };
   const orbitAt = (k, t) => { const a = ORBIT.w * t + k * 1.9 + 0.4; return { x: ORBIT.cx + ORBIT.rx * Math.cos(a), z: ORBIT.cz + ORBIT.rz * Math.sin(a), rotY: Math.atan2(-ORBIT.rz * Math.cos(a), -ORBIT.rx * Math.sin(a)) }; };
   const addAgent = (label, tIn, opts = {}) => {
     if (agents.length >= 6) return null;
@@ -107,6 +107,11 @@ export async function build(studio, story) {
       }
       piles.push({ b, boxes, clear: (beats[b.i + 1] || { t0: END }).t0 + 0.05 });
     }
+    if (b.gag === 'money' && b.labels.length) {
+      // what the money bought arrives in boxes printed with it ("YACHT"), dropped beside Gary, and stays
+      const spots = [[0.62, D.deskTop, -1.45], [-0.66, D.deskTop, -1.5], [1.25, 0, -1.55]];
+      piles.push({ b, boxes: b.labels.slice(0, 3).map((label, k) => { const bx = makeBox(label, k + 3); bx.g.scale.setScalar(1.35); scene.add(bx.g); const p1 = spots[k]; return { bx, t0: b.hit - 0.35 + k * 0.28, p1, r1: [0, (k - 1) * 0.4, 0], p2: p1, r2: [0, (k - 1) * 0.4, 0] }; }), clear: END + 9, purchases: true });
+    }
     if (b.gag === 'approve') {
       const deny = /\b(deny|denied|no|reject|stop|block)/i.test(b.label || '');
       const bt = makeBigButton({ color: deny ? 0xe53935 : 0x2fbf5a, label: (b.label || (deny ? 'DENY' : 'APPROVE')).toUpperCase().slice(0, 12) });
@@ -135,7 +140,7 @@ export async function build(studio, story) {
       case 'zap': add(at, FRAMES.gary(0.16 * flip)); kicks.push([b.hit, 0.6, 0.4]); break;
       case 'money': add(at, FRAMES.home(y)); kicks.push([b.hit, 0.4, 0.35]); break;
       case 'deliver': add(at, FRAMES.floor(0.1)); kicks.push([b.hit, 0.95, 0.5]); break;
-      case 'team': add(at, FRAMES.high(y)); break;
+      case 'team': add(at, FRAMES.home(y)); break;
       case 'approve': add(at, FRAMES.home(-0.12)); kicks.push([b.hit, 0.6, 0.35]); break;
       case 'show': add(at, FRAMES.screen(y * 0.4), { keep: true }); break;
       case 'celebrate': add(at, FRAMES.wide(y)); kicks.push([b.hit, 0.35, 0.4]); break;
@@ -194,7 +199,7 @@ export async function build(studio, story) {
   };
   function drawWall(t) {
     const { s, u } = screenAt(t);
-    const q = s.kind === 'terminal' || s.kind === 'chat' || s.kind === 'dashboard' ? Math.round(u * 120) : s.kind === 'logo' ? Math.round(Math.min(1, u * 3) * 30) : 0;
+    const q = s.kind === 'terminal' || s.kind === 'chat' || s.kind === 'dashboard' || s.kind === 'image' ? Math.round(u * 120) : s.kind === 'logo' ? Math.round(Math.min(1, u * 3) * 30) : 0;
     const blink = s.kind === 'terminal' ? Math.floor(t * 2) % 2 : s.kind === 'error' ? Math.floor(t * 10) : 0;
     const key = JSON.stringify([s, q, blink]);
     if (key === screenKey) return;
@@ -259,7 +264,7 @@ export async function build(studio, story) {
     // a blink every few seconds (never on a gag face)
     if (p.eyes === 'open' && (t % 3.7) < 0.12) p.eyes = 'closed';
     // under a pile until the next beat knocks it off
-    for (const P of piles) if (t >= P.b.hit && t < P.clear + 0.3) { p.eyes = 'spiral'; if (t > P.clear) { const k = u01(t, P.clear, P.clear + 0.3); p.squash = [1 - 0.1 * (1 - k), 1 + 0.2 * Math.sin(k * PI)]; } }
+    for (const P of piles) if (!P.purchases && t >= P.b.hit && t < P.clear + 0.3) { p.eyes = 'spiral'; if (t > P.clear) { const k = u01(t, P.clear, P.clear + 0.3); p.squash = [1 - 0.1 * (1 - k), 1 + 0.2 * Math.sin(k * PI)]; } }
     return p;
   }
 
@@ -316,7 +321,7 @@ export async function build(studio, story) {
     gary.set(pose);
     // dizzy stars over a buried or zapped Gary
     let dz = 0;
-    for (const P of piles) if (t >= P.b.hit + 0.2 && t < P.clear) dz = 1;
+    for (const P of piles) if (!P.purchases && t >= P.b.hit + 0.2 && t < P.clear) dz = 1;
     for (const e of zaps) if (t >= e.hit + 0.55 && t < e.hit + 2.6) dz = Math.max(dz, 1 - clamp((t - e.hit - 2.2) / 0.4));
     gary.head.getWorldPosition(V);
     dizzy.update(t, dz, [V.x, V.y + 0.36, V.z]);

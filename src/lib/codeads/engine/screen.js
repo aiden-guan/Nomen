@@ -3,11 +3,11 @@
 // two thirds of a vertical frame's width at most, so everything is big: few lines, few words.
 //   terminal  lines typed at a prompt ("> " lines are the machine's answers)
 //   chat      lines[0] is your message, the rest are the agent's replies, appearing one by one
-//   image     a real product screenshot (phone-shaped ones in a phone frame), with the logo
+//   image     a real product visual (a phone-size capture fills the width and scrolls), with the logo
 //   logo      the brand card: logo, name, url
 //   error     a red failure card (an explosion, a zap)
 //   dashboard a list of agents (lines) working, with status dots and progress bars
-import { drawContain, wrap } from './sets/devoffice.js';
+import { drawContain } from './sets/devoffice.js';
 
 const W = 1280, H = 720;
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -31,7 +31,7 @@ export function drawScreen(g, s, u, t, brand, assets) {
     if (kind === 'terminal') terminal(g, lines, u, t, mono, fg, accent);
     else if (kind === 'chat') chat(g, lines, u, sans, fg, accent);
     else if (kind === 'dashboard') dashboard(g, lines, u, sans, fg, accent);
-    else if (kind === 'image' && assets.image) image(g, assets.image, assets.logo, brand, sans, fg);
+    else if (kind === 'image' && assets.image) image(g, assets.image, assets.logo, u);
     else logoCard(g, brand, assets.logo, sans, fg, accent, u);
   }
   g.restore();
@@ -93,26 +93,25 @@ function dashboard(g, lines, u, sans, fg, accent) {
   });
 }
 
-function image(g, img, logo, brand, sans, fg) {
-  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height, tall = ih > iw * 1.2;
-  if (tall) {
-    const ph = 660, pw = Math.min(400, (ph * iw) / ih), px = W - pw - 110, py = (H - ph) / 2;
-    g.fillStyle = '#0b0b0d'; g.beginPath(); g.roundRect(px - 16, py - 16, pw + 32, ph + 32, 52); g.fill();
-    g.save(); g.beginPath(); g.roundRect(px, py, pw, ph, 38); g.clip();
-    const s = Math.max(pw / iw, ph / ih); g.drawImage(img, px + (pw - iw * s) / 2, py, iw * s, ih * s); g.restore();
-    if (logo) drawContain(g, logo, 120, 120, 300, 300);
-    g.fillStyle = fg; g.font = `800 104px ${sans}`; g.textAlign = 'left'; g.textBaseline = 'middle'; wrap(g, brand.name, 110, 520, 560, 110);
-  } else {
-    g.save(); g.beginPath(); g.roundRect(30, 30, W - 60, H - 60, 24); g.clip(); drawContain(g, img, 30, 30, W - 60, H - 60); g.restore();
+function image(g, img, logo, u) {
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  if (ih > iw * 1.2) {
+    // a phone-size capture: its top at the screen's full width (big enough to read in a phone frame), scrolling slowly
+    const s = W / iw, view = H / s, travel = Math.min(ih - view, view * 0.6) * clamp(u);
+    g.drawImage(img, 0, travel, iw, view, 0, 0, W, H);
+    if (logo) { g.fillStyle = 'rgba(0,0,0,.55)'; g.beginPath(); g.roundRect(W - 150, H - 150, 120, 120, 24); g.fill(); drawContain(g, logo, W - 140, H - 140, 100, 100); }
+    return;
   }
+  g.save(); g.beginPath(); g.roundRect(30, 30, W - 60, H - 60, 24); g.clip(); drawContain(g, img, 30, 30, W - 60, H - 60); g.restore();
 }
 
 function logoCard(g, brand, logo, sans, fg, accent, u) {
+  // everything in the top three quarters: Gary's hard hat covers the screen's bottom edge
   const k = clamp(u * 3);
-  if (logo) drawContain(g, logo, W / 2 - 190, 40 - (1 - k) * 20, 380, 380);
-  g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `800 132px ${sans}`;
-  g.fillText(fit(g, brand.name, W - 80), W / 2, logo ? 500 : 300);
-  if (brand.url) { g.fillStyle = accent; g.font = `700 84px ${sans}`; g.fillText(fit(g, brand.url, W - 80), W / 2, logo ? 630 : 450); }
+  if (logo) drawContain(g, logo, W / 2 - 150, 24 - (1 - k) * 20, 300, 300);
+  g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `800 124px ${sans}`;
+  g.fillText(fit(g, brand.name, W - 80), W / 2, logo ? 392 : 240);
+  if (brand.url) { g.fillStyle = accent; g.font = `700 80px ${sans}`; g.fillText(fit(g, brand.url, W - 80), W / 2, logo ? 506 : 360); }
 }
 
 function fit(g, s, maxW) { if (g.measureText(s).width <= maxW) return s; let a = s; while (a.length > 1 && g.measureText(a + '…').width > maxW) a = a.slice(0, -1); return a + '…'; }
