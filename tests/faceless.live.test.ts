@@ -7,10 +7,11 @@ import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 
 import { getBrandKit } from "@/lib/creative/brandkit";
+import { PHONE_EQ } from "@/lib/creative/dub";
 import { editFfmpeg } from "@/lib/creative/edit";
 import type { Gender, Persona } from "@/lib/creative/persona";
 import { breakdownReference, referenceId, scoreCandidates } from "@/lib/creative/references";
-import { OverBudget, type PersonaHandle, patient, remakeSpan, remakeVideo } from "@/lib/creative/remake";
+import { type DeviceDisplay, OverBudget, type PersonaHandle, patient, remakeSpan, remakeVideo } from "@/lib/creative/remake";
 import { writeScript } from "@/lib/creative/script";
 import type { CreativeBrief, ProductBrief, ReferenceBreakdown, Script } from "@/lib/creative/types";
 import { MonidClient } from "@/lib/monid";
@@ -26,6 +27,7 @@ import type { Files } from "@/lib/store/types";
 //   NOMEN_FACELESS_LIVE=1 npx vitest run tests/faceless.live.test.ts -t vqgts        (Mobilerun)
 //   NOMEN_FACELESS_LIVE=1 npx vitest run tests/faceless.live.test.ts -t aiwithni     (Monid)
 //   NOMEN_FACELESS_LIVE=1 npx vitest run tests/faceless.live.test.ts -t elevenlabs   (Naive)
+//   NOMEN_FACELESS_LIVE=1 npx vitest run tests/faceless.live.test.ts -t risingpower  (Mobilerun; no Monid at all)
 //   NOMEN_FACELESS_LIVE=dry ...   (checks the inputs, pays nothing)
 //
 // Set NOMEN_DATA_DIR to a data folder holding nomen.db, brandkits/ and media/references/<file>
@@ -45,8 +47,14 @@ type Case = {
   reference: { campaign: string; id: string } | { campaign: string; url: string };
   file: string;
   maxUsd: number;
-  /** The voice-over: an ElevenLabs voice matched to the reference's narrator. */
+  /** The voice-over: an ElevenLabs voice matched to the reference's narrator (a Naive voice with `speech: "naive"`). */
   narrator: { id: string; name: string; gender: Gender };
+  /** Speech through Naive's own models (no ElevenLabs on Monid). */
+  speech?: "naive";
+  /** The display the reference films when it is not a computer's. */
+  display?: DeviceDisplay;
+  /** A filter on our voice (PHONE_EQ when the reference's voice comes out of a phone). */
+  voiceEq?: string;
   brief: Omit<CreativeBrief, "reference_id" | "format" | "creator" | "setting" | "visuals">;
   stats: string;
 };
@@ -133,6 +141,37 @@ const CASES: Case[] = [
       hashtags: ["#aiagents", "#naive", "#startup"],
       cta: "deploy your first company with Naïve today",
       why: "An ad that kept running 44 days with 5 variants is the best public proof it pays; voice-over over graphics is fully rebuildable with our own UI.",
+    },
+  },
+  {
+    // @risingpower__: one hand-held shot of a desk IP phone ringing with "Claude" as the caller; a
+    // hand answers and a synthetic voice reads a test report through its speaker; one static caption.
+    // 769K views on 313 followers. Ours: the same footage, our agent on the phone's display, the report
+    // about Mobilerun's real phones. Voice through Naive (the Monid wallet is empty).
+    name: "risingpower",
+    campaign: MOBILERUN,
+    reference: { campaign: MOBILERUN, id: "ref_3c6a101cca" },
+    file: "risingpower-original.mp4",
+    maxUsd: 3,
+    narrator: { id: "fable", name: "Fable", gender: "male" },
+    speech: "naive",
+    display: { describe: "the desk phone's small backlit display (a Yealink-style IP phone screen), not the computer monitor at the top edge", width: 960, height: 720 },
+    voiceEq: PHONE_EQ,
+    stats: "769,397 views · 313 followers (769x) · 63,982 likes · 7,036 saves · 14,268 shares · 16.7 s",
+    brief: {
+      title: "My agent calls me when the phone tests pass",
+      role: "reach",
+      metric: "shares",
+      angle: "The creator's agent phones him from the terminal when its job is done; here the job is testing our app on real phones with Mobilerun.",
+      audience: "Developers building AI agents and app teams who test on phones",
+      hook_plan: "The same static premise caption over the ringing desk phone, our agent's name on its display, then the agent's calm status report.",
+      keep: ["the one hand-held shot of the desk phone, the hand answering, the timing", "the static three-line caption in black on white boxes", "the calm, polite synthetic voice and its sign-off"],
+      change: ["the caller on the phone's display is our agent", "the report is about Mobilerun: the checkout test ran on twenty real phones and all twenty passed in thirty-one seconds"],
+      platforms: ["tiktok"],
+      caption: "my agent calls me when the tests on real phones are done",
+      hashtags: ["#aiagents", "#mobilerun", "#devtools"],
+      cta: "",
+      why: "769x its follower count and 14K shares: a faceless object shot whose own footage stays, with only the phone's display and the voice changed.",
     },
   },
 ];
@@ -239,7 +278,7 @@ describe.skipIf(!live)("faceless one-to-one remakes (live, paid)", () => {
 
       try {
         const result = await remakeVideo(
-          { naive, monid, files: folderFiles(join(out, "kept")) },
+          { naive, monid, files: folderFiles(join(out, "kept")), ...(c.speech === "naive" ? { naiveSpeech: naive } : {}) },
           {
             prefix: `faceless-${c.name}`,
             referencePath,
@@ -250,6 +289,8 @@ describe.skipIf(!live)("faceless one-to-one remakes (live, paid)", () => {
             kit: kit.assets.length || kit.repo ? kit : null,
             maxUsd: Number(process.env.NOMEN_REMAKE_MAX_USD ?? c.maxUsd),
             voice: "fresh",
+            display: c.display,
+            voiceEq: c.voiceEq,
             finish: process.env.NOMEN_REMAKE_FINISH !== "0",
             idem: `faceless-live-${c.name}-${tag}`,
             onEvent: log,

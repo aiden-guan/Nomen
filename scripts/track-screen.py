@@ -255,15 +255,37 @@ def erase_text(frame, boxes):
     return out
 
 
+def track_span(frames, f, quad, lo, hi, exclude):
+    """
+    The quad from the anchor at frame f through [lo, hi), forward and backward. The flow lost in
+    the stretch's last few frames (a cut a frame off, a blurred frame) holds the corners found
+    rather than failing it. Returns {frame: quad}, the inlier shares, a problem or None, what was held.
+    """
+    slack = max(4, int(0.12 * (hi - lo)))
+    forward, fshares, fwhy = track_run(frames, f, quad, range(f + 1, hi), exclude)
+    backward, bshares, bwhy = track_run(frames, f, quad, range(f - 1, lo - 1, -1), exclude)
+    held = []
+    if fwhy and hi - 1 - (max(forward) if forward else f) <= slack:
+        held.append(fwhy)
+        fwhy = None
+    if bwhy and (min(backward) if backward else f) - lo <= slack:
+        held.append(bwhy)
+        bwhy = None
+    return {f: quad, **forward, **backward}, fshares + bshares, fwhy or bwhy, held
+
+
 def smooth(quads, radius=2):
-    """A centred moving average of each corner over 2*radius+1 frames (the ends use what they have)."""
+    """
+    A centred moving average of each corner over up to 2*radius+1 frames. Near a shot's ends the
+    window shrinks on both sides, so the average never lags behind fast motion.
+    """
     if len(quads) <= 2:
         return quads
     arr = np.array(quads)
     out = np.empty_like(arr)
     for i in range(len(arr)):
-        a, b = max(0, i - radius), min(len(arr), i + radius + 1)
-        out[i] = arr[a:b].mean(axis=0)
+        r = min(radius, i, len(arr) - 1 - i)
+        out[i] = arr[i - r:i + r + 1].mean(axis=0)
     return list(out)
 
 
@@ -315,34 +337,49 @@ def track(spec):
             continue
         # The anchor: the read nearest the shot's middle (the start of a shot is often blurred by the cut).
         middle = (s0 + s1) / 2
+        mine.sort(key=lambda a: a[0])
         f0, q0 = min(mine, key=lambda a: abs(a[0] - middle))
-        snapped, moved = snap_edges(frames[f0], q0) if spec.get("snap", True) else (q0, 0)
+        snap = (lambda f, q: snap_edges(frames[f], q)) if spec.get("snap", True) else (lambda f, q: (q, 0))
+        snapped, moved = snap(f0, q0)
         report["anchor"] = f0
         report["sides_snapped"] = moved
         exclude = exclusion(spec, frames[0].shape, scale) if spec.get("erase") else None
-        forward, fshares, fwhy = track_run(frames, f0, snapped, range(f0 + 1, s1), exclude)
-        backward, bshares, bwhy = track_run(frames, f0, snapped, range(f0 - 1, s0 - 1, -1), exclude)
-        shares = fshares + bshares
+        tracked, shares, problem, held = track_span(frames, f0, snapped, s0, s1, exclude)
         report["inliers"] = round(float(np.mean(shares)), 3) if shares else None
-        # The flow lost near the shot's ends (a cut a frame off, a blurred last frame): the
-        # corners found hold for the few frames left, rather than giving up on the whole shot.
-        slack = max(4, int(0.12 * (s1 - s0)))
-        if fwhy and s1 - 1 - (max(forward) if forward else f0) <= slack:
-            report["held_end"] = fwhy
-            fwhy = None
-        if bwhy and (min(backward) if backward else f0) - s0 <= slack:
-            report["held_start"] = bwhy
-            bwhy = None
-        problem = fwhy or bwhy
+        if held:
+            report["held"] = held
         if problem or (shares and np.mean(shares) < 0.5):
             report["fallback"] = problem or "the flow did not agree on one plane"
             series = interpolate(mine, s1 - s0) if len(mine) > 1 else [q0] * (s1 - s0)
             for k, q in enumerate(series):
                 quads[s0 + k] = q
         else:
-            tracked = {f0: snapped, **forward, **backward}
+            # The other reads that agree with the flow re-anchor their own stretch of a long shot,
+            # so drift cannot build up; a read far from the flow is a misread and is left out.
+            width = frames[0].shape[1]
+            good = [(f0, snapped)]
+            for f, q in mine:
+                if f == f0 or f not in tracked:
+                    continue
+                sq, _ = snap(f, q)
+                if np.abs(tracked[f] - sq).max() < 0.04 * width:
+                    good.append((f, sq))
+            good.sort(key=lambda a: a[0])
+            report["anchors_used"] = len(good)
+            if len(good) > 1:
+                final = {}
+                for k, (f, q) in enumerate(good):
+                    lo = s0 if k == 0 else (good[k - 1][0] + f) // 2
+                    hi = s1 if k == len(good) - 1 else (f + good[k + 1][0]) // 2
+                    part = None
+                    if f != f0:
+                        part, _, why, _ = track_span(frames, f, q, lo, hi, exclude)
+                        if why:
+                            part = None
+                    final.update(part if part is not None else {i: tracked[i] for i in range(lo, hi) if i in tracked})
+                tracked = final or tracked
             first, last = min(tracked), max(tracked)
-            series = smooth([tracked[min(max(i, first), last)] for i in range(s0, s1)])
+            series = smooth([tracked[min(max(i, first), last)] if i in tracked or i < first or i > last else tracked[max(j for j in tracked if j < i)] for i in range(s0, s1)], radius=3)
             for k, q in enumerate(series):
                 quads[s0 + k] = q
             # How far the tracked corners sit from the vision model's other reads (diagnostic only).

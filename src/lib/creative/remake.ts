@@ -69,7 +69,7 @@ import {
   voiceStats,
   warpKeys,
 } from "./clone";
-import { type AudioRecord, demucs, extractArgs, makeVoice, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurLines, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
+import { type AudioRecord, demucs, extractArgs, makeVoice, type NaiveSpeech, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurLines, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
 import { DEFAULT_FONT, FINISHED_ENCODE, fontMetrics, PICTURE_FINISH, renderTimeline } from "./edit";
 import { CHARACTER_STYLE, genderOf, type Persona } from "./persona";
 import { decodeRgb, makePlate, newPlateRecord, type PlateRecord } from "./plate";
@@ -892,7 +892,7 @@ export function composeArgs(input: { stage: string; audio: string; place: Stage;
 }
 
 /** The screens a filmed monitor shows, cut together at the monitor's 1440x900 for `seconds`. */
-export function screenStreamArgs(pieces: Array<{ path: string; kind: "video" | "image"; seconds: number }>, out: string): string[] {
+export function screenStreamArgs(pieces: Array<{ path: string; kind: "video" | "image"; seconds: number }>, out: string, size = { width: 1440, height: 900 }): string[] {
   const args = ["-hide_banner", "-nostdin", "-loglevel", "error", "-y"];
   const graph: string[] = [];
   pieces.forEach((piece, i) => {
@@ -900,7 +900,7 @@ export function screenStreamArgs(pieces: Array<{ path: string; kind: "video" | "
     if (piece.kind === "image") args.push("-loop", "1", "-t", fmt(piece.seconds + 0.5), "-i", piece.path);
     else args.push("-i", piece.path);
     graph.push(
-      `[${i}:v]scale=1440:900:force_original_aspect_ratio=decrease:flags=lanczos,pad=1440:900:(ow-iw)/2:(oh-ih)/2:color=0x101014,setsar=1,fps=${OUT.fps},format=yuv420p,tpad=stop_mode=clone:stop_duration=${fmt(piece.seconds + 1)},trim=end_frame=${frames},setpts=PTS-STARTPTS[p${i}]`,
+      `[${i}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${size.width}:${size.height}:(ow-iw)/2:(oh-ih)/2:color=0x101014,setsar=1,fps=${OUT.fps},format=yuv420p,tpad=stop_mode=clone:stop_duration=${fmt(piece.seconds + 1)},trim=end_frame=${frames},setpts=PTS-STARTPTS[p${i}]`,
     );
   });
   graph.push(`${pieces.map((_, i) => `[p${i}]`).join("")}concat=n=${pieces.length}:v=1:a=0[v]`);
@@ -1151,7 +1151,12 @@ export type RemakeDeps = {
   separate?: ((input: string, outDir: string) => Promise<{ voice: string; bed: string }>) | null;
   /** Builds graphics and screens (default: the screen builder, with headless Chrome). */
   buildGraphics?: (requests: ScreenRequest[], workDir: string) => Promise<{ clips: ScreenClip[]; failures: Array<{ id: string; error: string; retryable?: boolean }> }>;
+  /** Speech through Naive's own models (text to speech and speech to text) instead of ElevenLabs on Monid; the host's voice is then one of Naive's ("fable"). */
+  naiveSpeech?: NaiveSpeech;
 };
+
+/** A small device screen a faceless reference films (a desk phone's display), replaced instead of a monitor's. */
+export type DeviceDisplay = { describe: string; width: number; height: number };
 
 /** One line of the script per reference beat, with how it is said and the on-screen text. */
 export type RemakeLine = { line: string; emotion: string; on_screen_text: string };
@@ -1183,6 +1188,10 @@ export type RemakeInput = {
   finish?: boolean;
   /** Filmed monitors: tracked into the reference's footage, a plate, or tracked when the corners hold up. */
   screens?: "auto" | "track" | "plate";
+  /** The display the reference films when it is not a computer's (a desk phone's LCD): its b-roll is then tracked and our screens, built at this size, go on it. */
+  display?: DeviceDisplay;
+  /** An ffmpeg filter for our voice before the finish (PHONE_EQ: heard through a phone's speaker, as the reference's is). */
+  voiceEq?: string;
   /** Prefix of every idempotency key: stable per video, so a rerun never pays twice. */
   idem: string;
   /** Personas still to make for this remake (their portraits count in the estimate). */
@@ -1365,7 +1374,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   // 2. The reference's scene changes, the segments snapped onto them, and each layer's own cuts.
   manifest.cuts ??= (await detectCuts(input.referencePath, 0.3, info.duration).catch(() => [] as number[])).filter((c) => c < end);
   const cuts = manifest.cuts;
-  const segments = snapSegments(layout.segments, cuts);
+  const segments = snapSegments(input.display ? layout.segments.map((s) => (s.kind === "broll" ? { ...s, kind: "screen_walkthrough" as const } : s)) : layout.segments, cuts);
   const layers = layersOf({ segments }, stage, presenter.ratios);
   // A filmed screen often cuts between shots of the same room, which the usual setting misses.
   if (layers.some((l) => l.kind === "screen") && !manifest.soft_cuts) {
@@ -1418,7 +1427,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   for (const layer of layers) {
     const segment = segments.find((s) => s.n === layer.segment)!;
     if (layer.kind === "graphic") requests.push(stageGraphic(layer.id, { stage, seconds: layer.end - layer.start, line: lineAt(span.beats, scriptLines, layer.start, layer.end), shows: segment.shows, product: input.product, elements: segmentElements(segment, layout.graphics) }));
-    if (layer.kind === "screen") requests.push(...screenRequests(layer, segment, span.beats, scriptLines, input.product));
+    if (layer.kind === "screen") requests.push(...screenRequests(layer, segment, span.beats, scriptLines, input.product, input.display));
   }
   // The designer sees the reference's own frame at each graphic's moment, to copy its look.
   for (const request of requests) {
@@ -1485,7 +1494,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   const separate = deps.separate === undefined ? ((python) => (python ? (file: string, out: string) => demucs(python, file, out) : null))(stemsPython()) : deps.separate;
   let reference: { stem: string; bed: string | null; words: TimedWord[] };
   if (saysAnything(lines.map((l) => l.line))) {
-    reference = await referenceAudio(work, deps.monid, manifest.audio, { reference: input.referencePath, end, separate });
+    reference = await referenceAudio(work, deps.monid, manifest.audio, { reference: input.referencePath, end, separate, naive: deps.naiveSpeech });
   } else {
     // Nothing to say (a music video with text labels): its whole soundtrack stays, singing included.
     const whole = join(dir, "original.wav");
@@ -1507,6 +1516,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     delivery: input.breakdown.delivery,
     separate,
     byLine,
+    naive: deps.naiveSpeech,
   };
   // A presenter that does not voice itself gets our voice first (an audio-driven one lip-syncs to it).
   let voice: Voice | null = presenter.voice === "own" ? null : await makeVoice(work, deps.monid, manifest.audio, voiceInput);
@@ -1591,7 +1601,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
     try {
       // Every cut inside the segment, also one a frame from its edge: the tracker treats each shot alone.
       const softCuts = (manifest.soft_cuts ?? cuts).filter((c) => c > layer.start + 0.03 && c < layer.end - 0.03);
-      const path = await filmedMonitor(work, naive, manifest, { layer, segment, layout, stage, stageRef, reference: input.referencePath, built, product: input.product, mode: input.screens ?? "auto", cuts: manifest.real?.[layer.id] ?? [], softCuts, idem: `${input.idem}-${layer.id}` });
+      const path = await filmedMonitor(work, naive, manifest, { layer, segment, layout, stage, stageRef, reference: input.referencePath, built, product: input.product, mode: input.screens ?? "auto", cuts: manifest.real?.[layer.id] ?? [], softCuts, display: input.display, idem: `${input.idem}-${layer.id}` });
       if (!path) manifest.fallbacks[layer.id] ??= "the filmed monitor could not be rebuilt";
     } catch (error) {
       if (stopping(error)) throw error;
@@ -1721,7 +1731,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   });
 
   const soundtrack = join(dir, "soundtrack.wav");
-  await ffmpeg(soundArgs({ voices: pieces, bed: reference.bed, duration: end, finish, out: soundtrack }));
+  await ffmpeg(soundArgs({ voices: pieces, bed: reference.bed, duration: end, finish, out: soundtrack, voiceEq: input.voiceEq }));
 
   const cut = join(dir, "cut");
   await rm(cut, { recursive: true, force: true });
@@ -1788,17 +1798,20 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
 }
 
 /** The desktop screens a filmed monitor shows: one per beat it spans, our product's real UI for what is said. */
-function screenRequests(layer: CloneLayer, segment: RemakeSegment, beats: ReferenceBeat[], lines: string[], product: ProductBrief): ScreenRequest[] {
+export function screenRequests(layer: Pick<CloneLayer, "id" | "start" | "end">, segment: Pick<RemakeSegment, "screen" | "shows">, beats: Array<Pick<ReferenceBeat, "start" | "end">>, lines: string[], product: Pick<ProductBrief, "name">, display?: DeviceDisplay): ScreenRequest[] {
   return beats
     .map((beat, i) => ({ beat, i, from: Math.max(beat.start, layer.start), to: Math.min(beat.end, layer.end) }))
     .filter((b) => b.to - b.from >= 0.4)
     .map(({ i, from, to }) => ({
       id: `${layer.id}-b${i + 1}`,
-      brief: `What a computer monitor shows while this is said: "${lines[i] ?? ""}". ${product.name}'s own app, site or terminal as a real desktop window, with its real wording and commands.${segment.screen ? ` The reference's monitor showed: ${segment.screen}. Show this product's equivalent step.` : ""}`,
+      brief: display
+        ? `What ${display.describe} shows while this is said: "${lines[i] ?? ""}" (from ${from.toFixed(1)} s to ${to.toFixed(1)} s of the video). The same device's own screen, in its own style and layout as the reference shows it, with ${product.name}'s names and words in place of the original's.${segment.screen ? ` The reference's display showed: ${segment.screen}. Show this product's equivalent at this moment.` : ""} It fills the display edge to edge.`
+        : `What a computer monitor shows while this is said: "${lines[i] ?? ""}". ${product.name}'s own app, site or terminal as a real desktop window, with its real wording and commands.${segment.screen ? ` The reference's monitor showed: ${segment.screen}. Show this product's equivalent step.` : ""}`,
       line: lines[i] ?? "",
       seconds: round(to - from + 0.4, 2),
       reference_visual: segment.screen || segment.shows,
       size: "desktop" as const,
+      ...(display ? { box: { width: display.width, height: display.height } } : {}),
     }));
 }
 
@@ -1892,7 +1905,7 @@ async function filmedMonitor(
   work: Work,
   naive: RemakeNaive,
   manifest: Manifest,
-  o: { layer: CloneLayer; segment: RemakeSegment; layout: RemakeLayout; stage: Stage; stageRef: Rect; reference: string; built: Map<string, { kind: "video" | "image"; path: string }>; product: ProductBrief; mode: "auto" | "track" | "plate"; cuts: number[]; softCuts?: number[]; idem: string },
+  o: { layer: CloneLayer; segment: RemakeSegment; layout: RemakeLayout; stage: Stage; stageRef: Rect; reference: string; built: Map<string, { kind: "video" | "image"; path: string }>; product: ProductBrief; mode: "auto" | "track" | "plate"; cuts: number[]; softCuts?: number[]; display?: DeviceDisplay; idem: string },
 ): Promise<string | null> {
   const { layer, segment, stage } = o;
   const seconds = round(layer.end - layer.start);
@@ -1909,7 +1922,8 @@ async function filmedMonitor(
   const kept = await work.local(rec.clip_key);
   if (kept) return kept;
   const stream = join(work.dir, `${layer.id}-screens.mp4`);
-  await ffmpeg(screenStreamArgs(pieces, stream));
+  const streamSize = o.display ? { width: even(o.display.width), height: even(o.display.height) } : { width: 1440, height: 900 };
+  await ffmpeg(screenStreamArgs(pieces, stream, streamSize));
 
   if (python) {
     try {
@@ -1922,12 +1936,12 @@ async function filmedMonitor(
           const jpeg = await grabJpeg(o.reference, t, 720, o.stageRef).catch(() => null);
           if (jpeg?.length) frames.push({ t, jpeg });
         }
-        if (frames.length) anchors.push(...parseQuads(await readScreenCorners(naive, frames, QC_MODEL), stage));
+        if (frames.length) anchors.push(...parseQuads(await readScreenCorners(naive, frames, QC_MODEL, o.display?.describe), stage));
       }
       if (anchors.length) {
         const out = join(work.dir, `${layer.id}-tracked.mp4`);
         const erase = burnedInText(o.layout, stage, layer);
-        const report = await trackScreen(python, { ffmpeg: await ffmpegBin(), reference: o.reference, start: layer.start, seconds, crop: o.stageRef, size: { width: stage.width, height: stage.height }, screen: stream, screen_size: { width: 1440, height: 900 }, cuts: o.softCuts ?? o.cuts, anchors, erase, out }, work.dir);
+        const report = await trackScreen(python, { ffmpeg: await ffmpegBin(), reference: o.reference, start: layer.start, seconds, crop: o.stageRef, size: { width: stage.width, height: stage.height }, screen: stream, screen_size: streamSize, cuts: o.softCuts ?? o.cuts, anchors, erase, out }, work.dir);
         const loose = report.shots.filter((s) => s.fallback);
         work.say(`Tracked the filmed screen through ${report.shots.length - loose.length} of ${report.shots.length} shots${loose.length ? ` (${loose.map((s) => s.fallback).join("; ")})` : ""}`);
         rec.mode = "track";

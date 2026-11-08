@@ -19,12 +19,13 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 import { promisify } from "node:util";
 
 import { probe } from "../media";
 import { type MonidRunner, outputLink, runCostMicro, runToEnd } from "../monid";
+import type { NaiveClient } from "../naive";
 import { ffmpeg, ffmpegBin } from "./clone";
 import { BED_LEVEL, DUCK, LOUDNESS, roomTone, VOICE_CHAIN } from "./edit";
 import type { Gender } from "./persona";
@@ -46,6 +47,34 @@ export const ELEVENLABS = {
 
 /** eleven_v4 at the stability the top UGC tools use: loose enough that the tags steer the delivery, not so loose it wanders. */
 export const TTS_MODEL = { model_id: "eleven_v4", voice_settings: { stability: 0.4, similarity_boost: 0.78 } } as const;
+
+/**
+ * Naive's own speech models, for when ElevenLabs on Monid is unavailable (an empty wallet):
+ * OpenAI's voices for text to speech, stt/auto for speech to text. Emotion tags are not read
+ * (the voice carries the delivery), and the transcript is timed by segment, not by word.
+ */
+export type NaiveSpeech = Pick<NaiveClient, "speak" | "fileUrl" | "uploadFile" | "transcribe" | "getTranscription">;
+export const NAIVE_TTS_MODEL = "openai/gpt-audio";
+
+/** A voice heard through a phone's speaker: the telephone band, a little presence. */
+export const PHONE_EQ = "highpass=f=300,lowpass=f=3400,equalizer=f=1800:t=q:w=1:g=3";
+
+/** Words over timed segments (Naive's speech to text times segments, not words): each segment's words spread by length. */
+export function wordsFromSegments(segments: Array<{ start_seconds: number; end_seconds: number; text: string }>): TimedWord[] {
+  return segments.flatMap((seg) => {
+    const words = tokens(seg.text);
+    const weights = words.map((w) => normWord(w).length + 1);
+    const total = weights.reduce((a, b) => a + b, 0) || 1;
+    const span = Math.max(0, seg.end_seconds - seg.start_seconds);
+    let t = seg.start_seconds;
+    return words.map((text, k) => {
+      const len = (span * weights[k]) / total;
+      const word = { text, start: round(t), end: round(t + len) };
+      t += len;
+      return word;
+    });
+  });
+}
 
 /** Reads tried per stretch: the one closest to the reference's length is kept (within 10% stops early). */
 export const READ_TAKES = 3;
@@ -395,7 +424,7 @@ export type VoicePiece = { path: string; from: number; seconds: number; speed: n
  * times, over the reference's bed. With `finish` (edit.ts): the voice chain, pink room tone at
  * about -50 dBFS, the bed at 0.35 ducked under the voice, and -14 LUFS; without it, a plain mix.
  */
-export function soundArgs(input: { voices: VoicePiece[]; bed: string | null; duration: number; finish: boolean; out: string }): string[] {
+export function soundArgs(input: { voices: VoicePiece[]; bed: string | null; duration: number; finish: boolean; out: string; voiceEq?: string }): string[] {
   const args = ["-hide_banner", "-nostdin", "-loglevel", "error", "-y"];
   const graph: string[] = [];
   const labels: string[] = [];
@@ -410,7 +439,7 @@ export function soundArgs(input: { voices: VoicePiece[]; bed: string | null; dur
     args.push("-f", "lavfi", "-t", end, "-i", "anullsrc=r=44100:cl=mono");
     labels.push(`[${input.voices.length}:a]`);
   }
-  graph.push(`${labels.join("")}amix=inputs=${labels.length}:normalize=0:duration=longest,apad,atrim=end=${end}${input.finish ? `,${VOICE_CHAIN}` : ""}[vox]`);
+  graph.push(`${labels.join("")}amix=inputs=${labels.length}:normalize=0:duration=longest,apad,atrim=end=${end}${input.voiceEq ? `,${input.voiceEq}` : ""}${input.finish ? `,${VOICE_CHAIN}` : ""}[vox]`);
   let voice = "[vox]";
   if (input.finish) {
     graph.push(`${roomTone(input.duration, 44100)}[room]`, `[vox][room]amix=inputs=2:normalize=0:duration=first[voice]`);
@@ -494,6 +523,8 @@ export type VoiceInput = {
   separate: ((input: string, outDir: string) => Promise<{ voice: string; bed: string }>) | null;
   /** Each line timed only within its own beat (faceless remakes: one shot per line), not across the whole script. */
   byLine?: boolean;
+  /** Speech through Naive's models instead of ElevenLabs on Monid; `host` is then one of its voices ("fable"). */
+  naive?: NaiveSpeech;
 };
 
 export type Voice = {
@@ -511,25 +542,55 @@ export type Voice = {
 
 type Speaker = { run: (endpoint: string, body: Record<string, unknown>) => Promise<unknown>; transcribe: (path: string) => Promise<TimedWord[]> };
 
-/** ElevenLabs calls through Monid, with their spend counted. */
-function speaker(work: Work, monid: MonidRunner, seconds: number): Speaker {
+const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
+
+/** ElevenLabs calls through Monid, with their spend counted; with `naive`, speech to text goes through Naive instead. */
+function speaker(work: Work, monid: MonidRunner, seconds: number, naive?: NaiveSpeech): Speaker {
   const minutes = round(Math.max(0.05, seconds / 60), 2);
   const run = async (endpoint: string, body: Record<string, unknown>) => {
+    if (naive) throw new Error(`ElevenLabs ${endpoint} is not available while speech goes through Naive`);
     const done = await runToEnd(monid, "elevenlabs", endpoint, { body }, { pollMs: work.pollMs || 1, timeoutMs: 10 * 60_000 });
     work.spend("monid", runCostMicro(done));
     return done.output;
   };
-  const transcribe = async (path: string) => parseWords(await run(ELEVENLABS.stt, { audio_url: await work.host(path, contentType(path)), model_id: "scribe_v2", timestamps_granularity: "word", tag_audio_events: false, expected_duration_minutes: minutes }));
+  const transcribe = async (path: string) =>
+    naive
+      ? naiveTranscribe(naive, path, work.pollMs)
+      : parseWords(await run(ELEVENLABS.stt, { audio_url: await work.host(path, contentType(path)), model_id: "scribe_v2", timestamps_granularity: "word", tag_audio_events: false, expected_duration_minutes: minutes }));
   return { run, transcribe };
+}
+
+/** Naive's speech to text on a local file: uploaded, transcribed (polled while it runs), words spread over its segments. */
+async function naiveTranscribe(naive: NaiveSpeech, path: string, pollMs: number): Promise<TimedWord[]> {
+  const bytes = await readFile(path);
+  const id = await naive.uploadFile(basename(path), contentType(path), bytes);
+  let job = await naive.transcribe({ file_id: id, model: "stt/auto", timestamps: true, language: "en" }, `nomen-stt-${hash([id])}`);
+  for (let i = 0; (job.status === "queued" || job.status === "processing") && i < 90; i++) {
+    await sleep(Math.max(1000, pollMs));
+    job = await naive.getTranscription(job.id);
+  }
+  if (job.status !== "completed" || !job.result) throw new Error(`speech to text failed: ${job.error?.message ?? job.status}`);
+  return wordsFromSegments(job.result.segments);
+}
+
+/** One read in a Naive voice, kept under `name` (as WAV). Emotion tags are dropped: the voice is not told how to act. */
+async function naiveSpeak(work: Work, naive: NaiveSpeech, text: string, voice: string, name: string): Promise<string> {
+  const plain = text.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
+  const made = await naive.speak({ text: plain, model: NAIVE_TTS_MODEL, voice, format: "wav" }, `nomen-tts-${hash([plain, voice, name])}`);
+  work.spend("naive", made.cost_micro_usd ?? 0);
+  const wav = name.replace(/\.mp3$/, ".wav");
+  const local = join(work.dir, wav.replace(/\//g, "-"));
+  await work.fetch((await naive.fileUrl(made.file.id)).url, local);
+  return work.keep(wav, local, "audio/wav");
 }
 
 /**
  * The reference's sound, made once: the voice alone (Demucs, else ElevenLabs isolation), the bed
  * (Demucs only) and when each of its words is said. Every way of voicing a remake starts here.
  */
-export async function referenceAudio(work: Work, monid: MonidRunner, record: AudioRecord, input: Pick<VoiceInput, "reference" | "end" | "separate">): Promise<{ stem: string; bed: string | null; words: TimedWord[] }> {
+export async function referenceAudio(work: Work, monid: MonidRunner, record: AudioRecord, input: Pick<VoiceInput, "reference" | "end" | "separate" | "naive">): Promise<{ stem: string; bed: string | null; words: TimedWord[] }> {
   const notes = (record.notes ??= []);
-  const { run, transcribe } = speaker(work, monid, input.end);
+  const { run, transcribe } = speaker(work, monid, input.end, input.naive);
   const original = join(work.dir, "original.wav");
   if (!existsSync(original)) await ffmpeg(extractArgs(input.reference, input.end, original));
   if (!record.voice_key || !(await work.local(record.voice_key))) {
@@ -578,9 +639,9 @@ export function bestRead(takes: Array<{ seconds: number }>, target: number): num
  */
 export async function makeVoice(work: Work, monid: MonidRunner, record: AudioRecord, input: VoiceInput): Promise<Voice> {
   const notes = (record.notes ??= []);
-  const { run, transcribe } = speaker(work, monid, input.end);
+  const { run, transcribe } = speaker(work, monid, input.end, input.naive);
   const minutes = round(Math.max(0.05, input.end / 60), 2);
-  const speak = async (text: string, voiceId: string, name: string) => keepLink(work, await run(ELEVENLABS.tts, { text, voice_id: voiceId, ...TTS_MODEL }), name);
+  const speak = async (text: string, voiceId: string, name: string) => (input.naive ? naiveSpeak(work, input.naive, text, voiceId, name) : keepLink(work, await run(ELEVENLABS.tts, { text, voice_id: voiceId, ...TTS_MODEL }), name));
   const text = input.lines.map((l) => l.text).join(" ");
 
   const { stem, bed, words } = await referenceAudio(work, monid, record, input);
@@ -590,7 +651,7 @@ export async function makeVoice(work: Work, monid: MonidRunner, record: AudioRec
   if (mode !== input.mode && !notes.includes("no clean voice track, so the voice is a fresh read")) notes.push("no clean voice track, so the voice is a fresh read");
   record.mode = mode;
 
-  const made = hash([mode, input.lines, input.host, input.others, record.voice_key, record.bed_key, input.end, ...(input.byLine ? ["by line"] : [])]);
+  const made = hash([mode, input.lines, input.host, input.others, record.voice_key, record.bed_key, input.end, ...(input.byLine ? ["by line"] : []), ...(input.naive ? ["naive"] : [])]);
   if (record.made_hash === made) {
     const [kept, mixed] = [await work.local(record.ours_key), await work.local(record.mix_key)];
     if (kept && mixed) return { voice: kept, mix: mixed, bed, words, ours, notes };

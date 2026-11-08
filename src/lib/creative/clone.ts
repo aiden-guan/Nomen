@@ -641,7 +641,7 @@ export function trackedScreenArgs(input: {
 }
 
 /** Asks the vision model for the display's corners in sampled frames of a filmed-monitor segment. */
-export async function readScreenCorners(naive: Pick<NaiveClient, "message">, frames: Array<{ t: number; jpeg: Buffer }>, model: string): Promise<unknown> {
+export async function readScreenCorners(naive: Pick<NaiveClient, "message">, frames: Array<{ t: number; jpeg: Buffer }>, model: string, display?: string): Promise<unknown> {
   const content = [
     ...frames.flatMap(({ t, jpeg }) => [
       { type: "text", text: `t=${t.toFixed(2)} s` },
@@ -650,7 +650,9 @@ export async function readScreenCorners(naive: Pick<NaiveClient, "message">, fra
     {
       type: "text",
       text: [
-        "These frames are from a phone filming a computer monitor, each labelled with its time. For every frame, give the four corners of the monitor's lit display: the picture area inside the bezel, not the bezel or the stand.",
+        display
+          ? `These frames are from a phone filming ${display}, each labelled with its time. For every frame, give the four corners of that display's lit picture area: inside its frame or bezel, not the device around it, and not any other screen in the shot.`
+          : "These frames are from a phone filming a computer monitor, each labelled with its time. For every frame, give the four corners of the monitor's lit display: the picture area inside the bezel, not the bezel or the stand.",
         "Corners clockwise from top-left (top-left, top-right, bottom-right, bottom-left), as [x, y] fractions of the frame, as exactly as you can: the screen content will be replaced by warping a new picture onto these corners. Ignore any person, caption or sticker laid over the footage; give the display's true corners even where something covers them.",
         "Call the screen_corners tool once.",
       ].join("\n"),

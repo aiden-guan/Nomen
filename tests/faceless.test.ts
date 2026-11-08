@@ -7,8 +7,9 @@ import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { editFfmpeg } from "@/lib/creative/edit";
-import { burnedInText, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenSegmentKind, segmentElements, stageGraphic, stageOf, wordCaptions } from "@/lib/creative/remake";
-import { fitSegments, timeOurLines, timeOurWords } from "@/lib/creative/dub";
+import { burnedInText, captionsAbsent, fitToVertical, labelCase, labelSaysLine, parseLayout, type RemakeGraphic, type RemakeLayout, referenceMoment, saysAnything, scaleRect, screenRequests, screenSegmentKind, screenStreamArgs, segmentElements, stageGraphic, stageOf, wordCaptions } from "@/lib/creative/remake";
+import { readScreenCorners } from "@/lib/creative/clone";
+import { fitSegments, PHONE_EQ, soundArgs, timeOurLines, timeOurWords, wordsFromSegments } from "@/lib/creative/dub";
 import { referenceFrameNote } from "@/lib/creative/screens";
 import { shotReadTimes, trackerPython, trackScreen, trackSpecJson } from "@/lib/creative/track";
 import type { Quad, ReferenceBeat } from "@/lib/creative/types";
@@ -145,6 +146,54 @@ describe("faceless remakes: each line is said inside its own shot", () => {
       expect(seg.at).toBeGreaterThanOrEqual(lines[i].start - 0.1);
       expect(seg.at).toBeLessThan(lines[i].end);
     });
+  });
+});
+
+describe("faceless remakes: a small device's display and Naive's voice", () => {
+  const phone = { describe: "the desk phone's small backlit display", width: 960, height: 720 };
+
+  it("builds a device display's screens at its own size, as that device's screen", () => {
+    const [request] = screenRequests({ id: "s1", start: 0, end: 16.7 }, { screen: "Ringing, caller Claude, softkeys Answer and Reject", shows: "a desk phone" }, [{ start: 0, end: 4.3 }], [""], { name: "Mobilerun" }, phone);
+    expect(request.box).toEqual({ width: 960, height: 720 });
+    expect(request.brief).toMatch(/^What the desk phone's small backlit display shows/);
+    expect(request.brief).toContain("Ringing, caller Claude");
+    const [monitor] = screenRequests({ id: "s1", start: 0, end: 4 }, { screen: "", shows: "" }, [{ start: 0, end: 4 }], ["hi"], { name: "Monid" });
+    expect(monitor.box).toBeUndefined();
+    expect(monitor.brief).toMatch(/^What a computer monitor shows/);
+  });
+
+  it("cuts the screens together at the display's size, not a monitor's", () => {
+    const args = screenStreamArgs([{ path: "a.mp4", kind: "video", seconds: 2 }], "out.mp4", { width: 960, height: 720 }).join(" ");
+    expect(args).toContain("scale=960:720");
+    expect(screenStreamArgs([{ path: "a.mp4", kind: "video", seconds: 2 }], "out.mp4").join(" ")).toContain("scale=1440:900");
+  });
+
+  it("asks the corner reader for the named display", async () => {
+    let prompt = "";
+    const naive = {
+      async message(input: { messages: Array<{ content: Array<{ type: string; text?: string }> }> }) {
+        prompt = input.messages[0].content.map((c) => c.text ?? "").join(" ");
+        return { content: [{ type: "tool_use", name: "screen_corners", input: { frames: [] } }] };
+      },
+    } as unknown as Parameters<typeof readScreenCorners>[0];
+    await readScreenCorners(naive, [{ t: 1, jpeg: Buffer.from("x") }], "m", phone.describe);
+    expect(prompt).toContain("a phone filming the desk phone's small backlit display");
+    expect(prompt).toContain("not any other screen in the shot");
+  });
+
+  it("spreads Naive's segment-timed transcript over its words", () => {
+    const words = wordsFromSegments([{ start_seconds: 6.4, end_seconds: 7.4, text: "Good news." }, { start_seconds: 7.6, end_seconds: 10.6, text: "All twenty passed." }]);
+    expect(words.map((w) => w.text)).toEqual(["Good", "news.", "All", "twenty", "passed."]);
+    expect(words[0].start).toBe(6.4);
+    expect(words[1].end).toBeCloseTo(7.4, 2);
+    expect(words[2].start).toBe(7.6);
+    expect(words[4].end).toBeCloseTo(10.6, 2);
+  });
+
+  it("puts a voice heard through a phone through the phone's band", () => {
+    const graph = soundArgs({ voices: [{ path: "v.wav", from: 0, seconds: 3, speed: 1, at: 0 }], bed: null, duration: 3, finish: true, out: "o.wav", voiceEq: PHONE_EQ }).join(" ");
+    expect(graph).toContain("highpass=f=300,lowpass=f=3400");
+    expect(soundArgs({ voices: [], bed: null, duration: 3, finish: true, out: "o.wav" }).join(" ")).not.toContain("lowpass=f=3400");
   });
 });
 
