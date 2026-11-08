@@ -1,10 +1,11 @@
 import { logEvent, newId, now, parse, save, store } from "./db";
 import { ApiError } from "./http";
-import { MonidClient, providerFailed, runCostMicro, TERMINAL } from "./monid";
+import { MonidClient } from "./monid";
 import { NaiveClient } from "./naive";
 import { advanceCreative, type CreativeRow, insertCreative, type ShotState } from "./production";
 import { studyCandidates, studyFormat } from "./format";
-import { compactResearch, fallbackPlan, phaseASpecs, phaseCSpecs, planResearch, type ResearchPack, type ResearchPlan, type RunSpec } from "./research";
+import { compactResearch, fallbackPlan, phaseASpecs, phaseCSpecs, planResearch, type ResearchPack, type ResearchPlan } from "./research";
+import { ensureRuns, listRuns, progressRuns, requeueFailedRuns } from "./runs";
 import { getBool, getInt, getSetting } from "./settings";
 import { type Concept, normalizeStrategy, type PastResult, STRATEGY_SCHEMA, type Strategy, strategyMessage } from "./strategy";
 
@@ -15,7 +16,8 @@ import { type Concept, normalizeStrategy, type PastResult, STRATEGY_SCHEMA, type
 export type CampaignStage = "research" | "style" | "strategy" | "production" | "review" | "live";
 export type CampaignStatus = "running" | "review" | "publishing" | "live" | "failed" | "stopped";
 
-export type CampaignOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string; learnStyle: boolean };
+/** concepts is the number of videos; 0 makes a static-ads-only campaign. statics starts a static ad pack when research is done. */
+export type CampaignOptions = { concepts: number; shotsPerConcept: number; secondsPerShot: number; videoModel: string; learnStyle: boolean; statics?: boolean };
 
 export type BrandRow = { id: string; name: string; domain: string; url: string; profile_json: string | null; identity_id: string | null; social_activated: number; created_at: string };
 
@@ -47,12 +49,9 @@ export type CampaignRow = {
   updated_at: string;
 };
 
-type RunRow = { id: string; campaign_id: string; key: string; phase: "A" | "C"; provider: string; endpoint: string; input_json: string; run_id: string | null; status: "pending" | "running" | "done" | "failed"; output_json: string | null; error: string | null; cost_micro: number };
-
 export const getBrand = async (id: string) => (await store().find<BrandRow>("brands", { id }, { limit: 1 }))[0];
 export const getCampaign = async (id: string) => (await store().find<CampaignRow>("campaigns", { id }, { limit: 1 }))[0];
 export const listCreatives = (campaignId: string) => store().find<CreativeRow>("creatives", { campaign_id: campaignId }, { order: [["idx", "asc"], ["generation", "asc"]] });
-const listRuns = (campaignId: string) => store().find<RunRow>("monid_runs", { campaign_id: campaignId }, { order: [["created_at", "asc"]] });
 
 export function defaultOptions(): CampaignOptions {
   return {
@@ -61,6 +60,7 @@ export function defaultOptions(): CampaignOptions {
     secondsPerShot: Math.max(4, Math.min(10, getInt("video_seconds"))),
     videoModel: getSetting("video_model"),
     learnStyle: getBool("learn_style"),
+    statics: getBool("static_ads_auto"),
   };
 }
 
@@ -94,7 +94,11 @@ export async function startCampaign(brandId: string, options: CampaignOptions = 
     created_at: now(),
     updated_at: now(),
   });
-  await logEvent({ brandId, campaignId: id, message: `Campaign started: ${options.concepts} videos, ${options.shotsPerConcept} shots each, ${options.videoModel}` });
+  await logEvent({
+    brandId,
+    campaignId: id,
+    message: options.concepts > 0 ? `Campaign started: ${options.concepts} videos, ${options.shotsPerConcept} shots each, ${options.videoModel}${options.statics ? ", plus static ads" : ""}` : "Campaign started: research and static ads, no videos",
+  });
   return id;
 }
 
@@ -137,7 +141,7 @@ async function stepResearch(campaign: CampaignRow) {
   if (!monid) throw new Error("Research runs on Monid: add a Monid API key in Settings, then retry.");
   const brand = (await getBrand(campaign.brand_id))!;
   await ensureRuns(campaign.id, phaseASpecs(brand.domain));
-  await progressRuns(campaign, monid);
+  await progressRuns({ campaignId: campaign.id, brandId: campaign.brand_id }, monid, ["A", "C"]);
   const runs = await listRuns(campaign.id);
   if (runs.some((run) => run.status === "pending" || run.status === "running")) return;
 
@@ -163,55 +167,22 @@ async function stepResearch(campaign: CampaignRow) {
   const done = runs.filter((run) => run.status === "done").length;
   if (done === 0) throw new Error("Every research source failed. Check the website address and your Monid balance, then retry.");
   const options = parse<CampaignOptions>(campaign.options_json, defaultOptions());
-  await save("campaigns", campaign.id, { research_json: JSON.stringify(pack), stage: options.learnStyle && naive ? "style" : "strategy" });
+  const videos = options.concepts > 0;
+  await save("campaigns", campaign.id, videos ? { research_json: JSON.stringify(pack), stage: options.learnStyle && naive ? "style" : "strategy" } : { research_json: JSON.stringify(pack), stage: "review", status: "review" });
   await logEvent({
     brandId: brand.id,
     campaignId: campaign.id,
     message: `Research done: ${pack.videos.length} top videos, ${pack.ads.length} live ads, ${pack.reddit.length} Reddit threads, ${pack.seo.keywords.length} keywords (${done}/${runs.length} sources)`,
   });
-}
-
-async function ensureRuns(campaignId: string, specs: RunSpec[]) {
-  for (const spec of specs) {
-    const row = { id: newId("run"), campaign_id: campaignId, key: spec.key, phase: spec.phase, provider: spec.provider, endpoint: spec.endpoint, input_json: JSON.stringify(spec.input), status: "pending", created_at: now(), updated_at: now() };
-    await store().insert("monid_runs", row, { unique: ["campaign_id", "key"] });
+  if (options.statics || !videos) {
+    // Static packs keep their tables and renders on the local disk, so they need the SQLite store.
+    if (store().kind !== "sqlite") {
+      await logEvent({ brandId: brand.id, campaignId: campaign.id, level: "warn", message: "Static ads aren't available on this deployment yet: they still keep their data on the local disk." });
+    } else {
+      const { startStaticPack } = await import("./statics/pipeline");
+      await startStaticPack(campaign.id);
+    }
   }
-}
-
-async function progressRuns(campaign: CampaignRow, monid: MonidClient) {
-  const runs = (await listRuns(campaign.id)).filter((run) => run.status === "pending" || run.status === "running");
-  await Promise.all(
-    runs.map(async (run) => {
-      try {
-        if (run.status === "pending") {
-          const result = await monid.run(run.provider, run.endpoint, JSON.parse(run.input_json));
-          if (TERMINAL.has(result.status)) await finishRun(campaign, run, result);
-          else await save("monid_runs", run.id, { run_id: result.runId, status: "running" });
-        } else if (run.run_id) {
-          const result = await monid.getRun(run.run_id);
-          if (TERMINAL.has(result.status)) await finishRun(campaign, run, result);
-        }
-      } catch (error) {
-        if (error instanceof ApiError && error.retryable) return; // try again on the next tick
-        await save("monid_runs", run.id, { status: "failed", error: error instanceof Error ? error.message : String(error) });
-        if (error instanceof ApiError && error.outOfCredits) {
-          await logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, level: "warn", message: "Monid balance is too low for some research. Top up at app.monid.ai/wallet." });
-        }
-      }
-    }),
-  );
-}
-
-async function finishRun(campaign: CampaignRow, run: RunRow, result: Awaited<ReturnType<MonidClient["getRun"]>>) {
-  const ok = result.status === "COMPLETED" && !providerFailed(result);
-  await save("monid_runs", run.id, {
-    run_id: result.runId,
-    status: ok ? "done" : "failed",
-    output_json: ok ? JSON.stringify(result.output ?? null) : null,
-    error: ok ? null : result.status === "BLOCKED" ? "blocked by a Monid wallet or budget control" : `${result.status.toLowerCase()}${providerFailed(result) ? ` (provider HTTP ${result.providerResponse?.httpStatus})` : ""}`,
-    cost_micro: runCostMicro(result),
-  });
-  if (result.status === "BLOCKED") await logEvent({ brandId: campaign.brand_id, campaignId: campaign.id, level: "warn", message: "A Monid run was blocked by a wallet or budget control. Top up at app.monid.ai/wallet." });
 }
 
 // ---------- format study ----------
@@ -392,7 +363,7 @@ export async function stopCampaign(id: string) {
 export async function retryCampaign(id: string) {
   const campaign = await getCampaign(id);
   if (!campaign) throw new Error("No such campaign");
-  if (campaign.stage === "research") await store().update("monid_runs", { campaign_id: id, status: "failed" }, { status: "pending", run_id: null, error: null });
+  if (campaign.stage === "research") await requeueFailedRuns(id, ["A", "C"]);
   if (campaign.stage === "strategy" && campaign.strategy_session_id) await save("campaigns", id, { strategy_session_id: null, strategy_idem: `${id}-strategy-${Date.now()}`, strategy_nudges: 0 });
   if (campaign.stage === "production") {
     for (const creative of (await listCreatives(id)).filter((c) => c.status === "failed" && !c.rejected)) await regenerateCreative(creative.id);
@@ -404,7 +375,7 @@ export async function retryCampaign(id: string) {
 export async function recomputeSpend(campaignId: string) {
   const campaign = await getCampaign(campaignId);
   if (!campaign) return;
-  const research = (await listRuns(campaignId)).reduce((sum, run) => sum + (run.cost_micro ?? 0), 0);
+  const research = (await listRuns(campaignId, ["A", "C", "S"])).reduce((sum, run) => sum + (run.cost_micro ?? 0), 0);
   let naiveVideo = 0;
   let monidVideo = 0;
   for (const creative of await listCreatives(campaignId)) {

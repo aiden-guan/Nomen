@@ -53,6 +53,12 @@ explicitly only if you want to rotate it independently.
 deployment their API answers that phones aren't available there yet, and the worker skips them.
 Moving them means porting `src/lib/phones/store.ts` to the store, like the core's tables.
 
+**Static ad packs** (`src/lib/statics`) keep their tables (`static_packs`, `static_ads`) in SQLite and
+their renders under `data/media/statics`. Their research runs, campaign reads and events go through
+the store like the core's. On a Convex deployment the static-ads routes answer that static ads
+aren't available there yet, a campaign that asks for them logs a warning instead, and the worker
+skips them. Moving them means porting those two tables to the store and the renders to its files.
+
 ## Developing against Convex locally
 
 Not needed day to day (SQLite is the default), but possible:

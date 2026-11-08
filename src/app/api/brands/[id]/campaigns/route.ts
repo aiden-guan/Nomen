@@ -13,11 +13,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const overrides = await body<CampaignOptions>(request);
     const defaults = defaultOptions();
     const options: CampaignOptions = {
-      concepts: clamp(overrides.concepts, 1, 8, defaults.concepts),
+      // 0 videos makes a static-ads-only campaign.
+      concepts: clamp(overrides.concepts, 0, 8, defaults.concepts),
       shotsPerConcept: clamp(overrides.shotsPerConcept, 1, 3, defaults.shotsPerConcept),
       secondsPerShot: clamp(overrides.secondsPerShot, 4, 10, defaults.secondsPerShot),
       videoModel: typeof overrides.videoModel === "string" && overrides.videoModel ? overrides.videoModel : defaults.videoModel,
       learnStyle: typeof overrides.learnStyle === "boolean" ? overrides.learnStyle : defaults.learnStyle,
+      statics: typeof overrides.statics === "boolean" ? overrides.statics : defaults.statics,
     };
     const campaignId = await startCampaign(brandId, options);
     after(tick);

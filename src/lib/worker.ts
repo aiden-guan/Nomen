@@ -4,9 +4,10 @@ import { advancePhones } from "./phones";
 import { advanceCampaign } from "./pipeline";
 import { advancePosts } from "./publish";
 import { loadSettings } from "./settings";
+import { advanceStatics } from "./statics/pipeline";
 
-// One loop drives every campaign, post and phone session. It is safe to restart at any time: all
-// state lives in the store and every provider call is idempotent or polled.
+// One loop drives every campaign, static ad pack, post and phone session. It is safe to restart at
+// any time: all state lives in the store and every provider call is idempotent or polled.
 //
 // On a machine that stays up, the loop runs in-process every 4 s. On a serverless host nothing runs
 // between requests, so Convex calls /api/worker/tick: every 10 s while a campaign is in flight, and
@@ -40,8 +41,9 @@ export async function tick() {
     await loadSettings();
     const running = await store().find<{ id: string }>("campaigns", { status: "running" }, { order: [["created_at", "asc"]] });
     for (const { id } of running) await advanceCampaign(id);
+    // Static ad packs and phones keep their own tables in SQLite; they don't run on Convex yet.
+    if (store().kind === "sqlite") await advanceStatics().catch((error: unknown) => report("static ads", error));
     await advancePosts().catch((error: unknown) => report("posts", error));
-    // Phones keep their own tables in SQLite (src/lib/phones); they don't run on Convex yet.
     if (store().kind === "sqlite") await advancePhones().catch((error: unknown) => report("phones", error));
   } catch (error) {
     await report("worker", error);

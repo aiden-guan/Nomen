@@ -8,19 +8,20 @@ import { CreativeCard } from "./CreativeCard";
 import { Pipeline } from "./Pipeline";
 import { PublishView } from "./PublishView";
 import { ResearchView } from "./ResearchView";
+import { StaticAdsView } from "./StaticAdsView";
 import { StrategyView } from "./StrategyView";
 import { Badge, Button, Card, cx, Empty, Stat } from "./ui";
 
-const TABS = ["Videos", "Strategy", "Research", "Publish", "Phones", "Activity"] as const;
+const TABS = ["Videos", "Static ads", "Strategy", "Research", "Publish", "Phones", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 
 export function BrandWorkspace({ initial }: { initial: BrandView }) {
   const [view, setView] = useState(initial);
-  const [tab, setTab] = useState<Tab>(initial.campaign?.creatives.length ? "Videos" : "Research");
+  const [tab, setTab] = useState<Tab>(initial.campaign?.creatives.length ? "Videos" : initial.campaign?.statics || initial.campaign?.options.concepts === 0 ? "Static ads" : "Research");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const campaign = view.campaign;
-  const live = campaign?.status === "running" || campaign?.status === "publishing";
+  const live = campaign?.status === "running" || campaign?.status === "publishing" || campaign?.statics?.status === "running";
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/brands/${view.brand.id}`, { cache: "no-store" });
@@ -89,6 +90,9 @@ export function BrandWorkspace({ initial }: { initial: BrandView }) {
               {campaign.status === "stopped" ? "Resume" : "Retry"}
             </Button>
           )}
+          <Button variant="ghost" loading={busy === "static"} disabled={campaign?.status === "running"} onClick={() => act("static", `/api/brands/${view.brand.id}/campaigns`, { concepts: 0, statics: true })}>
+            Static ads only
+          </Button>
           <Button variant="primary" loading={busy === "new"} disabled={campaign?.status === "running"} onClick={() => act("new", `/api/brands/${view.brand.id}/campaigns`)}>
             New campaign
           </Button>
@@ -101,7 +105,13 @@ export function BrandWorkspace({ initial }: { initial: BrandView }) {
         <Empty title="No campaign yet">Start one to research the brand and produce videos.</Empty>
       ) : (
         <>
-          <Pipeline campaign={campaign} />
+          {campaign.options.concepts === 0 ? (
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-zinc-300">
+              Static ads only: this campaign researches the brand and makes static ads, with no video. Progress is on the Static ads tab.
+            </div>
+          ) : (
+            <Pipeline campaign={campaign} />
+          )}
           {campaign.error && campaign.status !== "running" && (
             <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{campaign.error}</div>
           )}
@@ -112,8 +122,16 @@ export function BrandWorkspace({ initial }: { initial: BrandView }) {
           )}
 
           <div className="grid gap-4 sm:grid-cols-4">
-            <Stat label="Videos ready" value={`${ready.length} / ${creatives.length || campaign.options.concepts}`} hint={`${campaign.options.shotsPerConcept} shots × ${campaign.options.secondsPerShot}s each`} />
-            <Stat label="Naive spend" value={`$${campaign.spend.naive.toFixed(2)}`} hint={campaign.estimateUsd ? `video estimate ~$${campaign.estimateUsd.toFixed(2)}` : campaign.options.videoModel} />
+            {campaign.options.concepts === 0 ? (
+              <Stat label="Static ads ready" value={`${campaign.statics?.ads.filter((ad) => ad.status === "ready").length ?? 0} / ${campaign.statics?.ads.length ?? 0}`} hint="each at every platform size" />
+            ) : (
+              <Stat label="Videos ready" value={`${ready.length} / ${creatives.length || campaign.options.concepts}`} hint={`${campaign.options.shotsPerConcept} shots × ${campaign.options.secondsPerShot}s each`} />
+            )}
+            {campaign.options.concepts === 0 ? (
+              <Stat label="Naive spend" value={`≈$${(campaign.statics?.spend.modelEstimate ?? 0).toFixed(2)}`} hint="static ads: model calls, estimated from tokens" />
+            ) : (
+              <Stat label="Naive spend" value={`$${campaign.spend.naive.toFixed(2)}`} hint={campaign.estimateUsd ? `video estimate ~$${campaign.estimateUsd.toFixed(2)}` : campaign.options.videoModel} />
+            )}
             <Stat label="Monid spend" value={`$${campaign.spend.monid.toFixed(2)}`} hint={`${campaign.runs.filter((r) => r.status === "done").length} research sources`} />
             <Stat label="Posts" value={campaign.posts.length} hint={`${campaign.posts.filter((p) => p.status === "posted").length} live`} />
           </div>
@@ -127,6 +145,7 @@ export function BrandWorkspace({ initial }: { initial: BrandView }) {
               >
                 {name}
                 {name === "Videos" && creatives.length > 0 && <span className="ml-1.5 text-xs text-zinc-500">{creatives.length}</span>}
+                {name === "Static ads" && (campaign.statics?.ads.length ?? 0) > 0 && <span className="ml-1.5 text-xs text-zinc-500">{campaign.statics!.ads.length}</span>}
               </button>
             ))}
           </nav>
@@ -161,6 +180,7 @@ export function BrandWorkspace({ initial }: { initial: BrandView }) {
               </div>
             ))}
 
+          {tab === "Static ads" && <StaticAdsView campaign={campaign} onChange={() => void refresh()} />}
           {tab === "Strategy" && (campaign.strategy ? <StrategyView strategy={campaign.strategy} /> : <Empty title="The strategy is not written yet">It follows the research, usually within a few minutes.</Empty>)}
           {tab === "Research" && <ResearchView campaign={campaign} />}
           {tab === "Publish" && <PublishView brandId={view.brand.id} campaign={campaign} onChange={() => void refresh()} />}

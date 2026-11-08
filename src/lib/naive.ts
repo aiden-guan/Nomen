@@ -101,14 +101,118 @@ export class NaiveClient {
   }
 
   /** One model call through Naive's Messages-format proxy, billed to the organization. */
-  message(input: { model: string; max_tokens: number; system?: string; messages: Array<{ role: "user" | "assistant"; content: unknown }>; tools?: object[] }) {
-    return this.call<{ content: Array<{ type: string; text?: string; name?: string; input?: unknown }>; stop_reason: string }>(
-      "POST",
-      "/v1/proxy/anthropic/v1/messages",
-      input,
-      undefined,
-      120_000,
-    );
+  message(input: { model: string; max_tokens: number; system?: string; messages: Array<{ role: "user" | "assistant"; content: unknown }>; tools?: object[] }, timeoutMs = 120_000) {
+    return this.call<{
+      content: Array<{ type: string; text?: string; name?: string; input?: unknown }>;
+      stop_reason: string;
+      usage?: { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number };
+    }>("POST", "/v1/proxy/anthropic/v1/messages", input, undefined, timeoutMs);
+  }
+
+  /**
+   * The same model call, streamed. Long answers (a vision study, a page of ad copy) outlive a
+   * plain request at the proxy; a stream keeps the connection busy until the last token. Returns
+   * the assembled message, with tool inputs parsed and every usage field summed.
+   */
+  async messageStream(input: { model: string; max_tokens: number; system?: string; messages: Array<{ role: "user" | "assistant"; content: unknown }>; tools?: object[] }, timeoutMs = 600_000) {
+    let response: Response;
+    try {
+      response = await fetch(`${this.base}/v1/proxy/anthropic/v1/messages`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${this.key}`, "vetta-version": "2026-09-30", "content-type": "application/json", accept: "text/event-stream" },
+        body: JSON.stringify({ ...input, stream: true }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      throw new ApiError("naive", 0, "network_error", error instanceof Error ? error.message : String(error));
+    }
+    if (!response.ok || !response.body) {
+      const raw = await response.text();
+      let envelope: Record<string, unknown> = {};
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        envelope = (typeof parsed.error === "object" && parsed.error ? parsed.error : parsed) as Record<string, unknown>;
+      } catch {
+        envelope = { message: raw.slice(0, 300) };
+      }
+      throw new ApiError("naive", response.status, String(envelope.code ?? envelope.type ?? response.status), String(envelope.message ?? `HTTP ${response.status}`), String(envelope.request_id ?? "") || undefined);
+    }
+    const blocks: Array<{ type: string; text?: string; name?: string; json?: string; input?: unknown }> = [];
+    // Usage counts are cumulative and can arrive in message_start, message_delta or both: Naive's
+    // proxy sends zeros at the start and the real counts (input included) in the final delta. Keep
+    // the highest value seen for each field.
+    const seen = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0 };
+    const takeUsage = (u: Record<string, unknown> | undefined) => {
+      const n = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+      if (!u) return;
+      seen.input = Math.max(seen.input, n(u.input_tokens));
+      seen.cacheWrite = Math.max(seen.cacheWrite, n(u.cache_creation_input_tokens));
+      seen.cacheRead = Math.max(seen.cacheRead, n(u.cache_read_input_tokens));
+      seen.output = Math.max(seen.output, n(u.output_tokens));
+    };
+    let stopReason = "";
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const handle = (data: string) => {
+      const event = JSON.parse(data) as Record<string, unknown>;
+      const type = event.type;
+      if (type === "message_start") {
+        takeUsage((event.message as Record<string, unknown> | undefined)?.usage as Record<string, unknown> | undefined);
+      } else if (type === "content_block_start") {
+        const block = event.content_block as Record<string, unknown>;
+        blocks[Number(event.index)] = { type: String(block.type), text: typeof block.text === "string" ? block.text : "", name: typeof block.name === "string" ? block.name : undefined, json: "" };
+      } else if (type === "content_block_delta") {
+        const block = blocks[Number(event.index)];
+        const delta = event.delta as Record<string, unknown>;
+        if (block && delta.type === "text_delta") block.text = `${block.text ?? ""}${String(delta.text ?? "")}`;
+        if (block && delta.type === "input_json_delta") block.json = `${block.json ?? ""}${String(delta.partial_json ?? "")}`;
+      } else if (type === "message_delta") {
+        takeUsage(event.usage as Record<string, unknown> | undefined);
+        stopReason = String((event.delta as Record<string, unknown>)?.stop_reason ?? stopReason);
+      } else if (type === "error") {
+        const err = (event.error ?? {}) as Record<string, unknown>;
+        throw new ApiError("naive", 502, String(err.type ?? "stream_error"), String(err.message ?? "the model stream failed"));
+      }
+    };
+    const reader = response.body.getReader();
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let cut: number;
+        while ((cut = buffer.indexOf("\n\n")) >= 0) {
+          const chunk = buffer.slice(0, cut);
+          buffer = buffer.slice(cut + 2);
+          const data = chunk
+            .split("\n")
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trim())
+            .join("");
+          if (data) handle(data);
+        }
+      }
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError("naive", 0, "network_error", `the model stream broke off: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!stopReason) throw new ApiError("naive", 0, "network_error", "the model stream ended early");
+    // With prompt caching, input tokens are split across three fields: count them all.
+    const usage = { input_tokens: seen.input + seen.cacheWrite + seen.cacheRead, output_tokens: seen.output };
+    return {
+      content: blocks.filter(Boolean).map((block) => {
+        if (block.type !== "tool_use") return { type: block.type, text: block.text };
+        let parsed: unknown = undefined;
+        try {
+          parsed = block.json ? JSON.parse(block.json) : {};
+        } catch {
+          parsed = undefined; // a cut-off tool call: the caller falls back to reading text
+        }
+        return { type: "tool_use", name: block.name, input: parsed };
+      }),
+      stop_reason: stopReason,
+      usage,
+    };
   }
 
   generateImage(input: { prompt: string; aspect_ratio?: string; image_urls?: string[]; model?: string; n?: number }, idempotencyKey: string) {
