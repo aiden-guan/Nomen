@@ -85,12 +85,16 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
 
   const viewRef = useRef(view);
   viewRef.current = view;
+  // The opening runs on timers; Back or leaving the page must stop them.
+  const cancelMarch = useRef<() => void>(() => undefined);
+  useEffect(() => () => cancelMarch.current(), []);
 
   // Back/forward between "/" and "/camp/…" without remounting.
   useEffect(() => {
     const e = engine.current;
     if (!e) return;
     if (pathname === "/" && viewRef.current === "camp") {
+      cancelMarch.current();
       setView("landing");
       setArrived(false);
       setPhase("idle");
@@ -116,7 +120,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
     const el = formAnchorRef.current;
     if (!e || !el) return;
     return e.stage.anchor(el, () => ({ x: FORM_AT, y: FORM_AT, z: 0 }));
-  }, [engineReady]);
+  }, [engineReady, view]);
 
   // Returning visitors: their camps, from the core's brand list.
   useEffect(() => {
@@ -150,7 +154,8 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
         clearInterval(knocking);
         setBrandId(result.brandId);
         setPhase("opening");
-        march(e, result.brandId, reducedMotion, () => {
+        cancelMarch.current();
+        cancelMarch.current = march(e, result.brandId, reducedMotion, () => {
           setView("camp");
           setPhase("marching");
           window.history.pushState(null, "", `/camp/${encodeURIComponent(result.brandId)}`);
@@ -262,7 +267,7 @@ const FORM_AT = 64;
 
 export function landingCamera(stage: Stage) {
   const { width, height } = stage.size;
-  const formHeight = 168;
+  const formHeight = 232;
   const top = -150; // the horse's ears
   const bottom = FORM_AT;
   // On phones the island's rim may run off the sides; the horse itself must fit.
@@ -274,7 +279,7 @@ export function landingCamera(stage: Stage) {
   return { x: 0, y: top - (topPx - height / 2) / zoom, zoom };
 }
 
-/** Doors, plank, the column of soldiers and the walk to the camp. */
+/** Doors, plank, the column of soldiers and the walk to the camp. Returns a cancel function. */
 function march(e: { stage: Stage; landing: LandingScene; camp: CampScene }, brandId: string, reduced: boolean, toCamp: () => void, arrived: () => void) {
   const { stage, landing, camp } = e;
   camp.prepare(brandId);
@@ -285,17 +290,20 @@ function march(e: { stage: Stage; landing: LandingScene; camp: CampScene }, bran
     toCamp();
     stage.look(camp.camera(), 0);
     arrived();
-    return;
+    return () => undefined;
   }
   landing.open();
-  setTimeout(() => landing.startStream(), OPEN_SECONDS * 1000 - 150);
-  // Follow the column down to the camp once a few soldiers are out.
-  setTimeout(() => {
-    toCamp();
-    camp.show(true);
-    stage.look(camp.camera(), 3.2, easeInOutCubic, arrived);
-  }, OPEN_SECONDS * 1000 + 2300);
-  setTimeout(() => landing.stopStream(), OPEN_SECONDS * 1000 + 9000);
+  const timers = [
+    setTimeout(() => landing.startStream(), OPEN_SECONDS * 1000 - 150),
+    // Follow the column down to the camp once a few soldiers are out.
+    setTimeout(() => {
+      toCamp();
+      camp.show(true);
+      stage.look(camp.camera(), 3.2, easeInOutCubic, arrived);
+    }, OPEN_SECONDS * 1000 + 2300),
+    setTimeout(() => landing.stopStream(), OPEN_SECONDS * 1000 + 9000),
+  ];
+  return () => timers.forEach(clearTimeout);
 }
 
 function BrandsMenu({ brands }: { brands: BrandListItem[] }) {

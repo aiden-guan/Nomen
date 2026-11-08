@@ -91,7 +91,7 @@ export class Stage {
    */
   fitZoom(fit: number) {
     const whole = Math.floor(fit * this.dpr + 0.02) / this.dpr;
-    if (whole >= fit * 0.85) return Math.max(1 / this.dpr, whole);
+    if (whole >= fit * 0.78) return Math.max(1 / this.dpr, whole);
     return Math.max(1 / this.dpr, Math.floor(fit * 4) / 4);
   }
 
