@@ -83,6 +83,9 @@ describe("the tour's real creators", () => {
     expect(creators.body).toContain("turned down 1 of them and approved @maker (8/10)");
     expect(steps.map((s) => s.key).indexOf("creators")).toBe(steps.map((s) => s.key).indexOf("post") - 1);
     expect(tourSteps(recording).some((s) => s.key === "creators")).toBe(false);
+    // One creator approved for two briefs is named once.
+    const twice: DemoScript = { ...recording, creatives: recording.creatives.map((c, i) => (i < 2 ? { ...c, concept: c.concept && ({ ...c.concept, casting } as typeof c.concept) } : c)) };
+    expect(tourSteps(twice).find((s) => s.key === "creators")!.body).toContain("approved @maker (8/10) for two briefs.");
   });
 });
 

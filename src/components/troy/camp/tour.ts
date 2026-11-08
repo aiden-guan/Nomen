@@ -165,9 +165,16 @@ export function tourSteps(script: DemoScript): TourStep[] {
   // The same briefs cast to real creators, when the recording has their castings.
   const cast = videos.map((c) => castOf(c.concept)).filter((c): c is NonNullable<ReturnType<typeof castOf>> => c !== null);
   if (cast.length) {
-    const picks = cast.map((c) => {
-      const verdict = c.reviews.filter((r) => r.creator === c.pick.handle).at(-1);
-      return `@${c.pick.handle}${verdict?.score ? ` (${verdict.score}/10)` : ""}`;
+    const byCreator = new Map<string, number[]>();
+    for (const c of cast) {
+      const score = c.reviews.filter((r) => r.creator === c.pick.handle).at(-1)?.score;
+      byCreator.set(c.pick.handle, [...(byCreator.get(c.pick.handle) ?? []), ...(score ? [score] : [])]);
+    }
+    const briefsFor = (n: number) => (n > 1 ? ` for ${NUMBER[n] ?? n} briefs` : "");
+    const picks = [...byCreator].map(([handle, scores]) => {
+      const counted = cast.filter((c) => c.pick.handle === handle).length;
+      const same = scores.length > 0 && scores.every((s) => s === scores[0]);
+      return `@${handle}${scores.length ? ` (${same ? scores[0] : scores.join(", ")}/10)` : ""}${briefsFor(counted)}`;
     });
     const turnedDown = cast.reduce((n, c) => n + c.reviews.filter((r) => !r.approve).length, 0);
     steps.push({
