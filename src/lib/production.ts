@@ -8,6 +8,7 @@ import { ApiError } from "./http";
 import { chunkCaptions } from "./creative/captions";
 import { renderTimeline } from "./creative/edit";
 import { buildTimeline, type RenderedAssets } from "./creative/plan";
+import { trimSilence } from "./creative/trim";
 import type { ProductBrief } from "./creative/types";
 import { download, extractFrames, ffmpegPath, mediaDir, probe, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
@@ -511,7 +512,12 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
   const script = concept.script!;
   const plan = concept.plan!;
   const dir = mediaDir(creativeId);
-  const aroll = await Promise.all(shots.map(async (shot) => ({ path: shot.local_path!, duration: (await probe(shot.local_path!)).duration })));
+  // Cut the dead air a 4/6/8 s render leaves around the line, so the edit is as tight as the reference.
+  const aroll = await Promise.all(
+    shots.map((shot) =>
+      trimSilence(shot.local_path!, join(dir, `shot${shot.n}-tight.mp4`)).catch(async () => ({ path: shot.local_path!, duration: (await probe(shot.local_path!)).duration })),
+    ),
+  );
 
   let voiceover: RenderedAssets["voiceover"] = null;
   if (!plan.aroll.length && plan.voiceover) {
