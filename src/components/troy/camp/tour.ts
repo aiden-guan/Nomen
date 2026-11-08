@@ -31,7 +31,40 @@ export type TourStep = {
   agent?: string;
   /** The step plays autopilot's next campaign (the loop's second round); its times are that campaign's. */
   round?: boolean;
+  /** Autoplay: seconds the step stays on screen before the next one opens. */
+  dwell: number;
+  /**
+   * Autoplay: how much faster the step plays (the clock and the scene alike). Unset, it is worked
+   * out so the clock reaches the step's hold in time (paceFor).
+   */
+  pace?: number;
 };
+
+/** Autoplay never runs a step slower than real time, or faster than this. */
+export const MAX_PACE = 6;
+
+/**
+ * How much faster a step plays on autoplay: enough for the clock to get from `from` to the step's
+ * hold within most of its time on screen, so what the step is about has happened before it moves on.
+ */
+export function paceFor(step: TourStep, from: number, end: number) {
+  if (step.pace) return step.pace;
+  const to = step.hold === "end" ? end : step.run !== undefined ? from + step.run : step.hold;
+  const ahead = Math.max(0, to - from);
+  return Math.max(1, Math.min(MAX_PACE, ahead / (step.dwell * 0.85)));
+}
+
+/** Autoplay's length: every step's time on screen. */
+export const tourSeconds = (steps: TourStep[]) => steps.reduce((sum, step) => sum + step.dwell, 0);
+
+/**
+ * Seconds from pressing Enter at the horse to the column reaching the camp, where the tour starts
+ * (TroyExperience.tsx: the knock, the doors, the camera following the column down).
+ */
+export const ENTRANCE_SECONDS = 10.5;
+
+/** Autoplay fits in this, entrance included: the length of a demo video. */
+export const AUTOPLAY_BUDGET = 105;
 
 /** The scout the tour rides along with: TikTok's if he rides, else the busiest land's. */
 const FOLLOW_LANDS: LandId[] = ["tiktok", "instagram", "youtube", "reddit"];
@@ -100,6 +133,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
 
   steps.push({
     key: "start",
+    dwell: 4,
     title: `${script.brand.domain} goes in`,
     body: "A website is the only input. From here the agents run the whole campaign themselves: research, strategy, scripts, videos and posting.",
     at: 0,
@@ -114,6 +148,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
   const rideAt = scout ? Math.max(3.5, scout.start - 0.3) : null;
   steps.push({
     key: "scouts",
+    dwell: 5,
     title: "The scouts fan out",
     body: `They ride to ${plural(lands.length, "source")} at once: ${list(named)}. ${plural(script.runs.length, "research run")} in all.`,
     at: 3,
@@ -127,6 +162,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
     const labels = [...new Set(scout.runs.map((key) => runLabel(key)))];
     steps.push({
       key: "agent",
+      dwell: 8.5,
       title: `Ride along with the ${name} scout`,
       body: `Every soldier here is an agent with one job. This one rides to ${name} for ${plural(scout.runs.length, "search", "searches")} (${list(labels.slice(0, 4).map((label) => label.replace(new RegExp(`^${name}: `), "")))}${labels.length > 4 ? " and more" : ""}) and brings them back in a scroll case for the strategist. His card says what he is doing right now; click any soldier to follow it the same way.`,
       at: rideAt,
@@ -141,6 +177,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
     const checks = formatChecks(script);
     steps.push({
       key: "findings",
+      dwell: 5.5,
       title: "What they brought back",
       body: `${count(research.videos)} top videos, ${plural(research.ads, "live ad")}, ${plural(research.reddit, "Reddit thread")} and ${plural(research.keywords, "keyword")}.${checks.length ? ` Format checks found that ${list(checks)}.` : ""}`,
       at: tl.research[1],
@@ -152,6 +189,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
   if (tl.style && script.style) {
     steps.push({
       key: "oracle",
+      dwell: 5.5,
       title: "Studying the viral references",
       body: `The oracle breaks the ${plural(script.style.samples, "best outlier video")} down beat by beat (transcript, cuts and frames), so each new video copies what made its original work.`,
       at: tl.style[0],
@@ -164,6 +202,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
   const formats = videos.map((c) => c.concept?.format ?? "video");
   steps.push({
     key: "tent",
+    dwell: 6.5,
     title: "The creative director's plan",
     body: `The director picks ${plural(videos.length, "video")}, each one backed by evidence from the research: ${formatList(formats)}.`,
     at: tl.strategy[0],
@@ -174,6 +213,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
 
   steps.push({
     key: "workshop",
+    dwell: 6,
     title: "The workshop",
     body: `Each video is made its own way: ${[...new Set(formats.map((f) => making(f, brand)))].join("; ")}. Quality control checks every one.`,
     at: tl.production[0],
@@ -186,6 +226,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
     const why = concept?.why?.trim();
     steps.push({
       key: `video-${creative.idx}`,
+      dwell: 4,
       title: `Video ${i + 1}: ${concept?.title ?? "untitled"}`,
       body: `${capital(concept?.format ?? "video")}.${why ? ` ${why}` : ""}`,
       at: tl.review,
@@ -212,6 +253,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
     const turnedDown = cast.reduce((n, c) => n + c.reviews.filter((r) => !r.approve).length, 0);
     steps.push({
       key: "creators",
+      dwell: 5,
       title: "Or hand them to real creators",
       body: `The same briefs can go to people who already make these videos. A client-taste agent playing ${brand} vets each creator${turnedDown ? `, turned down ${plural(turnedDown, "of them", "of them")}` : ""} and approved ${list(picks)}. Their outreach messages are drafted and wait for you to send.`,
       at: tl.review,
@@ -224,6 +266,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
   const platforms = [...new Set(videos.flatMap((c) => c.platforms ?? []))].map((p) => ({ tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube" })[p] ?? capital(p));
   steps.push({
     key: "post",
+    dwell: 5,
     title: "Approve and post",
     body: `One click approves them all, and they go out to the brand's own ${platforms.length ? list(platforms) : "accounts"}, labeled AI-generated: all at once, or one a day.`,
     hold: 0,
@@ -238,6 +281,8 @@ export function tourSteps(script: DemoScript): TourStep[] {
     : "Scored on its real likes per view, never made up.";
   steps.push({
     key: "battle",
+    dwell: 14,
+    pace: 3,
     title: "Into battle",
     body: `Every video sails as a company against ${script.plan?.competitors?.[0]?.name ?? "the rival"}'s city. Once its posts have numbers, it fights the category's top videos${bench ? ` (${count(bench.views)} median views, ${((bench.likes / Math.max(1, bench.views)) * 100).toFixed(1)}% likes per view)` : ""}. ${scored}`,
     hold: "end",
@@ -248,6 +293,7 @@ export function tourSteps(script: DemoScript): TourStep[] {
   const lesson = roundLesson(script);
   steps.push({
     key: "loop",
+    dwell: 7.5,
     title: "Then it goes again: campaign 2",
     body: `With autopilot on, the next campaign starts on its own cadence and weekly budget, and the director plans it from how these posts did${
       lesson ? `: "${lesson.best.title}" led, ${against(lesson.best.ratio)} the top videos, and "${lesson.worst.title}" trailed, so more ${lesson.best.format}${lesson.illustrative ? " (illustrative numbers)" : ""}` : ""

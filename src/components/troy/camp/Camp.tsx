@@ -154,7 +154,16 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
     },
     [takeCamera],
   );
-  const tour = useTour({ enabled: demo, arrived, player, apply: applyStep });
+  // Autoplay fast-forwards a step to fit its time: the scene plays at the same pace as the clock.
+  const paceScene = useCallback(
+    (rate: number) => {
+      const stage = engine.current?.stage;
+      if (stage) stage.timeScale = rate;
+    },
+    [engine],
+  );
+  useEffect(() => () => paceScene(1), [paceScene]);
+  const tour = useTour({ enabled: demo, arrived, player, apply: applyStep, pace: paceScene });
   // The soldier the tour's step rides along with (the camera comes in closer for him).
   const closeUp = Boolean(tour.on && agentId && tour.step?.agent === agentId);
   const presenter = useMemo(() => (tour.on ? { ...player, next: tour.next, back: tour.back, restart: tour.restart } : player), [tour.on, tour.next, tour.back, tour.restart, player]);
@@ -738,7 +747,8 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
       )}
       {arrived && view && wide && battling && !panel && <Scoreboard battle={plan.battle} category={campaign?.plan?.category ?? null} onOpen={() => openStation("agora")} />}
 
-      {arrived && view && (wide || !panel) && <ZoomControls wide={wide} panel={panel} manual={manual || (Boolean(agentId) && following)} onZoom={zoomBy} onFit={fitView} />}
+      {/* On autoplay the camera is the tour's, and the corner is left free (for a face cam). */}
+      {arrived && view && (wide || !panel) && !tour.auto && <ZoomControls wide={wide} panel={panel} manual={manual || (Boolean(agentId) && following)} onZoom={zoomBy} onFit={fitView} />}
 
       {arrived && campaign?.status === "failed" && (
         <div role="alert" className={`${styles.box} ${styles.enter} absolute left-1/2 top-[92px] z-20 flex max-w-[min(640px,calc(100vw-32px))] -translate-x-1/2 items-center gap-4 px-4 py-3`}>
@@ -771,6 +781,7 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
           actions={actions}
           demo={demo ? { recorded: Boolean(player.script?.recorded) } : null}
           focus={tour.on ? tourFocus : null}
+          glide={tour.auto && !tourFocus && tour.step?.station === selected ? tour.step.dwell : null}
           onAgent={(id) => {
             setAgentId(id);
             setFollowing(true);
@@ -816,7 +827,7 @@ export function Camp({ brandId, arrived, engine, home = "/", site = null }: { br
         <Screening videos={finishedVideos} references={campaign?.references ?? []} id={screening} onPick={setScreening} onClose={() => setScreening(null)} actions={actions} busy={busy} wide={wide} arrows={!tour.on} />
       )}
 
-      {arrived && demo && tour.on && <TourCard tour={tour} wide={wide} screening={Boolean(screening)} clear={panel && wide && !screening ? 440 : 0} onBottom={setTourBottom} />}
+      {arrived && demo && tour.on && <TourCard tour={tour} wide={wide} screening={Boolean(screening)} clear={panel && wide && !screening ? 440 : 0} onBottom={setTourBottom} playing={player.playing} onPause={player.toggle} />}
 
       {demo && player.notice && (
         <p role="status" className={`${styles.boxSoft} ${styles.enter} absolute left-1/2 top-[76px] z-30 -translate-x-1/2 px-3 py-1.5 text-[13px]`}>

@@ -32,6 +32,8 @@ export type DemoPlayer = {
   /** Autopilot starts the next campaign; and back to the one before, as it ended. */
   nextRound: () => void;
   previousRound: () => void;
+  /** Runs the clock this many times faster (the tour's autoplay fast-forwards a step to fit its time). */
+  setRate: (rate: number) => void;
 };
 
 const TICK_MS = 250;
@@ -50,6 +52,8 @@ export function useDemo(enabled: boolean, arrived: boolean, site: string | null 
   const [playing, setPlaying] = useState(true);
   const [auto, setAuto] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // ?speed= sets the base; the tour's autoplay multiplies it per step (rate).
+  const baseSpeed = useRef(1);
   const speed = useRef(1);
   const playingRef = useRef(playing);
   playingRef.current = playing;
@@ -64,7 +68,8 @@ export function useDemo(enabled: boolean, arrived: boolean, site: string | null 
     const params = new URLSearchParams(window.location.search);
     setAuto(params.get("auto") === "1");
     const asked = Number(params.get("speed"));
-    speed.current = Number.isFinite(asked) && asked > 0 ? Math.min(4, Math.max(0.25, asked)) : 1;
+    baseSpeed.current = Number.isFinite(asked) && asked > 0 ? Math.min(4, Math.max(0.25, asked)) : 1;
+    speed.current = baseSpeed.current;
     // The site typed at the horse, else ?site=: the camp mounts while the doors open, before the
     // address changes to ?site=, so the landing passes it in.
     void loadDemoScript(site ?? params.get("site")).then((loaded) => alive && setScript(loaded));
@@ -122,6 +127,9 @@ export function useDemo(enabled: boolean, arrived: boolean, site: string | null 
       },
       play: () => setPlaying(true),
       postAll: () => script && setState((s) => publish(script, approveAll(script, s), "now")),
+      setRate: (rate: number) => {
+        speed.current = baseSpeed.current * rate;
+      },
       nextRound: () => setState((s) => nextRound(s)),
       previousRound: () => setState((s) => previousRound(s)),
     }),

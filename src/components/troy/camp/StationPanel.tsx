@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, type SyntheticEvent, useEffect, useRef, useState } from "react";
+import { type ReactNode, type RefObject, type SyntheticEvent, useEffect, useRef, useState } from "react";
 import { type BrandView, type CreativeView, type PostView, type SocialAccountView, socialAccounts } from "../api";
 import type { Baker } from "../engine/baker";
 import type { BattlePlan } from "../scenes/battle";
@@ -38,6 +38,7 @@ export function StationPanel({
   actions,
   demo,
   focus,
+  glide = null,
   onAgent,
   onStation,
   onClose,
@@ -54,6 +55,8 @@ export function StationPanel({
   demo: { recorded: boolean } | null;
   /** The demo tour's pointer: "concepts" scrolls the war tent to its concepts once they are in. */
   focus?: string | null;
+  /** The tour's autoplay: seconds it stays here, scrolling itself to what this station did and on down. */
+  glide?: number | null;
   onAgent: (id: string) => void;
   onStation: (id: StationId) => void;
   onClose: () => void;
@@ -70,6 +73,9 @@ export function StationPanel({
   const empty = here.filter((a) => a.returning === "empty").length;
   const latest = view.events.filter((e) => stationForEvent(e.message, view.campaign?.stage ?? "research") === id).slice(0, 4);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const detail = useRef<HTMLDivElement>(null);
+  useGlide(scroller, detail, glide, id);
   useEffect(() => {
     headingRef.current?.focus();
   }, [id]);
@@ -105,7 +111,7 @@ export function StationPanel({
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         {error && (
           <p role="alert" className="mb-4 bg-[rgba(183,58,49,0.08)] px-3 py-2 text-[13px] text-[var(--crimson-dark)]">
             {error}
@@ -141,6 +147,7 @@ export function StationPanel({
           {agents.length > 12 && <p className="mt-2 text-[12px] text-[var(--ink-soft)]">and {agents.length - 12} more</p>}
         </Section>
 
+        <div ref={detail} className="scroll-mt-3" />
         {id === "scouts" && <Scouts view={view} actions={actions} />}
         {id === "oracle" && <Oracle view={view} state={state.state} actions={actions} />}
         {id === "tent" && <Tent view={view} focus={focus ?? null} />}
@@ -349,6 +356,46 @@ function Oracle({ view, state, actions }: { view: BrandView; state: string; acti
  * The demo tour's pointer: once `ready`, scrolls the panel's own box (never the page, as
  * scrollIntoView would) so the returned mark is at its top.
  */
+/**
+ * The tour's autoplay scrolls the panel itself: a moment on the top, then down to what the station
+ * did (`detail`), then slowly on to the bottom before the step ends. Scrolling by hand stops it.
+ */
+function useGlide(scroller: RefObject<HTMLDivElement | null>, detail: RefObject<HTMLDivElement | null>, seconds: number | null, id: StationId) {
+  useEffect(() => {
+    const box = scroller.current;
+    if (!seconds || !box) return;
+    const start = performance.now();
+    const from = box.scrollTop;
+    const ease = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
+    let frame = 0;
+    let stopped = false;
+    const stop = () => {
+      stopped = true;
+    };
+    box.addEventListener("wheel", stop, { passive: true });
+    box.addEventListener("touchstart", stop, { passive: true });
+    const tick = () => {
+      if (stopped) return;
+      const t = (performance.now() - start) / 1000;
+      const max = Math.max(0, box.scrollHeight - box.clientHeight);
+      const mark = detail.current ? Math.min(max, box.scrollTop + detail.current.getBoundingClientRect().top - box.getBoundingClientRect().top - 8) : 0;
+      // 0.9 s on the top, 1 s down to the detail, then on to the bottom by 90% of the step.
+      const settle = 1.9;
+      const end = Math.max(settle + 0.5, seconds * 0.9);
+      const target =
+        t < 0.9 ? from : t < settle ? from + (mark - from) * ease((t - 0.9) / 1) : mark + (max - mark) * Math.min(1, (t - settle) / (end - settle));
+      box.scrollTop = target;
+      if (t < end) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      box.removeEventListener("wheel", stop);
+      box.removeEventListener("touchstart", stop);
+    };
+  }, [scroller, detail, seconds, id]);
+}
+
 function useScrollMark(on: boolean, ready: boolean) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {

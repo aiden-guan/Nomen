@@ -131,3 +131,31 @@ describe("the battle step", () => {
     expect(battle(unposted)).not.toMatch(/never made up/);
   });
 });
+
+describe("autoplay", () => {
+  const tl = timeline(recording);
+  const videos = recording.creatives.slice().sort((a, b) => a.idx - b.idx);
+  it("fits every recording in a demo video's length, entrance included", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { AUTOPLAY_BUDGET, ENTRANCE_SECONDS, tourSeconds } = await import("@/components/troy/camp/tour");
+    for (const id of ["usenaive-ai", "monid-ai"]) {
+      const script = JSON.parse(readFileSync(`public/demo/${id}/script.json`, "utf8")) as DemoScript;
+      const total = ENTRANCE_SECONDS + tourSeconds(tourSteps(script));
+      expect(total, id).toBeLessThanOrEqual(AUTOPLAY_BUDGET - 3);
+    }
+    expect(tourSteps(recording).every((step) => step.dwell > 0)).toBe(true);
+  });
+
+  it("plays a step fast enough for its clock to get there in time, within limits", async () => {
+    const { MAX_PACE, paceFor } = await import("@/components/troy/camp/tour");
+    const by = Object.fromEntries(tourSteps(recording).map((s) => [s.key, s]));
+    // The ride: from his start to his return, in most of the step's time.
+    const ride = by.agent;
+    const pace = paceFor(ride, ride.at!, 0);
+    expect(pace).toBeCloseTo(Math.min(MAX_PACE, ((ride.hold as number) - ride.at!) / (ride.dwell * 0.85)));
+    // Nothing to play: real time. The battle has its own pace.
+    expect(paceFor(by[`video-${videos[0].idx}`], tl.review, 0)).toBe(1);
+    expect(paceFor(by.battle, 0, 100)).toBe(by.battle.pace);
+    expect(paceFor({ ...by.workshop, hold: 1e6 }, 0, 0)).toBe(MAX_PACE);
+  });
+});
