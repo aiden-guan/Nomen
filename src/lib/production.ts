@@ -727,7 +727,8 @@ async function cutFinal(ctx: ProductionContext, creative: CreativeRow, concept: 
       const link = await ctx.naive.fileUrl(fileId);
       Object.assign(fields, { final_file_id: fileId, final_url: link.url, final_url_expires_at: link.expires_at });
     } catch (error) {
-      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" is ready but could not be uploaded to Naive for posting: ${message(error)}` });
+      // Not lost: posting uploads the stored cut itself (publish.ts), waiting out a busy Naive.
+      await logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}" is ready; its upload to Naive failed (${message(error)}) and is retried when it is posted` });
     }
   }
   await save("creatives", creative.id, { ...fields, status: "ready" });
