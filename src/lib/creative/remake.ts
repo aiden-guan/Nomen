@@ -1286,6 +1286,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   // 7. The reference's sound: the bed, and when each word is said. Our words land on its clock.
   const separate = deps.separate === undefined ? ((python) => (python ? (file: string, out: string) => demucs(python, file, out) : null))(stemsPython()) : deps.separate;
   const reference = await referenceAudio(work, deps.monid, manifest.audio, { reference: input.referencePath, end, separate });
+  notes.push(...(manifest.audio.notes ?? []).filter((n) => !notes.includes(n)));
   const ourWords = timeOurWords(reference.words, scriptLines.join(" "));
   const voiceInput = {
     reference: input.referencePath,
