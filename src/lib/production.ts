@@ -1,15 +1,16 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { promisify } from "node:util";
 import { db, logEvent, newId, now, parse, update } from "./db";
 import { ApiError } from "./http";
 import { chunkCaptions } from "./creative/captions";
 import { renderTimeline } from "./creative/edit";
-import { buildTimeline, type RenderedAssets } from "./creative/plan";
+import { buildTimeline, type RenderedAssets, screenVisualId } from "./creative/plan";
+import { buildScreens } from "./creative/screens";
 import { trimSilence } from "./creative/trim";
-import type { ProductBrief } from "./creative/types";
+import type { BrandKit, ProductBrief } from "./creative/types";
 import { download, extractFrames, ffmpegPath, mediaDir, probe, stitch } from "./media";
 import { type MonidClient, type MonidRun, providerFailed, runCostMicro, TERMINAL } from "./monid";
 import type { NaiveClient } from "./naive";
@@ -92,7 +93,12 @@ export type ProductionContext = {
   strategy: Strategy;
   /** The product analyst's brief, with the visuals the edit cuts to. */
   product?: ProductBrief;
+  /** The brand's uploaded assets and code scan, for the screen builder. */
+  kit?: BrandKit | null;
 };
+
+type ScreenManifest = { clips: Array<{ id: string; kind: "video" | "image"; path: string }>; failures: Array<{ id: string; error: string }> };
+const screenManifest = (creativeId: string) => join(mediaDir(creativeId), "screens", "manifest.json");
 
 const MAX_RENDERS = 3;
 
@@ -184,6 +190,9 @@ export async function advanceCreative(ctx: ProductionContext, creative: Creative
     else if (shot.status === "rendered") await checkQuality(ctx, concept, shot);
     save();
   }
+
+  // Product screens build while the presenter renders on the video model, so the edit never waits.
+  await ensureScreens(ctx, creative.id, concept);
 
   const failed = shots.find((shot) => shot.status === "failed");
   if (failed) {
@@ -525,6 +534,32 @@ async function finalize(ctx: ProductionContext, creative: CreativeRow, concept: 
   logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, message: `"${concept.title}" is ready${scores.length ? ` (QC ${Math.min(...scores)}/10)` : ""}` });
 }
 
+/**
+ * The screen builder's clips for this video (terminal, step cards, results, in the brand's look),
+ * built once and recorded in a manifest. A screen that fails falls back to the beat's real visual.
+ */
+async function ensureScreens(ctx: ProductionContext, creativeId: string, concept: Concept) {
+  const requests = concept.plan?.screens ?? [];
+  if (!requests.length || !ctx.product || !ctx.naive || ctx.naiveOut() || existsSync(screenManifest(creativeId))) return;
+  const workDir = join(mediaDir(creativeId), "screens");
+  await mkdir(workDir, { recursive: true });
+  try {
+    const result = await buildScreens(ctx.naive, requests, { product: ctx.product, kit: ctx.kit ?? null, style: concept.reference?.format }, { workDir });
+    const manifest: ScreenManifest = { clips: result.clips.map(({ id, kind, path }) => ({ id, kind, path })), failures: result.failures };
+    await writeFile(screenManifest(creativeId), JSON.stringify(manifest));
+    logEvent({
+      brandId: ctx.brandId,
+      campaignId: ctx.campaignId,
+      level: result.failures.length ? "warn" : "info",
+      message: `"${concept.title}": built ${result.clips.length} of ${requests.length} product screens${result.failures.length ? ` (${result.failures.map((f) => f.error).join("; ").slice(0, 300)})` : ""}`,
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.retryable) return; // try again next tick
+    await writeFile(screenManifest(creativeId), JSON.stringify({ clips: [], failures: requests.map((r) => ({ id: r.id, error: message(error) })) } satisfies ScreenManifest));
+    logEvent({ brandId: ctx.brandId, campaignId: ctx.campaignId, level: "warn", message: `"${concept.title}": product screens could not be built (${message(error)}); using the real visuals instead` });
+  }
+}
+
 /** Builds the edit timeline from the rendered A-roll (or a voice-over) and the product visuals, and renders it. */
 async function editFinal(ctx: ProductionContext, creativeId: string, concept: Concept, shots: ShotState[], finalPath: string) {
   const script = concept.script!;
@@ -561,6 +596,11 @@ async function editFinal(ctx: ProductionContext, creativeId: string, concept: Co
     } catch {
       // an image that will not download: the beat falls back to the creator
     }
+  }
+
+  if (existsSync(screenManifest(creativeId))) {
+    const manifest = JSON.parse(await readFile(screenManifest(creativeId), "utf8")) as ScreenManifest;
+    for (const clip of manifest.clips) if (existsSync(clip.path)) visuals.set(screenVisualId(clip.id), { path: clip.path, kind: clip.kind });
   }
 
   const timeline = buildTimeline(script, plan, { aroll, voiceover, visuals }, (segments) => chunkCaptions(segments, 3));

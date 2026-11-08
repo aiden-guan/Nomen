@@ -540,6 +540,10 @@ async function stepProduction(campaign: CampaignRow) {
     monid,
     strategy,
     product: creativeState(campaign)?.product,
+    kit: (() => {
+      const kit = getBrandKit(campaign.brand_id);
+      return kit.assets.length || kit.repo ? kit : null;
+    })(),
     naiveOut: () => Boolean(getCampaign(campaign.id)?.naive_out),
     markNaiveOut: () => {
       if (getCampaign(campaign.id)?.naive_out) return;
