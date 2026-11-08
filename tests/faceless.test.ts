@@ -312,6 +312,25 @@ describe.skipIf(!python)("faceless remakes: the screen tracker (OpenCV)", () => 
     expect(word).toBeGreaterThan(0.95);
   }, 60_000);
 
+  it("paints out black-on-white caption boxes with their letters, and nothing around them", async () => {
+    // A dark keypad strip with a white caption box holding black strokes.
+    const script = [
+      "import importlib.util, sys",
+      "import numpy as np",
+      "spec = importlib.util.spec_from_file_location('track', sys.argv[1]); track = importlib.util.module_from_spec(spec); spec.loader.exec_module(track)",
+      "roi = np.full((120, 400, 3), 35, np.uint8)",
+      "roi[40:80, 60:340] = 255",
+      "for i in range(12): roi[48:72, 70 + 22 * i:76 + 22 * i] = 10",
+      "mask = track.box_mask(roi, '#FFFFFF') > 0",
+      "print(round(float(mask[42:78, 62:338].mean()), 3), round(float(mask[0:20, :].mean()), 3), round(float(mask[100:, :].mean()), 3))",
+    ].join("\n");
+    const { stdout } = await exec(python!, ["-I", "-B", "-c", script, join(process.cwd(), "scripts", "track-screen.py")]);
+    const [box, above, below] = stdout.trim().split(" ").map(Number);
+    expect(box).toBeGreaterThan(0.97);
+    expect(above).toBe(0);
+    expect(below).toBe(0);
+  }, 60_000);
+
   it("follows a drifting display from one rough corner read and lays our screen into it", async () => {
     const ffmpeg = (await editFfmpeg())!;
     dir = await mkdtemp(join(tmpdir(), "nomen-track-"));
