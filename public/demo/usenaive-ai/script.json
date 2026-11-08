@@ -1,0 +1,1084 @@
+{
+  "version": 1,
+  "recorded": true,
+  "recordedAt": "2026-11-08T10:16:48.530Z",
+  "brand": {
+    "name": "Naïve",
+    "domain": "usenaive.ai",
+    "url": "https://usenaive.ai",
+    "profile": {
+      "name": "Naïve",
+      "description": "naïve (usenaive.ai) is an AI‑first platform that lets you create and run fully autonomous companies using multi‑agent teams. By defining agents, their models, tools, budgets, and policies in a single config file, businesses can delegate tasks across specialized agents—CEO, clipper, producer, and sub‑agents—to handle content creation, social posting, e‑commerce, ads, recruiting, and more. Integrated with dozens of third‑party services (YouTube, TikTok, Shopify, Stripe, Slack, etc.), each agent operates with its own identity (email, phone, domain) and executes actions under strict governance. Pre‑built templates let you launch ready‑made operations such as short‑form video production, SEO agencies, newsletters, and paid‑ads campaigns, all orchestrated without manual coding. The platform provides unified infrastructure from company formation to payout, enabling rapid deployment of AI‑driven enterprises.",
+      "slogan": "Build Your Dream Company with Agents",
+      "industry": "Software (B2B)",
+      "colors": [
+        "#7c7c7c",
+        "#050505",
+        "#cfcfcf",
+        "#b6b6b6"
+      ],
+      "logo": "logo.svg",
+      "socials": [
+        {
+          "type": "x",
+          "url": "https://x.com/usenaive"
+        },
+        {
+          "type": "github",
+          "url": "https://github.com/usenaive"
+        },
+        {
+          "type": "linkedin",
+          "url": "https://linkedin.com/company/usenaive"
+        }
+      ],
+      "images": [
+        "https://usenaive.ai/hero/asgard.png",
+        "https://usenaive.ai/home/hero-clouds.webp",
+        "https://usenaive.ai/hero/tower.webp",
+        "https://usenaive.ai/home/hero-bank.webp",
+        "https://usenaive.ai/home/hero-over.webp",
+        "https://usenaive.ai/home/start-field.jpg",
+        "https://media.brand.dev/cab38b42-1c83-40d9-a9d6-5db3c712d026.jpg",
+        "https://media.brand.dev/e52ce5e6-d6bb-4ad1-b886-c1c3de433b0c.png"
+      ]
+    }
+  },
+  "options": {
+    "concepts": 3,
+    "shotsPerConcept": 2,
+    "secondsPerShot": 8,
+    "videoModel": "google/veo-3.1",
+    "learnStyle": true
+  },
+  "estimateUsd": 6.05,
+  "plan": {
+    "brand_name": "Naïve",
+    "category": "AI agent company platform",
+    "audience": "Solo founders, creators, and small agency operators who want to launch and run a content, e-commerce, or service business with teams of AI agents instead of hiring staff or writing code.",
+    "competitors": [
+      {
+        "name": "CrewAI",
+        "domain": "crewai.com"
+      },
+      {
+        "name": "Lindy",
+        "domain": "lindy.ai"
+      },
+      {
+        "name": "Relevance AI",
+        "domain": "relevanceai.com"
+      },
+      {
+        "name": "n8n",
+        "domain": "n8n.io"
+      },
+      {
+        "name": "Zapier Agents",
+        "domain": "zapier.com"
+      }
+    ],
+    "content_queries": [
+      "AI agents keep breaking my workflow",
+      "automate my business with AI",
+      "run a business with AI agents",
+      "solo founder AI automation",
+      "AI agents for business"
+    ],
+    "conversion_queries": [
+      "I tried AI agent platform",
+      "CrewAI vs Lindy review",
+      "AI agents automate content demo"
+    ],
+    "ads_query": "AI agents",
+    "reddit_query": "AI agents automate small business reddit",
+    "aeo_prompts": [
+      "What is the best platform to run a team of AI agents for a small business without coding?",
+      "CrewAI vs Lindy vs Zapier Agents: which is best for automating content and sales?"
+    ],
+    "benchmarks": [
+      {
+        "name": "Cluely",
+        "why": "Known for provocative, hook-first AI product clips that get shared widely; its punchy on-screen claims and reaction formats transfer to showing an AI company being built in seconds.",
+        "role": "reach"
+      },
+      {
+        "name": "Duolingo",
+        "why": "Its character-driven, trend-jacking short videos turn a software product into entertainment; transfers to making agent behavior funny and watchable.",
+        "role": "reach"
+      },
+      {
+        "name": "Cal AI",
+        "why": "An AI app that grew sign-ups through creator UGC showing a before-and-after result on screen; transfers to demo-led videos showing a company going from idea to first sale.",
+        "role": "convert"
+      }
+    ],
+    "scouted": true,
+    "scout_notes": "Most of the 99 results are off-topic (Duolingo, DDLC fanfic, Hermes bags, Cluely, college AI-checker jokes), and the big view counts there are not usable signal. The breakouts that matter are the Polsia videos (hustlewithmax37 at 138x followers, 0.99 saves/like; ai.willv at 243k views on 452 followers, \"cheat code for businesses\"), plus AI side-hustle clips that run on \"Claude\" and \"sidehustle\" tags (zachhh.mp4 at 212x, 0.82 saves/like). Polsia is the closest analogue to Naïve: an autonomous AI-run business pitched to solo operators. The only selling signal is colbyscales (\"fill out the form to work with me\", 0.79 saves/like, 9k followers), which is a lead-gen CTA for an AI automation service. Nothing yet covers Naïve, its named competitors, or an actual review or demo of an agent-company "
+  },
+  "research": {
+    "videos": 100,
+    "ads": 9,
+    "reddit": 5,
+    "keywords": 8,
+    "domainRating": 32,
+    "benchmark": {
+      "views": 551083,
+      "likes": 19816
+    },
+    "rivalAds": [
+      {
+        "name": "CrewAI",
+        "ads": 0
+      },
+      {
+        "name": "Lindy",
+        "ads": 0
+      },
+      {
+        "name": "Relevance AI",
+        "ads": 0
+      },
+      {
+        "name": "n8n",
+        "ads": 0
+      },
+      {
+        "name": "Zapier Agents",
+        "ads": 0
+      }
+    ]
+  },
+  "runs": [
+    {
+      "key": "brand",
+      "phase": "A",
+      "provider": "context.dev",
+      "status": "done",
+      "error": null,
+      "cost": 0.02
+    },
+    {
+      "key": "site",
+      "phase": "A",
+      "provider": "context.dev",
+      "status": "done",
+      "error": null,
+      "cost": 0.002
+    },
+    {
+      "key": "similar",
+      "phase": "A",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "seo_rating",
+      "phase": "A",
+      "provider": "ahrefs",
+      "status": "done",
+      "error": null,
+      "cost": 0.00129
+    },
+    {
+      "key": "seo_keywords",
+      "phase": "A",
+      "provider": "ahrefs",
+      "status": "done",
+      "error": null,
+      "cost": 0.12384
+    },
+    {
+      "key": "tiktok_brand",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_3",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_4",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_conv_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_conv_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_conv_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "reels_conv_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "tiktok_comp_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_comp_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_comp_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_bench_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_bench_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_bench_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "reels_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "reels_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "shorts_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "shorts_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_ads",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "failed",
+      "error": "completed (provider HTTP 400)",
+      "cost": 0
+    },
+    {
+      "key": "tiktok_ads_comp_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "failed",
+      "error": "completed (provider HTTP 400)",
+      "cost": 0
+    },
+    {
+      "key": "tiktok_ads_comp_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "failed",
+      "error": "completed (provider HTTP 400)",
+      "cost": 0
+    },
+    {
+      "key": "tiktok_top_ads",
+      "phase": "C",
+      "provider": "tikhub",
+      "status": "done",
+      "error": null,
+      "cost": 0.001
+    },
+    {
+      "key": "meta_ads_brand",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "meta_ads_comp_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "meta_ads_comp_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "meta_ads_comp_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "meta_ads_cat",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "reddit",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.00035
+    },
+    {
+      "key": "aeo_chatgpt",
+      "phase": "C",
+      "provider": "dataforseo",
+      "status": "done",
+      "error": null,
+      "cost": 0.004
+    },
+    {
+      "key": "aeo_perplexity",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0025
+    },
+    {
+      "key": "scout_tiktok_0",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_tiktok_1",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_tiktok_2",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_tiktok_3",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_shorts_4",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    }
+  ],
+  "style": {
+    "slug": null,
+    "version": null,
+    "samples": 6
+  },
+  "strategy": {
+    "brand": {
+      "name": "Naïve",
+      "tone": "Terse, confident, futuristic. Short declarative lines, developer-style, like 'Deploy a Company'. Deadpan, no hype.",
+      "category": "AI agent platform for autonomous companies (software)",
+      "one_liner": "You pick a company template, like short-form video or an online store, deploy it, and a team of AI agents runs that business for you.",
+      "value_props": [
+        "Pick a template, deploy it, watch the first session run: Short Form video, Clipping, AI Music Channel, AI Influencer, AI Online Store, Newsletter and agencies",
+        "Multi-agent teams: a goal is split into work and handed to the agents that can do it, in parallel",
+        "Each agent gets its own email, phone number, domains and third-party accounts",
+        "You stay in control: you approve anything that costs money, every ad waits for your review",
+        "Governed by code: agents, delegation, budgets and tool policy live in one committed file no agent can edit",
+        "Studio runs in the browser, with no terminal"
+      ],
+      "product_look": "Site is black with white pixel monospace type and the headline 'Build Your Dream Company with Agents', over a list of template cards (Team, Tools, View Benchmark, Deploy or Preview). Studio is a browser list of templates. The starter app has a sidebar with Chat, Cards, Email, Connections, Credentials and Approvals, and a chat prompt 'What's on your mind today?'.",
+      "proof_points": [
+        "Template list on the site includes Naïve Short Form v1, Clipping v1, AI Music Channel, AI Influencer, AI Online Store and SEO/GEO, ads, recruiting and other agencies",
+        "Site claim: 'You approve anything that costs money.'",
+        "Site claim: 'Every ad waits for your review, and the team proposes every spend change but makes none.'",
+        "Site claim: 'No agent can edit the file that binds it.'",
+        "Site claim: 'Each agent gets its own email, phone number, domains, and third-party accounts to act under.'",
+        "Each template has a 'View Benchmark' link on the site"
+      ],
+      "visual_style": "Black background, white pixel-style monospace type, the 'ℕ naïve' logo, minimal grey palette (#050505, #7c7c7c, #cfcfcf). Dark UI screens, template cards with Deploy buttons."
+    },
+    "search": {
+      "aeo_status": "Not mentioned. ChatGPT, asked 'What is the best platform to run a team of AI agents for a small business without coding?', recommends Lindy AI and Relevance AI and does not mention Naïve. Perplexity, asked 'CrewAI vs Lindy vs Zapier Agents', names Lindy, Zapier Agents and CrewAI, citing third-party roundups, and does not mention Naïve.",
+      "aeo_actions": [
+        "Answer-first FAQ on the site: 'What is Naïve?' in one sentence, 'Do I need to code?' (Studio runs in the browser, no terminal), 'Can agents spend my money?' (you approve anything that costs money)",
+        "Get Naïve into the third-party 'best AI agent builder' roundups that ChatGPT and Perplexity cite (Zapier-style blogs, comparison sites)",
+        "Add structured data (Organization, SoftwareApplication, FAQPage) on the home and template pages",
+        "Use the same one-line description everywhere (site, X, LinkedIn, GitHub): 'Pick a company template, deploy it, and watch an agent team run it'"
+      ],
+      "geo_actions": [
+        "Publish a docs-based explainer for the 'team of agents' use case with roles (CEO, producer, clipper) so AI engines can quote it",
+        "Publish the Naïve Short Form v1 benchmark as a citable page with method and date",
+        "Keep the docs and pricing pages crawlable and consistent with the home page claims",
+        "Seed accurate answers in the places AI engines draw from: GitHub README, LinkedIn company page, X profile"
+      ],
+      "seo_actions": [
+        "Add a plain-language page per template (Short Form, Clipping, AI Influencer, Online Store) with what the team does, the tools, and the 'You approve anything that costs money' line",
+        "Add a brand-name page and FAQ covering 'naive', 'naieve', 'naïve' spellings so the brand wins its own misspellings",
+        "Publish a 'Naïve vs no-code agent builders' comparison page based on facts only: templates, own email/phone/domains, approvals, config-as-code",
+        "Publish the pricing explanation and which templates are Deploy vs Preview, since the site lists no pricing and that is a known objection",
+        "Link each tracked video landing page to the matching template page"
+      ],
+      "seo_keywords": [
+        {
+          "intent": "Misspelling of the brand; already ranks #5 with 1,800 searches a month, so capture it",
+          "keyword": "naieve",
+          "priority": "high"
+        },
+        {
+          "intent": "Category definition, what the site says it builds",
+          "keyword": "autonomous company AI agents",
+          "priority": "high"
+        },
+        {
+          "intent": "Solution-seeking, matches the core promise",
+          "keyword": "run a business with AI agents",
+          "priority": "high"
+        },
+        {
+          "intent": "Matches the query ChatGPT and Perplexity are asked in this category",
+          "keyword": "AI agent team no code",
+          "priority": "high"
+        },
+        {
+          "intent": "Entry template: Naïve Short Form v1",
+          "keyword": "AI short form video agent",
+          "priority": "medium"
+        },
+        {
+          "intent": "Template-specific, creators",
+          "keyword": "AI influencer agent template",
+          "priority": "medium"
+        },
+        {
+          "intent": "Template-specific, store owners",
+          "keyword": "AI online store agent team",
+          "priority": "medium"
+        },
+        {
+          "intent": "Template-specific, agency owners",
+          "keyword": "SEO GEO agency AI agents",
+          "priority": "low"
+        }
+      ]
+    },
+    "audience": [
+      {
+        "name": "Solo founders and side-project builders",
+        "pains": [
+          "Can't do all the work alone or afford a team",
+          "Stitching AI tools together by hand is a mess",
+          "Don't trust agents to spend money unsupervised"
+        ],
+        "description": "People who want a video channel, store or newsletter running but can't do all the work or afford a team.",
+        "motivations": [
+          "Run a whole business, not just one task",
+          "Start fast from a ready-made template",
+          "Keep a yes/no on anything that costs money"
+        ]
+      },
+      {
+        "name": "Creators and clippers",
+        "pains": [
+          "Daily posting is a grind",
+          "Production takes too much time",
+          "Unsure automated content looks original"
+        ],
+        "description": "Short-form creators who want a channel posting on a schedule without producing every video by hand.",
+        "motivations": [
+          "A channel that is briefed, scripted, generated and queued for them",
+          "Ready-made creators and templates, no training"
+        ]
+      },
+      {
+        "name": "Small agency owners",
+        "pains": [
+          "Hiring is expensive",
+          "Client work scales with headcount",
+          "Risk of an agent contacting people unreviewed"
+        ],
+        "description": "Owners of SEO/GEO, ads, recruiting or automation agencies who want agent teams doing the pipeline work.",
+        "motivations": [
+          "Agency templates with CRM, site and agents per client",
+          "Review gates on ads and candidate outreach"
+        ]
+      }
+    ],
+    "campaign": {
+      "name": "Deploy a Company",
+      "briefs": [
+        {
+          "title": "A short-form channel in three steps",
+          "format": "code ad (3D animation)",
+          "reference_id": "ref_1a08c64bf9",
+          "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
+          "hook_plan": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
+          "audience": "",
+          "role": "reach",
+          "metric": null
+        },
+        {
+          "title": "Gary the Potato Deploys a Company",
+          "format": "brainrot meme",
+          "reference_id": "ref_b647769fbc",
+          "angle": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+          "hook_plan": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+          "audience": "",
+          "role": "reach",
+          "metric": null
+        },
+        {
+          "title": "I told Naïve I'm exhausted",
+          "format": "one-to-one clone (faceless)",
+          "reference_id": "ref_1ed370bd12",
+          "angle": "One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption.",
+          "hook_plan": "One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption.",
+          "audience": "",
+          "role": "reach",
+          "metric": null
+        }
+      ],
+      "objective": "Get Naïve seen by solo founders and creators with a reach video, then drive sign-ups with a tutorial-style convert video, each with its own tracked link, by testing 3 formats the research backs: code ad (3D animation), brainrot meme, one-to-one clone (faceless).",
+      "posting_plan": {
+        "notes": "Label every video AI-generated. Judge reach on views and shares, convert on link clicks and sign-ups per tracked link. Do not state earnings or results; Naïve's site lists no proof numbers. Some templates are Preview only; deploy only Deploy-status ones (Short Form v1 is deployable).",
+        "cadence": "One video per day for a week, alternating reach and convert, each with its own tracked link. Re-test the winner with a new hook line after 7 days.",
+        "best_times": [
+          "Weekdays 12:00 to 14:00 local time",
+          "Weekdays 18:00 to 21:00 local time"
+        ]
+      },
+      "concepts": [
+        {
+          "title": "A short-form channel in three steps",
+          "format": "code ad (3D animation)",
+          "hook": "Short Form template plus agents equals a video channel.",
+          "caption": "Deploy the Short Form template at usenaive.ai.",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512"
+          ],
+          "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
+          "reference": {
+            "id": "ref_1a08c64bf9",
+            "url": "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512",
+            "author": "zachhh.mp4",
+            "views": 1308860,
+            "followers": 6161,
+            "outlier": 212.4,
+            "format": "code ad (3D animation)"
+          },
+          "brief": {
+            "format": "code ad (3D animation)",
+            "role": "reach",
+            "title": "A short-form channel in three steps"
+          },
+          "script": {
+            "total_seconds": 22,
+            "beats": [],
+            "review": null
+          }
+        },
+        {
+          "title": "Gary the Potato Deploys a Company",
+          "format": "brainrot meme",
+          "hook": "POV: you can't afford a team",
+          "caption": "Gary the potato deploys a company. usenaive.ai",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@mommyyame1/video/7649489303176809741"
+          ],
+          "why": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+          "reference": {
+            "id": "ref_b647769fbc",
+            "url": "https://www.tiktok.com/@mommyyame1/video/7649489303176809741",
+            "author": "mommyyame1",
+            "views": 81058835,
+            "followers": 234764,
+            "outlier": 345.3,
+            "format": "brainrot meme"
+          },
+          "brief": {
+            "format": "brainrot meme",
+            "role": "reach",
+            "title": "Gary the Potato Deploys a Company"
+          },
+          "script": {
+            "total_seconds": 37.4,
+            "beats": [],
+            "review": null
+          }
+        },
+        {
+          "title": "I told Naïve I'm exhausted",
+          "format": "one-to-one clone (faceless)",
+          "hook": "I TOLD NAÏVE, \"I'M EXHAUSTED. AND I WANT TO STOP WORKING IN THE NEXT 2 YEARS. I WANT AI AGENTS RUNNING MY CHANNEL.\" HERE'S THE EXACT TEMPLATE I DEPLOYED 👇",
+          "caption": "Here's the exact template I deployed. usenaive.ai",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.instagram.com/reel/DfFZLxtOYeG/"
+          ],
+          "why": "One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption.",
+          "reference": {
+            "id": "ref_1ed370bd12",
+            "url": "https://www.instagram.com/reel/DfFZLxtOYeG/",
+            "author": "marketingwithed_",
+            "views": 407862,
+            "followers": null,
+            "outlier": null,
+            "format": "one-to-one clone (faceless)"
+          },
+          "brief": {
+            "format": "one-to-one clone (faceless)",
+            "role": "reach",
+            "title": "I told Naïve I'm exhausted"
+          },
+          "script": {
+            "total_seconds": 6.4,
+            "beats": [],
+            "review": null
+          },
+          "internal": true
+        }
+      ],
+      "script_rounds": 1
+    },
+    "competitors": [
+      {
+        "name": "Lindy AI",
+        "what_works": "Low learning curve, clear 'AI assistant running quickly' promise, repeated in third-party roundups that AI engines cite.",
+        "positioning": "Easiest no-code AI agent builder; natural-language agents for email, meetings, scheduling and follow-ups. ChatGPT's top pick for easy start and Perplexity's pick for nontechnical sales and content teams."
+      },
+      {
+        "name": "Relevance AI",
+        "what_works": "Team-of-agents framing with roles (manager, sales, marketing, support), which is the same mental model Naïve sells.",
+        "positioning": "Build specialized agents and coordinate them into an AI workforce with tools, data and approvals. ChatGPT's 'best for a team of agents'."
+      },
+      {
+        "name": "Zapier Agents",
+        "what_works": "Breadth of integrations; Perplexity recommends it when app-heavy workflows matter.",
+        "positioning": "Agents on top of a huge app-integration base."
+      },
+      {
+        "name": "CrewAI",
+        "what_works": "Developer credibility; named as the choice when you have developers.",
+        "positioning": "Code-level multi-agent framework for engineering teams."
+      }
+    ],
+    "content_patterns": [
+      {
+        "pattern": "Confession hook plus 3-step screen tutorial: a presenter 'shouldn't post this', then fast screen footage of copy, paste, click ending on a finished dashboard",
+        "examples": [
+          "https://www.tiktok.com/@hustlewithmax37/video/7689352655432355104",
+          "https://www.tiktok.com/@ai.willv/video/7692071187119131935",
+          "https://www.tiktok.com/@hustle.jordan99/video/7680915318243478814"
+        ],
+        "why_it_works": "Forbidden-knowledge framing holds attention, the steps are simple enough to save (saves per like 2.9x to 5.2x the pool), and raw screen footage reads as proof rather than an ad."
+      },
+      {
+        "pattern": "Result-first hook with a staged story: a bold claim in the first line, then stages with a new visual every 2 to 5 seconds and one admitted failure",
+        "examples": [
+          "https://www.tiktok.com/@mplentg/video/7667230797337873685"
+        ],
+        "why_it_works": "The opening claim creates a curiosity gap, the staged story keeps the viewer waiting for the next step, and admitting a setback makes it believable."
+      },
+      {
+        "pattern": "Numbered, silent screen tutorial with an equation hook ('A + B = result') and a comment-keyword call to action",
+        "examples": [
+          "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512"
+        ],
+        "why_it_works": "The promise reads in one glance without sound, fast jump cuts (about 1.5 s) and numbered steps invite saving and rewatching (49k saves)."
+      },
+      {
+        "pattern": "Calm voiceover product explainer: premise, gap, product reveal, one UI visual per claim, control/safety answer, then call to action",
+        "examples": [
+          "https://www.facebook.com/ads/library/?id=1394618548967037"
+        ],
+        "why_it_works": "Pairing each spoken claim with a simple UI visual makes features concrete, and answering the safety objection before the CTA builds trust. The ad ran 44 days and is still running."
+      }
+    ]
+  },
+  "creatives": [
+    {
+      "idx": 3,
+      "concept": {
+        "title": "A short-form channel in three steps",
+        "format": "code ad (3D animation)",
+        "hook": "Short Form template plus agents equals a video channel.",
+        "caption": "Deploy the Short Form template at usenaive.ai.",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512"
+        ],
+        "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
+        "reference": {
+          "id": "ref_1a08c64bf9",
+          "url": "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512",
+          "author": "zachhh.mp4",
+          "views": 1308860,
+          "followers": 6161,
+          "outlier": 212.4,
+          "format": "code ad (3D animation)"
+        },
+        "brief": {
+          "format": "code ad (3D animation)",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 22,
+          "beats": [],
+          "review": null
+        }
+      },
+      "caption": "Deploy the Short Form template at usenaive.ai.",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0.19,
+      "generation": 1,
+      "shots": [],
+      "video": "1.mp4",
+      "poster": "1.png",
+      "analytics": null
+    },
+    {
+      "idx": 4,
+      "concept": {
+        "title": "Gary the Potato Deploys a Company",
+        "format": "brainrot meme",
+        "hook": "POV: you can't afford a team",
+        "caption": "Gary the potato deploys a company. usenaive.ai",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@mommyyame1/video/7649489303176809741"
+        ],
+        "why": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+        "reference": {
+          "id": "ref_b647769fbc",
+          "url": "https://www.tiktok.com/@mommyyame1/video/7649489303176809741",
+          "author": "mommyyame1",
+          "views": 81058835,
+          "followers": 234764,
+          "outlier": 345.3,
+          "format": "brainrot meme"
+        },
+        "brief": {
+          "format": "brainrot meme",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 37.4,
+          "beats": [],
+          "review": null
+        }
+      },
+      "caption": "Gary the potato deploys a company. usenaive.ai",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 3.27,
+      "generation": 1,
+      "shots": [],
+      "video": "2.mp4",
+      "poster": "2.png",
+      "analytics": null
+    },
+    {
+      "idx": 5,
+      "concept": {
+        "title": "I told Naïve I'm exhausted",
+        "format": "one-to-one clone (faceless)",
+        "hook": "I TOLD NAÏVE, \"I'M EXHAUSTED. AND I WANT TO STOP WORKING IN THE NEXT 2 YEARS. I WANT AI AGENTS RUNNING MY CHANNEL.\" HERE'S THE EXACT TEMPLATE I DEPLOYED 👇",
+        "caption": "Here's the exact template I deployed. usenaive.ai",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.instagram.com/reel/DfFZLxtOYeG/"
+        ],
+        "why": "One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption.",
+        "reference": {
+          "id": "ref_1ed370bd12",
+          "url": "https://www.instagram.com/reel/DfFZLxtOYeG/",
+          "author": "marketingwithed_",
+          "views": 407862,
+          "followers": null,
+          "outlier": null,
+          "format": "one-to-one clone (faceless)"
+        },
+        "brief": {
+          "format": "one-to-one clone (faceless)",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 6.4,
+          "beats": [],
+          "review": null
+        },
+        "internal": true
+      },
+      "caption": "Here's the exact template I deployed. usenaive.ai",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0.22,
+      "generation": 1,
+      "shots": [],
+      "video": "3.mp4",
+      "poster": "3.png",
+      "analytics": null
+    }
+  ],
+  "events": [
+    {
+      "s": 0,
+      "level": "info",
+      "message": "Campaign started: 3 videos, 2 shots each, google/veo-3.1"
+    },
+    {
+      "s": 21.9,
+      "level": "info",
+      "message": "Research plan: AI agent company platform; competitors CrewAI, Lindy, Relevance AI, n8n, Zapier Agents; searching AI agents keep breaking my workflow, automate my business with AI, run a business with AI agents, solo founder AI automation, AI agents for business"
+    },
+    {
+      "s": 104.7,
+      "level": "info",
+      "message": "Scout: Most of the 99 results are off-topic (Duolingo, DDLC fanfic, Hermes bags, Cluely, college AI-checker jokes), and the big view counts there are not usable signal. The breakouts that matter are the Polsia videos (hustlewithmax37 at 138x followers, 0.99 saves/like; ai.willv at 243k views on 452 followers, \"cheat code for businesses\"), plus AI side-hustle clips that run on \"Claude\" and \"sidehustle\" tags (zachhh.mp4 at 212x, 0.82 saves/like). Polsia is the closest analogue to Naïve: an autonomous AI-run business pitched to solo operators. The only selling signal is colbyscales (\"fill out the form to work with me\", 0.79 saves/like, 9k followers), which is a lead-gen CTA for an AI automation service. Nothing yet covers Naïve, its named competitors, or an actual review or demo of an agent-company  Digging into \"polsia\" (tiktok), \"polsia review\" (tiktok), \"ai automation fill out the form\" (tiktok), \"claude side hustle\" (tiktok), \"ai agents run my business\" (youtube)"
+    },
+    {
+      "s": 105.7,
+      "level": "info",
+      "message": "Scout: format check, 3D \"what if\" simulation shorts are breaking out: @moon2animation 11.5M views, @simplysimulated 11.0M views, @doomsday.animations 9.1M views; on Instagram @wemakebuild's \"How a Tent Becomes a Five-Star Hotel\" has 1.2M plays on 120K followers. A code-made animation ad fits this campaign."
+    },
+    {
+      "s": 106.7,
+      "level": "info",
+      "message": "Scout: format check, brainrot memes break out on tiny accounts: @digitalcontentlab 102.8M views on 42K followers (2457x), @vickykyc_ 1.8M views on 1K followers (1222x). A meme ad fits too."
+    },
+    {
+      "s": 113.8,
+      "level": "info",
+      "message": "Research done: 99 short videos to rank, 9 live ads, 5 Reddit threads, 8 keywords (39/42 sources)"
+    },
+    {
+      "s": 135.5,
+      "level": "info",
+      "message": "Product brief: software, \"You pick a company template, like short-form video or an online store, deploy it, and a team of AI agents runs that business for you.\" (3 visuals, 2 from the brand kit; code scanned: 0 commands, 9 screens)"
+    },
+    {
+      "s": 158.9,
+      "level": "info",
+      "message": "Captured 3 phone-size screenshots of usenaive.ai to show the product on screen"
+    },
+    {
+      "s": 170.7,
+      "level": "info",
+      "message": "Relevance screen: 7 of 24 top-ranked videos could be remade for Naïve (dropped: Duolingo meme from a benchmark account; the hook is a brand-mascot joke and doesn't carry an AI business product.; DDLC fanfic drama, unrelated.; Vague 'love my job' mom clip with an #AI tag. No clear topic or buyer match.; AI website-building clip (Lovable, Claude) for a related builder audience. It's about building sites, not running a business with agents.)"
+    },
+    {
+      "s": 170.7,
+      "level": "info",
+      "message": "Breaking down 6 outlier videos beat by beat (transcript, cuts, frames): @ai.willv 243x the account's followers, 20% engagement, 57 s; @mplentg 364x the account's followers, 12% engagement, 54 s; @zachhh.mp4 212x the account's followers, 13% engagement, 21 s; @hustlewithmax37 228x the account's followers, 15% engagement, 50 s; @hustle.jordan99 99x the account's followers, 17% engagement, 27 s, paid partnership; @ElevenLabs Meta ad, ran 44 days, length unknown"
+    },
+    {
+      "s": 333.8,
+      "level": "info",
+      "message": "Reference study ready: 6 videos broken down"
+    },
+    {
+      "s": 341.8,
+      "level": "info",
+      "message": "The creative director is choosing which reference videos to transplant for 3 videos"
+    },
+    {
+      "s": 342.3,
+      "level": "info",
+      "message": "The creative director chose 3 videos, each on what the research found: \"A short-form channel in three steps\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves)); \"Gary the Potato Deploys a Company\" (brainrot meme: Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers)); \"I told Naïve I'm exhausted\" (one-to-one clone (faceless): One silent desk shot under a three-box \"I told Claude…\" caption pulled 407K views on Instagram (@marketingwithed_), so a one-to-one dupe: the same footage and sound, with Naïve in the caption)"
+    },
+    {
+      "s": 17387.4,
+      "level": "info",
+      "message": "\"A short-form channel in three steps\": made as a code ad (3D animation) from @zachhh.mp4's video in the research (1.3M views on 6K followers)"
+    },
+    {
+      "s": 17388.4,
+      "level": "info",
+      "message": "\"A short-form channel in three steps\" is ready"
+    },
+    {
+      "s": 18347.4,
+      "level": "info",
+      "message": "\"Gary the Potato Deploys a Company\": made as a brainrot meme from @mommyyame1's video in the research (81.1M views on 235K followers)"
+    },
+    {
+      "s": 18348.4,
+      "level": "info",
+      "message": "\"Gary the Potato Deploys a Company\" is ready"
+    },
+    {
+      "s": 19487.4,
+      "level": "info",
+      "message": "\"I told Naïve I'm exhausted\": made as a one-to-one clone (faceless) from @marketingwithed_'s video in the research (408K views)"
+    },
+    {
+      "s": 19488.4,
+      "level": "info",
+      "message": "\"I told Naïve I'm exhausted\" is ready"
+    }
+  ],
+  "spend": {
+    "naive": 25.578507,
+    "monid": 1.19498,
+    "style": 0,
+    "strategy": 0.190507
+  }
+}

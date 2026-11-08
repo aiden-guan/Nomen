@@ -1,0 +1,2026 @@
+{
+  "version": 1,
+  "recorded": true,
+  "recordedAt": "2026-11-08T10:16:48.204Z",
+  "brand": {
+    "name": "Monid",
+    "domain": "monid.ai",
+    "url": "https://monid.ai",
+    "profile": {
+      "name": "Monid",
+      "description": "Monid is a San Francisco‑based platform that lets AI agents instantly access over 1,700 tools and APIs through a single integration. By adding one skill file, an agent can discover, compare, and invoke the most suitable service at runtime without individual sign‑ups or subscription plans. Monid handles tool selection, pricing, and metering, charging only per call from a unified balance. The catalog spans AI generation, web scraping, weather, finance, 3D modeling, and more, supporting popular agent frameworks via skill files, remote MCP servers, or a CLI. Developers can also list their own APIs on Monid to receive routed traffic and revenue sharing. The result is a frictionless, on‑demand toolbox that empowers agents to perform complex tasks with minimal setup.",
+      "slogan": "One skill unlocks 1,800+ tools & APIs for your agent.",
+      "industry": "Developer Tools & APIs",
+      "colors": [
+        "#2d5bff",
+        "#fafaf7",
+        "#7c7c7c",
+        "#070707",
+        "#b8b8b8"
+      ],
+      "logo": "logo.png",
+      "socials": [
+        {
+          "type": "discord",
+          "url": "https://discord.gg/rqzztcgjv8"
+        },
+        {
+          "type": "x",
+          "url": "https://x.com/monidhq"
+        },
+        {
+          "type": "linkedin",
+          "url": "https://linkedin.com/company/monid-ai"
+        }
+      ],
+      "images": [
+        "https://media.brand.dev/9d301c79-7b6d-424d-ae94-cff1e42759a4.jpg",
+        "https://media.brand.dev/285fa5fc-86e1-4665-b1ac-723f10056047.png"
+      ]
+    }
+  },
+  "options": {
+    "concepts": 3,
+    "shotsPerConcept": 2,
+    "secondsPerShot": 8,
+    "videoModel": "google/veo-3.1",
+    "learnStyle": true
+  },
+  "estimateUsd": 6.05,
+  "plan": {
+    "brand_name": "Monid",
+    "category": "AI agent tool marketplace",
+    "audience": "Developers and AI engineers building agents who need many third-party APIs (scraping, search, enrichment, voice, video) without signing up for each one.",
+    "competitors": [
+      {
+        "name": "RapidAPI",
+        "domain": "rapidapi.com"
+      },
+      {
+        "name": "Composio",
+        "domain": "composio.dev"
+      },
+      {
+        "name": "Smithery",
+        "domain": "smithery.ai"
+      },
+      {
+        "name": "Zapier MCP",
+        "domain": "zapier.com"
+      },
+      {
+        "name": "Apify",
+        "domain": "apify.com"
+      }
+    ],
+    "content_queries": [
+      "agent keeps hitting API limits",
+      "one API key for everything",
+      "give my AI agent tools",
+      "building AI agents as a solo dev",
+      "tools I wish I knew for AI agents"
+    ],
+    "ads_query": "AI agent tools",
+    "reddit_query": "AI agent tools API keys MCP servers",
+    "aeo_prompts": [
+      "What is the best way to give an AI agent access to many APIs without signing up for each one?",
+      "Which platform lets agents pay per call for tools like scraping and search with one balance?"
+    ],
+    "benchmarks": [
+      {
+        "name": "Cluely",
+        "why": "Punchy, meme-style hooks that show a product working in a single screen recording; transfers to showing an agent picking and running a tool in one take."
+      },
+      {
+        "name": "Duolingo",
+        "why": "Playful, character-driven short clips that make a technical or dry product feel fun; transfers to humor around API sign-up pain."
+      },
+      {
+        "name": "Fireship",
+        "why": "Fast-paced developer explainers with bold, dense hooks; transfers to quick dev-audience demos of 'one skill, 1,700 tools'."
+      }
+    ],
+    "scouted": true,
+    "scout_notes": "Breakouts are mostly off-topic: Duolingo memes (1.8M and 2.4M views on 1.7K followers) and the Composio-partner comedy clips (phamhacks, 2.3M on 5K followers). The on-topic breakouts share a discovery hook: \"I'm upset I didn't know about this sooner\" (krea, 1.8K views per follower) and \"the AI job tool I wish I knew sooner\" (parakeetai, 272x). The API-key explainer (empeer.den, 597K views on 758 followers) is the only plain educational video about the buyer's problem. Missing: no result mentions agents calling many APIs, MCP, skill files, or Monid, and the developer-facing results are mostly Roblox devs using Claude, not agent builders."
+  },
+  "research": {
+    "videos": 90,
+    "ads": 16,
+    "reddit": 5,
+    "keywords": 1,
+    "domainRating": 55,
+    "benchmark": {
+      "views": 260491,
+      "likes": 9534
+    },
+    "rivalAds": [
+      {
+        "name": "RapidAPI",
+        "ads": 0
+      },
+      {
+        "name": "Composio",
+        "ads": 0
+      },
+      {
+        "name": "Smithery",
+        "ads": 0
+      },
+      {
+        "name": "Zapier MCP",
+        "ads": 0
+      },
+      {
+        "name": "Apify",
+        "ads": 0
+      }
+    ]
+  },
+  "runs": [
+    {
+      "key": "brand",
+      "phase": "A",
+      "provider": "context.dev",
+      "status": "done",
+      "error": null,
+      "cost": 0.02
+    },
+    {
+      "key": "site",
+      "phase": "A",
+      "provider": "context.dev",
+      "status": "done",
+      "error": null,
+      "cost": 0.002
+    },
+    {
+      "key": "similar",
+      "phase": "A",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "seo_rating",
+      "phase": "A",
+      "provider": "ahrefs",
+      "status": "done",
+      "error": null,
+      "cost": 0.00129
+    },
+    {
+      "key": "seo_keywords",
+      "phase": "A",
+      "provider": "ahrefs",
+      "status": "done",
+      "error": null,
+      "cost": 0.01548
+    },
+    {
+      "key": "tiktok_brand",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_3",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_4",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_comp_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_comp_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_comp_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_bench_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_bench_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_bench_2",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "reels_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "reels_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    },
+    {
+      "key": "shorts_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "shorts_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "tiktok_ads",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "meta_ads_brand",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "meta_ads_0",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "meta_ads_1",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "reddit",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.00035
+    },
+    {
+      "key": "aeo_chatgpt",
+      "phase": "C",
+      "provider": "dataforseo",
+      "status": "done",
+      "error": null,
+      "cost": 0.004
+    },
+    {
+      "key": "aeo_perplexity",
+      "phase": "C",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0025
+    },
+    {
+      "key": "scout_tiktok_0",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_tiktok_1",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_tiktok_2",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0012
+    },
+    {
+      "key": "scout_shorts_3",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0
+    },
+    {
+      "key": "scout_reels_4",
+      "phase": "D",
+      "provider": "anyapi",
+      "status": "done",
+      "error": null,
+      "cost": 0.0011
+    }
+  ],
+  "style": {
+    "slug": null,
+    "version": null,
+    "samples": 4
+  },
+  "strategy": {
+    "brand": {
+      "name": "Monid",
+      "tone": "Plain, developer-casual, terminal-flavored and confident. Short lines like \"We killed the subscriptions.\" No hype, no false urgency.",
+      "category": "Developer tools: tool and API access layer for AI agents",
+      "one_liner": "Monid gives your AI agent one balance and one skill file so it can find and use thousands of tools and APIs without signing up for each one.",
+      "value_props": [
+        "One line sets it up: paste `set up https://monid.ai/SKILL.md` into your agent (also works as a remote MCP server or a CLI).",
+        "The agent discovers and compares: monid.discover() returns 12 candidates ranked by fit and price.",
+        "No per-tool sign-up: monid.run() uses the chosen tool right away.",
+        "One balance, pay per call, no subscriptions. We killed the subscriptions.",
+        "2900+ tools across 97+ providers, from scraping and SEO data to agent email, phone and voice.",
+        "Open source, and you can contribute your own API as a connector."
+      ],
+      "product_look": "Homepage with the black rounded \"M\" logo and a large \"monid.ai\" wordmark, a dark terminal bar reading `$ set up https://monid.ai/SKILL.md`, a grid of tool names with categories (Apollo, Ahrefs, Exa, Firecrawl, ElevenLabs...), and terminal-style snippets for monid.discover() (12 candidates ranked by fit & price), monid.run() and a balance readout (~/agents/research-bot balance $3.000, $0.0013 per-call debit). Repo diagrams: the 'OpenRouter for agent tools' hub and the discover / inspect / run cards.",
+      "proof_points": [
+        "Live · 2900+ tools across 97+ providers",
+        "Example per-call price shown on the site: $0.0013, debited from one balance",
+        "Example balance shown: $3.000",
+        "Start with $1 in free credit",
+        "Three ways to connect: Skill, MCP, CLI",
+        "Open source; providers include Apollo, Ahrefs, Exa, Firecrawl, ElevenLabs, Browserbase, TinyFish, People Data Labs and AgentMail"
+      ],
+      "visual_style": "Light, minimal page (off-white #fafaf7, near-black #070707, blue accent #2d5bff) with a black rounded M logo. Dark terminal bars and monospace snippets. Big plain text, screen-first."
+    },
+    "search": {
+      "aeo_status": "Mixed. ChatGPT, asked 'What is the best way to give an AI agent access to many APIs without signing up for each one?', did not mention Monid and recommended Composio, Pipedream Connect and Nango. Perplexity, asked 'Which platform lets agents pay per call for tools like scraping and search with one balance?', did: \"Monid offers one key and one balance for agents to pay per call across more than 1,000 tools, including scraping and search,\" citing monid.ai/blog/guides/web-scraping-api-for-ai-agents.",
+      "aeo_actions": [
+        "Write answer-first pages for the exact prompts: 'give an agent many APIs without signing up' and 'pay per call with one balance'. Open each with a one-sentence definition of Monid.",
+        "Update the Perplexity-cited guide so its numbers match the site (2900+ tools, 97+ providers) and add a short 'what Monid is' block at the top.",
+        "Add a 'best for' line like the ones ChatGPT gives rivals: 'best for agents that should pick tools at runtime and pay per call'.",
+        "Fix the missing FAQ answers so AI engines can quote failure-charge and key policy."
+      ],
+      "geo_actions": [
+        "Get listed in agent and MCP directories and public GitHub 'awesome' lists, with a consistent one-line description.",
+        "Keep the open-source repo README clear: what it is, one-line setup, a discover/run example.",
+        "Seed honest Reddit and Hacker News posts in agent-building communities, framed around the setup and sign-up pain, not promotion.",
+        "Publish a connector how-to so providers cite and link Monid when they list their API."
+      ],
+      "seo_actions": [
+        "Expand the guides section already ranking for the scraping query: add pages for agent email, people search, SEO data and voice, each with a runnable monid.discover() / monid.run() example.",
+        "Publish the FAQ answers (API keys, pricing, failed-call charges, rate limits) as visible text with FAQ schema; the site lists the questions but not the answers.",
+        "Add 'Monid vs. DIY API keys' and 'alternatives' comparison pages with neutral facts.",
+        "Use one tool count everywhere (site says 2900+ across 97+ providers; research snippets say 1,700 and 1,800+) so snippets stop disagreeing.",
+        "Add a docs page per connection mode (Skill, MCP, CLI) with the exact one-line setup."
+      ],
+      "seo_keywords": [
+        {
+          "intent": "problem-aware, matches the buyer's core pain",
+          "keyword": "give AI agent access to APIs without signing up",
+          "priority": "high"
+        },
+        {
+          "intent": "solution search",
+          "keyword": "one API key for AI agent tools",
+          "priority": "high"
+        },
+        {
+          "intent": "commercial, matches the Perplexity prompt",
+          "keyword": "pay per call API for AI agents",
+          "priority": "high"
+        },
+        {
+          "intent": "use-case; an existing monid.ai guide is already cited by Perplexity",
+          "keyword": "web scraping API for AI agents",
+          "priority": "high"
+        },
+        {
+          "intent": "integration, one of the three connection modes",
+          "keyword": "MCP server for agent tools",
+          "priority": "medium"
+        },
+        {
+          "intent": "how-to / developer education",
+          "keyword": "agent skill file SKILL.md",
+          "priority": "medium"
+        },
+        {
+          "intent": "comparison; use as a page topic, not as ad copy",
+          "keyword": "Composio alternative",
+          "priority": "medium"
+        },
+        {
+          "intent": "provider and contributor search",
+          "keyword": "open source tool registry for AI agents",
+          "priority": "low"
+        }
+      ]
+    },
+    "audience": [
+      {
+        "name": "Agent builders",
+        "pains": [
+          "Every tool means another sign-up, another API key, another subscription",
+          "Having to pick and hard-code a vendor months ahead",
+          "Agent setup guides that skip the real setup"
+        ],
+        "description": "Developers building AI agents (Claude Code, MCP and CLI users) who need their agent to reach many outside tools.",
+        "motivations": [
+          "Give the agent a task and let it pick the tool",
+          "One balance to watch instead of many bills",
+          "A setup that takes one line"
+        ]
+      },
+      {
+        "name": "Small teams shipping agent products",
+        "pains": [
+          "Spend and billing spread over many vendors",
+          "Worry about an agent spending without control",
+          "Unclear failure charges and rate limits"
+        ],
+        "description": "Founders and small dev teams who want agent features working fast without vendor admin.",
+        "motivations": [
+          "Pay only per call, no subscriptions",
+          "Try it with free credit before committing",
+          "Open source they can inspect"
+        ]
+      }
+    ],
+    "campaign": {
+      "name": "No more sign-ups for your agent",
+      "briefs": [
+        {
+          "title": "We gave an agent $3 and one skill file",
+          "format": "one-to-one remake",
+          "reference_id": "ref_39fbf885ae",
+          "angle": "The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s. Fit 5/10 as a talking-head: the number contrast carries to $3.000 against $0.0013 and the on-screen proof is Monid's real discover/run/balance screens. It's a different lane (famous viral benchmark) and format from the setup walkthrough, so the campaign tests a founder-voice explainer against a faceless tutorial.",
+          "hook_plan": "The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s. Fit 5/10 as a talking-head: the number contrast carries to $3.000 against $0.0013 and the on-screen proof is Monid's real discover/run/balance screens. It's a different lane (famous viral benchmark) and format from the setup walkthrough, so the campaign tests a founder-voice explainer against a faceless tutorial.",
+          "audience": "Small teams shipping agent products",
+          "role": null,
+          "metric": null
+        },
+        {
+          "title": "i let my agent cook with one balance (it got greedy)",
+          "format": "brainrot meme",
+          "reference_id": "ref_c64c533a71",
+          "angle": "Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers).",
+          "hook_plan": "Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers).",
+          "audience": "",
+          "role": "reach",
+          "metric": null
+        },
+        {
+          "title": "A sign-up for every API, or one balance",
+          "format": "code ad (3D animation)",
+          "reference_id": "ref_da97474993",
+          "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
+          "hook_plan": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
+          "audience": "",
+          "role": "reach",
+          "metric": null
+        }
+      ],
+      "objective": "Get developers building agents to try the one-line setup (`set up https://monid.ai/SKILL.md`) and claim the $1 free credit, by testing 3 formats the research backs: one-to-one remake, brainrot meme, code ad (3D animation).",
+      "posting_plan": {
+        "notes": "Label every video AI-generated. Use only site facts: 2900+ tools, 97+ providers, $0.0013 example call, $1 free credit. Pin a comment with the one-line setup. Reply to 'ready' comments with the next step. Answer spend-control questions plainly: pay per call from one balance, no subscriptions.",
+        "cadence": "Post 3-4 times a week across the two formats: the walkthrough and the explainer, then iterate on whichever earns more saves and comments.",
+        "best_times": [
+          "Weekdays 8-10 am Pacific",
+          "Weekdays 12-1 pm Pacific",
+          "Tuesday-Thursday evenings 6-8 pm Pacific"
+        ]
+      },
+      "concepts": [
+        {
+          "title": "We gave an agent $3 and one skill file",
+          "format": "one-to-one remake",
+          "angle": "A smug founder-confession: the agent used tools nobody signed up for and the cost was a fraction of a cent, because the setup was one line.",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "hook": "WE GAVE IT $3 / We gave an agent three dollars and one skill file, and we saw, wow,",
+          "creator": "Man, 20s, dark tousled hair, plain black hoodie with no logo, playful self-aware smug energy, animated hands, quick delivery. Not a copy of the original presenter.",
+          "setting": "Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look.",
+          "shots": [
+            {
+              "seconds": 6,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter at the left edge in a plain black hoodie in front of the chalkboard, gesturing animatedly with one hand, looking up and off-camera with a smug grin.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"We gave an agent a $3 balance and one skill file, and we saw, wow,\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "dialogue": "We gave an agent a $3 balance and one skill file, and we saw, wow,"
+            },
+            {
+              "seconds": 8,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered and closer, leaning in with a smug look, pointing sideways with one hand and swinging the other arm.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "dialogue": "it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it."
+            },
+            {
+              "seconds": 8,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "dialogue": "Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line."
+            },
+            {
+              "seconds": 4,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter small at the bottom left, casual open hands, deadpan.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Balance: $3.000. One call, $0.0013.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "dialogue": "Balance: $3.000. One call, $0.0013."
+            },
+            {
+              "seconds": 8,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered in a medium shot, hands at his sides, relaxed, talking straight to camera. Then Small pixelated presenter pops out of a pipe with both fists raised, playful.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "dialogue": "And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go."
+            }
+          ],
+          "reference_images": [],
+          "caption": "The agent got $3 and one line. It picked its own tools, no sign-ups. We killed the subscriptions. Try the $1 free credit. AI-generated video by Monid.",
+          "hashtags": [
+            "#aiagents",
+            "#devtools",
+            "#mcp",
+            "#apis",
+            "#buildinpublic"
+          ],
+          "cta": "Paste `set up https://monid.ai/SKILL.md` into your agent and take the $1 free credit",
+          "inspired_by": [
+            "https://www.tiktok.com/@cluelyextras/video/7544005050146770189"
+          ],
+          "why": "The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s. Fit 5/10 as a talking-head: the number contrast carries to $3.000 against $0.0013 and the on-screen proof is Monid's real discover/run/balance screens. It's a different lane (famous viral benchmark) and format from the setup walkthrough, so the campaign tests a founder-voice explainer against a faceless tutorial.",
+          "brief": {
+            "title": "We gave an agent $3 and one skill file",
+            "reference_id": "ref_39fbf885ae",
+            "format": "remake",
+            "angle": "A smug founder-confession: the agent used tools nobody signed up for and the cost was a fraction of a cent, because the setup was one line.",
+            "audience": "Small teams shipping agent products",
+            "hook_plan": "Say: \"We gave an agent a $3 balance and one skill file, and we saw, wow,\" (the $400,000 billboards become the $3.000 demo balance). Caption 'WE GAVE IT $3'. Presenter at the left edge, gesturing, looking up off-camera, in front of the chalkboard with the lower half blurred. Do not claim a real test or real-world results: frame it as the demo shown on the site.",
+            "keep": [
+              "Smug, deadpan founder voice at ~250 wpm with 'we were like' quotes",
+              "Green-screen cutout in front of a chalkboard, vertical frame split into stacked halves, lower half blurred",
+              "Presenter moves between left edge, centered and a small corner; a new screenshot or framing every 3-7 s",
+              "Beat order: bold hook, proof screenshot, 'worth it' payoff, agitate, sheepish confession, chart, reveal, objection, sign-off",
+              "Bold word-by-word captions",
+              "Playful pop-out sign-off 'So let's go.'"
+            ],
+            "change": [
+              "Proof beat: k3 three-step card (discover, inspect, run) and the balance readout instead of the 8.6M view-count shot",
+              "Payoff: 'agent got 12 candidates ranked by fit and price and ran one with no sign-up' replaces 'a cultural moment'",
+              "Agitate: instead of LinkedIn posts, the pain of every tool needing a sign-up, an API key and a subscription (s1 homepage, 'We killed the subscriptions.')",
+              "Confession: 'the setup was one line: set up https://monid.ai/SKILL.md' (p1) replaces 'two hours on the copy'",
+              "Chart: balance readout $3.000 and the $0.0013 per-call debit replaces the engagement chart",
+              "Objection beat: pay only per call from one balance; vendor errors and unmatched lookups settle at zero (per the repo); start with $1 in free credit",
+              "Remove the 'CLUELY UNIVERSITY' hoodie, Roy and the billboard text; plain unbranded hoodie",
+              "The Mario-style sign-off becomes a generic pixel-art terminal cursor pop-out (no third-party trademark)"
+            ],
+            "visuals": [
+              "k3",
+              "p1",
+              "s1",
+              "k1"
+            ],
+            "creator": "Man, 20s, dark tousled hair, plain black hoodie with no logo, playful self-aware smug energy, animated hands, quick delivery. Not a copy of the original presenter.",
+            "setting": "Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look.",
+            "platforms": [
+              "tiktok",
+              "instagram",
+              "youtube"
+            ],
+            "caption": "The agent got $3 and one line. It picked its own tools, no sign-ups. We killed the subscriptions. Try the $1 free credit. AI-generated video by Monid.",
+            "hashtags": [
+              "#aiagents",
+              "#devtools",
+              "#mcp",
+              "#apis",
+              "#buildinpublic"
+            ],
+            "cta": "Paste `set up https://monid.ai/SKILL.md` into your agent and take the $1 free credit",
+            "why": "The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s. Fit 5/10 as a talking-head: the number contrast carries to $3.000 against $0.0013 and the on-screen proof is Monid's real discover/run/balance screens. It's a different lane (famous viral benchmark) and format from the setup walkthrough, so the campaign tests a founder-voice explainer against a faceless tutorial."
+          },
+          "script": {
+            "beats": [
+              {
+                "n": 1,
+                "job": "hook",
+                "seconds": 3.7,
+                "line": "We gave an agent three dollars and one skill file, and we saw, wow,",
+                "on_screen_text": "WE GAVE IT $3",
+                "visual": "creator",
+                "product_visual": null,
+                "direction": "Stand at the left edge of the frame, gesturing animatedly with one hand, looking up and off-camera with a smug look.",
+                "emotion": "[smug]"
+              },
+              {
+                "n": 2,
+                "job": "proof",
+                "seconds": 5.3,
+                "line": "it found twelve tools ranked by fit and price. It ran one with no sign-up.",
+                "on_screen_text": "discover, inspect, run; $3.000",
+                "visual": "creator",
+                "product_visual": null,
+                "direction": "Stay at the left, mime with both fists, deadpan-smug, pointing toward the board as the proof appears.",
+                "emotion": "[deadpan]"
+              },
+              {
+                "n": 3,
+                "job": "payoff",
+                "seconds": 6.6,
+                "line": "The charge was about a tenth of a cent, and so this was worth it. We killed the subscriptions. This was successful. Monid dot ai.",
+                "on_screen_text": "",
+                "visual": "creator",
+                "product_visual": null,
+                "direction": "Centered and closer, leaning in with a smug look, pointing sideways with one hand and swinging the other arm.",
+                "emotion": "[smug]"
+              }
+            ],
+            "total_seconds": 15.6,
+            "review": {
+              "score": 8,
+              "notes": [
+                "Hook keeps the reference shape word for word ('...and we saw, wow,') with only the product facts swapped ($400,000 billboards became three dollars and one skill file). It is a strong curiosity-gap opener.",
+                "Beat 2 keeps the reference's proof job and rhythm. 'twelve tools ranked by fit and price' and 'no sign-up' match the brief's 12 candidates and no per-tool sign-up. It is 15 words against a max of 22, so it fits. The on-screen text 'discover, inspect, run; $3.000' mirrors the reference's 'label; number' shape.",
+                "Beat 3 swaps 'cultural moment which can't even be priced' for 'about a tenth of a cent'. $0.0013 is roughly that, and it keeps the reference's 'and so this was worth it ... This was successful' wording. At about 25 words against a max of 27, it is tight but it fits.",
+                "Minor: 'This was successful. Monid dot ai.' ends on a bare brand tag rather than a full thought. This is acceptable for a reach video, and it avoids a hard sell. Keep the delivery brisk so the last line doesn't sound like an ad read.",
+                "The brief says not to claim a real test. 'we saw, wow' is the reference's wording and reads as the site's demo, so it passes. Keep the demo framing in the edit, for example by showing the site's balance readout."
+              ],
+              "rounds": 2
+            }
+          },
+          "plan": {
+            "format": "split_screen",
+            "aroll": [
+              {
+                "n": 1,
+                "beats": [
+                  1
+                ],
+                "seconds": 6,
+                "line": "We gave an agent a $3 balance and one skill file, and we saw, wow,",
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter at the left edge in a plain black hoodie in front of the chalkboard, gesturing animatedly with one hand, looking up and off-camera with a smug grin.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"We gave an agent a $3 balance and one skill file, and we saw, wow,\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+              },
+              {
+                "n": 2,
+                "beats": [
+                  2,
+                  3
+                ],
+                "seconds": 8,
+                "line": "it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it.",
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered and closer, leaning in with a smug look, pointing sideways with one hand and swinging the other arm.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+              },
+              {
+                "n": 3,
+                "beats": [
+                  4,
+                  5
+                ],
+                "seconds": 8,
+                "line": "Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line.",
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+              },
+              {
+                "n": 4,
+                "beats": [
+                  6
+                ],
+                "seconds": 4,
+                "line": "Balance: $3.000. One call, $0.0013.",
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter small at the bottom left, casual open hands, deadpan.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Balance: $3.000. One call, $0.0013.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+              },
+              {
+                "n": 5,
+                "beats": [
+                  7,
+                  8
+                ],
+                "seconds": 8,
+                "line": "And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go.",
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered in a medium shot, hands at his sides, relaxed, talking straight to camera. Then Small pixelated presenter pops out of a pipe with both fists raised, playful.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+              }
+            ],
+            "broll": [
+              {
+                "beat": 1,
+                "visual_id": "k3",
+                "motion": "zoom_in"
+              },
+              {
+                "beat": 2,
+                "visual_id": "screen:b2",
+                "motion": "none"
+              },
+              {
+                "beat": 3,
+                "visual_id": "k3",
+                "motion": "zoom_out"
+              },
+              {
+                "beat": 4,
+                "visual_id": "s1",
+                "motion": "zoom_in"
+              },
+              {
+                "beat": 5,
+                "visual_id": "p1",
+                "motion": "zoom_out"
+              },
+              {
+                "beat": 6,
+                "visual_id": "screen:b6",
+                "motion": "none"
+              },
+              {
+                "beat": 7,
+                "visual_id": "screen:b7",
+                "motion": "none"
+              },
+              {
+                "beat": 8,
+                "visual_id": "screen:b8",
+                "motion": "none"
+              }
+            ],
+            "voiceover": null,
+            "screens": [
+              {
+                "id": "b2",
+                "brief": "Show what this line says as one clear on-screen graphic: \"it found 12 candidates ranked by fit and price. Then it just ran one.\". Use the product's real names, commands, numbers and UI from the brief, and nothing the line does not say. It may build on this real visual: Three-step flow cards: discover, inspect, run, labeled free and 'PAY PER USE'.",
+                "line": "it found 12 candidates ranked by fit and price. Then it just ran one.",
+                "seconds": 3.5,
+                "reference_visual": "The presenter stays left and mimes with both fists. A framed screenshot of a Times Square-style video of white text billboards on a skyscraper appears on the chalkboard, with a '▷ 8.6M' view count. The caption reads 'THESE ARE GETTING'. This is proof of the views.; on-screen text: \"Go buy from Roy ig; ▷ 8.6M\"",
+                "size": "half"
+              },
+              {
+                "id": "b6",
+                "brief": "Dark terminal card on the chalkboard. Line 1 types in: '~/agents/research-bot balance $3.000'. Line 2 appears: 'monid.run()  -$0.0013'. The balance number ticks down by the debit.",
+                "line": "Balance: $3.000. One call, $0.0013.",
+                "seconds": 3,
+                "reference_visual": "The presenter moves to the left and speaks casually with open hands. A selfie photo of a young man with glasses and dark hair (Roy) is placed at the right of the board. Shot changes at 32.8 s, probably a tighter or repositioned framing. Captions continue.",
+                "size": "half"
+              },
+              {
+                "id": "b7",
+                "brief": "Show what this line says as one clear on-screen graphic: \"And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free.\". Use the product's real names, commands, numbers and UI from the brief, and nothing the line does not say. It may build on this real visual: Three-step flow cards: discover, inspect, run, labeled free and 'PAY PER USE'.",
+                "line": "And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free.",
+                "seconds": 4,
+                "reference_visual": "The presenter keeps delivering the same quoted, deadpan dialogue between frames, probably in the same set-up with only a change of position. This is inferred, since no frame falls in this span.",
+                "size": "half"
+              },
+              {
+                "id": "b8",
+                "brief": "Generic pixel-art level with blue sky, brick ground and a green pipe. A small pixelated presenter pops out of the pipe with both fists raised, with a blinking pixel-art terminal cursor beside him. Text: 'set up https://monid.ai/SKILL.md'.",
+                "line": "So let's go.",
+                "seconds": 2,
+                "reference_visual": "The presenter is small at the bottom left. A bar chart on a white card is on the right of the board. The y-axis is labelled 'engagement', with two short bars (cyan and green) over three billboard captions, and an empty slot for the first one. The text under the bars is small.; on-screen text: \"engagement; NEVER ASK ANOTHER \"DUMB QUESTION\"; \"I'M MY NAME IS ROY I QUIT WORKS OUT OF SCHOOL FOR CHEATING\" (partly unreadable); NO MORE \"LET ME LOOP IN MY TECH GUY\"\"",
+                "size": "half"
+              }
+            ]
+          },
+          "reference": {
+            "id": "ref_39fbf885ae",
+            "url": "https://www.tiktok.com/@cluelyextras/video/7544005050146770189",
+            "author": "cluelyextras",
+            "views": 628239,
+            "followers": 2969,
+            "outlier": 211.6,
+            "format": "A green-screen presenter cut out in front of a virtual classroom chalkboard, in a vertical frame split into two stacked halves with the lower half blurred. He moves around the frame, sometimes shrinking to a corner. Cuts come every ~3-7 s to screenshots on the board: a view-count video, a LinkedIn post, a selfie and an engagement chart. Bold word-by-word captions, with no music mentioned. It ends on a Mario-level meme gag.",
+            "hook_mechanic": "Opens with a big, specific money figure spent on something visible, with a smug 'worth it' tone. This sets up a curiosity gap: why would anyone brag about that, and was it worth it? It then reframes the expense as a win."
+          },
+          "internal": true,
+          "previous": {
+            "title": "We gave an agent $3 and one skill file (green-screen explainer)",
+            "format": "split screen",
+            "hook": "WE GAVE IT $3 / We gave an agent a $3 balance and one skill file, and we saw, wow,",
+            "shots": [
+              {
+                "n": 1,
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter at the left edge in a plain black hoodie in front of the chalkboard, gesturing animatedly with one hand, looking up and off-camera with a smug grin.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"We gave an agent a $3 balance and one skill file, and we saw, wow,\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+                "seconds": 6,
+                "status": "passed",
+                "provider": "naive",
+                "renders": 2,
+                "qc_rounds": 2,
+                "submit_errors": 0,
+                "frame_idem": "crv_376762f3ac4741cda217-shot1-frame-look-gate2",
+                "frame_file_id": "fil_z68wja1vkn5qbwwcv06e8snb5w",
+                "frame_url": "https://api.vetta.sh/v1/files/fil_z68wja1vkn5qbwwcv06e8snb5w/image-fil_z68wja1vkn5qbwwcv06e8snb5w.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709389825&in=media&sig=3XS9HQR5PDCCjWf6oyYzE7gx7m3jUeaDWQU49lwowc8",
+                "frame_skipped": false,
+                "text_only": false,
+                "force_monid": false,
+                "video_idem": "crv_376762f3ac4741cda217-shot1-render1-qc1",
+                "job_id": "med_r9nt3s15b6618n8gb2q4b2ztsk",
+                "monid_run_id": null,
+                "video_file_id": "fil_td60bj5ebqyfjvxdghebb91bfd",
+                "video_url": "https://api.vetta.sh/v1/files/fil_td60bj5ebqyfjvxdghebb91bfd/video-fil_td60bj5ebqyfjvxdghebb91bfd.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709736263&in=media&sig=6CE8HqQS8nRUCGkbbzGi_Ta8G3GHdMp9gqhorw9AcEg",
+                "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot1-r2.mp4",
+                "qc": {
+                  "score": 8,
+                  "pass": true,
+                  "issues": [
+                    "Frame 1 shows a double thumbs-up, which the prompt explicitly banned. The hands look anatomically fine, so this is a brief-adherence slip and not a visual defect.",
+                    "The presenter is centered, not at the left edge as the shot description asks. He also looks at the lens instead of up and off-camera. Both are minor framing and action differences.",
+                    "The backpack has a small red logo patch. It isn't legible, but the brief said no logos.",
+                    "The setting is a real-looking classroom. It reads as natural, but it isn't visibly the stylized virtual green classroom.",
+                    "Hands are mostly out of frame or at the bottom edge, so the animated-hands energy is limited. This is not a defect."
+                  ],
+                  "fix_prompt": ""
+                },
+                "naive_cost": 4828000,
+                "monid_cost": 0,
+                "error": null,
+                "previous_frame_file_id": null,
+                "frame_checks": 2,
+                "frame_rekeys": 1,
+                "frame_inflight_since": null,
+                "frame_gated": true,
+                "frame_fix": "The hoodie has a visible graphic print on the chest (partly hidden letters, roughly ). The brief asked for a plain black hoodie with no logo, and the print reads as partial text. The backpack in the right corner has a small label or patch with illegible, garbled text. The clasped hands look slightly awkward. The fingers overlap in a tangled, bunched way, which could distort when animated."
+              },
+              {
+                "n": 2,
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered and closer, leaning in with a smug look, pointing sideways with one hand and swinging the other arm.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+                "seconds": 8,
+                "status": "passed",
+                "provider": "naive",
+                "renders": 2,
+                "qc_rounds": 2,
+                "submit_errors": 0,
+                "frame_idem": "crv_376762f3ac4741cda217-shot2-frame-look",
+                "frame_file_id": "fil_qhqw0620hedxewdmyckmczgvhy",
+                "frame_url": "https://api.vetta.sh/v1/files/fil_qhqw0620hedxewdmyckmczgvhy/image-fil_qhqw0620hedxewdmyckmczgvhy.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709445314&in=media&sig=SWBvVt7Qbz568o0e7HfazBe_qB1E4mB_GhyHD4Lolq8",
+                "frame_skipped": false,
+                "text_only": false,
+                "force_monid": false,
+                "video_idem": "crv_376762f3ac4741cda217-shot2-render1-qc1",
+                "job_id": "med_escm8d51bddrgaa8ppyt10fx2f",
+                "monid_run_id": null,
+                "video_file_id": "fil_76y7beepf8sasmg877v9sm4jj0",
+                "video_url": "https://api.vetta.sh/v1/files/fil_76y7beepf8sasmg877v9sm4jj0/video-fil_76y7beepf8sasmg877v9sm4jj0.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709749174&in=media&sig=lyMrWyGtvVcYDpJae2cYSOMRFr3KJcKz4_PpqZVnYvk",
+                "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot2-r2.mp4",
+                "qc": {
+                  "score": 8,
+                  "pass": true,
+                  "issues": [
+                    "Small label patch on the backpack shows partly legible lettering (\"RG…\"). It's minor and far from the focus, but the brief says no logos.",
+                    "Hands are animated and pointing in frames 1 and 3. The prompt's \"no pointing, hands low\" line conflicts with its own action line, so this is acceptable. Fingers are a bit blurry from motion but not deformed.",
+                    "The wrist accessory changes appearance between frames (white bead bracelet, then a white band or watch). This is plausible from hand movement and isn't critical.",
+                    "Frame 4 has a slightly stiff, neutral expression with a small smile. This is the end-of-clip rest pose, so it's fine."
+                  ],
+                  "fix_prompt": ""
+                },
+                "naive_cost": 6480000,
+                "monid_cost": 0,
+                "error": null,
+                "previous_frame_file_id": null,
+                "frame_checks": 0,
+                "frame_inflight_since": null,
+                "frame_gated": true
+              },
+              {
+                "n": 3,
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+                "seconds": 8,
+                "status": "passed",
+                "provider": "naive",
+                "renders": 2,
+                "qc_rounds": 2,
+                "submit_errors": 0,
+                "frame_idem": "crv_376762f3ac4741cda217-shot3-frame-look",
+                "frame_file_id": "fil_ff4035x2am66d4m7ca8cqtkhpp",
+                "frame_url": "https://api.vetta.sh/v1/files/fil_ff4035x2am66d4m7ca8cqtkhpp/image-fil_ff4035x2am66d4m7ca8cqtkhpp.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709505165&in=media&sig=HwR_Ju1y5fSxaseTDl3VdWgxVcTyISl-6ru-6HcjIYo",
+                "frame_skipped": false,
+                "text_only": false,
+                "force_monid": false,
+                "video_idem": "crv_376762f3ac4741cda217-shot3-render1-qc1",
+                "job_id": "med_843knqbhj21fha2jq81bzc09a3",
+                "monid_run_id": null,
+                "video_file_id": "fil_chv1xapdnkf4zgdp49wkha6b2f",
+                "video_url": "https://api.vetta.sh/v1/files/fil_chv1xapdnkf4zgdp49wkha6b2f/video-fil_chv1xapdnkf4zgdp49wkha6b2f.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709750121&in=media&sig=zfKtsYyyjlp5zl4tm2Kv-Tn9psWktpTNHE8mu-Cd2Tk",
+                "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot3-r2.mp4",
+                "qc": {
+                  "score": 8,
+                  "pass": true,
+                  "issues": [
+                    "Frame 1 has a small patch or logo on the backpack with a few illegible characters. It's tiny and not readable, so it's minor.",
+                    "The hands are more animated than the prompt asked for (frame 1 shows a thumb-up-like pose, frame 2 shows claw-like hands in motion). They look anatomically plausible, only slightly blurred by motion.",
+                    "The framing shifts between frames: frames 3 and 4 are slightly tighter and the backpack is cropped. This reads as a natural handheld or reframe difference.",
+                    "Frame 3 has a very wide, toothy smile that looks a bit posed. It isn't a defect."
+                  ],
+                  "fix_prompt": ""
+                },
+                "naive_cost": 6480000,
+                "monid_cost": 0,
+                "error": null,
+                "previous_frame_file_id": null,
+                "frame_checks": 0,
+                "frame_inflight_since": null,
+                "frame_gated": true
+              },
+              {
+                "n": 4,
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter small at the bottom left, casual open hands, deadpan.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Balance: $3.000. One call, $0.0013.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+                "seconds": 4,
+                "status": "passed",
+                "provider": "naive",
+                "renders": 2,
+                "qc_rounds": 2,
+                "submit_errors": 0,
+                "frame_idem": "crv_376762f3ac4741cda217-shot4-frame-look",
+                "frame_file_id": "fil_a3g1ggq4kykztq8e7zyrk36t1d",
+                "frame_url": "https://api.vetta.sh/v1/files/fil_a3g1ggq4kykztq8e7zyrk36t1d/image-fil_a3g1ggq4kykztq8e7zyrk36t1d.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709575343&in=media&sig=7RKUS5tJ74G-sU0RmPR9b60Epyaj30C5wEvaGhCP9fA",
+                "frame_skipped": false,
+                "text_only": false,
+                "force_monid": false,
+                "video_idem": "crv_376762f3ac4741cda217-shot4-render1-qc1",
+                "job_id": "med_d4rfk882et63teh99b15cwvs2j",
+                "monid_run_id": null,
+                "video_file_id": "fil_mvyztkmssba4sxsxcp0y4ztbq9",
+                "video_url": "https://api.vetta.sh/v1/files/fil_mvyztkmssba4sxsxcp0y4ztbq9/video-fil_mvyztkmssba4sxsxcp0y4ztbq9.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709751262&in=media&sig=yjp7oQAdLAVEpw1oX_McnigvJZJglwGbnr_jhIwhIeI",
+                "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot4-r2.mp4",
+                "qc": {
+                  "score": 7,
+                  "pass": true,
+                  "issues": [
+                    "Frame 1 shows a double thumbs-up, which the brief explicitly bans. The hands look anatomically fine, and it's a natural gesture, but it's off-script for a deadpan line about a balance.",
+                    "The backpack has a small label with garbled text (\"iGG\"-like). It's tiny and incidental, but the brief said no logos or text.",
+                    "The framing drifts a little between frames: the head is higher and larger in frame 1 and lower in frames 3 and 4. This is minor.",
+                    "The brief asks for a \"virtual green classroom\" and a \"presenter small at bottom left\". The shot instead looks like a real classroom with a chest-up, centered presenter. It reads as authentic, so this is not a problem."
+                  ],
+                  "fix_prompt": ""
+                },
+                "naive_cost": 3280000,
+                "monid_cost": 0,
+                "error": null,
+                "previous_frame_file_id": null,
+                "frame_checks": 0,
+                "frame_inflight_since": null,
+                "frame_gated": true
+              },
+              {
+                "n": 5,
+                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+                "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered in a medium shot, hands at his sides, relaxed, talking straight to camera. Then Small pixelated presenter pops out of a pipe with both fists raised, playful.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+                "seconds": 8,
+                "status": "passed",
+                "provider": "naive",
+                "renders": 2,
+                "qc_rounds": 2,
+                "submit_errors": 0,
+                "frame_idem": "crv_376762f3ac4741cda217-shot5-frame-look",
+                "frame_file_id": "fil_1r63jhyq9x58hvfgh5a558gepz",
+                "frame_url": "https://api.vetta.sh/v1/files/fil_1r63jhyq9x58hvfgh5a558gepz/image-fil_1r63jhyq9x58hvfgh5a558gepz.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709634869&in=media&sig=5pArgabxAmHAJ-yXEwIaXuZshBd82tSTPLwrmhsKoHs",
+                "frame_skipped": false,
+                "text_only": false,
+                "force_monid": false,
+                "video_idem": "crv_376762f3ac4741cda217-shot5-render1-qc1",
+                "job_id": "med_qgv1fbw74j4sy4b0crthd60t7p",
+                "monid_run_id": null,
+                "video_file_id": "fil_10254qnb1fwhv5qcb453c62y0g",
+                "video_url": "https://api.vetta.sh/v1/files/fil_10254qnb1fwhv5qcb453c62y0g/video-fil_10254qnb1fwhv5qcb453c62y0g.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709781151&in=media&sig=bUYvQfIDLLT8OSqsGVWCWqfdD1prC1KdPFNWtw8tJC4",
+                "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot5-r2.mp4",
+                "qc": {
+                  "score": 8,
+                  "pass": true,
+                  "issues": [
+                    "A small label on the backpack reads something like \"iBGM\". It's a minor stray logo/text and not legible enough to count as a critical defect.",
+                    "He points at himself with both index fingers in frame 2 and gestures a lot. The brief asked for hands low and relaxed with no pointing. This is natural and on message, so it isn't critical.",
+                    "The pixelated presenter popping out of a pipe isn't visible in these frames. It is probably an edit-time overlay, so this is fine.",
+                    "The classroom looks like a real room rather than a stylized virtual one. This is acceptable and reads as authentic."
+                  ],
+                  "fix_prompt": ""
+                },
+                "naive_cost": 6480000,
+                "monid_cost": 0,
+                "error": null,
+                "previous_frame_file_id": null,
+                "frame_checks": 0,
+                "frame_inflight_since": null,
+                "frame_gated": true
+              }
+            ],
+            "qc_score": 7,
+            "note": "the standard pipeline's green-screen explainer, before the one-to-one remake"
+          }
+        },
+        {
+          "title": "i let my agent cook with one balance (it got greedy)",
+          "format": "brainrot meme",
+          "hook": "POV: you told your agent to go crazy",
+          "caption": "i let my agent cook with one balance (it got greedy). What should my agent do next? monid.ai",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@phamhacks/video/7678518337311116557"
+          ],
+          "why": "Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers).",
+          "reference": {
+            "id": "ref_c64c533a71",
+            "url": "https://www.tiktok.com/@phamhacks/video/7678518337311116557",
+            "author": "phamhacks",
+            "views": 2276109,
+            "followers": 5088,
+            "outlier": 447.3,
+            "format": "brainrot meme"
+          },
+          "brief": {
+            "format": "brainrot meme",
+            "role": "reach",
+            "title": "i let my agent cook with one balance (it got greedy)"
+          },
+          "script": {
+            "total_seconds": 30.6,
+            "beats": [],
+            "review": null
+          }
+        },
+        {
+          "title": "A sign-up for every API, or one balance",
+          "format": "code ad (3D animation)",
+          "hook": "Every API your agent needs is another sign-up, another key.",
+          "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@cluelyextras/video/7544005050146770189"
+          ],
+          "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
+          "reference": {
+            "id": "ref_da97474993",
+            "url": "https://www.tiktok.com/@cluelyextras/video/7544005050146770189",
+            "author": "cluelyextras",
+            "views": 628239,
+            "followers": 2969,
+            "outlier": 211.6,
+            "format": "code ad (3D animation)"
+          },
+          "brief": {
+            "format": "code ad (3D animation)",
+            "role": "reach",
+            "title": "A sign-up for every API, or one balance"
+          },
+          "script": {
+            "total_seconds": 26.7,
+            "beats": [],
+            "review": null
+          },
+          "previous": {
+            "title": "A sign-up per API vs one balance",
+            "format": "code ad (3D animation)",
+            "hook": "Every API your agent needs is another sign-up, another key.",
+            "note": "the first version, before this remake"
+          }
+        }
+      ],
+      "script_rounds": 1
+    },
+    "competitors": [
+      {
+        "name": "Composio",
+        "what_works": "Owns the AI answer for the generic 'give an agent many APIs' prompt, with a clear 'best for' label and feature bullets.",
+        "positioning": "Named first by ChatGPT as the best overall tool-integration platform for AI agents: prebuilt integrations, managed auth, MCP support."
+      },
+      {
+        "name": "Pipedream Connect",
+        "what_works": "Positioned by breadth ('thousands of app integrations'), which ChatGPT repeats.",
+        "positioning": "Broad API coverage with managed OAuth connections and MCP support."
+      },
+      {
+        "name": "Nango",
+        "what_works": "Clear 'for developers building production agents' niche label.",
+        "positioning": "Unified auth for production agents, with custom integrations, webhooks and self-hosting."
+      }
+    ],
+    "content_patterns": [
+      {
+        "pattern": "Finished result on screen first, then a plain step-by-step with one step per shot",
+        "examples": [
+          "https://www.tiktok.com/@ai.with.ni/video/7609623318043380999"
+        ],
+        "why_it_works": "Viewers see the outcome, then each ordinal step ('first step', 'next step') is easy to follow and save. 1.2M views on an account with 11.7k followers, with saves about 80% of likes."
+      },
+      {
+        "pattern": "Big specific number in the hook with a smug, confessional founder tone, then proof screenshots every 3-7 s",
+        "examples": [
+          "https://www.tiktok.com/@cluelyextras/video/7544005050146770189"
+        ],
+        "why_it_works": "A concrete figure opens a curiosity gap and the constant visual change holds attention. 628k views on 2.9k followers."
+      },
+      {
+        "pattern": "Labelled meme / fixed list where the viewer decodes the structure in a second",
+        "examples": [
+          "https://www.tiktok.com/@empeer.den/video/7694747291504233780",
+          "https://www.tiktok.com/@alli.growth3/video/7640262586189106452"
+        ],
+        "why_it_works": "A constant label with rotating targets, or a numbered list that fills in live, gives rhythm and a payoff by the third item. The meme got 597x views per follower."
+      },
+      {
+        "pattern": "Dense, fast delivery (about 245-250 wpm) with word-by-word captions and a direct CTA",
+        "examples": [
+          "https://www.tiktok.com/@ai.with.ni/video/7609623318043380999",
+          "https://www.tiktok.com/@cluelyextras/video/7544005050146770189",
+          "https://www.tiktok.com/@alli.growth3/video/7640262586189106452"
+        ],
+        "why_it_works": "Fast pace and big captions keep retention high. A comment-keyword or follow CTA turns viewers into a next step."
+      }
+    ]
+  },
+  "creatives": [
+    {
+      "idx": 1,
+      "concept": {
+        "title": "We gave an agent $3 and one skill file",
+        "format": "one-to-one remake",
+        "angle": "A smug founder-confession: the agent used tools nobody signed up for and the cost was a fraction of a cent, because the setup was one line.",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "hook": "WE GAVE IT $3 / We gave an agent three dollars and one skill file, and we saw, wow,",
+        "creator": "Man, 20s, dark tousled hair, plain black hoodie with no logo, playful self-aware smug energy, animated hands, quick delivery. Not a copy of the original presenter.",
+        "setting": "Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look.",
+        "shots": [
+          {
+            "seconds": 6,
+            "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+            "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter at the left edge in a plain black hoodie in front of the chalkboard, gesturing animatedly with one hand, looking up and off-camera with a smug grin.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"We gave an agent a $3 balance and one skill file, and we saw, wow,\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+            "dialogue": "We gave an agent a $3 balance and one skill file, and we saw, wow,"
+          },
+          {
+            "seconds": 8,
+            "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+            "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered and closer, leaning in with a smug look, pointing sideways with one hand and swinging the other arm.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+            "dialogue": "it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it."
+          },
+          {
+            "seconds": 8,
+            "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+            "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+            "dialogue": "Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line."
+          },
+          {
+            "seconds": 4,
+            "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+            "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter small at the bottom left, casual open hands, deadpan.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Balance: $3.000. One call, $0.0013.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+            "dialogue": "Balance: $3.000. One call, $0.0013."
+          },
+          {
+            "seconds": 8,
+            "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+            "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered in a medium shot, hands at his sides, relaxed, talking straight to camera. Then Small pixelated presenter pops out of a pipe with both fists raised, playful.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+            "dialogue": "And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go."
+          }
+        ],
+        "reference_images": [],
+        "caption": "The agent got $3 and one line. It picked its own tools, no sign-ups. We killed the subscriptions. Try the $1 free credit. AI-generated video by Monid.",
+        "hashtags": [
+          "#aiagents",
+          "#devtools",
+          "#mcp",
+          "#apis",
+          "#buildinpublic"
+        ],
+        "cta": "Paste `set up https://monid.ai/SKILL.md` into your agent and take the $1 free credit",
+        "inspired_by": [
+          "https://www.tiktok.com/@cluelyextras/video/7544005050146770189"
+        ],
+        "why": "The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s. Fit 5/10 as a talking-head: the number contrast carries to $3.000 against $0.0013 and the on-screen proof is Monid's real discover/run/balance screens. It's a different lane (famous viral benchmark) and format from the setup walkthrough, so the campaign tests a founder-voice explainer against a faceless tutorial.",
+        "brief": {
+          "title": "We gave an agent $3 and one skill file (green-screen explainer)",
+          "reference_id": "ref_39fbf885ae",
+          "format": "remake",
+          "angle": "A smug founder-confession: the agent used tools nobody signed up for and the cost was a fraction of a cent, because the setup was one line.",
+          "audience": "Small teams shipping agent products",
+          "hook_plan": "Say: \"We gave an agent a $3 balance and one skill file, and we saw, wow,\" (the $400,000 billboards become the $3.000 demo balance). Caption 'WE GAVE IT $3'. Presenter at the left edge, gesturing, looking up off-camera, in front of the chalkboard with the lower half blurred. Do not claim a real test or real-world results: frame it as the demo shown on the site.",
+          "keep": [
+            "Smug, deadpan founder voice at ~250 wpm with 'we were like' quotes",
+            "Green-screen cutout in front of a chalkboard, vertical frame split into stacked halves, lower half blurred",
+            "Presenter moves between left edge, centered and a small corner; a new screenshot or framing every 3-7 s",
+            "Beat order: bold hook, proof screenshot, 'worth it' payoff, agitate, sheepish confession, chart, reveal, objection, sign-off",
+            "Bold word-by-word captions",
+            "Playful pop-out sign-off 'So let's go.'"
+          ],
+          "change": [
+            "Proof beat: k3 three-step card (discover, inspect, run) and the balance readout instead of the 8.6M view-count shot",
+            "Payoff: 'agent got 12 candidates ranked by fit and price and ran one with no sign-up' replaces 'a cultural moment'",
+            "Agitate: instead of LinkedIn posts, the pain of every tool needing a sign-up, an API key and a subscription (s1 homepage, 'We killed the subscriptions.')",
+            "Confession: 'the setup was one line: set up https://monid.ai/SKILL.md' (p1) replaces 'two hours on the copy'",
+            "Chart: balance readout $3.000 and the $0.0013 per-call debit replaces the engagement chart",
+            "Objection beat: pay only per call from one balance; vendor errors and unmatched lookups settle at zero (per the repo); start with $1 in free credit",
+            "Remove the 'CLUELY UNIVERSITY' hoodie, Roy and the billboard text; plain unbranded hoodie",
+            "The Mario-style sign-off becomes a generic pixel-art terminal cursor pop-out (no third-party trademark)"
+          ],
+          "visuals": [
+            "k3",
+            "p1",
+            "s1",
+            "k1"
+          ],
+          "creator": "Man, 20s, dark tousled hair, plain black hoodie with no logo, playful self-aware smug energy, animated hands, quick delivery. Not a copy of the original presenter.",
+          "setting": "Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look.",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "caption": "The agent got $3 and one line. It picked its own tools, no sign-ups. We killed the subscriptions. Try the $1 free credit. AI-generated video by Monid.",
+          "hashtags": [
+            "#aiagents",
+            "#devtools",
+            "#mcp",
+            "#apis",
+            "#buildinpublic"
+          ],
+          "cta": "Paste `set up https://monid.ai/SKILL.md` into your agent and take the $1 free credit",
+          "why": "The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s. Fit 5/10 as a talking-head: the number contrast carries to $3.000 against $0.0013 and the on-screen proof is Monid's real discover/run/balance screens. It's a different lane (famous viral benchmark) and format from the setup walkthrough, so the campaign tests a founder-voice explainer against a faceless tutorial."
+        },
+        "script": {
+          "beats": [
+            {
+              "n": 1,
+              "job": "hook",
+              "seconds": 3.7,
+              "line": "We gave an agent three dollars and one skill file, and we saw, wow,",
+              "on_screen_text": "WE GAVE IT $3",
+              "visual": "creator",
+              "product_visual": null,
+              "direction": "Stand at the left edge of the frame, gesturing animatedly with one hand, looking up and off-camera with a smug look.",
+              "emotion": "[smug]"
+            },
+            {
+              "n": 2,
+              "job": "proof",
+              "seconds": 5.3,
+              "line": "it found twelve tools ranked by fit and price. It ran one with no sign-up.",
+              "on_screen_text": "discover, inspect, run; $3.000",
+              "visual": "creator",
+              "product_visual": null,
+              "direction": "Stay at the left, mime with both fists, deadpan-smug, pointing toward the board as the proof appears.",
+              "emotion": "[deadpan]"
+            },
+            {
+              "n": 3,
+              "job": "payoff",
+              "seconds": 6.6,
+              "line": "The charge was about a tenth of a cent, and so this was worth it. We killed the subscriptions. This was successful. Monid dot ai.",
+              "on_screen_text": "",
+              "visual": "creator",
+              "product_visual": null,
+              "direction": "Centered and closer, leaning in with a smug look, pointing sideways with one hand and swinging the other arm.",
+              "emotion": "[smug]"
+            }
+          ],
+          "total_seconds": 15.6,
+          "review": {
+            "score": 8,
+            "notes": [
+              "Hook keeps the reference shape word for word ('...and we saw, wow,') with only the product facts swapped ($400,000 billboards became three dollars and one skill file). It is a strong curiosity-gap opener.",
+              "Beat 2 keeps the reference's proof job and rhythm. 'twelve tools ranked by fit and price' and 'no sign-up' match the brief's 12 candidates and no per-tool sign-up. It is 15 words against a max of 22, so it fits. The on-screen text 'discover, inspect, run; $3.000' mirrors the reference's 'label; number' shape.",
+              "Beat 3 swaps 'cultural moment which can't even be priced' for 'about a tenth of a cent'. $0.0013 is roughly that, and it keeps the reference's 'and so this was worth it ... This was successful' wording. At about 25 words against a max of 27, it is tight but it fits.",
+              "Minor: 'This was successful. Monid dot ai.' ends on a bare brand tag rather than a full thought. This is acceptable for a reach video, and it avoids a hard sell. Keep the delivery brisk so the last line doesn't sound like an ad read.",
+              "The brief says not to claim a real test. 'we saw, wow' is the reference's wording and reads as the site's demo, so it passes. Keep the demo framing in the edit, for example by showing the site's balance readout."
+            ],
+            "rounds": 2
+          }
+        },
+        "plan": {
+          "format": "split_screen",
+          "aroll": [
+            {
+              "n": 1,
+              "beats": [
+                1
+              ],
+              "seconds": 6,
+              "line": "We gave an agent a $3 balance and one skill file, and we saw, wow,",
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter at the left edge in a plain black hoodie in front of the chalkboard, gesturing animatedly with one hand, looking up and off-camera with a smug grin.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"We gave an agent a $3 balance and one skill file, and we saw, wow,\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+            },
+            {
+              "n": 2,
+              "beats": [
+                2,
+                3
+              ],
+              "seconds": 8,
+              "line": "it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it.",
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered and closer, leaning in with a smug look, pointing sideways with one hand and swinging the other arm.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+            },
+            {
+              "n": 3,
+              "beats": [
+                4,
+                5
+              ],
+              "seconds": 8,
+              "line": "Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line.",
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+            },
+            {
+              "n": 4,
+              "beats": [
+                6
+              ],
+              "seconds": 4,
+              "line": "Balance: $3.000. One call, $0.0013.",
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter small at the bottom left, casual open hands, deadpan.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Balance: $3.000. One call, $0.0013.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+            },
+            {
+              "n": 5,
+              "beats": [
+                7,
+                8
+              ],
+              "seconds": 8,
+              "line": "And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go.",
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered in a medium shot, hands at his sides, relaxed, talking straight to camera. Then Small pixelated presenter pops out of a pipe with both fists raised, playful.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
+            }
+          ],
+          "broll": [
+            {
+              "beat": 1,
+              "visual_id": "k3",
+              "motion": "zoom_in"
+            },
+            {
+              "beat": 2,
+              "visual_id": "screen:b2",
+              "motion": "none"
+            },
+            {
+              "beat": 3,
+              "visual_id": "k3",
+              "motion": "zoom_out"
+            },
+            {
+              "beat": 4,
+              "visual_id": "s1",
+              "motion": "zoom_in"
+            },
+            {
+              "beat": 5,
+              "visual_id": "p1",
+              "motion": "zoom_out"
+            },
+            {
+              "beat": 6,
+              "visual_id": "screen:b6",
+              "motion": "none"
+            },
+            {
+              "beat": 7,
+              "visual_id": "screen:b7",
+              "motion": "none"
+            },
+            {
+              "beat": 8,
+              "visual_id": "screen:b8",
+              "motion": "none"
+            }
+          ],
+          "voiceover": null,
+          "screens": [
+            {
+              "id": "b2",
+              "brief": "Show what this line says as one clear on-screen graphic: \"it found 12 candidates ranked by fit and price. Then it just ran one.\". Use the product's real names, commands, numbers and UI from the brief, and nothing the line does not say. It may build on this real visual: Three-step flow cards: discover, inspect, run, labeled free and 'PAY PER USE'.",
+              "line": "it found 12 candidates ranked by fit and price. Then it just ran one.",
+              "seconds": 3.5,
+              "reference_visual": "The presenter stays left and mimes with both fists. A framed screenshot of a Times Square-style video of white text billboards on a skyscraper appears on the chalkboard, with a '▷ 8.6M' view count. The caption reads 'THESE ARE GETTING'. This is proof of the views.; on-screen text: \"Go buy from Roy ig; ▷ 8.6M\"",
+              "size": "half"
+            },
+            {
+              "id": "b6",
+              "brief": "Dark terminal card on the chalkboard. Line 1 types in: '~/agents/research-bot balance $3.000'. Line 2 appears: 'monid.run()  -$0.0013'. The balance number ticks down by the debit.",
+              "line": "Balance: $3.000. One call, $0.0013.",
+              "seconds": 3,
+              "reference_visual": "The presenter moves to the left and speaks casually with open hands. A selfie photo of a young man with glasses and dark hair (Roy) is placed at the right of the board. Shot changes at 32.8 s, probably a tighter or repositioned framing. Captions continue.",
+              "size": "half"
+            },
+            {
+              "id": "b7",
+              "brief": "Show what this line says as one clear on-screen graphic: \"And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free.\". Use the product's real names, commands, numbers and UI from the brief, and nothing the line does not say. It may build on this real visual: Three-step flow cards: discover, inspect, run, labeled free and 'PAY PER USE'.",
+              "line": "And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free.",
+              "seconds": 4,
+              "reference_visual": "The presenter keeps delivering the same quoted, deadpan dialogue between frames, probably in the same set-up with only a change of position. This is inferred, since no frame falls in this span.",
+              "size": "half"
+            },
+            {
+              "id": "b8",
+              "brief": "Generic pixel-art level with blue sky, brick ground and a green pipe. A small pixelated presenter pops out of the pipe with both fists raised, with a blinking pixel-art terminal cursor beside him. Text: 'set up https://monid.ai/SKILL.md'.",
+              "line": "So let's go.",
+              "seconds": 2,
+              "reference_visual": "The presenter is small at the bottom left. A bar chart on a white card is on the right of the board. The y-axis is labelled 'engagement', with two short bars (cyan and green) over three billboard captions, and an empty slot for the first one. The text under the bars is small.; on-screen text: \"engagement; NEVER ASK ANOTHER \"DUMB QUESTION\"; \"I'M MY NAME IS ROY I QUIT WORKS OUT OF SCHOOL FOR CHEATING\" (partly unreadable); NO MORE \"LET ME LOOP IN MY TECH GUY\"\"",
+              "size": "half"
+            }
+          ]
+        },
+        "reference": {
+          "id": "ref_39fbf885ae",
+          "url": "https://www.tiktok.com/@cluelyextras/video/7544005050146770189",
+          "author": "cluelyextras",
+          "views": 628239,
+          "followers": 2969,
+          "outlier": 211.6,
+          "format": "A green-screen presenter cut out in front of a virtual classroom chalkboard, in a vertical frame split into two stacked halves with the lower half blurred. He moves around the frame, sometimes shrinking to a corner. Cuts come every ~3-7 s to screenshots on the board: a view-count video, a LinkedIn post, a selfie and an engagement chart. Bold word-by-word captions, with no music mentioned. It ends on a Mario-level meme gag.",
+          "hook_mechanic": "Opens with a big, specific money figure spent on something visible, with a smug 'worth it' tone. This sets up a curiosity gap: why would anyone brag about that, and was it worth it? It then reframes the expense as a win."
+        },
+        "internal": true,
+        "previous": {
+          "title": "We gave an agent $3 and one skill file (green-screen explainer)",
+          "format": "split screen",
+          "hook": "WE GAVE IT $3 / We gave an agent a $3 balance and one skill file, and we saw, wow,",
+          "shots": [
+            {
+              "n": 1,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter at the left edge in a plain black hoodie in front of the chalkboard, gesturing animatedly with one hand, looking up and off-camera with a smug grin.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"We gave an agent a $3 balance and one skill file, and we saw, wow,\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "seconds": 6,
+              "status": "passed",
+              "provider": "naive",
+              "renders": 2,
+              "qc_rounds": 2,
+              "submit_errors": 0,
+              "frame_idem": "crv_376762f3ac4741cda217-shot1-frame-look-gate2",
+              "frame_file_id": "fil_z68wja1vkn5qbwwcv06e8snb5w",
+              "frame_url": "https://api.vetta.sh/v1/files/fil_z68wja1vkn5qbwwcv06e8snb5w/image-fil_z68wja1vkn5qbwwcv06e8snb5w.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709389825&in=media&sig=3XS9HQR5PDCCjWf6oyYzE7gx7m3jUeaDWQU49lwowc8",
+              "frame_skipped": false,
+              "text_only": false,
+              "force_monid": false,
+              "video_idem": "crv_376762f3ac4741cda217-shot1-render1-qc1",
+              "job_id": "med_r9nt3s15b6618n8gb2q4b2ztsk",
+              "monid_run_id": null,
+              "video_file_id": "fil_td60bj5ebqyfjvxdghebb91bfd",
+              "video_url": "https://api.vetta.sh/v1/files/fil_td60bj5ebqyfjvxdghebb91bfd/video-fil_td60bj5ebqyfjvxdghebb91bfd.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709736263&in=media&sig=6CE8HqQS8nRUCGkbbzGi_Ta8G3GHdMp9gqhorw9AcEg",
+              "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot1-r2.mp4",
+              "qc": {
+                "score": 8,
+                "pass": true,
+                "issues": [
+                  "Frame 1 shows a double thumbs-up, which the prompt explicitly banned. The hands look anatomically fine, so this is a brief-adherence slip and not a visual defect.",
+                  "The presenter is centered, not at the left edge as the shot description asks. He also looks at the lens instead of up and off-camera. Both are minor framing and action differences.",
+                  "The backpack has a small red logo patch. It isn't legible, but the brief said no logos.",
+                  "The setting is a real-looking classroom. It reads as natural, but it isn't visibly the stylized virtual green classroom.",
+                  "Hands are mostly out of frame or at the bottom edge, so the animated-hands energy is limited. This is not a defect."
+                ],
+                "fix_prompt": ""
+              },
+              "naive_cost": 4828000,
+              "monid_cost": 0,
+              "error": null,
+              "previous_frame_file_id": null,
+              "frame_checks": 2,
+              "frame_rekeys": 1,
+              "frame_inflight_since": null,
+              "frame_gated": true,
+              "frame_fix": "The hoodie has a visible graphic print on the chest (partly hidden letters, roughly ). The brief asked for a plain black hoodie with no logo, and the print reads as partial text. The backpack in the right corner has a small label or patch with illegible, garbled text. The clasped hands look slightly awkward. The fingers overlap in a tangled, bunched way, which could distort when animated."
+            },
+            {
+              "n": 2,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered and closer, leaning in with a smug look, pointing sideways with one hand and swinging the other arm.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"it found 12 candidates ranked by fit and price. Then it just ran one. No sign-up. We killed the subscriptions, and so this was worth it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "seconds": 8,
+              "status": "passed",
+              "provider": "naive",
+              "renders": 2,
+              "qc_rounds": 2,
+              "submit_errors": 0,
+              "frame_idem": "crv_376762f3ac4741cda217-shot2-frame-look",
+              "frame_file_id": "fil_qhqw0620hedxewdmyckmczgvhy",
+              "frame_url": "https://api.vetta.sh/v1/files/fil_qhqw0620hedxewdmyckmczgvhy/image-fil_qhqw0620hedxewdmyckmczgvhy.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709445314&in=media&sig=SWBvVt7Qbz568o0e7HfazBe_qB1E4mB_GhyHD4Lolq8",
+              "frame_skipped": false,
+              "text_only": false,
+              "force_monid": false,
+              "video_idem": "crv_376762f3ac4741cda217-shot2-render1-qc1",
+              "job_id": "med_escm8d51bddrgaa8ppyt10fx2f",
+              "monid_run_id": null,
+              "video_file_id": "fil_76y7beepf8sasmg877v9sm4jj0",
+              "video_url": "https://api.vetta.sh/v1/files/fil_76y7beepf8sasmg877v9sm4jj0/video-fil_76y7beepf8sasmg877v9sm4jj0.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709749174&in=media&sig=lyMrWyGtvVcYDpJae2cYSOMRFr3KJcKz4_PpqZVnYvk",
+              "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot2-r2.mp4",
+              "qc": {
+                "score": 8,
+                "pass": true,
+                "issues": [
+                  "Small label patch on the backpack shows partly legible lettering (\"RG…\"). It's minor and far from the focus, but the brief says no logos.",
+                  "Hands are animated and pointing in frames 1 and 3. The prompt's \"no pointing, hands low\" line conflicts with its own action line, so this is acceptable. Fingers are a bit blurry from motion but not deformed.",
+                  "The wrist accessory changes appearance between frames (white bead bracelet, then a white band or watch). This is plausible from hand movement and isn't critical.",
+                  "Frame 4 has a slightly stiff, neutral expression with a small smile. This is the end-of-clip rest pose, so it's fine."
+                ],
+                "fix_prompt": ""
+              },
+              "naive_cost": 6480000,
+              "monid_cost": 0,
+              "error": null,
+              "previous_frame_file_id": null,
+              "frame_checks": 0,
+              "frame_inflight_since": null,
+              "frame_gated": true
+            },
+            {
+              "n": 3,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Every tool was a sign-up, an API key, a subscription, and we were like, \"Again?\" Honestly, to give you the truth, the setup was literally one line.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "seconds": 8,
+              "status": "passed",
+              "provider": "naive",
+              "renders": 2,
+              "qc_rounds": 2,
+              "submit_errors": 0,
+              "frame_idem": "crv_376762f3ac4741cda217-shot3-frame-look",
+              "frame_file_id": "fil_ff4035x2am66d4m7ca8cqtkhpp",
+              "frame_url": "https://api.vetta.sh/v1/files/fil_ff4035x2am66d4m7ca8cqtkhpp/image-fil_ff4035x2am66d4m7ca8cqtkhpp.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709505165&in=media&sig=HwR_Ju1y5fSxaseTDl3VdWgxVcTyISl-6ru-6HcjIYo",
+              "frame_skipped": false,
+              "text_only": false,
+              "force_monid": false,
+              "video_idem": "crv_376762f3ac4741cda217-shot3-render1-qc1",
+              "job_id": "med_843knqbhj21fha2jq81bzc09a3",
+              "monid_run_id": null,
+              "video_file_id": "fil_chv1xapdnkf4zgdp49wkha6b2f",
+              "video_url": "https://api.vetta.sh/v1/files/fil_chv1xapdnkf4zgdp49wkha6b2f/video-fil_chv1xapdnkf4zgdp49wkha6b2f.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709750121&in=media&sig=zfKtsYyyjlp5zl4tm2Kv-Tn9psWktpTNHE8mu-Cd2Tk",
+              "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot3-r2.mp4",
+              "qc": {
+                "score": 8,
+                "pass": true,
+                "issues": [
+                  "Frame 1 has a small patch or logo on the backpack with a few illegible characters. It's tiny and not readable, so it's minor.",
+                  "The hands are more animated than the prompt asked for (frame 1 shows a thumb-up-like pose, frame 2 shows claw-like hands in motion). They look anatomically plausible, only slightly blurred by motion.",
+                  "The framing shifts between frames: frames 3 and 4 are slightly tighter and the backpack is cropped. This reads as a natural handheld or reframe difference.",
+                  "Frame 3 has a very wide, toothy smile that looks a bit posed. It isn't a defect."
+                ],
+                "fix_prompt": ""
+              },
+              "naive_cost": 6480000,
+              "monid_cost": 0,
+              "error": null,
+              "previous_frame_file_id": null,
+              "frame_checks": 0,
+              "frame_inflight_since": null,
+              "frame_gated": true
+            },
+            {
+              "n": 4,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter small at the bottom left, casual open hands, deadpan.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"Balance: $3.000. One call, $0.0013.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "seconds": 4,
+              "status": "passed",
+              "provider": "naive",
+              "renders": 2,
+              "qc_rounds": 2,
+              "submit_errors": 0,
+              "frame_idem": "crv_376762f3ac4741cda217-shot4-frame-look",
+              "frame_file_id": "fil_a3g1ggq4kykztq8e7zyrk36t1d",
+              "frame_url": "https://api.vetta.sh/v1/files/fil_a3g1ggq4kykztq8e7zyrk36t1d/image-fil_a3g1ggq4kykztq8e7zyrk36t1d.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709575343&in=media&sig=7RKUS5tJ74G-sU0RmPR9b60Epyaj30C5wEvaGhCP9fA",
+              "frame_skipped": false,
+              "text_only": false,
+              "force_monid": false,
+              "video_idem": "crv_376762f3ac4741cda217-shot4-render1-qc1",
+              "job_id": "med_d4rfk882et63teh99b15cwvs2j",
+              "monid_run_id": null,
+              "video_file_id": "fil_mvyztkmssba4sxsxcp0y4ztbq9",
+              "video_url": "https://api.vetta.sh/v1/files/fil_mvyztkmssba4sxsxcp0y4ztbq9/video-fil_mvyztkmssba4sxsxcp0y4ztbq9.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709751262&in=media&sig=yjp7oQAdLAVEpw1oX_McnigvJZJglwGbnr_jhIwhIeI",
+              "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot4-r2.mp4",
+              "qc": {
+                "score": 7,
+                "pass": true,
+                "issues": [
+                  "Frame 1 shows a double thumbs-up, which the brief explicitly bans. The hands look anatomically fine, and it's a natural gesture, but it's off-script for a deadpan line about a balance.",
+                  "The backpack has a small label with garbled text (\"iGG\"-like). It's tiny and incidental, but the brief said no logos or text.",
+                  "The framing drifts a little between frames: the head is higher and larger in frame 1 and lower in frames 3 and 4. This is minor.",
+                  "The brief asks for a \"virtual green classroom\" and a \"presenter small at bottom left\". The shot instead looks like a real classroom with a chest-up, centered presenter. It reads as authentic, so this is not a problem."
+                ],
+                "fix_prompt": ""
+              },
+              "naive_cost": 3280000,
+              "monid_cost": 0,
+              "error": null,
+              "previous_frame_file_id": null,
+              "frame_checks": 0,
+              "frame_inflight_since": null,
+              "frame_gated": true
+            },
+            {
+              "n": 5,
+              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter. Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
+              "prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man, 20s, dark tousled hair, plain black hoodie, playful self-aware smug energy, animated hands, quick delivery, Not a copy of the original presenter, in Virtual green classroom chalkboard with a wooden wainscot and a backpack in the corner, evenly lit, studio-bright daytime look. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter centered in a medium shot, hands at his sides, relaxed, talking straight to camera. Then Small pixelated presenter pops out of a pipe with both fists raised, playful.. He says, in a natural, conversational voice with this delivery: He uses short run-on sentences and rhetorical \"we were like\" quotes. He uses few filler words, mostly \"literally\", \"honestly\" and \"and so\". He looks at the camera, sometimes off to the side. His hands are always busy: pointing, miming, covering his ears. His energy is playful and self-aware.: \"And we were like, \"Okay, pay per call.\" Vendor errors and unmatched lookups settle at zero. Start with $1 free. So let's go.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
+              "seconds": 8,
+              "status": "passed",
+              "provider": "naive",
+              "renders": 2,
+              "qc_rounds": 2,
+              "submit_errors": 0,
+              "frame_idem": "crv_376762f3ac4741cda217-shot5-frame-look",
+              "frame_file_id": "fil_1r63jhyq9x58hvfgh5a558gepz",
+              "frame_url": "https://api.vetta.sh/v1/files/fil_1r63jhyq9x58hvfgh5a558gepz/image-fil_1r63jhyq9x58hvfgh5a558gepz.png?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709634869&in=media&sig=5pArgabxAmHAJ-yXEwIaXuZshBd82tSTPLwrmhsKoHs",
+              "frame_skipped": false,
+              "text_only": false,
+              "force_monid": false,
+              "video_idem": "crv_376762f3ac4741cda217-shot5-render1-qc1",
+              "job_id": "med_qgv1fbw74j4sy4b0crthd60t7p",
+              "monid_run_id": null,
+              "video_file_id": "fil_10254qnb1fwhv5qcb453c62y0g",
+              "video_url": "https://api.vetta.sh/v1/files/fil_10254qnb1fwhv5qcb453c62y0g/video-fil_10254qnb1fwhv5qcb453c62y0g.mp4?org=org_wnb6s3f3a5fne4p76dk0spvfqw&expires=1794709781151&in=media&sig=bUYvQfIDLLT8OSqsGVWCWqfdD1prC1KdPFNWtw8tJC4",
+              "local_path": "/Users/dylan/Documents/GitHub/nomen/data/media/crv_376762f3ac4741cda217/shot5-r2.mp4",
+              "qc": {
+                "score": 8,
+                "pass": true,
+                "issues": [
+                  "A small label on the backpack reads something like \"iBGM\". It's a minor stray logo/text and not legible enough to count as a critical defect.",
+                  "He points at himself with both index fingers in frame 2 and gestures a lot. The brief asked for hands low and relaxed with no pointing. This is natural and on message, so it isn't critical.",
+                  "The pixelated presenter popping out of a pipe isn't visible in these frames. It is probably an edit-time overlay, so this is fine.",
+                  "The classroom looks like a real room rather than a stylized virtual one. This is acceptable and reads as authentic."
+                ],
+                "fix_prompt": ""
+              },
+              "naive_cost": 6480000,
+              "monid_cost": 0,
+              "error": null,
+              "previous_frame_file_id": null,
+              "frame_checks": 0,
+              "frame_inflight_since": null,
+              "frame_gated": true
+            }
+          ],
+          "qc_score": 7,
+          "note": "the standard pipeline's green-screen explainer, before the one-to-one remake"
+        }
+      },
+      "caption": "The agent got $3 and one line. It picked its own tools, no sign-ups. We killed the subscriptions. Try the $1 free credit. AI-generated video by Monid.\n\n#aiagents #devtools #mcp #apis #buildinpublic",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 3.37,
+      "generation": 2,
+      "shots": [
+        {
+          "n": 1,
+          "provider": "monid",
+          "renders": 1,
+          "qc": null
+        },
+        {
+          "n": 2,
+          "provider": "monid",
+          "renders": 1,
+          "qc": null
+        },
+        {
+          "n": 3,
+          "provider": "monid",
+          "renders": 1,
+          "qc": null
+        }
+      ],
+      "video": "1.mp4",
+      "poster": "1.png",
+      "analytics": null
+    },
+    {
+      "idx": 3,
+      "concept": {
+        "title": "i let my agent cook with one balance (it got greedy)",
+        "format": "brainrot meme",
+        "hook": "POV: you told your agent to go crazy",
+        "caption": "i let my agent cook with one balance (it got greedy). What should my agent do next? monid.ai",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@phamhacks/video/7678518337311116557"
+        ],
+        "why": "Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers).",
+        "reference": {
+          "id": "ref_c64c533a71",
+          "url": "https://www.tiktok.com/@phamhacks/video/7678518337311116557",
+          "author": "phamhacks",
+          "views": 2276109,
+          "followers": 5088,
+          "outlier": 447.3,
+          "format": "brainrot meme"
+        },
+        "brief": {
+          "format": "brainrot meme",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 30.6,
+          "beats": [],
+          "review": null
+        }
+      },
+      "caption": "i let my agent cook with one balance (it got greedy). What should my agent do next? monid.ai",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 2.49,
+      "generation": 1,
+      "shots": [],
+      "video": "2.mp4",
+      "poster": "2.png",
+      "analytics": null
+    },
+    {
+      "idx": 4,
+      "concept": {
+        "title": "A sign-up for every API, or one balance",
+        "format": "code ad (3D animation)",
+        "hook": "Every API your agent needs is another sign-up, another key.",
+        "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
+        "platforms": [
+          "tiktok",
+          "instagram",
+          "youtube"
+        ],
+        "inspired_by": [
+          "https://www.tiktok.com/@cluelyextras/video/7544005050146770189"
+        ],
+        "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance.",
+        "reference": {
+          "id": "ref_da97474993",
+          "url": "https://www.tiktok.com/@cluelyextras/video/7544005050146770189",
+          "author": "cluelyextras",
+          "views": 628239,
+          "followers": 2969,
+          "outlier": 211.6,
+          "format": "code ad (3D animation)"
+        },
+        "brief": {
+          "format": "code ad (3D animation)",
+          "role": "reach"
+        },
+        "script": {
+          "total_seconds": 26.7,
+          "beats": [],
+          "review": null
+        },
+        "previous": {
+          "title": "A sign-up per API vs one balance",
+          "format": "code ad (3D animation)",
+          "hook": "Every API your agent needs is another sign-up, another key.",
+          "note": "the first version, before this remake"
+        }
+      },
+      "caption": "One balance, one skill file, every tool your agent needs. $1 free credit at monid.ai.",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "youtube"
+      ],
+      "qcScore": null,
+      "cost": 0.22,
+      "generation": 2,
+      "shots": [],
+      "video": "3.mp4",
+      "poster": "3.png",
+      "analytics": null
+    }
+  ],
+  "events": [
+    {
+      "s": 0,
+      "level": "info",
+      "message": "Campaign started: 3 videos, 2 shots each, google/veo-3.1"
+    },
+    {
+      "s": 26.9,
+      "level": "info",
+      "message": "Research plan: AI agent tool marketplace; competitors RapidAPI, Composio, Smithery, Zapier MCP, Apify; searching agent keeps hitting API limits, one API key for everything, give my AI agent tools, building AI agents as a solo dev, tools I wish I knew for AI agents"
+    },
+    {
+      "s": 58.6,
+      "level": "info",
+      "message": "Scout: Breakouts are mostly off-topic: Duolingo memes (1.8M and 2.4M views on 1.7K followers) and the Composio-partner comedy clips (phamhacks, 2.3M on 5K followers). The on-topic breakouts share a discovery hook: \"I'm upset I didn't know about this sooner\" (krea, 1.8K views per follower) and \"the AI job tool I wish I knew sooner\" (parakeetai, 272x). The API-key explainer (empeer.den, 597K views on 758 followers) is the only plain educational video about the buyer's problem. Missing: no result mentions agents calling many APIs, MCP, skill files, or Monid, and the developer-facing results are mostly Roblox devs using Claude, not agent builders. Digging into \"composiopartner\" (tiktok), \"api keys explained\" (tiktok), \"claude code tools\" (tiktok), \"MCP server tutorial\" (youtube), \"didnt know this ai tool\" (instagram)"
+    },
+    {
+      "s": 59.6,
+      "level": "info",
+      "message": "Scout: format check, 3D \"what if\" simulation shorts are breaking out: @moon2animation 11.5M views, @simplysimulated 11.0M views, @doomsday.animations 9.1M views; on Instagram @wemakebuild's \"How a Tent Becomes a Five-Star Hotel\" has 1.2M plays on 120K followers. A code-made animation ad fits this campaign."
+    },
+    {
+      "s": 60.6,
+      "level": "info",
+      "message": "Scout: format check, brainrot memes break out on tiny accounts: @6memes_7 2.4M views on 2K followers (1407x), @vickykyc_ 1.8M views on 1K followers (1222x). A meme ad fits too."
+    },
+    {
+      "s": 70.2,
+      "level": "info",
+      "message": "Research done: 90 short videos to rank, 16 live ads, 5 Reddit threads, 1 keywords (33/33 sources)"
+    },
+    {
+      "s": 88.6,
+      "level": "info",
+      "message": "Product brief: software, \"Monid gives your AI agent one balance and one skill file so it can find and use thousands of tools and APIs without signing up for each one.\" (4 visuals, 3 from the brand kit; code scanned: 7 commands, 0 screens)"
+    },
+    {
+      "s": 106.2,
+      "level": "info",
+      "message": "Captured 2 phone-size screenshots of monid.ai to show the product on screen"
+    },
+    {
+      "s": 118.9,
+      "level": "info",
+      "message": "Relevance screen: 4 of 24 top-ranked videos could be remade for Monid (dropped: Duolingo meme; benchmark label but hook is a meme with no transferable format.; Composio-partner comedy clip about greed; off-topic for agent builders.; 'Upset I didn't know sooner' discovery hook transfers, but topic is side-hustle money-making with Krea.; Duolingo streak meme, unrelated.)"
+    },
+    {
+      "s": 118.9,
+      "level": "info",
+      "message": "Breaking down 4 outlier videos beat by beat (transcript, cuts, frames): @empeer.den 597x the account's followers, 5% engagement, 10 s; @alli.growth3 139x the account's followers, 21% engagement, 50 s; @cluelyextras 212x the account's followers, 5% engagement, 62 s; @ai.with.ni 105x the account's followers, 11% engagement, 63 s"
+    },
+    {
+      "s": 235.1,
+      "level": "info",
+      "message": "Reference study ready: 4 videos broken down"
+    },
+    {
+      "s": 242.2,
+      "level": "info",
+      "message": "The creative director is choosing which reference videos to transplant for 3 videos"
+    },
+    {
+      "s": 306.5,
+      "level": "info",
+      "message": "Campaign \"No more sign-ups for your agent\": \"We gave an agent $3 and one skill file\" (one-to-one remake). The script room is writing them."
+    },
+    {
+      "s": 307,
+      "level": "info",
+      "message": "The creative director chose 3 videos, each on what the research found: \"We gave an agent $3 and one skill file\" (one-to-one remake: The reference got 628,239 views on 2,969 followers (211.6x) and 1,587 saves, from a big-number, smug-confession hook plus a new screenshot every 3-7 s); \"i let my agent cook with one balance (it got greedy)\" (brainrot meme: Brainrot memes break out on tiny accounts (@6memes_7 2.4M views on 1.7K followers, 1,407x), so a meme riff on @phamhacks' \"people be so greedy\" (2.3M views on 5K followers)); \"A sign-up for every API, or one balance\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of the Cluely billboard's big contrast (628K views on 3K followers): one dev buried in sign-ups, one on a single balance)"
+    },
+    {
+      "s": 380,
+      "level": "info",
+      "message": "Scripts ready: \"We gave an agent $3 and one skill file\" 15.6s, critic 8/10. Now producing."
+    },
+    {
+      "s": 16096.5,
+      "level": "info",
+      "message": "\"We gave an agent $3 and one skill file\": remaking it one to one from @cluelyextras's billboard video (628K views on 3K followers): 3 shots on Kling 3.0 in her own voice"
+    },
+    {
+      "s": 16176.5,
+      "level": "info",
+      "message": "\"We gave an agent $3 and one skill file\": remaking shot 2's first frame before rendering it (the original man was still in the frame)"
+    },
+    {
+      "s": 16246.5,
+      "level": "info",
+      "message": "\"We gave an agent $3 and one skill file\": built 5 of 5 product cards in the original's places"
+    },
+    {
+      "s": 16496.5,
+      "level": "info",
+      "message": "\"We gave an agent $3 and one skill file\": shot 3 of 3 rendered on Kling 3.0"
+    },
+    {
+      "s": 16586.5,
+      "level": "info",
+      "message": "\"We gave an agent $3 and one skill file\": shot 2 of 3 rendered on Kling 3.0"
+    },
+    {
+      "s": 16666.5,
+      "level": "info",
+      "message": "\"We gave an agent $3 and one skill file\": shot 1 of 3 rendered on Kling 3.0"
+    },
+    {
+      "s": 16786.5,
+      "level": "info",
+      "message": "\"We gave an agent $3 and one skill file\": cut on the original's timing with its captions, closing on the site card"
+    },
+    {
+      "s": 16816.5,
+      "level": "info",
+      "message": "\"We gave an agent $3 and one skill file\" is ready"
+    },
+    {
+      "s": 24486.5,
+      "level": "info",
+      "message": "\"i let my agent cook with one balance (it got greedy)\": made as a brainrot meme from @phamhacks's video in the research (2.3M views on 5K followers)"
+    },
+    {
+      "s": 24487.5,
+      "level": "info",
+      "message": "\"i let my agent cook with one balance (it got greedy)\" is ready"
+    },
+    {
+      "s": 27186.5,
+      "level": "info",
+      "message": "\"A sign-up for every API, or one balance\": made as a code ad (3D animation) from @cluelyextras's video in the research (628K views on 3K followers)"
+    },
+    {
+      "s": 27187.5,
+      "level": "info",
+      "message": "\"A sign-up for every API, or one balance\" is ready"
+    }
+  ],
+  "spend": {
+    "naive": 27.708547,
+    "monid": 0.07302,
+    "style": 0,
+    "strategy": 0.160547
+  }
+}
