@@ -50,6 +50,8 @@ type Case = {
   /** The persona: a portrait already on disk (no cost) with its description, or a description to make one from. */
   persona: { portrait?: string; description: string };
   product: string;
+  /** Overrides for the earlier video's creative brief (the pitch the rewritten lines make). */
+  brief?: Partial<CreativeBrief>;
 };
 
 const CASES: Case[] = [
@@ -68,16 +70,22 @@ const CASES: Case[] = [
   },
   {
     // hustle.jordan99's "Part 67" (a talking head with a hook title, a stitched creator with her
-    // cut-out, then a phone filming a monitor with her green-screened in): the first ~12 s.
+    // cut-out, then a phone filming a monitor with her green-screened in), the whole 26.8 s. Dylan:
+    // copy the script one to one with our faces and swap only the tutorial at the end for Naive,
+    // as an obviously exaggerated bait ad.
     name: "jordan",
     campaign: "cmp_70daa9e79a4b42008d74",
     creative: "crv_aae357b14a344728923c",
     reference: "ref_e30369e6df",
     file: "hustle-jordan99-original.mp4",
-    until: 12,
-    maxUsd: 7,
+    until: 27,
+    maxUsd: 12,
     persona: { description: "A woman in her late twenties with shoulder-length wavy brown hair and light makeup, in a plain cream sweater: a casual, upbeat creator" },
     product: "usenaive.ai",
+    brief: {
+      angle: "A bait ad in the reference's voice, obviously exaggerated: Naive runs a whole company for you, completely automated, so it prints money while you sleep. The tutorial keeps the reference's three-step shape: go to usenaive dot ai, pick a company template, click Deploy.",
+      cta: "End on the over-the-top payoff (the company runs itself and prints money), the way the reference ends on 'for completely free'.",
+    },
   },
 ];
 
@@ -165,8 +173,8 @@ describe.skipIf(!live)("one-to-one remake, footage clone (live, paid)", () => {
       let script: Script;
       if (existsSync(scriptPath)) script = JSON.parse(await readFile(scriptPath, "utf8")) as Script;
       else {
-        log("writing our lines (remake mode: the reference's words, our product facts, matched syllables)");
-        const brief: CreativeBrief = { ...(concept?.brief as CreativeBrief), format: "remake", creator: host.persona.description };
+        log("writing our lines (remake mode: the reference's words, its product beats rewritten into our pitch)");
+        const brief: CreativeBrief = { ...(concept?.brief as CreativeBrief), ...c.brief, format: "remake", creator: host.persona.description };
         const reference: ReferenceBreakdown = { ...breakdown, beats: span.beats, duration: span.end, transcript: span.beats.map((b) => b.line).join(" ") };
         script = await writeScript(naive, { product, brief, reference, targetSeconds: Math.round(span.end) });
         await writeFile(scriptPath, JSON.stringify(script, null, 1));

@@ -68,7 +68,7 @@ import {
   voiceStats,
   warpKeys,
 } from "./clone";
-import { type AudioRecord, demucs, makeVoice, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
+import { type AudioRecord, demucs, makeVoice, referenceAudio, renderVoice, type RenderVoice, sliceArgs, soundArgs, stemsPython, timeOurBeats, timeOurWords, type Voice, type VoiceMode, voiceMode, type VoicePiece } from "./dub";
 import { DEFAULT_FONT, FINISHED_ENCODE, fontMetrics, PICTURE_FINISH, renderTimeline } from "./edit";
 import { CHARACTER_STYLE, genderOf, type Persona } from "./persona";
 import { decodeRgb, makePlate, newPlateRecord, type PlateRecord } from "./plate";
@@ -1070,6 +1070,8 @@ type Manifest = {
   version: 3;
   layout?: RemakeLayout;
   cuts?: number[];
+  /** Scene changes at a lower threshold, used only to move a take's first frame past a cut. */
+  soft_cuts?: number[];
   real?: Record<string, number[]>;
   estimate?: CostEstimate;
   audio: AudioRecord;
@@ -1116,6 +1118,17 @@ async function pool<T>(items: T[], limit: number, task: (item: T) => Promise<voi
 const stopping = (error: unknown) => error instanceof ApiError && (error.retryable || error.outOfCredits);
 
 /** Words said between two times, as one line. */
+/**
+ * Where a take's first frame is grabbed: just after a cut that comes at or soon after its planned
+ * time. The layout's segment times are approximate, and a frame grabbed before the cut shows the
+ * previous shot (Jordan's stitch: the frame at 3.12 s still showed her face filling the frame, so
+ * her cut-out was made as an extreme close-up of her mouth).
+ */
+export function afterCut(take: { start: number; end: number; frame_at: number }, cuts: number[]): number {
+  const cut = cuts.find((c) => c >= take.frame_at - 0.05 && c <= Math.min(take.end - 0.2, take.start + 1.2));
+  return cut === undefined ? take.frame_at : round(Math.min(take.end - 0.1, cut + 0.12));
+}
+
 const wordsIn = (words: TimedWord[], start: number, end: number) =>
   words
     .filter((w) => w.start >= start - 0.05 && w.start < end - 0.05)
@@ -1206,6 +1219,10 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   // 2. The reference's scene changes, the segments snapped onto them, and each layer's own cuts.
   manifest.cuts ??= (await detectCuts(input.referencePath, 0.3, info.duration).catch(() => [] as number[])).filter((c) => c < end);
   const cuts = manifest.cuts;
+  // Softer cuts too, for where each take's first frame is grabbed: a cut between two similar shots
+  // (Jordan's talking head to her stitch, scene score 0.16) is under the segment threshold.
+  manifest.soft_cuts ??= (await detectCuts(input.referencePath, 0.1, info.duration).catch(() => [] as number[])).filter((c) => c < end);
+  const softCuts = manifest.soft_cuts;
   const segments = snapSegments(layout.segments, cuts);
   const layers = layersOf({ segments }, stage, presenter.ratios);
   if (!manifest.real) {
@@ -1303,7 +1320,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
   const separate = deps.separate === undefined ? ((python) => (python ? (file: string, out: string) => demucs(python, file, out) : null))(stemsPython()) : deps.separate;
   const reference = await referenceAudio(work, deps.monid, manifest.audio, { reference: input.referencePath, end, separate });
   notes.push(...(manifest.audio.notes ?? []).filter((n) => !notes.includes(n)));
-  const ourWords = timeOurWords(reference.words, scriptLines.join(" "));
+  const ourWords = timeOurBeats(reference.words, lines.map((l, i) => ({ line: l.line, start: span.beats[i].start, end: span.beats[i].end })));
   const voiceInput = {
     reference: input.referencePath,
     end,
@@ -1337,7 +1354,7 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
         const r = toReference(b, stage, info);
         return { ...r, x: r.x - crop.x, y: r.y - crop.y };
       });
-      const first = chunk.takes[0];
+      const first = { ...chunk.takes[0], frame_at: afterCut(chunk.takes[0], softCuts) };
       let frameUrl: string | null = null;
       if (presenter.needs.frame) frameUrl = await twinFrame(work, naive, rec, { reference: input.referencePath, take: first, crop, blank, layer, layout, who, portraitUrl: person.url, portraitJpeg: person.jpeg, uiKey: `${input.prefix}/shot${n}-frame.png`, idem: `${input.idem}-${id}-${key}` });
       let motionUrl: string | null = null;
@@ -1442,7 +1459,10 @@ export async function remakeVideo(deps: RemakeDeps, input: RemakeInput): Promise
       if (fit.cut) notes.push(`${id}: the line ran past ${len.toFixed(1)} s even at 1.25x; its end is cut`);
       pieces.push({ path: said.audio, from: fit.from, seconds: len, speed: fit.speed, at: chunk.start });
       covered.push({ start: chunk.start, end: chunk.end });
-      for (const w of said.words) {
+      // Captions spell our script's words, timed by what the render said: speech-to-text mishears
+      // product names ("monid.ai/SKILL.md" came back as "Monday/Skilldad").
+      const meant = wordsIn(ourWords, chunk.start, chunk.end);
+      for (const w of said.words.length && meant ? timeOurWords(said.words, meant) : said.words) {
         const at = (w.start - fit.from) / fit.speed;
         if (at < -0.05 || at >= len) continue;
         captionWords.push({ text: w.text, start: round(chunk.start + Math.max(0, at)), end: round(chunk.start + Math.min(len, (w.end - fit.from) / fit.speed)) });

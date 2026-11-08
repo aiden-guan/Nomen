@@ -406,3 +406,18 @@ describe("graphics at the end of a remade span", () => {
     ]);
   });
 });
+
+describe("where a take's first frame is grabbed", () => {
+  it("moves past a cut the layout's segment time missed, and stays put otherwise", async () => {
+    const { afterCut } = await import("@/lib/creative/remake");
+    // Jordan's stitch: planned at 3.12 s, but the cut from her talking head is at 3.23 s.
+    const stitch = { start: 3, end: 8.5, frame_at: 3.12 };
+    expect(afterCut(stitch, [3.23])).toBe(3.35);
+    expect(afterCut(stitch, [])).toBe(3.12);
+    expect(afterCut(stitch, [2.9])).toBe(3.12); // the cut came before the take: already past it
+    expect(afterCut(stitch, [6])).toBe(3.12); // a cut deep inside the take is a later shot, not this one
+    // A short take never moves past its own end.
+    expect(afterCut({ start: 13, end: 13.8, frame_at: 13.12 }, [13.5])).toBe(13.62);
+    expect(afterCut({ start: 13, end: 13.8, frame_at: 13.12 }, [13.6])).toBe(13.7);
+  });
+});

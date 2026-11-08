@@ -170,6 +170,40 @@ export function timeOurWords(ref: TimedWord[], ourText: string): TimedWord[] {
   return out.map((w, i) => w ?? { text: ours[i], start: out[i - 1]?.end ?? 0, end: out[i - 1]?.end ?? 0 });
 }
 
+/**
+ * Our words on the reference's clock, beat by beat: each beat's line is timed only against the
+ * reference words said inside that beat, and never leaves the beat's window. Timing the whole script
+ * at once let a rewritten line's words slide into the beat before it (the Cluely remake: take 2 said
+ * beat 3's line too, and take 3 got no line at all and stood there silent). A beat the reference says
+ * nothing in gets its words spread over the beat.
+ */
+export function timeOurBeats(ref: TimedWord[], beats: Array<{ line: string; start: number; end: number }>): TimedWord[] {
+  const out: TimedWord[] = [];
+  for (const beat of beats) {
+    const ours = tokens(beat.line);
+    if (!ours.length || !(beat.end > beat.start)) continue;
+    const inside = ref.filter((w) => (w.start + w.end) / 2 >= beat.start && (w.start + w.end) / 2 < beat.end);
+    let timed: TimedWord[];
+    if (inside.length) timed = timeOurWords(inside, beat.line);
+    else {
+      const from = beat.start + Math.min(0.15, (beat.end - beat.start) / 10);
+      const weights = ours.map((w) => normWord(w).length + 1);
+      const total = weights.reduce((a, b) => a + b, 0);
+      let t = from;
+      timed = ours.map((text, k) => {
+        const len = ((beat.end - from) * weights[k]) / total;
+        const word = { text, start: round(t), end: round(t + len) };
+        t += len;
+        return word;
+      });
+    }
+    // Starts stay 0.1 s inside the beat, so a render's window never hands a word to the next take.
+    const last = Math.max(beat.start, beat.end - 0.1);
+    for (const w of timed) out.push({ text: w.text, start: round(Math.min(Math.max(w.start, beat.start), last)), end: round(Math.min(Math.max(w.end, beat.start), beat.end)) });
+  }
+  return out;
+}
+
 /** The reference's phrases: runs of words split at pauses of `gap` seconds or more, or at a sentence end. */
 export function phrasesOf(words: TimedWord[], gap = 0.28): Array<{ from: number; to: number; start: number; end: number }> {
   const out: Array<{ from: number; to: number; start: number; end: number }> = [];

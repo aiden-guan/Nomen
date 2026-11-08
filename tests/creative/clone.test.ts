@@ -24,7 +24,7 @@ import {
   warpKeys,
   warpOptions,
 } from "@/lib/creative/clone";
-import { bestRead, changedSpans, deliveryTags, emotionTags, fitSegments, parseWords, phrasesOf, soundArgs, timeOurWords, voiceMode, voiceRuns } from "@/lib/creative/dub";
+import { bestRead, changedSpans, deliveryTags, emotionTags, fitSegments, parseWords, phrasesOf, soundArgs, timeOurBeats, timeOurWords, voiceMode, voiceRuns } from "@/lib/creative/dub";
 import { ageOf, chooseVoice, cohostDescription, DEFAULT_VOICES, genderOf, pickVoice, readVoices } from "@/lib/creative/persona";
 import { jobFile, klingMotion, klingMotionBody, klingNative, klingNativeBody, klingSeconds, naiveVideo, presenterFor, shotList, speakingPrompt } from "@/lib/creative/presenter";
 import type { RemakeSegment, Stage } from "@/lib/creative/remake";
@@ -319,6 +319,42 @@ describe("the voice", () => {
     expect(timed[2]).toEqual({ text: "three", start: 0.44, end: 1.006 });
     expect(timed[3].end).toBeCloseTo(1.76, 2);
     expect(timed[timed.length - 1]).toEqual({ text: "wow,", start: 3.38, end: 3.66 });
+  });
+
+  it("keeps each beat's words inside its own beat, however much the line was rewritten", () => {
+    // The Cluely remake: beat 2 shares no words with the reference, beat 3 shares "and so this was
+    // worth it". Timed as one script, beat 3's opening slid into beat 2's window and take 3 was silent.
+    const said = (text: string, start: number, end: number) => {
+      const words = text.split(" ");
+      const step = (end - start) / words.length;
+      return words.map((w, i) => ({ text: w, start: start + i * step, end: start + (i + 1) * step }));
+    };
+    const reference = [
+      ...said("We spent $400,000 on these billboards, and we saw, wow,", 0, 3.7),
+      ...said("these are getting millions of views. Everyone is reposting them.", 3.7, 9),
+      ...said("We created a cultural moment which can't even be priced, and so this was worth it. This was successful.", 9, 15.6),
+    ];
+    const beats = [
+      { line: "We gave an agent a three dollar balance and one skill file, and we saw, wow,", start: 0, end: 3.7 },
+      { line: "it found twelve tools ranked by fit and price, and ran one. No sign-up.", start: 3.7, end: 9 },
+      { line: "The setup was one line, and so this was worth it. We killed the subscriptions.", start: 9, end: 15.6 },
+    ];
+    const timed = timeOurBeats(reference, beats);
+    expect(timed).toHaveLength(beats.reduce((n, b) => n + tokens(b.line).length, 0));
+    let at = 0;
+    for (const beat of beats) {
+      const mine = timed.slice(at, (at += tokens(beat.line).length));
+      expect(mine.map((w) => w.text).join(" ")).toBe(tokens(beat.line).join(" "));
+      for (const w of mine) {
+        expect(w.start).toBeGreaterThanOrEqual(beat.start);
+        expect(w.start).toBeLessThanOrEqual(beat.end - 0.1);
+        expect(w.end).toBeLessThanOrEqual(beat.end);
+      }
+    }
+    // A beat the reference says nothing in: our words spread over it.
+    const quiet = timeOurBeats(said("Hello there", 0, 1), [{ line: "and now the payoff", start: 4, end: 6 }]);
+    expect(quiet[0].start).toBeCloseTo(4.15, 2);
+    expect(quiet[3].end).toBeCloseTo(6, 2);
   });
 
   it("fits the emotional read onto the reference's phrases, within a natural tempo", () => {
