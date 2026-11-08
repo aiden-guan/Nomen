@@ -9,13 +9,14 @@ import { pixelFont } from "./fonts";
 import { CampScene } from "./scenes/camp";
 import { LandingScene, OPEN_SECONDS } from "./scenes/landing";
 import { Camp } from "./camp/Camp";
-import { useReducedMotion } from "./hooks";
+import { DEMO_ID } from "./camp/demo";
+import { useInertSiblings, useReducedMotion } from "./hooks";
 import styles from "./troy.module.css";
 
 type View = "landing" | "camp";
 type Phase = "loading" | "idle" | "submitting" | "opening" | "marching";
 
-export function TroyExperience({ initialView, brandId: initialBrandId, cost }: { initialView: View; brandId?: string; cost?: string }) {
+export function TroyExperience({ initialView, brandId: initialBrandId, cost, demoOnly = false }: { initialView: View; brandId?: string; cost?: string; demoOnly?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const formAnchorRef = useRef<HTMLDivElement>(null);
@@ -122,8 +123,9 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
     return e.stage.anchor(el, () => ({ x: FORM_AT, y: FORM_AT, z: 0 }));
   }, [engineReady, view]);
 
-  // Returning visitors: their camps, from the core's brand list.
+  // Returning visitors: their camps, from the core's brand list (none in demo builds).
   useEffect(() => {
+    if (demoOnly) return;
     let alive = true;
     listBrands()
       .then((list) => alive && setBrands(list))
@@ -131,7 +133,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [demoOnly]);
 
   const submit = useCallback(
     async (event: FormEvent) => {
@@ -150,7 +152,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
       e.landing.rattle();
       const knocking = setInterval(() => e.landing.rattle(), 650);
       try {
-        const result = await startCampaign(site);
+        const result = demoOnly ? await new Promise<{ brandId: string }>((resolve) => setTimeout(() => resolve({ brandId: DEMO_ID }), 700)) : await startCampaign(site);
         clearInterval(knocking);
         setBrandId(result.brandId);
         setPhase("opening");
@@ -167,7 +169,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
         setShakeKey((k) => k + 1);
       }
     },
-    [phase, site, reducedMotion],
+    [phase, site, reducedMotion, demoOnly],
   );
 
   const busy = phase === "submitting";
@@ -181,9 +183,11 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
         <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-5 px-5 py-4 sm:px-8 sm:py-6">
           <span className={`${styles.pixel} pointer-events-auto mr-auto text-[22px] font-semibold tracking-tight`}>Nomen</span>
           {brands && brands.length > 0 && <BrandsMenu brands={brands} />}
-          <a href="/settings" className={`${styles.link} ${styles.pixel} pointer-events-auto text-[15px]`}>
-            Settings
-          </a>
+          {!demoOnly && (
+            <a href="/settings" className={`${styles.link} ${styles.pixel} pointer-events-auto text-[15px]`}>
+              Settings
+            </a>
+          )}
         </header>
       )}
 
@@ -235,6 +239,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, cost }: {
             <p id="troy-site-hint" className="mt-4 text-center text-[13px] leading-relaxed text-[var(--ink-soft)]">
               Inside: an army of agents that researches your market, writes the strategy, films the ads and posts them.
               {cost && <span className="mt-1 block text-[12px] text-[var(--ink-faint)]">Each campaign: {cost}.</span>}
+              {demoOnly && <span className="mt-1 block text-[12px] text-[var(--ink-faint)]">Demo build: the camp plays a sample campaign, so nothing is spent.</span>}
               <a href="/camp/demo" className={`${styles.link} ${styles.pixel} mt-2 inline-block text-[13px] underline decoration-dotted underline-offset-4`}>
                 Or watch a demo camp →
               </a>
@@ -346,21 +351,3 @@ export function stageWord(stage: string, status: string) {
 }
 
 
-/**
- * These pages cover the whole window. If an app layout renders chrome around them (a header),
- * make it inert while they are open so keyboard focus can't wander into what is hidden.
- */
-function useInertSiblings(rootRef: React.RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const touched: HTMLElement[] = [];
-    for (const child of Array.from(document.body.children)) {
-      if (child instanceof HTMLElement && !child.contains(root) && !child.hasAttribute("inert") && child.tagName !== "SCRIPT" && !child.tagName.includes("-")) {
-        child.setAttribute("inert", "");
-        touched.push(child);
-      }
-    }
-    return () => touched.forEach((el) => el.removeAttribute("inert"));
-  }, [rootRef]);
-}

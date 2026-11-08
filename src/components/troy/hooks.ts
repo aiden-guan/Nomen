@@ -27,3 +27,22 @@ export function useWide() {
   }, []);
   return wide;
 }
+
+/**
+ * These pages cover the whole window. If an app layout renders chrome around them (a header),
+ * make it inert while they are open so keyboard focus can't wander into what is hidden.
+ */
+export function useInertSiblings(rootRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const touched: HTMLElement[] = [];
+    for (const child of Array.from(document.body.children)) {
+      if (child instanceof HTMLElement && !child.contains(root) && !child.hasAttribute("inert") && child.tagName !== "SCRIPT" && !child.tagName.includes("-")) {
+        child.setAttribute("inert", "");
+        touched.push(child);
+      }
+    }
+    return () => touched.forEach((el) => el.removeAttribute("inert"));
+  }, [rootRef]);
+}

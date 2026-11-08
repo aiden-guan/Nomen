@@ -51,6 +51,20 @@ the same `BrandView` the API returns, so it drives the real camp code. It is lab
 top bar and the panels, and its buttons only explain that it's a demo. The landing links to it under
 the website box.
 
+## Demo deployments
+
+Two environment variables turn a deployment into a password-protected demo. Both are off unless
+set, so local development is unchanged.
+
+| Variable | Effect |
+| --- | --- |
+| `SITE_PASSWORD` | `src/proxy.ts` sends every page to `/gate` until the browser has the cookie. API calls get a 401. The cookie holds a SHA-256 hash of the password, never the password, and lasts 30 days. Changing the password logs every browser out. |
+| `NOMEN_DEMO_ONLY=1` | The landing's box marches straight into the demo camp, with no API call. The proxy switches the API off (404), except `/api/status`, which answers "demo build" for the core's header. Nothing on the server opens the database or calls a provider. |
+
+Vercel needs both. Its functions have no lasting disk and no background worker, so real
+campaigns can't run there. The password is set in the project's environment variables (type
+"sensitive"), never in the repo. Each browser enters it once.
+
 ## Under the core's layout
 
 The core's root layout renders a dark header around every page. Troy's pages cover the window
