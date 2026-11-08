@@ -137,6 +137,7 @@ function writerSystem() {
     "",
     "How to replicate:",
     "- Keep the reference's beats one for one: the same number of beats, in the same order, with the same jobs and the same seconds per beat (round to 0.5 s).",
+    "- If the target length is shorter than the reference, tighten it: keep the hook word for word, the beat order, and the call to action; merge or trim the middle beats (fewer steps in a list, shorter explanations). Never cut the hook.",
     "- Keep the hook word for word where you can. Swap only the parts that are about their product or topic for this product's equivalent. \"POV: you just found the app that does your taxes in 5 minutes\" becomes \"POV: you just found the API that pays for every tool your agent uses\".",
     "- Keep every line's wording, sentence shape, length and slang. Swap their product, their features and their specifics for this product's, using the product brief. If a line is generic (\"wait for it\", \"this is insane\", \"okay so\"), keep it exactly.",
     "- Keep their on-screen text the same way: same wording and style, product details swapped.",
@@ -307,7 +308,10 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
 
   // Replication: same beats, same timing.
   if (reference.beats.length) {
-    if (Math.abs(script.beats.length - reference.beats.length) > 1) issues.push(`${script.beats.length} beats vs the reference's ${reference.beats.length}: keep its beats one for one`);
+    // A remake shortened for cost may merge middle beats, but never add any.
+    const shortened = reference.duration > ctx.targetSeconds + 4;
+    const drift = shortened ? script.beats.length > reference.beats.length + 1 || script.beats.length < 3 : Math.abs(script.beats.length - reference.beats.length) > 1;
+    if (drift) issues.push(`${script.beats.length} beats vs the reference's ${reference.beats.length}: keep its beats one for one${shortened ? " (merging middle beats is fine when shortening)" : ""}`);
     const refHook = reference.beats[0];
     const hook = script.beats[0];
     if (refHook && hook && Math.abs(hook.seconds - (refHook.end - refHook.start)) > 1.5) issues.push(`hook beat is ${hook.seconds}s vs the reference's ${(refHook.end - refHook.start).toFixed(1)}s`);
@@ -333,7 +337,11 @@ export function lintScript(script: Script, ctx: ScriptContext): string[] {
   return issues;
 }
 
-/** How long the video should run: the reference's own length, kept to 8-40 s (render cost). */
-export function targetSeconds(reference: Pick<ReferenceBreakdown, "duration">) {
-  return Math.round(Math.min(40, Math.max(8, reference.duration || 18)));
+/**
+ * How long the remake should run: the reference's own length, capped for render cost. A face costs
+ * about $0.40 per second to render, so remakes with a presenter stop at 24 s; faceless ones at 40 s.
+ */
+export function targetSeconds(reference: Pick<ReferenceBreakdown, "duration">, format: CreativeBrief["format"] = "voiceover_demo") {
+  const cap = format === "talking_head_broll" || format === "split_screen" ? 24 : 40;
+  return Math.round(Math.min(cap, Math.max(8, reference.duration || 18)));
 }

@@ -133,9 +133,10 @@ describe("script normalizing and linting", () => {
     expect(lintScript(remake, { ...ctx, reference: viral })).toEqual([]);
   });
 
-  it("aims for the reference's length, within 8-40 s", () => {
+  it("aims for the reference's length, capped at 24 s with a face and 40 s without", () => {
     expect(targetSeconds({ duration: 19 })).toBe(19);
     expect(targetSeconds({ duration: 61 })).toBe(40);
+    expect(targetSeconds({ duration: 61 }, "talking_head_broll")).toBe(24);
     expect(targetSeconds({ duration: 5 })).toBe(8);
   });
 });
