@@ -332,7 +332,11 @@ function Tent({ view }: { view: BrandView }) {
                   {reference && <p className="mt-0.5 text-[12px] text-[var(--crimson)]">{remakeLine(reference)}</p>}
                   <p className="mt-0.5 leading-snug text-[var(--ink-soft)]">{brief.hook_plan || brief.angle}</p>
                   <p className="mt-0.5 text-[12px] text-[var(--ink-faint)]">
-                    {concept?.script ? `Script ${Math.round(concept.script.total_seconds)} s, ${concept.script.beats.length} beats${review ? ` · critic ${review.score}/10` : ""}` : "The script room is writing it…"}
+                    {concept?.script
+                      ? concept.script.beats.length
+                        ? `Script ${Math.round(concept.script.total_seconds)} s, ${concept.script.beats.length} beats${review ? ` · critic ${review.score}/10` : ""}`
+                        : `${Math.round(concept.script.total_seconds)} s video`
+                      : "The script room is writing it…"}
                   </p>
                 </li>
               );

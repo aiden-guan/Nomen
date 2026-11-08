@@ -243,6 +243,34 @@ const events = recordedOnly(rows)
   .filter((e) => e.level !== "error" && !SKIP.test(e.message))
   .map((e) => ({ s: Math.max(0, Math.round((Date.parse(e.ts) - start) / 100) / 10), level: e.level, message: e.message }));
 
+// With --only, the battle plan is the recorded videos: each a brief with its format and the
+// research it rests on (its concept's `why`), and one director line naming them, in the strategy.
+let strategy = campaign.strategy;
+if (only && strategy?.campaign) {
+  const briefs = finished.map((c) => ({
+    title: c.concept?.title ?? "",
+    format: c.concept?.format ?? "video",
+    reference_id: c.concept?.reference?.id ?? null,
+    angle: c.concept?.why ?? c.concept?.brief?.angle ?? "",
+    hook_plan: c.concept?.why ?? c.concept?.hook ?? "",
+    audience: c.concept?.brief?.audience ?? "",
+    role: c.concept?.brief?.role ?? null,
+    metric: c.concept?.brief?.metric ?? null,
+  }));
+  const concepts = finished.map((c) => ({ ...(c.concept ?? {}), brief: { ...(c.concept?.brief ?? {}), title: c.concept?.title ?? "" } }));
+  // The objective names the formats it tests: the recorded ones, not the first plan's.
+  const formats = [...new Set(finished.map((c) => c.concept?.format).filter(Boolean))];
+  const goal = String(strategy.campaign.objective ?? "").split(/,?\s+by testing\b/)[0].replace(/\.$/, "");
+  const objective = goal ? `${goal}, by testing ${formats.length} formats the research backs: ${formats.join(", ")}.` : strategy.campaign.objective;
+  strategy = { ...strategy, campaign: { ...strategy.campaign, objective, briefs, concepts } };
+  const plan = events.find((e) => /^Campaign "/.test(e.message)) ?? events.find((e) => /creative director is choosing/i.test(e.message)) ?? events.find((e) => /^Reference study ready|^Research done/.test(e.message));
+  // The first sentence of each reason ("211.6x" and "1.8K" are not sentence ends).
+  const reason = (c) => (c.concept?.why ?? "").split(/\.\s/)[0].replace(/\.$/, "").trim();
+  const line = `The creative director chose ${finished.length} video${finished.length === 1 ? "" : "s"}, each on what the research found: ${finished.map((c) => `"${c.concept?.title}" (${c.concept?.format ?? "video"}${reason(c) ? `: ${reason(c)}` : ""})`).join("; ")}`;
+  if (plan) events.push({ s: Math.round((plan.s + 0.5) * 10) / 10, level: "info", message: line });
+  events.sort((a, b) => a.s - b.s);
+}
+
 /**
  * With --only, the log as if the campaign had made just those videos: a line about other videos
  * loses their part (or goes, if that was all of it). A kept video's first version (its concept's
@@ -317,7 +345,7 @@ const script = {
     : null,
   runs: campaign.runs.map((r) => ({ key: r.key, phase: r.phase, provider: r.provider, status: r.status === "done" ? "done" : "failed", error: r.status === "done" ? null : (r.error ?? "no result"), cost: r.cost ?? 0 })),
   style: campaign.style ? { slug: campaign.style.slug ?? null, version: campaign.style.version ?? null, samples: campaign.style.samples?.length ?? 0 } : null,
-  strategy: campaign.strategy,
+  strategy,
   creatives,
   events,
   spend: campaign.spend,

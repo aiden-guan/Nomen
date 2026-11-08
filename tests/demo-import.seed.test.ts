@@ -39,6 +39,8 @@ type Entry = {
   made_at?: string;
   /** A planned video this one remade: it becomes that video's next generation. */
   replaces?: string;
+  /** Why this video, in the research's words (the War tent shows it); defaults to its reference's numbers. */
+  why?: string;
   /** A reference found outside the campaign's research (a style scrape): added to its research first, marked as hand-added. */
   reference_add?: { url: string; author: string; views: number; followers: number; caption: string; platform?: "tiktok" | "instagram" };
 };
@@ -98,7 +100,7 @@ describe.skipIf(!manifest)("import side-session videos into a campaign for its d
         caption: entry.caption ?? entry.hook,
         platforms: ["tiktok", "instagram", "youtube"],
         inspired_by: [ref!.url],
-        why: `Built on @${author}'s video from the scouts' research (${evidence}).`,
+        why: entry.why ?? `Built on @${author}'s video from the scouts' research (${evidence}).`,
         reference: { id: `ref_${createHash("sha1").update(ref!.url).digest("hex").slice(0, 10)}`, url: ref!.url, author, views, followers, outlier: followers ? Math.round((views / followers) * 10) / 10 : null, format: entry.genre },
         brief: { ...((old?.brief as object) ?? {}), format: entry.genre, role: "reach" },
         script: { total_seconds: Math.round(seconds * 10) / 10, beats: [], review: null },

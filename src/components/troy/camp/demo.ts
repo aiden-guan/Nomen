@@ -12,6 +12,13 @@ import { SAMPLE } from "./sample";
 
 export const DEMO_ID = "demo";
 
+/** A recorded video's research reference, as the camp shows it, from its concept. */
+function referenceOf(concept: unknown) {
+  const ref = (concept as { reference?: { id?: string; url?: string; author?: string; views?: number; followers?: number | null; outlier?: number | null; format?: string } } | null)?.reference;
+  if (!ref?.url) return null;
+  return { id: ref.id ?? "", url: ref.url, author: ref.author ?? "", platform: /instagram/.test(ref.url) ? "instagram" : /youtube/.test(ref.url) ? "youtube" : "tiktok", views: ref.views ?? 0, followers: ref.followers ?? null, outlier: ref.outlier ?? null, thumbnail: null, format: ref.format ?? "", paidAd: false };
+}
+
 type Campaign = NonNullable<BrandView["campaign"]>;
 type ShotView = CreativeView["shots"][number];
 
@@ -244,6 +251,8 @@ export function replay(script: DemoScript, state: DemoState): BrandView {
             generation: ready ? c.generation : 1,
             status: t < w.begin ? "queued" : ready ? "ready" : "producing",
             concept: c.concept,
+            // The viral video it was built on, so the theatre says so ("remake of @creator, 1.2M views").
+            reference: referenceOf(c.concept),
             caption: c.caption,
             platforms: c.platforms,
             approved: ready && Boolean(state.approved[c.idx]),

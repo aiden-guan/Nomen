@@ -1,7 +1,7 @@
 {
   "version": 1,
   "recorded": true,
-  "recordedAt": "2026-11-08T08:15:46.225Z",
+  "recordedAt": "2026-11-08T08:34:32.795Z",
   "brand": {
     "name": "Naïve",
     "domain": "usenaive.ai",
@@ -601,102 +601,37 @@
       "name": "Deploy a Company",
       "briefs": [
         {
-          "title": "One click, then a team of AI agents runs the channel",
-          "reference_id": "ref_88a571100e",
+          "title": "Deploy it and watch the team work",
+          "format": "realistic AI creator",
+          "reference_id": "ref_c0ed3cecfe",
+          "angle": "Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves).",
+          "hook_plan": "Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves).",
+          "audience": "",
           "role": "reach",
-          "metric": "views",
-          "format": "talking_head_broll",
-          "angle": "A result-first story of what an agent team does after one deploy, stage by stage, including the part where it has to wait for your approval.",
-          "audience": "Solo founders and creators curious about running a business with AI agents",
-          "hook_plan": "Original: 'In six hours, it made $3,000.' over a dark post screenshot, white title card 'AI makes $3000 in 6 hours.', caption 'IN 6 HOURS'. Remake: spoken 'In one click, it started running a company.' Title card 'AI runs a company in 1 click.' Caption 'IN 1 CLICK'. Background is the Naïve brand card (p1) instead of the post. No dollar figure, no time-to-money claim.",
-          "keep": [
-            "Result-first hook line in the first 3 seconds, white title card with bold black text at top, green-highlighted word-by-word caption at bottom",
-            "Beat order: hook, 'he posts the logs' proof line, presenter reveal, stage-by-stage story, a setback/objection beat, payoff",
-            "Fast news-style delivery about 160 wpm, short declarative sentences, both-hand gestures",
-            "New visual every 2 to 5 seconds, bold captions with emoji",
-            "Presenter in a black t-shirt in front of a beige wall with a plant"
-          ],
-          "change": [
-            "Dollar figures ($3,000, $420, $210, $1,300) and 'made money' claims removed; the numbers are replaced with real facts: 'Short Form v1', 'its own email, phone number and domains', 'anything that costs money waits for your yes'",
-            "Mechanical Turk, dropshipping and supplements stages replaced by Naïve stages: pick Naïve Short Form v1, agents get their own accounts, the team briefs, scripts and generates a vertical video, queues it",
-            "'Burned $210 failing' objection replaced by 'It can't spend your money without you: it waits for approval'",
-            "Cut from 54 s to about 40 s by dropping the second stage",
-            "Add a soft ask at the end: follow for the next template",
-            "Remove the OpusClip watermark; AI presenter labeled AI-generated"
-          ],
-          "visuals": [
-            "p1",
-            "s1",
-            "k1"
-          ],
-          "creator": "Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy. AI presenter, not a copy of the original.",
-          "setting": "Home office or living room, beige wall with a houseplant, soft daytime window light",
-          "platforms": [
-            "tiktok",
-            "instagram",
-            "youtube"
-          ],
-          "caption": "One template. One click. A team of AI agents runs the channel, and waits for your yes before it spends. Follow for the next template.",
-          "hashtags": [
-            "#AIagents",
-            "#autonomouscompany",
-            "#shortformvideo",
-            "#buildinpublic",
-            "#AIgenerated"
-          ],
-          "cta": "Follow for the next template",
-          "why": "Reference has 643,977 views on a 1,770-follower account (364 views per follower), the strongest reach evidence of the set, and its staged result-first story works with a presenter plus b-roll, which rebuilds cleanly. It is also the only reach reference, and it tests a story format against the tutorial convert video. Its dollar claims are replaced with Naïve's real facts and the objection beat becomes the approvals feature."
+          "metric": null
         },
         {
-          "title": "Check this out: deploy a company in 3 steps",
-          "reference_id": "ref_e30369e6df",
-          "role": "convert",
-          "metric": "link_clicks",
-          "format": "presenter_inset",
-          "angle": "A 3-step deploy tutorial: pick the template, click Deploy, watch the first session run. Ends on a single step to take.",
-          "audience": "Solo founders and creators who want to run a content business without hiring",
-          "hook_plan": "Original: 'Guys, check this guy out. He knows what he's talking about.' with the sticker 'Unethical ways to make f*ck you money 💰 Part 67'. Remake: 'Guys, check this out. This one actually runs a company for you.' with the sticker 'Ways to run a company with AI agents 🤖'. The second person is replaced with the Naïve homepage (s1) behind the presenter. The presenter lifts her sunglasses at about 2.4 s as in the original.",
-          "keep": [
-            "Green-screen cutout presenter in sunglasses pointing up, lifting the sunglasses at 2.4 s, then shrinking to a bottom-right reaction cutout",
-            "Sticker title at the top for the first 8 s, then clean screen",
-            "Instructional beats: 'First, go to…', 'Copy/pick…', 'then head over to…', 'paste in…', 'It even builds you…'",
-            "Very fast delivery about 225 wpm, hyped intro then flat, imperative steps, deadpan reactions, a sip from a mug",
-            "About 27 s total, cuts every 3 to 5 s"
-          ],
-          "change": [
-            "Remove profanity and the 'Part 67' series claim and the 'unethical money' framing",
-            "Step 1 (ask Claude) becomes: open Naïve Studio in the browser, no terminal",
-            "Step 2 becomes: click Deploy on 'Naïve Short Form v1'",
-            "Payoff line 'fully functional business run 24 hours by AI, with a free website' becomes: 'an agent team briefs, scripts and generates a short vertical video and queues it for you'",
-            "Final kicker 'completely free' replaced by the approvals line: 'you approve anything that costs money'",
-            "Add a concrete CTA: 'Go to usenaive.ai and click Deploy on Naïve Short Form v1', link in bio",
-            "Recreate the Studio template list and the first-session screen as clean screen recordings; use the real homepage and brand card for what exists in the visuals"
-          ],
-          "visuals": [
-            "s1",
-            "p1",
-            "k2"
-          ],
-          "creator": "Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points. AI presenter, not a copy of the original.",
-          "setting": "Bright home room, daytime window light, a floral mug within reach",
-          "platforms": [
-            "tiktok",
-            "instagram",
-            "youtube"
-          ],
-          "caption": "Pick a template. Deploy it. Watch the first session run. Click the link in bio and hit Deploy on Naïve Short Form v1.",
-          "hashtags": [
-            "#AIagents",
-            "#autonomouscompany",
-            "#shortformvideo",
-            "#nocode",
-            "#AIgenerated"
-          ],
-          "cta": "Go to usenaive.ai via the link in bio and click Deploy on Naïve Short Form v1.",
-          "why": "Reference has 665,729 views on a 6,699-follower account, saves per like 5.2x the pool's, and it is short (26.8 s, cheapest to render). Its prompt, copy, click tutorial maps onto Naïve's pick template, deploy, watch the first session flow, and it ends on a direct step to take. The money claim and the second-person hook are removed, which keeps the claims on Naïve's real facts."
+          "title": "A short-form channel in three steps",
+          "format": "code ad (3D animation)",
+          "reference_id": "ref_1a08c64bf9",
+          "angle": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
+          "hook_plan": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
+          "audience": "",
+          "role": "reach",
+          "metric": null
+        },
+        {
+          "title": "Gary the Potato Deploys a Company",
+          "format": "brainrot meme",
+          "reference_id": "ref_b647769fbc",
+          "angle": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+          "hook_plan": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
+          "audience": "",
+          "role": "reach",
+          "metric": null
         }
       ],
-      "objective": "Get Naïve seen by solo founders and creators with a reach video, then drive sign-ups with a tutorial-style convert video, each with its own tracked link.",
+      "objective": "Get Naïve seen by solo founders and creators with a reach video, then drive sign-ups with a tutorial-style convert video, each with its own tracked link, by testing 3 formats the research backs: realistic AI creator, code ad (3D animation), brainrot meme.",
       "posting_plan": {
         "notes": "Label every video AI-generated. Judge reach on views and shares, convert on link clicks and sign-ups per tracked link. Do not state earnings or results; Naïve's site lists no proof numbers. Some templates are Preview only; deploy only Deploy-status ones (Short Form v1 is deployable).",
         "cadence": "One video per day for a week, alternating reach and convert, each with its own tracked link. Re-test the winner with a new hook line after 7 days.",
@@ -707,721 +642,105 @@
       },
       "concepts": [
         {
-          "title": "One click, then a team of AI agents runs the channel",
-          "format": "talking head broll",
-          "angle": "A result-first story of what an agent team does after one deploy, stage by stage, including the part where it has to wait for your approval.",
+          "title": "Deploy it and watch the team work",
+          "format": "realistic AI creator",
+          "hook": "Deploy it and watch the team work",
+          "caption": "Pick a template, deploy it, watch your agent team run. usenaive.ai",
           "platforms": [
             "tiktok",
             "instagram",
             "youtube"
           ],
-          "hook": "AI runs a company in 1 click. / In one click, it started running a company.",
-          "creator": "Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy. AI presenter, not a copy of the original.",
-          "setting": "Home office or living room, beige wall with a houseplant, soft daytime window light",
-          "shots": [
-            {
-              "seconds": 6,
-              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original. Home office or living room, beige wall with a houseplant, soft daytime window light. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original, in Home office or living room, beige wall with a houseplant, soft daytime window light. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: Short declarative sentences with concrete numbers ('$420', '340 ad variations', 'forty times faster'). The presenter gestures with both hands and the narration moves steadily through each stage without pauses.: \"In one click, it started running a company. Here are the logs. Every step the agents did.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
-              "dialogue": "In one click, it started running a company. Here are the logs. Every step the agents did."
-            },
-            {
-              "seconds": 6,
-              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original. Home office or living room, beige wall with a houseplant, soft daytime window light. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original, in Home office or living room, beige wall with a houseplant, soft daytime window light. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter in a black t-shirt in front of a beige wall with a plant, relaxed and confident. Both hands open in a quick gesture on 'No team to hire', then one hand points forward on 'one template', straight to camera.. He says, in a natural, conversational voice with this delivery: Short declarative sentences with concrete numbers ('$420', '340 ad variations', 'forty times faster'). The presenter gestures with both hands and the narration moves steadily through each stage without pauses.: \"No team to hire. Just one template: Naïve Short Form v1. Click Deploy. That's it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
-              "dialogue": "No team to hire. Just one template: Naïve Short Form v1. Click Deploy. That's it."
-            },
-            {
-              "seconds": 8,
-              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original. Home office or living room, beige wall with a houseplant, soft daytime window light. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original, in Home office or living room, beige wall with a houseplant, soft daytime window light. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: Short declarative sentences with concrete numbers ('$420', '340 ad variations', 'forty times faster'). The presenter gestures with both hands and the narration moves steadily through each stage without pauses.: \"Each agent gets its own email, phone number, domains. It briefs, scripts, generates a vertical video, queues it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
-              "dialogue": "Each agent gets its own email, phone number, domains. It briefs, scripts, generates a vertical video, queues it."
-            },
-            {
-              "seconds": 8,
-              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original. Home office or living room, beige wall with a houseplant, soft daytime window light. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original, in Home office or living room, beige wall with a houseplant, soft daytime window light. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter nods once with a slight smile, both hands settling into a calm open gesture, speaking to camera.. He says, in a natural, conversational voice with this delivery: Short declarative sentences with concrete numbers ('$420', '340 ad variations', 'forty times faster'). The presenter gestures with both hands and the narration moves steadily through each stage without pauses.: \"It can't spend without you. Anything that costs money waits for your yes. A team runs the channel. Follow for the next template.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
-              "dialogue": "It can't spend without you. Anything that costs money waits for your yes. A team runs the channel. Follow for the next template."
-            }
-          ],
-          "reference_images": [],
-          "caption": "One template. One click. A team of AI agents runs the channel, and waits for your yes before it spends. Follow for the next template.",
-          "hashtags": [
-            "#AIagents",
-            "#autonomouscompany",
-            "#shortformvideo",
-            "#buildinpublic",
-            "#AIgenerated"
-          ],
-          "cta": "Follow for the next template",
           "inspired_by": [
             "https://www.tiktok.com/@mplentg/video/7667230797337873685"
           ],
-          "why": "Reference has 643,977 views on a 1,770-follower account (364 views per follower), the strongest reach evidence of the set, and its staged result-first story works with a presenter plus b-roll, which rebuilds cleanly. It is also the only reach reference, and it tests a story format against the tutorial convert video. Its dollar claims are replaced with Naïve's real facts and the objection beat becomes the approvals feature.",
-          "role": "reach",
-          "metric": "views",
-          "brief": {
-            "title": "One click, then a team of AI agents runs the channel",
-            "reference_id": "ref_88a571100e",
-            "role": "reach",
-            "metric": "views",
-            "format": "talking_head_broll",
-            "angle": "A result-first story of what an agent team does after one deploy, stage by stage, including the part where it has to wait for your approval.",
-            "audience": "Solo founders and creators curious about running a business with AI agents",
-            "hook_plan": "Original: 'In six hours, it made $3,000.' over a dark post screenshot, white title card 'AI makes $3000 in 6 hours.', caption 'IN 6 HOURS'. Remake: spoken 'In one click, it started running a company.' Title card 'AI runs a company in 1 click.' Caption 'IN 1 CLICK'. Background is the Naïve brand card (p1) instead of the post. No dollar figure, no time-to-money claim.",
-            "keep": [
-              "Result-first hook line in the first 3 seconds, white title card with bold black text at top, green-highlighted word-by-word caption at bottom",
-              "Beat order: hook, 'he posts the logs' proof line, presenter reveal, stage-by-stage story, a setback/objection beat, payoff",
-              "Fast news-style delivery about 160 wpm, short declarative sentences, both-hand gestures",
-              "New visual every 2 to 5 seconds, bold captions with emoji",
-              "Presenter in a black t-shirt in front of a beige wall with a plant"
-            ],
-            "change": [
-              "Dollar figures ($3,000, $420, $210, $1,300) and 'made money' claims removed; the numbers are replaced with real facts: 'Short Form v1', 'its own email, phone number and domains', 'anything that costs money waits for your yes'",
-              "Mechanical Turk, dropshipping and supplements stages replaced by Naïve stages: pick Naïve Short Form v1, agents get their own accounts, the team briefs, scripts and generates a vertical video, queues it",
-              "'Burned $210 failing' objection replaced by 'It can't spend your money without you: it waits for approval'",
-              "Cut from 54 s to about 40 s by dropping the second stage",
-              "Add a soft ask at the end: follow for the next template",
-              "Remove the OpusClip watermark; AI presenter labeled AI-generated"
-            ],
-            "visuals": [
-              "p1",
-              "s1",
-              "k1"
-            ],
-            "creator": "Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy. AI presenter, not a copy of the original.",
-            "setting": "Home office or living room, beige wall with a houseplant, soft daytime window light",
-            "platforms": [
-              "tiktok",
-              "instagram",
-              "youtube"
-            ],
-            "caption": "One template. One click. A team of AI agents runs the channel, and waits for your yes before it spends. Follow for the next template.",
-            "hashtags": [
-              "#AIagents",
-              "#autonomouscompany",
-              "#shortformvideo",
-              "#buildinpublic",
-              "#AIgenerated"
-            ],
-            "cta": "Follow for the next template",
-            "why": "Reference has 643,977 views on a 1,770-follower account (364 views per follower), the strongest reach evidence of the set, and its staged result-first story works with a presenter plus b-roll, which rebuilds cleanly. It is also the only reach reference, and it tests a story format against the tutorial convert video. Its dollar claims are replaced with Naïve's real facts and the objection beat becomes the approvals feature."
-          },
-          "script": {
-            "beats": [
-              {
-                "n": 1,
-                "job": "hook",
-                "seconds": 3,
-                "line": "In one click, it started running a company.",
-                "on_screen_text": "AI runs a company in 1 click.",
-                "visual": "product",
-                "product_visual": "p1",
-                "direction": "Slow push-in on the brand card, fast news-style open."
-              },
-              {
-                "n": 2,
-                "job": "proof",
-                "seconds": 3,
-                "line": "Here are the logs. Every step the agents did.",
-                "on_screen_text": "",
-                "visual": "product",
-                "product_visual": "p1",
-                "direction": "Rows appear one by one, newest at the bottom.",
-                "screen": "A session log on a black background in white monospace type. Rows appear one by one, one per agent step: 'Brief', 'Script', 'Generate vertical video'. Each row gets a small timestamp as it lands."
-              },
-              {
-                "n": 3,
-                "job": "reveal",
-                "seconds": 3.5,
-                "line": "No team to hire. Just one template: Naïve Short Form v1.",
-                "on_screen_text": "",
-                "visual": "creator",
-                "product_visual": null,
-                "direction": "Presenter in a black t-shirt in front of a beige wall with a plant, relaxed and confident. Both hands open in a quick gesture on 'No team to hire', then one hand points forward on 'one template', straight to camera."
-              },
-              {
-                "n": 4,
-                "job": "demo",
-                "seconds": 2,
-                "line": "Click Deploy. That's it.",
-                "on_screen_text": "",
-                "visual": "product",
-                "product_visual": "p1",
-                "direction": "Cursor glides to Deploy on the first card and clicks.",
-                "screen": "Naïve Studio in the browser, black background, white pixel-style monospace type. List of template cards: 'Naive Short Form v1' with a Deploy button, 'Long Form v1' Preview, 'Clipping v1' Deploy, 'AI Music Channel', 'AI Influencer'. The cursor clicks Deploy on 'Naive Short Form v1' and the button flashes."
-              },
-              {
-                "n": 5,
-                "job": "demo",
-                "seconds": 3.5,
-                "line": "Each agent gets its own email, phone number, domains.",
-                "on_screen_text": "",
-                "visual": "product",
-                "product_visual": "p1",
-                "direction": "Click New inbox, then rows pop in one by one in time with the words.",
-                "screen": "Starter app, black with white monospace type. Left sidebar: Chat, Cards, Email, Connections, Credentials, Approvals. Email page open, heading 'Inboxes', with a 'New inbox' button. After the click, rows appear one by one: an address on the workspace domain, then a phone number, then a domain."
-              },
-              {
-                "n": 6,
-                "job": "reveal",
-                "seconds": 3.5,
-                "line": "It briefs, scripts, generates a vertical video, queues it.",
-                "on_screen_text": "",
-                "visual": "product",
-                "product_visual": "p1",
-                "direction": "Status lines tick forward in parallel, ending on the queued thumbnail.",
-                "screen": "Session view of the deployed team. Several agent rows work at once, each with a status line that ticks through 'Brief', 'Script', 'Generate vertical video', 'Queued'. A short vertical video thumbnail appears at the end with a 'Queued' tag."
-              },
-              {
-                "n": 7,
-                "job": "objection",
-                "seconds": 4.5,
-                "line": "It can't spend without you. Anything that costs money waits for your yes.",
-                "on_screen_text": "",
-                "visual": "product",
-                "product_visual": "p1",
-                "direction": "Hold on the pending approval card, cursor hovers near Deny.",
-                "screen": "Starter app chat view. A chat line reads 'Waiting for your approval'. Below it is one agent action card marked 'Approval required.' with a 'Deny' button and a 'Review in Approvals →' button. The card stays pending with a soft pulse."
-              },
-              {
-                "n": 8,
-                "job": "cta",
-                "seconds": 3,
-                "line": "A team runs the channel. Follow for the next template.",
-                "on_screen_text": "",
-                "visual": "creator",
-                "product_visual": null,
-                "direction": "Presenter nods once with a slight smile, both hands settling into a calm open gesture, speaking to camera. AI-generated presenter label added in the edit."
-              }
-            ],
-            "total_seconds": 26,
-            "review": {
-              "score": 7,
-              "notes": [
-                "lint: the number \"1.\" is not in the product brief",
-                "lint: the reference cuts away 11 times, this script shows the product 6 times",
-                "Beat 2 drops the reference's proof line. 'You watch every step of the first session.' replaces 'He posts the logs. He shows everything the AI did step by step.' The brief's keep list names the 'posts the logs' proof beat, and the reference's wording could have stayed with small swaps. Fix: 'Here are the logs. Every step the agents did.'",
-                "The reference's problem/agitate beat is gone. The reference says 'stuff humans get paid a few bucks an hour to do'. The script never says why you'd want this: no team, no budget, tools stitched together by hand. Beat 3 can carry a short version of that problem.",
-                "Pacing is thinner than the reference. The script has 8 beats against the reference's 11 cuts, and its only presenter shots are beat 3 and beat 8. The auto-check also flags that product beats are 6 against the reference's 11 cuts. Adding a cut can't fit in about 24 s, so beats 3 and 8 are tightened to keep a new visual every 2 to 4 s.",
-                "The script runs about 26 s against the 24 s target. Beat 8 and beat 3 can be trimmed. The longest lines are 'It can't spend without you. Anything that costs money waits for your yes.' (13 words in 4.5 s) and 'It briefs, scripts, generates a vertical video, queues it.'. Both are speakable but tight, so keep them short.",
-                "Beat 7 puts a chat bubble, an approval card and a 'Review in Approvals →' button on one screen. This is consistent with the brief's UI strings, but it should read as one clear 'Waiting for your approval' card. The Deny button must stay in view for the objection to land.",
-                "The '1' flagged by the automatic check comes from the brief's own hook plan ('1 click'), so it's acceptable. No dollar figures or personal-history claims were carried over, which is good."
-              ],
-              "rounds": 2
-            }
-          },
-          "plan": {
-            "format": "talking_head_broll",
-            "aroll": [
-              {
-                "n": 1,
-                "beats": [
-                  1,
-                  2
-                ],
-                "seconds": 6,
-                "line": "In one click, it started running a company. Here are the logs. Every step the agents did.",
-                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original. Home office or living room, beige wall with a houseplant, soft daytime window light. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original, in Home office or living room, beige wall with a houseplant, soft daytime window light. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: Short declarative sentences with concrete numbers ('$420', '340 ad variations', 'forty times faster'). The presenter gestures with both hands and the narration moves steadily through each stage without pauses.: \"In one click, it started running a company. Here are the logs. Every step the agents did.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
-              },
-              {
-                "n": 2,
-                "beats": [
-                  3,
-                  4
-                ],
-                "seconds": 6,
-                "line": "No team to hire. Just one template: Naïve Short Form v1. Click Deploy. That's it.",
-                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original. Home office or living room, beige wall with a houseplant, soft daytime window light. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original, in Home office or living room, beige wall with a houseplant, soft daytime window light. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter in a black t-shirt in front of a beige wall with a plant, relaxed and confident. Both hands open in a quick gesture on 'No team to hire', then one hand points forward on 'one template', straight to camera.. He says, in a natural, conversational voice with this delivery: Short declarative sentences with concrete numbers ('$420', '340 ad variations', 'forty times faster'). The presenter gestures with both hands and the narration moves steadily through each stage without pauses.: \"No team to hire. Just one template: Naïve Short Form v1. Click Deploy. That's it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
-              },
-              {
-                "n": 3,
-                "beats": [
-                  5,
-                  6
-                ],
-                "seconds": 8,
-                "line": "Each agent gets its own email, phone number, domains. It briefs, scripts, generates a vertical video, queues it.",
-                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original. Home office or living room, beige wall with a houseplant, soft daytime window light. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original, in Home office or living room, beige wall with a houseplant, soft daytime window light. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. He says, in a natural, conversational voice with this delivery: Short declarative sentences with concrete numbers ('$420', '340 ad variations', 'forty times faster'). The presenter gestures with both hands and the narration moves steadily through each stage without pauses.: \"Each agent gets its own email, phone number, domains. It briefs, scripts, generates a vertical video, queues it.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
-              },
-              {
-                "n": 4,
-                "beats": [
-                  7,
-                  8
-                ],
-                "seconds": 8,
-                "line": "It can't spend without you. Anything that costs money waits for your yes. A team runs the channel. Follow for the next template.",
-                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original. Home office or living room, beige wall with a houseplant, soft daytime window light. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Man in his 20s, short dark hair, plain black t-shirt, relaxed and confident, animated two-hand gestures, news-style energy, AI presenter, not a copy of the original, in Home office or living room, beige wall with a houseplant, soft daytime window light. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter nods once with a slight smile, both hands settling into a calm open gesture, speaking to camera.. He says, in a natural, conversational voice with this delivery: Short declarative sentences with concrete numbers ('$420', '340 ad variations', 'forty times faster'). The presenter gestures with both hands and the narration moves steadily through each stage without pauses.: \"It can't spend without you. Anything that costs money waits for your yes. A team runs the channel. Follow for the next template.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
-              }
-            ],
-            "broll": [
-              {
-                "beat": 1,
-                "visual_id": "screen:b1",
-                "motion": "none"
-              },
-              {
-                "beat": 2,
-                "visual_id": "screen:b2",
-                "motion": "none"
-              },
-              {
-                "beat": 4,
-                "visual_id": "screen:b4",
-                "motion": "none"
-              },
-              {
-                "beat": 5,
-                "visual_id": "screen:b5",
-                "motion": "none"
-              },
-              {
-                "beat": 6,
-                "visual_id": "screen:b6",
-                "motion": "none"
-              },
-              {
-                "beat": 7,
-                "visual_id": "screen:b7",
-                "motion": "none"
-              }
-            ],
-            "voiceover": null,
-            "screens": [
-              {
-                "id": "b1",
-                "brief": "Show what this line says as one clear on-screen graphic: \"In one click, it started running a company.\". Use the product's real names, commands, numbers and UI from the brief, and nothing the line does not say. It may build on this real visual: naïve brand card: 'Build Your Dream Company with Agents', 'Pick a company template, deploy it, and watch an agent team run it.'.",
-                "line": "In one click, it started running a company.",
-                "seconds": 3,
-                "reference_visual": "Dark social-post screenshot with a white title card at the top and a green-highlighted word-by-word caption at the bottom. Frame 1 shows the post text typing out.; on-screen text: \"AI makes $3000 in 6 hours.\"",
-                "size": "full"
-              },
-              {
-                "id": "b2",
-                "brief": "A session log on a black background in white monospace type. Rows appear one by one, one per agent step: 'Brief', 'Script', 'Generate vertical video'. Each row gets a small timestamp as it lands.",
-                "line": "Here are the logs. Every step the agents did.",
-                "seconds": 3,
-                "reference_visual": "Likely still the post or similar screen material. Only frame 1 is visible for this stretch, so the exact visuals are inferred. The speech says the person posts the logs and shows everything the AI did.",
-                "size": "full"
-              },
-              {
-                "id": "b4",
-                "brief": "Naïve Studio in the browser, black background, white pixel-style monospace type. List of template cards: 'Naive Short Form v1' with a Deploy button, 'Long Form v1' Preview, 'Clipping v1' Deploy, 'AI Music Channel', 'AI Influencer'. The cursor clicks Deploy on 'Naive Short Form v1' and the button flashes.",
-                "line": "Click Deploy. That's it.",
-                "seconds": 2,
-                "reference_visual": "A laptop showing the Amazon Mechanical Turk worker page, with a caption and a money-bag emoji below.",
-                "size": "full"
-              },
-              {
-                "id": "b5",
-                "brief": "Starter app, black with white monospace type. Left sidebar: Chat, Cards, Email, Connections, Credentials, Approvals. Email page open, heading 'Inboxes', with a 'New inbox' button. After the click, rows appear one by one: an address on the workspace domain, then a phone number, then a domain.",
-                "line": "Each agent gets its own email, phone number, domains.",
-                "seconds": 3.5,
-                "reference_visual": "A grey low-poly human figure typing at a desk with a monitor in a warm room, in an AI-generated look. The shots between 13.0 and 22.0 are inferred, with only the frame at 18.2 s visible. The spoken list covers data labeling, image tagging and receipt transcription.",
-                "size": "full"
-              },
-              {
-                "id": "b6",
-                "brief": "Session view of the deployed team. Several agent rows work at once, each with a status line that ticks through 'Brief', 'Script', 'Generate vertical video', 'Queued'. A short vertical video thumbnail appears at the end with a 'Queued' tag.",
-                "line": "It briefs, scripts, generates a vertical video, queues it.",
-                "seconds": 3.5,
-                "reference_visual": "A sleek robot typing at an office desk, then a close shot of its hands moving fast on the keyboard.",
-                "size": "full"
-              },
-              {
-                "id": "b7",
-                "brief": "Starter app chat view. A chat line reads 'Waiting for your approval'. Below it is one agent action card marked 'Approval required.' with a 'Deny' button and a 'Review in Approvals →' button. The card stays pending with a soft pulse.",
-                "line": "It can't spend without you. Anything that costs money waits for your yes.",
-                "seconds": 4.5,
-                "reference_visual": "The robot at the desk with a small white '$420' label and an arrow pointing to it.; on-screen text: \"$420\"",
-                "size": "full"
-              }
-            ]
-          },
+          "why": "Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves).",
           "reference": {
-            "id": "ref_88a571100e",
+            "id": "ref_c0ed3cecfe",
             "url": "https://www.tiktok.com/@mplentg/video/7667230797337873685",
             "author": "mplentg",
             "views": 643977,
             "followers": 1770,
-            "outlier": 363.83,
-            "format": "Faceless explainer clip: a presenter talking to camera cut with AI-generated b-roll (robot at a desk, screens, a line chart), a social-post screenshot at the open, and bold word-by-word captions with emoji. It tells a stepwise 'AI ran a side hustle and made money' story, with a dollar figure at each stage.",
-            "hook_mechanic": "A big dollar figure and a short time window open the video (a result-first claim). Behind it sits a screenshot of a post with a dare-like instruction ('Make money. Do whatever it takes.'), which makes it feel like a real experiment. The viewer wants to know how an AI left alone could earn that much."
+            "outlier": 363.8,
+            "format": "realistic AI creator"
+          },
+          "brief": {
+            "format": "realistic AI creator",
+            "role": "reach",
+            "title": "Deploy it and watch the team work"
+          },
+          "script": {
+            "total_seconds": 15.9,
+            "beats": [],
+            "review": null
           }
         },
         {
-          "title": "Check this out: deploy a company in 3 steps",
-          "format": "presenter inset",
-          "angle": "A 3-step deploy tutorial: pick the template, click Deploy, watch the first session run. Ends on a single step to take.",
+          "title": "A short-form channel in three steps",
+          "format": "code ad (3D animation)",
+          "hook": "Short Form template plus agents equals a video channel.",
+          "caption": "Deploy the Short Form template at usenaive.ai.",
           "platforms": [
             "tiktok",
             "instagram",
             "youtube"
           ],
-          "hook": "Ways to run a company with AI agents 🤖 / Guys, check this out. This one runs a company for you.",
-          "creator": "Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points. AI presenter, not a copy of the original.",
-          "setting": "Bright home room, daytime window light, a floral mug within reach",
-          "shots": [
-            {
-              "seconds": 8,
-              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. At about 2.4 s she lifts the sunglasses and looks over them.. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"Guys, check this out. This one runs a company for you. And if the goal is a company, it's just three steps.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
-              "dialogue": "Guys, check this out. This one runs a company for you. And if the goal is a company, it's just three steps."
-            },
-            {
-              "seconds": 8,
-              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Small cutout bottom right, deadpan nod. Then Small bottom-right cutout, one finger up for step one. Then Deadpan look from the bottom-right cutout.. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"And trust me, you're gonna wanna see this. First, open Naïve Studio in your browser. No terminal. Pick it,\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
-              "dialogue": "And trust me, you're gonna wanna see this. First, open Naïve Studio in your browser. No terminal. Pick it,"
-            },
-            {
-              "seconds": 4,
-              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Cutout stays small and deadpan, flat delivery.. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"then click Deploy on Naïve Short Form v1.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
-              "dialogue": "then click Deploy on Naïve Short Form v1."
-            },
-            {
-              "seconds": 8,
-              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter takes a small sip from the floral mug, then goes back to talking, flat and calm.. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"Then watch the first session run. An agent team briefs, scripts and generates a short vertical video, and queues it for you.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
-              "dialogue": "Then watch the first session run. An agent team briefs, scripts and generates a short vertical video, and queues it for you."
-            },
-            {
-              "seconds": 6,
-              "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-              "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"You approve anything that costs money. Go to usenaive.ai, link in bio, and click Deploy on Naïve Short Form v1.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind.",
-              "dialogue": "You approve anything that costs money. Go to usenaive.ai, link in bio, and click Deploy on Naïve Short Form v1."
-            }
-          ],
-          "reference_images": [],
-          "caption": "Pick a template. Deploy it. Watch the first session run. Click the link in bio and hit Deploy on Naïve Short Form v1.",
-          "hashtags": [
-            "#AIagents",
-            "#autonomouscompany",
-            "#shortformvideo",
-            "#nocode",
-            "#AIgenerated"
-          ],
-          "cta": "Go to usenaive.ai via the link in bio and click Deploy on Naïve Short Form v1.",
           "inspired_by": [
-            "https://www.tiktok.com/@hustle.jordan99/video/7680915318243478814"
+            "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512"
           ],
-          "why": "Reference has 665,729 views on a 6,699-follower account, saves per like 5.2x the pool's, and it is short (26.8 s, cheapest to render). Its prompt, copy, click tutorial maps onto Naïve's pick template, deploy, watch the first session flow, and it ends on a direct step to take. The money claim and the second-person hook are removed, which keeps the claims on Naïve's real facts.",
-          "role": "convert",
-          "metric": "link_clicks",
+          "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
+          "reference": {
+            "id": "ref_1a08c64bf9",
+            "url": "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512",
+            "author": "zachhh.mp4",
+            "views": 1308860,
+            "followers": 6161,
+            "outlier": 212.4,
+            "format": "code ad (3D animation)"
+          },
           "brief": {
-            "title": "Check this out: deploy a company in 3 steps",
-            "reference_id": "ref_e30369e6df",
-            "role": "convert",
-            "metric": "link_clicks",
-            "format": "presenter_inset",
-            "angle": "A 3-step deploy tutorial: pick the template, click Deploy, watch the first session run. Ends on a single step to take.",
-            "audience": "Solo founders and creators who want to run a content business without hiring",
-            "hook_plan": "Original: 'Guys, check this guy out. He knows what he's talking about.' with the sticker 'Unethical ways to make f*ck you money 💰 Part 67'. Remake: 'Guys, check this out. This one actually runs a company for you.' with the sticker 'Ways to run a company with AI agents 🤖'. The second person is replaced with the Naïve homepage (s1) behind the presenter. The presenter lifts her sunglasses at about 2.4 s as in the original.",
-            "keep": [
-              "Green-screen cutout presenter in sunglasses pointing up, lifting the sunglasses at 2.4 s, then shrinking to a bottom-right reaction cutout",
-              "Sticker title at the top for the first 8 s, then clean screen",
-              "Instructional beats: 'First, go to…', 'Copy/pick…', 'then head over to…', 'paste in…', 'It even builds you…'",
-              "Very fast delivery about 225 wpm, hyped intro then flat, imperative steps, deadpan reactions, a sip from a mug",
-              "About 27 s total, cuts every 3 to 5 s"
-            ],
-            "change": [
-              "Remove profanity and the 'Part 67' series claim and the 'unethical money' framing",
-              "Step 1 (ask Claude) becomes: open Naïve Studio in the browser, no terminal",
-              "Step 2 becomes: click Deploy on 'Naïve Short Form v1'",
-              "Payoff line 'fully functional business run 24 hours by AI, with a free website' becomes: 'an agent team briefs, scripts and generates a short vertical video and queues it for you'",
-              "Final kicker 'completely free' replaced by the approvals line: 'you approve anything that costs money'",
-              "Add a concrete CTA: 'Go to usenaive.ai and click Deploy on Naïve Short Form v1', link in bio",
-              "Recreate the Studio template list and the first-session screen as clean screen recordings; use the real homepage and brand card for what exists in the visuals"
-            ],
-            "visuals": [
-              "s1",
-              "p1",
-              "k2"
-            ],
-            "creator": "Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points. AI presenter, not a copy of the original.",
-            "setting": "Bright home room, daytime window light, a floral mug within reach",
-            "platforms": [
-              "tiktok",
-              "instagram",
-              "youtube"
-            ],
-            "caption": "Pick a template. Deploy it. Watch the first session run. Click the link in bio and hit Deploy on Naïve Short Form v1.",
-            "hashtags": [
-              "#AIagents",
-              "#autonomouscompany",
-              "#shortformvideo",
-              "#nocode",
-              "#AIgenerated"
-            ],
-            "cta": "Go to usenaive.ai via the link in bio and click Deploy on Naïve Short Form v1.",
-            "why": "Reference has 665,729 views on a 6,699-follower account, saves per like 5.2x the pool's, and it is short (26.8 s, cheapest to render). Its prompt, copy, click tutorial maps onto Naïve's pick template, deploy, watch the first session flow, and it ends on a direct step to take. The money claim and the second-person hook are removed, which keeps the claims on Naïve's real facts."
+            "format": "code ad (3D animation)",
+            "role": "reach",
+            "title": "A short-form channel in three steps"
           },
           "script": {
-            "beats": [
-              {
-                "n": 1,
-                "job": "hook",
-                "seconds": 3,
-                "line": "Guys, check this out. This one runs a company for you.",
-                "on_screen_text": "Ways to run a company with AI agents 🤖",
-                "visual": "creator",
-                "product_visual": null,
-                "direction": "Presenter in dark sunglasses points a finger up, hyped, talking to camera in front of the Naïve homepage. At about 2.4 s she lifts the sunglasses and looks over them."
-              },
-              {
-                "n": 2,
-                "job": "hook",
-                "seconds": 3,
-                "line": "And if the goal is a company, it's just three steps.",
-                "on_screen_text": "Ways to run a company with AI agents 🤖",
-                "visual": "inset",
-                "product_visual": "s1",
-                "direction": "Presenter shrinks to a small bottom-right reaction cutout, looking up at the screen, calm."
-              },
-              {
-                "n": 3,
-                "job": "other",
-                "seconds": 2,
-                "line": "And trust me, you're gonna wanna see this.",
-                "on_screen_text": "Ways to run a company with AI agents 🤖",
-                "visual": "inset",
-                "product_visual": "p1",
-                "direction": "Small cutout bottom right, deadpan nod."
-              },
-              {
-                "n": 4,
-                "job": "demo",
-                "seconds": 3,
-                "line": "First, open Naïve Studio in your browser. No terminal.",
-                "on_screen_text": "",
-                "visual": "inset",
-                "product_visual": "s1",
-                "direction": "Small bottom-right cutout, one finger up for step one.",
-                "screen": "Clean browser window on a black background with white pixel-style monospace type, titled 'Naïve Studio'. A list of template cards appears row by row: 'Naive Short Form v1' with a Deploy button, 'Long Form v1' with Preview, 'Clipping v1' with Deploy, 'AI Music Channel', 'AI Influencer'. Each card shows Team, Tools, View Benchmark."
-              },
-              {
-                "n": 5,
-                "job": "demo",
-                "seconds": 1,
-                "line": "Pick it,",
-                "on_screen_text": "",
-                "visual": "inset",
-                "product_visual": "s1",
-                "direction": "Deadpan look from the bottom-right cutout.",
-                "screen": "Same Studio template list. The cursor moves to the 'Naive Short Form v1' card and the card highlights."
-              },
-              {
-                "n": 6,
-                "job": "demo",
-                "seconds": 2.5,
-                "line": "then click Deploy on Naïve Short Form v1.",
-                "on_screen_text": "",
-                "visual": "inset",
-                "product_visual": "s1",
-                "direction": "Cutout stays small and deadpan, flat delivery.",
-                "screen": "Close-up of the 'Naive Short Form v1' card. The cursor rests on the Deploy button and clicks it, and the button changes to a deploying state."
-              },
-              {
-                "n": 7,
-                "job": "payoff",
-                "seconds": 5.5,
-                "line": "Then watch the first session run. An agent team briefs, scripts and generates a short vertical video, and queues it for you.",
-                "on_screen_text": "",
-                "visual": "inset",
-                "product_visual": "s1",
-                "direction": "Presenter takes a small sip from the floral mug, then goes back to talking, flat and calm.",
-                "screen": "Screen recording of the deployed team's first session. Several agents work in parallel, with rows appearing one by one: 'Brief', 'Script', 'Generate video', 'Queued'. Each row's status ticks from working to done. A vertical video thumbnail appears at the end, labeled 'Queued for you'."
-              },
-              {
-                "n": 8,
-                "job": "cta",
-                "seconds": 5.5,
-                "line": "You approve anything that costs money. Go to usenaive.ai, link in bio, and click Deploy on Naïve Short Form v1.",
-                "on_screen_text": "usenaive.ai, link in bio",
-                "visual": "inset",
-                "product_visual": "s1",
-                "direction": "Presenter in the small window points toward the screen, deadpan, then a small nod on the last line.",
-                "screen": "Approvals queue in the Naïve starter app with an agent action showing 'Waiting for your approval' and a Deny button. It then cuts to the Studio card 'Naive Short Form v1' with the Deploy button highlighted and the text 'usenaive.ai' below."
-              }
-            ],
-            "total_seconds": 25.5,
-            "review": {
-              "score": 8,
-              "notes": [
-                "lint: emoji in the script",
-                "lint: the number \"1.\" is not in the product brief",
-                "lint: the number \"1.\" is not in the product brief",
-                "Beat 2 \"And if the goal is a company, it's just three steps.\" is slightly clumsy. The reference line is \"And if the goal is to make fuck you money, part sixty-seven.\" It reads better as \"if the goal is to run a company\". This is a small wording fix and doesn't block filming.",
-                "Beat 8 is the tightest line: \"You approve anything that costs money. Go to usenaive.ai, link in bio, and click Deploy on Naïve Short Form v1.\" That is about 21 words in 5.5 s (~229 wpm). It matches the reference's pace but leaves no room to breathe. Trim it if the read feels rushed.",
-                "Planned beats add up to 25.5 s against the ~24 s target. Beat 3 or the CTA could lose about half a second each.",
-                "Beats 4-8 list s1 (the homepage) as the product visual, but the screen text builds the Studio list, first session and Approvals views. That is fine as long as the edit builds the screens and doesn't show the homepage. Beat 8 could use p1 or k2 for the brand end card.",
-                "The reference's selling beats survive. The problem is the hook, the proof is the first-session screen, the objection is the approvals line, and there is one clear CTA. No personal-history claims were carried over, and no claims fall outside the brief. The automatic check flags on \"v1\" and the sticker emoji are false alarms, since the emoji is in the reference sticker and the brief specifies it.",
-                "\"Open Naïve Studio… Pick it, then click Deploy… Then watch\" is really three actions, which matches \"three steps\". Keep the delivery flat so it doesn't sound like four steps."
-              ],
-              "rounds": 2
-            }
-          },
-          "plan": {
-            "format": "presenter_inset",
-            "aroll": [
-              {
-                "n": 1,
-                "beats": [
-                  1,
-                  2
-                ],
-                "seconds": 8,
-                "line": "Guys, check this out. This one runs a company for you. And if the goal is a company, it's just three steps.",
-                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. At about 2.4 s she lifts the sunglasses and looks over them.. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"Guys, check this out. This one runs a company for you. And if the goal is a company, it's just three steps.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
-              },
-              {
-                "n": 2,
-                "beats": [
-                  3,
-                  4,
-                  5
-                ],
-                "seconds": 8,
-                "line": "And trust me, you're gonna wanna see this. First, open Naïve Studio in your browser. No terminal. Pick it,",
-                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Small cutout bottom right, deadpan nod. Then Small bottom-right cutout, one finger up for step one. Then Deadpan look from the bottom-right cutout.. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"And trust me, you're gonna wanna see this. First, open Naïve Studio in your browser. No terminal. Pick it,\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
-              },
-              {
-                "n": 3,
-                "beats": [
-                  6
-                ],
-                "seconds": 4,
-                "line": "then click Deploy on Naïve Short Form v1.",
-                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Cutout stays small and deadpan, flat delivery.. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"then click Deploy on Naïve Short Form v1.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
-              },
-              {
-                "n": 4,
-                "beats": [
-                  7
-                ],
-                "seconds": 8,
-                "line": "Then watch the first session run. An agent team briefs, scripts and generates a short vertical video, and queues it for you.",
-                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. Presenter takes a small sip from the floral mug, then goes back to talking, flat and calm.. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"Then watch the first session run. An agent team briefs, scripts and generates a short vertical video, and queues it for you.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
-              },
-              {
-                "n": 5,
-                "beats": [
-                  8
-                ],
-                "seconds": 6,
-                "line": "You approve anything that costs money. Go to usenaive.ai, link in bio, and click Deploy on Naïve Short Form v1.",
-                "frame_prompt": "Vertical 9:16 candid photograph taken from eye level, about an arm and a half away. Chest-up, face centered, looking into the lens, mouth closed, relaxed. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original. Bright home room, daytime window light, a floral mug within reach. Natural everyday exposure, not cinematic, no shallow-depth-of-field blur. Photorealistic, natural skin texture. A plain full-bleed photograph with nothing drawn or written over it.",
-                "video_prompt": "Vertical 9:16 smartphone video, UGC style. The phone is propped up on a stable surface at eye level, about an arm and a half away, and stays still apart from a very slight natural shake. Chest-up framing with the face centered and a little headroom. Never an arm's-length selfie: no arm or hand reaching toward the lens. Woman late 20s, wavy blonde hair, green-and-white striped top, dark sunglasses she pushes up, hyped and deadpan, expressive hand points, AI presenter, not a copy of the original, in Bright home room, daytime window light, a floral mug within reach. A single full-frame shot of the presenter only: no split screen, no inset, no subtitles or captions, no on-screen graphics, cards or text of any kind. She says, in a natural, conversational voice with this delivery: Hyped and conspiratorial in the intro, then flat, imperative and instructional ('First… Copy it, then… Paste in…'). The woman reacts silently with deadpan looks, finger points and a mug sip.: \"You approve anything that costs money. Go to usenaive.ai, link in bio, and click Deploy on Naïve Short Form v1.\" The voice is the same in every shot of this video: same person, same pitch, same energy. Speak at a relaxed, natural pace with normal pauses; the words must be fully said before the clip ends. Keep the action small and natural: talking to camera, a slight smile, a small nod, a raised eyebrow, leaning back. No pointing, no thumbs-up, no gestures toward the lens, no fast head turns, hands low and relaxed or out of frame. Eyes on the lens while talking. Audio: voice close to the microphone, quiet room tone, no music. Photorealistic, natural skin texture with pores, natural teeth and eyes, realistic hands. No on-screen text, no captions, no logos, no readable screens or monitors facing the camera; any laptop is closed or seen from behind."
-              }
-            ],
-            "broll": [
-              {
-                "beat": 2,
-                "visual_id": "s1",
-                "motion": "zoom_in"
-              },
-              {
-                "beat": 3,
-                "visual_id": "screen:b3",
-                "motion": "none"
-              },
-              {
-                "beat": 4,
-                "visual_id": "screen:b4",
-                "motion": "none"
-              },
-              {
-                "beat": 5,
-                "visual_id": "screen:b5",
-                "motion": "none"
-              },
-              {
-                "beat": 6,
-                "visual_id": "screen:b6",
-                "motion": "none"
-              },
-              {
-                "beat": 7,
-                "visual_id": "screen:b7",
-                "motion": "none"
-              },
-              {
-                "beat": 8,
-                "visual_id": "screen:b8",
-                "motion": "none"
-              }
-            ],
-            "voiceover": null,
-            "screens": [
-              {
-                "id": "b3",
-                "brief": "Show what this line says as one clear on-screen graphic: \"And trust me, you're gonna wanna see this.\". Use the product's real names, commands, numbers and UI from the brief, and nothing the line does not say. It may build on this real visual: naïve brand card: 'Build Your Dream Company with Agents', 'Pick a company template, deploy it, and watch an agent team run it.'.",
-                "line": "And trust me, you're gonna wanna see this.",
-                "seconds": 2,
-                "reference_visual": "Likely the same young-man close-up with the woman's cutout in the corner (between frames). This is a promise line that leads into the tutorial.; on-screen text: \"Unethical ways to make f*ck you money 💰 Part 67\"",
-                "size": "full"
-              },
-              {
-                "id": "b4",
-                "brief": "Clean browser window on a black background with white pixel-style monospace type, titled 'Naïve Studio'. A list of template cards appears row by row: 'Naive Short Form v1' with a Deploy button, 'Long Form v1' with Preview, 'Clipping v1' with Deploy, 'AI Music Channel', 'AI Influencer'. Each card shows Team, Tools, View Benchmark.",
-                "line": "First, open Naïve Studio in your browser. No terminal.",
-                "seconds": 3,
-                "reference_visual": "A phone-filmed shot of a monitor showing a Claude new-chat page in the browser, the screen angled and cropped. The woman is cut out in the bottom right, finger up to signal step one. The title text is gone.",
-                "size": "full"
-              },
-              {
-                "id": "b5",
-                "brief": "Same Studio template list. The cursor moves to the 'Naive Short Form v1' card and the card highlights.",
-                "line": "Pick it,",
-                "seconds": 1,
-                "reference_visual": "Close-up of the Claude reply to the prompt 'Generate me a $1 million online business idea.' Part of the answer is highlighted in blue for copying. The woman's cutout sits bottom right with a deadpan look.",
-                "size": "full"
-              },
-              {
-                "id": "b6",
-                "brief": "Close-up of the 'Naive Short Form v1' card. The cursor rests on the Deploy button and clicks it, and the button changes to a deploying state.",
-                "line": "then click Deploy on Naïve Short Form v1.",
-                "seconds": 2.5,
-                "reference_visual": "Phone-filmed monitor on the Polsia site (polsia.com/new). The camera tilts to the 'Let's build something.' page with 'Surprise me' and 'Build my idea' buttons, and the cursor rests on 'Build my idea' at about 16.8 s. The woman is cut out bottom right with a deadpan look.",
-                "size": "full"
-              },
-              {
-                "id": "b7",
-                "brief": "Screen recording of the deployed team's first session. Several agents work in parallel, with rows appearing one by one: 'Brief', 'Script', 'Generate video', 'Queued'. Each row's status ticks from working to done. A vertical video thumbnail appears at the end, labeled 'Queued for you'.",
-                "line": "Then watch the first session run. An agent team briefs, scripts and generates a short vertical video, and queues it for you.",
-                "seconds": 5.5,
-                "reference_visual": "The screen shows the generated business dashboard, with panels for Tasks, Twitter, Email, Ads, Media and Documents. At about 19.3 s the woman drinks from a floral mug, and by 21.9 s she is back to talking. The camera drifts slightly. The dashboard is shown as proof that the business is 'running'.",
-                "size": "full"
-              },
-              {
-                "id": "b8",
-                "brief": "Approvals queue in the Naïve starter app with an agent action showing 'Waiting for your approval' and a Deny button. It then cuts to the Studio card 'Naive Short Form v1' with the Deploy button highlighted and the text 'usenaive.ai' below.",
-                "line": "You approve anything that costs money. Go to usenaive.ai, link in bio, and click Deploy on Naïve Short Form v1.",
-                "seconds": 5.5,
-                "reference_visual": "The screen shows a generated landing page headlined 'The federal paperwork stack, automated.' on a dark red background with a product graphic. The woman points at the screen from the bottom right. The 'free' kicker line closes the video.",
-                "size": "full"
-              }
-            ]
-          },
+            "total_seconds": 22,
+            "beats": [],
+            "review": null
+          }
+        },
+        {
+          "title": "Gary the Potato Deploys a Company",
+          "format": "brainrot meme",
+          "hook": "POV: you can't afford a team",
+          "caption": "Gary the potato deploys a company. usenaive.ai",
+          "platforms": [
+            "tiktok",
+            "instagram",
+            "youtube"
+          ],
+          "inspired_by": [
+            "https://www.tiktok.com/@mommyyame1/video/7649489303176809741"
+          ],
+          "why": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
           "reference": {
-            "id": "ref_e30369e6df",
-            "url": "https://www.tiktok.com/@hustle.jordan99/video/7680915318243478814",
-            "author": "hustle.jordan99",
-            "views": 665729,
-            "followers": 6699,
-            "outlier": 99.38,
-            "format": "Green-screen reaction/commentary on a 'get rich' series ('Part 67'). A woman in a striped top is cut out over a young man's talking-to-camera clip, then over phone-filmed screen recordings that walk through a 3-step AI business tutorial.",
-            "hook_mechanic": "A hype introduction of a third party ('check this guy out', 'he knows what he's talking about') sets up a curiosity gap. A taboo-flavored series title ('Unethical ways… Part 67') adds a forbidden-shortcut promise and implies a long-running series. The playful sunglasses reveal gives the opening a visual pattern interrupt."
+            "id": "ref_b647769fbc",
+            "url": "https://www.tiktok.com/@mommyyame1/video/7649489303176809741",
+            "author": "mommyyame1",
+            "views": 81058835,
+            "followers": 234764,
+            "outlier": 345.3,
+            "format": "brainrot meme"
+          },
+          "brief": {
+            "format": "brainrot meme",
+            "role": "reach",
+            "title": "Gary the Potato Deploys a Company"
+          },
+          "script": {
+            "total_seconds": 37.4,
+            "beats": [],
+            "review": null
           }
         }
       ],
@@ -1498,7 +817,7 @@
         "inspired_by": [
           "https://www.tiktok.com/@mplentg/video/7667230797337873685"
         ],
-        "why": "Built on @mplentg's video from the scouts' research (644K views on 2K followers).",
+        "why": "Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves).",
         "reference": {
           "id": "ref_c0ed3cecfe",
           "url": "https://www.tiktok.com/@mplentg/video/7667230797337873685",
@@ -1547,7 +866,7 @@
         "inspired_by": [
           "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512"
         ],
-        "why": "Built on @zachhh.mp4's video from the scouts' research (1.3M views on 6K followers).",
+        "why": "3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves).",
         "reference": {
           "id": "ref_1a08c64bf9",
           "url": "https://www.tiktok.com/@zachhh.mp4/video/7686904096200117512",
@@ -1596,7 +915,7 @@
         "inspired_by": [
           "https://www.tiktok.com/@mommyyame1/video/7649489303176809741"
         ],
-        "why": "Built on @mommyyame1's video from the scouts' research (81.1M views on 235K followers).",
+        "why": "Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers).",
         "reference": {
           "id": "ref_b647769fbc",
           "url": "https://www.tiktok.com/@mommyyame1/video/7649489303176809741",
@@ -1653,6 +972,16 @@
       "message": "Scout: Most of the 99 results are off-topic (Duolingo, DDLC fanfic, Hermes bags, Cluely, college AI-checker jokes), and the big view counts there are not usable signal. The breakouts that matter are the Polsia videos (hustlewithmax37 at 138x followers, 0.99 saves/like; ai.willv at 243k views on 452 followers, \"cheat code for businesses\"), plus AI side-hustle clips that run on \"Claude\" and \"sidehustle\" tags (zachhh.mp4 at 212x, 0.82 saves/like). Polsia is the closest analogue to Naïve: an autonomous AI-run business pitched to solo operators. The only selling signal is colbyscales (\"fill out the form to work with me\", 0.79 saves/like, 9k followers), which is a lead-gen CTA for an AI automation service. Nothing yet covers Naïve, its named competitors, or an actual review or demo of an agent-company  Digging into \"polsia\" (tiktok), \"polsia review\" (tiktok), \"ai automation fill out the form\" (tiktok), \"claude side hustle\" (tiktok), \"ai agents run my business\" (youtube)"
     },
     {
+      "s": 105.7,
+      "level": "info",
+      "message": "Scout: format check, 3D \"what if\" simulation shorts are breaking out: @moon2animation 11.5M views, @simplysimulated 11.0M views, @doomsday.animations 9.1M views; on Instagram @wemakebuild's \"How a Tent Becomes a Five-Star Hotel\" has 1.2M plays on 120K followers. A code-made animation ad fits this campaign."
+    },
+    {
+      "s": 106.7,
+      "level": "info",
+      "message": "Scout: format check, brainrot memes break out on tiny accounts: @digitalcontentlab 102.8M views on 42K followers (2457x), @vickykyc_ 1.8M views on 1K followers (1222x). A meme ad fits too."
+    },
+    {
       "s": 113.8,
       "level": "info",
       "message": "Research done: 99 short videos to rank, 9 live ads, 5 Reddit threads, 8 keywords (39/42 sources)"
@@ -1693,6 +1022,11 @@
       "message": "The creative director is choosing which reference videos to transplant for 2 videos"
     },
     {
+      "s": 342.3,
+      "level": "info",
+      "message": "The creative director chose 3 videos, each on what the research found: \"Deploy it and watch the team work\" (realistic AI creator: Face-to-camera \"AI did the work, result first\" videos pull and get saved: @mplentg's \"I let AI run my side hustle\" (644K views on 1.8K followers, 19K saves)); \"A short-form channel in three steps\" (code ad (3D animation): 3D \"what if\" simulation shorts are breaking out (@moon2animation 11.5M views, @simplysimulated 11.0M; @wemakebuild 1.2M plays on 120K followers), so a code-made animation of @zachhh.mp4's three-step tutorial (1.3M views on 6.2K followers, 49K saves)); \"Gary the Potato Deploys a Company\" (brainrot meme: Brainrot breaks out (@digitalcontentlab 102.8M views on 42K followers), so a fruit-drama riff on @mommyyame1 (81.1M views on 235K followers))"
+    },
+    {
       "s": 1015,
       "level": "warn",
       "message": "A provider is busy at production (naive: the service is at capacity); retrying with backoff for up to about 30 minutes"
@@ -1721,16 +1055,6 @@
       "s": 4683,
       "level": "warn",
       "message": "A provider is busy at production (naive: the service is at capacity); retrying with backoff for up to about 3 hours"
-    },
-    {
-      "s": 106.7,
-      "level": "info",
-      "message": "Scout: format check, brainrot memes break out on tiny accounts: @digitalcontentlab 102.8M views on 42K followers (2457x), @vickykyc_ 1.8M views on 1K followers (1222x). A meme ad fits too."
-    },
-    {
-      "s": 105.7,
-      "level": "info",
-      "message": "Scout: format check, 3D \"what if\" simulation shorts are breaking out: @moon2animation 11.5M views, @simplysimulated 11.0M views, @doomsday.animations 9.1M views; on Instagram @wemakebuild's \"How a Tent Becomes a Five-Star Hotel\" has 1.2M plays on 120K followers. A code-made animation ad fits this campaign."
     },
     {
       "s": 13023.4,
