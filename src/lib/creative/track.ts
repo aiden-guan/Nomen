@@ -52,21 +52,21 @@ export const TRACKER_SCRIPT = join(process.cwd(), "scripts", "track-screen.py");
 
 /**
  * When to read the display's corners for the tracker: one read in every shot (a little after its
- * middle, away from the cut's blur), and one more every ~4 s in a long shot, at most `max` in all
- * (the longest shots lose their extras first, never their one read).
+ * middle, away from the cut's blur), and one more every ~2 s in a longer shot (each read that
+ * agrees with the flow re-anchors its stretch; between reads they are the fallback), at most `max`
+ * in all (the longest shots lose their extras first, never their one read).
  */
 export function shotReadTimes(span: { start: number; end: number }, cuts: number[], max = 24): number[] {
   const edges = [span.start, ...cuts.filter((c) => c > span.start + 0.2 && c < span.end - 0.2).sort((a, b) => a - b), span.end];
   const shots = edges.slice(1).map((end, i) => ({ start: edges[i], end }));
-  const firsts = shots.map((s) => round(s.start + (s.end - s.start) * 0.55, 2));
-  const extras = shots.flatMap((s) => {
-    const len = s.end - s.start;
-    const n = Math.floor(len / 4);
-    return Array.from({ length: n }, (_, k) => ({ t: round(s.start + (len * (k + 1)) / (n + 1) + 0.13, 2), len }));
-  });
+  const firsts = shots.map((s) => round(s.start + (s.end - s.start) * 0.55, 2)).slice(0, max);
+  // Shots of 3 s or more get a read about every 2 s; past the cap, every shot keeps the same share.
+  const wanted = shots.map((s) => (s.end - s.start >= 3 ? Math.floor((s.end - s.start) / 2) : 0));
   const room = Math.max(0, max - firsts.length);
-  const kept = extras.sort((a, b) => a.len - b.len || a.t - b.t).slice(0, room).map((e) => e.t);
-  return [...new Set([...firsts.slice(0, max), ...kept])].filter((t) => t > span.start && t < span.end).sort((a, b) => a - b);
+  const total = wanted.reduce((a, b) => a + b, 0);
+  const counts = total > room ? wanted.map((n) => Math.floor((n * room) / total)) : wanted;
+  const extras = shots.flatMap((s, i) => Array.from({ length: counts[i] }, (_, k) => round(s.start + ((s.end - s.start) * (k + 1)) / (counts[i] + 1) + 0.13, 2)));
+  return [...new Set([...firsts, ...extras])].filter((t) => t > span.start && t < span.end).sort((a, b) => a - b);
 }
 
 /** Cuts the scene detector's softer setting finds: a filmed screen often cuts between shots of the same room. */

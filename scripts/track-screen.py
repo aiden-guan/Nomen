@@ -142,32 +142,57 @@ def snap_edges(grey, quad):
     return out, moved
 
 
+def feature_grow(shape, quad):
+    """
+    How far past the display features are taken: a monitor filling the frame has texture enough on
+    and around its screen; a small device's display (a desk phone's) needs the device body around it
+    (keys, logo, bezel), which moves with it.
+    """
+    a, b = quad[2] - quad[0], quad[3] - quad[1]
+    area = abs(float(a[0] * b[1] - a[1] * b[0])) / 2
+    share = area / float(shape[0] * shape[1])
+    return 0.12 if share >= 0.08 else 0.7
+
+
+def flow_step(prev, cur, points, threshold):
+    """One optical-flow step with the forward-backward check: the points that held, and where they went."""
+    moved, status, _ = cv2.calcOpticalFlowPyrLK(prev, cur, points, None, winSize=(21, 21), maxLevel=3)
+    back, status_back, _ = cv2.calcOpticalFlowPyrLK(cur, prev, moved, None, winSize=(21, 21), maxLevel=3)
+    good = (status.ravel() == 1) & (status_back.ravel() == 1) & (np.linalg.norm(points - back, axis=2).ravel() < threshold)
+    return moved, good
+
+
 def track_run(frames, anchor_index, anchor_quad, indices, exclude=None):
     """
     The quad through `indices` (in order, starting next to the anchor), by optical flow on the
-    display and its bezel and a homography per step. `exclude(i)` gives frame i's mask of places
-    with no features to take (the reference's burned-in captions, which stay put while the display
-    moves). Returns {index: quad} and the inlier shares.
+    display and its bezel (a small device's body too) and a homography per step. `exclude(i)` gives
+    frame i's mask of places with no features to take (the reference's burned-in captions, which
+    stay put while the display moves). A step where too few points hold (motion blur, the display
+    lighting up) is tried again from fresh points with a looser check before giving up. Returns
+    {index: quad} and the inlier shares.
     """
     out = {}
     shares = []
     prev = frames[anchor_index]
     to_anchor = np.eye(3)
-    feature_mask = lambda i, quad: quad_mask(frames[i].shape, quad, 0.12) & ~exclude(i) if exclude else quad_mask(frames[i].shape, quad, 0.12)
-    mask = feature_mask(anchor_index, anchor_quad)
-    points = cv2.goodFeaturesToTrack(prev, maxCorners=500, qualityLevel=0.005, minDistance=6, mask=mask)
+    grow = feature_grow(prev.shape, anchor_quad)
+    feature_mask = lambda i, quad: quad_mask(frames[i].shape, quad, grow) & ~exclude(i) if exclude else quad_mask(frames[i].shape, quad, grow)
+    detect = lambda image, i, quad: cv2.goodFeaturesToTrack(image, maxCorners=600, qualityLevel=0.005, minDistance=6, mask=feature_mask(i, quad))
+    points = detect(prev, anchor_index, anchor_quad)
     last_quad = anchor_quad
     last_index = anchor_index
     for i in indices:
         cur = frames[i]
         if points is None or len(points) < 12:
-            mask = feature_mask(last_index, last_quad)
-            points = cv2.goodFeaturesToTrack(prev, maxCorners=500, qualityLevel=0.005, minDistance=6, mask=mask)
+            points = detect(prev, last_index, last_quad)
             if points is None or len(points) < 12:
                 return out, shares, f"lost the display at frame {i}"
-        moved, status, _ = cv2.calcOpticalFlowPyrLK(prev, cur, points, None, winSize=(21, 21), maxLevel=3)
-        back, status_back, _ = cv2.calcOpticalFlowPyrLK(cur, prev, moved, None, winSize=(21, 21), maxLevel=3)
-        good = (status.ravel() == 1) & (status_back.ravel() == 1) & (np.linalg.norm(points - back, axis=2).ravel() < 1.0)
+        moved, good = flow_step(prev, cur, points, 1.0)
+        if good.sum() < 10:
+            fresh = detect(prev, last_index, last_quad)
+            if fresh is not None and len(fresh) >= 12:
+                points = fresh
+                moved, good = flow_step(prev, cur, points, 2.0)
         if good.sum() < 10:
             return out, shares, f"too few points held at frame {i}"
         step, inliers = cv2.findHomography(points[good], moved[good], cv2.RANSAC, 1.5)
@@ -182,8 +207,7 @@ def track_run(frames, anchor_index, anchor_quad, indices, exclude=None):
         keep[good] = inliers.ravel() == 1
         points = moved[keep].reshape(-1, 1, 2)
         if len(points) < 120:
-            mask = feature_mask(i, quad)
-            fresh = cv2.goodFeaturesToTrack(cur, maxCorners=500, qualityLevel=0.005, minDistance=6, mask=mask)
+            fresh = detect(cur, i, quad)
             if fresh is not None:
                 points = np.concatenate([points, fresh]).astype(np.float32) if len(points) else fresh
         prev = cur
