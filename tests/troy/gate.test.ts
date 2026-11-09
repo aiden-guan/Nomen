@@ -53,8 +53,18 @@ describe("the proxy", () => {
     const home = await proxy(request("/"));
     expect(home.status).toBe(307);
     expect(new URL(home.headers.get("location")!).pathname).toBe("/gate");
-    const deep = await proxy(request("/camp/demo?x=1"));
-    expect(new URL(deep.headers.get("location")!).searchParams.get("next")).toBe("/camp/demo?x=1");
+    const deep = await proxy(request("/camp/brand_abc?x=1"));
+    expect(new URL(deep.headers.get("location")!).searchParams.get("next")).toBe("/camp/brand_abc?x=1");
+  });
+
+  it("keeps the demo public: its page, its recordings and videos, and the demo camp", async () => {
+    process.env.SITE_PASSWORD = PASSWORD;
+    for (const path of ["/demo", "/demo/index.json", "/demo/usenaive-ai/script.json", "/demo/usenaive-ai/1.mp4", "/camp/demo", "/camp/demo?site=usenaive.ai"]) {
+      expect((await proxy(request(path))).headers.get("x-middleware-next"), path).toBe("1");
+    }
+    // Everything else still needs the password: the live site, real camps, the workspace, the API.
+    for (const path of ["/", "/brands", "/settings", "/camp/brand_abc", "/camp/demo-copy", "/demox"]) expect((await proxy(request(path))).status, path).toBe(307);
+    for (const path of ["/api/brands", "/api/campaigns/cmp_1", "/api/phones/outreach"]) expect((await proxy(request(path))).status, path).toBe(401);
   });
 
   it("answers API calls with 401, and the app header's status call with a locked status", async () => {
