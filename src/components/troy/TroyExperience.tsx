@@ -26,6 +26,19 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
   const [site, setSite] = useState("");
+  // The demo opens only the websites it has a recording for (public/demo/index.json).
+  const [demoSites, setDemoSites] = useState<string[]>([]);
+  useEffect(() => {
+    if (!demoOnly) return;
+    let alive = true;
+    fetch("/demo/index.json", { cache: "no-cache" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((index: { scripts?: Array<{ domain?: string }> } | null) => alive && setDemoSites((index?.scripts ?? []).map((s) => s.domain ?? "").filter(Boolean)))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [demoOnly]);
   /** The website the demo replays, as typed at the horse (the camp mounts before the address says it). */
   const [demoSite, setDemoSite] = useState<string | null>(null);
   const [shakeKey, setShakeKey] = useState(0);
@@ -148,8 +161,9 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
       const e = engine.current;
       if (!e || phase === "submitting" || phase === "opening" || phase === "marching") return;
       const checked = normalizeSite(site);
-      if ("error" in checked) {
-        setError(checked.error);
+      const notInDemo = demoOnly && demoSites.length > 0 && !("error" in checked) && !demoSites.includes(checked.domain);
+      if ("error" in checked || notInDemo) {
+        setError("error" in checked ? checked.error : `This demo replays ${list(demoSites)}: type ${demoSites.length === 1 ? "it" : "one of them"} to open the gates.`);
         setShakeKey((k) => k + 1);
         e.landing.rattle();
         return;
@@ -182,7 +196,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
         setShakeKey((k) => k + 1);
       }
     },
-    [phase, site, reducedMotion, demoOnly],
+    [phase, site, reducedMotion, demoOnly, demoSites],
   );
 
   const busy = phase === "submitting";
@@ -229,7 +243,7 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
                   setSite(event.target.value);
                   if (error) setError(null);
                 }}
-                placeholder="yourcompany.com"
+                placeholder={demoOnly ? (demoSites[0] ?? "") : "yourcompany.com"}
                 inputMode="url"
                 autoComplete="url"
                 autoCapitalize="none"
@@ -254,7 +268,11 @@ export function TroyExperience({ initialView, brandId: initialBrandId, demoOnly 
               </button>
             </div>
             <p id="troy-site-hint" className="mt-4 text-center text-[13px] leading-relaxed text-[var(--ink-soft)]">
-              {demoOnly && <span className="block text-[12px] text-[var(--ink-faint)]">This is the demo: the camp replays a finished campaign, so nothing is spent.</span>}
+              {demoOnly && (
+                <span className="block text-[12px] text-[var(--ink-faint)]">
+                  This is the demo: the camp replays {demoSites.length ? `the finished campaign for ${list(demoSites)}` : "a finished campaign"}, so nothing is spent.
+                </span>
+              )}
               <a href={demoOnly ? "/camp/demo" : "/demo"} className={`${styles.link} ${styles.pixel} mt-2 inline-block text-[13px] underline decoration-dotted underline-offset-4`}>
                 {demoOnly ? "Or skip straight to the camp →" : "Or try the demo, which spends nothing →"}
               </a>
@@ -375,4 +393,7 @@ export function stageWord(stage: string, status: string) {
   return { research: "scouting", style: "studying", strategy: "planning", production: "filming", review: "review", live: "live" }[stage] ?? stage;
 }
 
-
+/** "a", "a or b", "a, b or c". */
+function list(items: string[]) {
+  return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} or ${items[items.length - 1]}`;
+}

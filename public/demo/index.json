@@ -4,15 +4,7 @@
     {
       "id": "usenaive-ai",
       "domain": "usenaive.ai",
-      "name": "Naïve",
-      "aliases": [
-        "naive.ai"
-      ]
-    },
-    {
-      "id": "monid-ai",
-      "domain": "monid.ai",
-      "name": "Monid"
+      "name": "Naïve"
     }
   ]
 }
