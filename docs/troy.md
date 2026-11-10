@@ -168,7 +168,7 @@ set, so local development is unchanged.
 
 | Variable | Effect |
 | --- | --- |
-| `SITE_PASSWORD` | `src/proxy.ts` sends every page to `/gate` until the browser has the cookie. API calls get a 401. The cookie holds a SHA-256 hash of the password, never the password, and lasts 30 days. Changing the password logs every browser out. |
+| `SITE_PASSWORD` | `src/proxy.ts` keeps the demo public (`/demo`, `/demo/...`, `/camp/demo`) and sends `/` to `/demo` and every other page to `/gate` until the browser has the cookie; signing in at `/gate` opens the live site. API calls get a 401. The cookie holds a SHA-256 hash of the password, never the password, and lasts 30 days. Changing the password logs every browser out. |
 | `NOMEN_DEMO_ONLY=1` | Forces the demo, even where campaigns could run. Not needed on Vercel: there `/` forwards to `/demo` by itself until Convex is connected (`src/lib/live.ts`). The proxy switches the API off (404), except `/api/status`, which answers "demo build" for the core's header. Nothing on the server opens the database or calls a provider. |
 
 The Vercel project `nomen` (`nomen-phi.vercel.app`) sets the password in its environment variables

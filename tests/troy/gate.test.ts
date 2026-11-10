@@ -48,11 +48,11 @@ describe("the proxy", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("sends pages to the gate, keeping where the visitor was going", async () => {
+  it("sends the front door to the demo and other pages to the gate, keeping where the visitor was going", async () => {
     process.env.SITE_PASSWORD = PASSWORD;
     const home = await proxy(request("/"));
     expect(home.status).toBe(307);
-    expect(new URL(home.headers.get("location")!).pathname).toBe("/gate");
+    expect(new URL(home.headers.get("location")!).pathname).toBe("/demo");
     const deep = await proxy(request("/camp/brand_abc?x=1"));
     expect(new URL(deep.headers.get("location")!).searchParams.get("next")).toBe("/camp/brand_abc?x=1");
   });
@@ -63,7 +63,11 @@ describe("the proxy", () => {
       expect((await proxy(request(path))).headers.get("x-middleware-next"), path).toBe("1");
     }
     // Everything else still needs the password: the live site, real camps, the workspace, the API.
-    for (const path of ["/", "/brands", "/settings", "/camp/brand_abc", "/camp/demo-copy", "/demox"]) expect((await proxy(request(path))).status, path).toBe(307);
+    for (const path of ["/brands", "/settings", "/camp/brand_abc", "/camp/demo-copy", "/demox"]) {
+      const response = await proxy(request(path));
+      expect(response.status, path).toBe(307);
+      expect(new URL(response.headers.get("location")!).pathname, path).toBe("/gate");
+    }
     for (const path of ["/api/brands", "/api/campaigns/cmp_1", "/api/phones/outreach"]) expect((await proxy(request(path))).status, path).toBe(401);
   });
 
